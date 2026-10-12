@@ -351,6 +351,14 @@ export class NeedsAnalysisService {
         );
         const created = await this.repository.create(document);
         await this.companiesService.setAbId(company.id, id);
+        // Brouillon publié dans le matching : offres créées sans envoi en
+        // signature, statut BROUILLON conservé (affiché « Non envoyée »).
+        // Hors du chemin critique : on log mais on ne fait pas échouer la création.
+        if (data.isVisibleInMatching) {
+            await this.createOffersAndNotifyRh(created, id, company.name || 'Entreprise').catch((err) => {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+            });
+        }
         logger.info({ id, status: created.status }, '[NeedsAnalysis] create() complete');
         return toNeedsAnalysis(created);
     }
@@ -465,10 +473,14 @@ export class NeedsAnalysisService {
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.
+        // Un brouillon déjà publié dans le matching a ses offres : pas de doublon.
         if (wasDraft) {
-            await this.createOffersAndNotifyRh(doc, analysis.id, company.name || 'Entreprise').catch((err) => {
-                logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
-            });
+            const existingOffers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (existingOffers.length === 0) {
+                await this.createOffersAndNotifyRh(doc, analysis.id, company.name || 'Entreprise').catch((err) => {
+                    logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                });
+            }
         }
 
         const updated = await this.repository.findById(id);
@@ -683,6 +695,7 @@ export class NeedsAnalysisService {
             trainingDays: data.trainingDays ?? existing.training_days,
             yousignSignatureRequestID: data.yousignSignatureRequestID ?? existing.signature_request_id ?? null,
             status: data.status ?? existing.status,
+            isVisibleInMatching: data.isVisibleInMatching ?? (existing as any).is_visible_in_matching ?? false,
         };
 
         if (!companyID) {
@@ -702,9 +715,31 @@ export class NeedsAnalysisService {
         }
 
         // L'AB n'a d'offres que si elle a déjà été envoyée en signature au moins une
-        // fois : dans ce cas, on répercute les changements de poste sur les offres
-        // existantes en préservant leur id stable et leur état de matching.
+        // fois (ou publiée dans le matching à l'état brouillon) : dans ce cas, on
+        // répercute les changements de poste sur les offres existantes en
+        // préservant leur id stable et leur état de matching.
         await this.syncOffers(id, updated);
+
+        // Publication vers le matching (brouillon rendu visible sans envoi) :
+        // crée les offres si elles n'existent pas encore. Dépublier supprime
+        // les offres (best-effort) : l'AB redevient un simple brouillon.
+        const wasVisible = !!(existing as any).is_visible_in_matching;
+        const nowVisible = !!merged.isVisibleInMatching;
+        if (nowVisible && !wasVisible) {
+            const offers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (offers.length === 0) {
+                await this.createOffersAndNotifyRh(updated, id, company.name || 'Entreprise').catch((err) => {
+                    logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                });
+            }
+        } else if (!nowVisible && wasVisible) {
+            try {
+                const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
+                logger.info({ id, removed }, '[NeedsAnalysis] offers cleared (unpublished from matching)');
+            } catch (err) {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers on unpublish');
+            }
+        }
 
         // L'ajout/retrait de postes peut réactiver une AB archivée (retour à ACTIVE).
         await this.refreshActivationStamp(id, before);
@@ -814,6 +849,64 @@ export class NeedsAnalysisService {
             throw new Error('Needs analysis not found after update');
         }
         logger.info({ id, disabled }, '[NeedsAnalysis] relance disabled toggled');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Publie un brouillon dans le matching (crée ses offres, sans envoi en
+     * signature — l'AB reste BROUILLON, affichée « Non envoyée ») ou l'en
+     * retire (supprime ses offres, best-effort). Réservé aux AB BROUILLON :
+     * une AB déjà envoyée/signée est déjà matchable.
+     */
+    async setMatchingVisibility(id: string, visible: boolean): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (existing.is_deleted) {
+            throw new Error('Cannot change matching visibility on a deleted needs analysis');
+        }
+        if (existing.status !== NeedsAnalysisStatus.BROUILLON) {
+            throw new Error('Only draft needs analyses can be published to matching');
+        }
+        const before = await this.getAbStatus(id);
+        await this.repository.update(id, { is_visible_in_matching: visible } as any);
+        if (visible) {
+            const offers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (offers.length === 0) {
+                const doc = await this.repository.findById(id);
+                if (doc) {
+                    const companyName =
+                        doc.company_infos?.name ??
+                        (doc.company_infos?.id
+                            ? await this.companiesService
+                                  .findById(doc.company_infos.id)
+                                  .then((c) => c?.name)
+                                  .catch(() => null)
+                            : null) ??
+                        'Entreprise';
+                    await this.createOffersAndNotifyRh(doc, id, companyName).catch((err) => {
+                        logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                    });
+                }
+            }
+        } else {
+            try {
+                const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
+                logger.info({ id, removed }, '[NeedsAnalysis] offers cleared (unpublished from matching)');
+            } catch (err) {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers on unpublish');
+            }
+        }
+        await this.refreshActivationStamp(id, before);
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, visible }, '[NeedsAnalysis] matching visibility updated');
         return toNeedsAnalysis(updated);
     }
 

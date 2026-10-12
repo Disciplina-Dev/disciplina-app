@@ -299,6 +299,9 @@ export const typeDefs = gql`
         status: NeedsAnalysisStatus!
         abStatus: AbStatus!
         isRelanceDisabled: Boolean!
+        # Brouillon rendu visible dans le matching sans envoi en signature
+        # (affiché « Non envoyée », matché comme une AB non signée).
+        isVisibleInMatching: Boolean!
         administrationType: AdministrationType!
         tags: [String!]
         # Pastille couleur manuelle du suivi entreprise. Null = automatique
@@ -335,6 +338,7 @@ export const typeDefs = gql`
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus
         tags: [String!]
+        isVisibleInMatching: Boolean
     }
 
     type AbDriveFolder {
@@ -418,6 +422,9 @@ export const typeDefs = gql`
         updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
         # Désactive/réactive la relance automatique de signature (non destructif, garde l'AB et ses offres).
         setAbRelanceDisabled(id: ID!, disabled: Boolean!): NeedsAnalysis!
+        # Rend un brouillon visible dans le matching (crée ses offres, sans envoi
+        # en signature) ou l'en retire (supprime ses offres). Réservé aux AB BROUILLON.
+        setNeedsAnalysisMatchingVisibility(id: ID!, visible: Boolean!): NeedsAnalysis!
         # Pose la pastille couleur manuelle du suivi entreprise (annuaire RH) ;
         # indicator à null la réinitialise à la couleur automatique dérivée.
         updateNeedsAnalysisIndicator(id: ID!, indicator: CompanyIndicator): NeedsAnalysis!

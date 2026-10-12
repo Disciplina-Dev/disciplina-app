@@ -211,6 +211,12 @@ export interface NeedsAnalysis {
     // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
     // d'être retirée — on conserve le document pour l'historique.
     is_deleted?: boolean;
+    /**
+     * Brouillon rendu visible dans le matching sans envoi en signature.
+     * L'AB reste BROUILLON (affichée « Non envoyée ») mais ses offres de
+     * matching sont créées : elle se comporte comme une AB non signée.
+     */
+    is_visible_in_matching?: boolean;
     /** Type d'administration de l'entreprise : publique, privée ou non renseigné (défaut rétrocompat). */
     administration_type?: AdministrationType | null;
     /**
@@ -250,4 +256,6 @@ export interface NeedsAnalysisWriteInput {
     status?: NeedsAnalysisStatus;
     tags?: string[];
     createdAt?: string;
+    /** Rend le brouillon visible dans le matching (offres créées, statut BROUILLON conservé). */
+    isVisibleInMatching?: boolean;
 }

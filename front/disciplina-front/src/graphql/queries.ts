@@ -1751,6 +1751,7 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
       }
       positionsCount
       status
+      isVisibleInMatching
       isRelanceDisabled
       createdAt
     }
@@ -1765,6 +1766,7 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         node {
           id
           status
+          isVisibleInMatching
           abStatus
           positionsCount
           createdAt
@@ -1951,6 +1953,7 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      isVisibleInMatching
       abStatus
       isRelanceDisabled
       administrationType
@@ -2053,6 +2056,16 @@ export const SET_AB_RELANCE_DISABLED = gql`
       id
       status
       isRelanceDisabled
+    }
+  }
+`
+
+export const SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY = gql`
+  mutation SetNeedsAnalysisMatchingVisibility($id: ID!, $visible: Boolean!) {
+    setNeedsAnalysisMatchingVisibility(id: $id, visible: $visible) {
+      id
+      status
+      isVisibleInMatching
     }
   }
 `

@@ -34,6 +34,7 @@ import {
   UPDATE_NEEDS_ANALYSIS_AB_STATUS,
   UPDATE_NEEDS_ANALYSIS_INDICATOR,
   SET_AB_RELANCE_DISABLED,
+  SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
@@ -1042,6 +1043,21 @@ export function useSetAbRelanceDisabled() {
   }
 
   return { setAbRelanceDisabled, result }
+}
+
+export function useSetNeedsAnalysisMatchingVisibility() {
+  const [result, executeMutation] = useMutation(SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY)
+
+  const setMatchingVisibility = (id: string, visible: boolean) => {
+    return executeMutation({ id, visible }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('setNeedsAnalysisMatchingVisibility failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { setMatchingVisibility, result }
 }
 
 export function useUpdateNeedsAnalysis() {
