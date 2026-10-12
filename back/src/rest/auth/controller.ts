@@ -87,11 +87,12 @@ export async function login(req: AuthRequest, res: Response): Promise<void> {
             res.status(400).json({ error: 'Invalid region: must be "reunion" or "annemasse"' });
             return;
         }
-        const { accessToken, refreshToken, user, region: userRegion } = await userService.login(
-            email,
-            passwordPlain,
-            isRegion(region) ? region : env.DB_DEFAULT_TENANT,
-        );
+        const {
+            accessToken,
+            refreshToken,
+            user,
+            region: userRegion,
+        } = await userService.login(email, passwordPlain, isRegion(region) ? region : env.DB_DEFAULT_TENANT);
         setAuthCookies(res, accessToken, refreshToken, issueCsrfCookie());
         res.json({ user: toUserResponse(user, userRegion) });
     } catch (error: any) {
@@ -256,8 +257,9 @@ export async function generateGoogleUri(req: AuthRequest, res: Response): Promis
     try {
         const targetUserId =
             req.body?.userId && req.user.permission === Permission.ADMIN ? req.body.userId : req.user.id;
-        const state = signGoogleState(targetUserId, getRegion());
-        const url = googleOAuth.generateAuthUrl(state);
+        const region = getRegion();
+        const state = signGoogleState(targetUserId, region);
+        const url = googleOAuth.generateAuthUrl(state, region);
         res.json({ url });
     } catch (error: any) {
         res.status(500).json({ error: error.message });
@@ -303,7 +305,9 @@ export async function handleGoogleToken(req: AuthRequest, res: Response): Promis
         // Route non authentifiée (pas de JWT) → la région ne peut venir que du state.
         // On la re-établit dans l'ALS pour que l'écriture des tokens cible la bonne base.
         await syncWithRegion(result.region, async () => {
-            const tokens = await googleOAuth.exchangeCode(code);
+            // Le code doit être échangé avec le même client GCP que celui qui a
+            // généré l'URL de consentement (même client_id), d'où la région explicite.
+            const tokens = await googleOAuth.exchangeCode(code, result.region);
             await userService.updateGoogleTokens(
                 result.userId,
                 tokens.access_token ?? null,

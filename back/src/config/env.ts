@@ -179,6 +179,12 @@ const data = {
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
     GOOGLE_REDIRECT_URI: stringWithDefault('GOOGLE_REDIRECT_URI', 'http://localhost:5173/auth/google'),
+    // Second GCP OAuth client for the Annemasse tenant (distinct consent screen /
+    // quota / revocation boundary). Empty = fallback to the Réunion client above,
+    // so single-app deployments keep working with zero config change.
+    GOOGLE_ANNEMASSE_CLIENT_ID: optionalString('GOOGLE_ANNEMASSE_CLIENT_ID'),
+    GOOGLE_ANNEMASSE_CLIENT_SECRET: optionalString('GOOGLE_ANNEMASSE_CLIENT_SECRET'),
+    GOOGLE_ANNEMASSE_REDIRECT_URI: optionalString('GOOGLE_ANNEMASSE_REDIRECT_URI'),
 
     FILIZ_CLIENT_ID: requireStringWithCIFallback('FILIZ_CLIENT_ID', 'ci-filiz-client-id'),
     FILIZ_CLIENT_SECRET: requireStringWithCIFallback('FILIZ_CLIENT_SECRET', 'ci-filiz-secret'),
