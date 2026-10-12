@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   ResponsiveContainer,
@@ -15,9 +16,9 @@ import {
 } from 'recharts';
 import { IconAlert, IconBell, IconChevronDown, IconClose, IconCompany, IconJob, IconLoader, IconRefresh, IconSearch, IconSignature, IconUsers } from '@/components/ui/icons'
 import { useCurrentUser, Permission } from '@/store/authStore';
-import { useCandidateStats, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
-import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY } from '@/graphql/queries';
-import { offerGraphqlClient } from '@/graphql/client';
+import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, useUpdateNeedsAnalysisIndicator, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY, GET_OFFERS_IMMERSION_MAP, GET_IMMERSING_CANDIDATES_MAP } from '@/graphql/queries';
+import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
@@ -25,6 +26,7 @@ import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS
 import { SECTEUR_LABELS, SECTEUR_KEYS, userSecteursForRegion, type SecteurKey } from '@/constants/secteurs';
 import { useRegionStore } from '@/store/regionStore';
 import { Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
+import { getTrialPeriodStatus } from '@/utils/trialPeriod';
 import ChipGroup from '@/components/ui/ChipGroup'
 
 // --- Charte graphique (cf. index.css) ---
@@ -140,14 +142,22 @@ function KpiCard({
   label,
   value,
   accent,
+  onClick,
 }: {
   icon: typeof IconUsers;
   label: string;
   value: number;
   accent: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+      className={`flex items-center gap-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm${onClick ? ' cursor-pointer transition hover:border-[var(--ds-border-strong)] hover:shadow-md' : ''}`}
+    >
       <div
         className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: `${accent}14`, color: accent }}
@@ -172,6 +182,151 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 }
 
 const DIRECTORY_PAGE_SIZE = 500;
+
+const CONTRACTED_PAGE_SIZE = 500;
+
+function TrialStatusBadge({ trialEndDate }: { trialEndDate?: string }) {
+  const status = getTrialPeriodStatus(trialEndDate);
+  if (status === 'done') {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
+        Période d'essai terminée
+      </span>
+    );
+  }
+  if (status === 'ongoing') {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-warning-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-warning)] ring-1 ring-inset ring-amber-200">
+        En période d'essai
+      </span>
+    );
+  }
+  return <span className="text-xs text-[var(--ds-text-subtle)]">—</span>;
+}
+
+/**
+ * Liste des candidats en contrat, avec le statut de leur période d'essai
+ * (45 jours ouvrés depuis le début du contrat). Triée par fin d'essai
+ * croissante (sans date en dernier).
+ */
+function ContractedCandidatesModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const { candidates, totalCount, loading, error, refetch } = useCandidatesPage(
+    CONTRACTED_PAGE_SIZE,
+    undefined,
+    undefined,
+    { status: CandidateStatus.CONTRACT },
+  );
+
+  const rows = useMemo(() => {
+    const timeOf = (iso?: string) => {
+      if (!iso) return Number.MAX_SAFE_INTEGER;
+      const t = new Date(iso).getTime();
+      return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+    };
+    return [...candidates].sort((a, b) => {
+      const diff = timeOf(a.contract_trial_end_date) - timeOf(b.contract_trial_end_date);
+      if (diff !== 0) return diff;
+      return (a.identity.full_name ?? '').localeCompare(b.identity.full_name ?? '', 'fr');
+    });
+  }, [candidates]);
+
+  const ongoingCount = useMemo(
+    () => candidates.filter((c) => getTrialPeriodStatus(c.contract_trial_end_date) === 'ongoing').length,
+    [candidates],
+  );
+  const doneCount = useMemo(
+    () => candidates.filter((c) => getTrialPeriodStatus(c.contract_trial_end_date) === 'done').length,
+    [candidates],
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Candidats en contrat">
+      <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
+      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-5 py-4">
+          <div>
+            <h2 className="text-base font-bold text-[var(--ds-text)]">Candidats en contrat</h2>
+            <p className="text-xs text-[var(--ds-text-subtle)]">
+              {rows.length} candidat{rows.length > 1 ? 's' : ''} · {ongoingCount} en période d'essai · {doneCount} terminée{doneCount > 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
+            title="Fermer"
+          >
+            <IconClose width={18} height={18} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {loading && rows.length === 0 ? (
+            <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+              <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des candidats…
+            </div>
+          ) : error ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-[var(--ds-danger)]">
+              <p className="font-medium">Erreur de chargement des candidats</p>
+              <button
+                onClick={() => refetch()}
+                className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
+              >
+                <IconRefresh width={16} height={16} /> Réessayer
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="py-12 text-center text-sm text-[var(--ds-text-subtle)]">
+              Aucun candidat en contrat.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">Candidat</th>
+                      <th className="px-4 py-2.5 font-semibold">Entreprise</th>
+                      <th className="px-4 py-2.5 font-semibold">Début</th>
+                      <th className="px-4 py-2.5 font-semibold">Fin de période d'essai</th>
+                      <th className="px-4 py-2.5 font-semibold">Session</th>
+                      <th className="px-4 py-2.5 font-semibold">Statut essai</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--ds-border)]">
+                    {rows.map((candidate) => (
+                      <tr
+                        key={candidate._id}
+                        onClick={() => navigate(`/rh/candidats/${candidate._id}`)}
+                        className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
+                        title="Ouvrir la fiche candidat"
+                      >
+                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{candidate.identity.full_name}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.contract_company_name ?? '—'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.contract_start_date)}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.contract_trial_end_date)}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.contract_session_name ?? '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <TrialStatusBadge trialEndDate={candidate.contract_trial_end_date} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalCount > CONTRACTED_PAGE_SIZE && (
+                <p className="mt-3 text-xs text-[var(--ds-text-subtle)]">
+                  Liste limitée aux {CONTRACTED_PAGE_SIZE} premiers candidats — affinez la recherche depuis la page Candidats.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function primaryTp(analysis: NeedsAnalysis): string | null {
   const tps = analysisTps(analysis);
@@ -210,6 +365,7 @@ interface DirectoryHistoryEntry {
   id: string;
   firstName?: string | null;
   lastName?: string | null;
+  ownerEmail?: string | null;
   text: string;
   createdAt: string;
 }
@@ -278,9 +434,265 @@ function AbActiveBadge({ status }: { status?: string | null }) {
  * Annuaire des entreprises issues des analyses de besoin.
  * Tri : TP (ordre canonique AD, CC, NTC, REM, SA) puis date d'activation croissante.
  */
+
+/** Localisations uniques d'une AB (postes), libellées pour affichage. */
+function analysisLocalisations(analysis: NeedsAnalysis): string[] {
+  const raw = (analysis.positions ?? []).flatMap((p) => p.localisation ?? []);
+  return [...new Set(raw.filter(Boolean) as string[])].sort();
+}
+
+function formatLocalisationCell(analysis: NeedsAnalysis): string {
+  const locs = analysisLocalisations(analysis).map((l) => formatEnumLabel(l));
+  const commune = analysis.companyInfos?.commune?.trim();
+  if (commune && !locs.some((l) => l.toLowerCase() === commune.toLowerCase())) {
+    locs.push(commune);
+  }
+  return locs.length > 0 ? locs.join(', ') : '—';
+}
+
+function commercialLabel(analysis: NeedsAnalysis): string {
+  return analysis.salerInfo?.email?.trim() || '—';
+}
+
+type IndicatorColor = 'WHITE' | 'YELLOW' | 'GREEN' | 'ORANGE' | 'RED';
+
+const INDICATOR_ORDER: IndicatorColor[] = ['WHITE', 'YELLOW', 'GREEN', 'ORANGE', 'RED'];
+
+const INDICATOR_DOT: Record<IndicatorColor, string> = {
+  WHITE: 'bg-white border-gray-300',
+  YELLOW: 'bg-yellow-400 border-yellow-500',
+  GREEN: 'bg-green-500 border-green-600',
+  ORANGE: 'bg-orange-400 border-orange-500',
+  RED: 'bg-red-500 border-red-600',
+};
+
+const INDICATOR_LABELS: Record<IndicatorColor, string> = {
+  WHITE: 'Défaut',
+  YELLOW: 'Mandat signé',
+  GREEN: 'Immersion en cours',
+  ORANGE: 'À surveiller',
+  RED: 'Urgent',
+};
+
+/** Couleur automatique : immersion en cours → vert, mandat signé → jaune, sinon blanc. */
+function autoIndicatorColor(status?: string | null, hasImmersion = false): IndicatorColor {
+  if (hasImmersion) return 'GREEN';
+  if (status === 'SIGNE') return 'YELLOW';
+  return 'WHITE';
+}
+
+/**
+ * Pastille de suivi devant le nom de l'entreprise. Affiche la couleur manuelle
+ * posée, sinon la couleur automatique dérivée. Un clic ouvre la palette de
+ * choix (5 couleurs + retour à l'automatique), partagée avec toute l'équipe.
+ */
+function CompanyIndicatorDot({
+  analysisId,
+  status,
+  serverIndicator,
+  hasImmersion,
+}: {
+  analysisId: string;
+  status?: string | null;
+  serverIndicator?: string | null;
+  hasImmersion: boolean;
+}) {
+  const { updateIndicator } = useUpdateNeedsAnalysisIndicator();
+  // `undefined` = suit la valeur serveur ; sinon valeur optimiste en attente.
+  const [override, setOverride] = useState<IndicatorColor | null | undefined>(undefined);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [saveError, setSaveError] = useState(false);
+
+  const server = (serverIndicator as IndicatorColor | null) ?? null;
+  // Pas d'effet de resynchronisation : le parent remonte ce composant via
+  // `key` quand la valeur serveur change (refetch, collègue), ce qui
+  // réinitialise l'optimiste sans setState dans un effet.
+
+  const manual = override !== undefined ? override : server;
+  const auto = autoIndicatorColor(status, hasImmersion);
+  const effective = manual ?? auto;
+
+  useEffect(() => {
+    if (!menuPos) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuPos(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuPos]);
+
+  const choose = (color: IndicatorColor | null) => {
+    setMenuPos(null);
+    setOverride(color);
+    setSaveError(false);
+    updateIndicator(analysisId, color).then((res) => {
+      if (res.error) {
+        setOverride(undefined);
+        setSaveError(true);
+      }
+    });
+  };
+
+  const openMenu = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuPos({
+      top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 330)),
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 248)),
+    });
+  };
+
+  const hint = `${INDICATOR_LABELS[effective]}${manual ? ' (manuel)' : ' (automatique)'} — cliquer pour changer${saveError ? ' — échec d’enregistrement, réessayez' : ''}`;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={openMenu}
+        title={hint}
+        aria-label={`Pastille de suivi : ${hint}`}
+        className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 shadow-sm transition hover:scale-125 ${INDICATOR_DOT[effective]}${saveError ? ' outline-2 outline-offset-1 outline-red-500' : ''}`}
+      />
+      {menuPos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[60] cursor-default" onClick={() => setMenuPos(null)} />
+          <div
+            role="menu"
+            aria-label="Choisir la pastille de suivi"
+            onClick={(e) => e.stopPropagation()}
+            style={{ top: menuPos.top, left: menuPos.left }}
+            className="fixed z-[61] w-60 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-2 shadow-xl"
+          >
+            <p className="px-2 pb-1 pt-1 text-xs font-bold text-[var(--ds-text)]">Pastille de suivi</p>
+            <p className="px-2 pb-2 text-[11px] text-[var(--ds-text-subtle)]">Manuelle — visible par toute l’équipe.</p>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => choose(null)}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[var(--ds-surface-sunken)]"
+            >
+              <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 border-dashed border-gray-400 ${manual ? '' : 'ring-2 ring-blue ring-offset-1'}`} title="Automatique" />
+              <span className="min-w-0 flex-1">
+                <span className={`block font-semibold text-[var(--ds-text)] ${manual ? '' : 'underline underline-offset-2'}`}>Automatique</span>
+                <span className="block truncate text-[11px] text-[var(--ds-text-subtle)]">Actuellement : {INDICATOR_LABELS[auto]}</span>
+              </span>
+            </button>
+            {INDICATOR_ORDER.map((color) => (
+              <button
+                key={color}
+                type="button"
+                role="menuitem"
+                onClick={() => choose(color)}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-xs transition hover:bg-[var(--ds-surface-sunken)]"
+              >
+                <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 ${INDICATOR_DOT[color]} ${manual === color ? 'ring-2 ring-blue ring-offset-1' : ''}`} />
+                <span className={`min-w-0 flex-1 truncate text-[var(--ds-text-muted)] ${manual === color ? 'font-bold text-[var(--ds-text)] underline underline-offset-2' : ''}`}>
+                  {INDICATOR_LABELS[color]}
+                </span>
+              </button>
+            ))}
+            {saveError && (
+              <p className="px-2 pb-1 pt-1 text-[11px] font-medium text-[var(--ds-danger)]">Échec d’enregistrement — réessayez.</p>
+            )}
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { items, pageInfo, loading, error, refetch } = useNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
+  // Candidats en immersion par analyse de besoin (Oui/Non + noms).
+  // Source 1 : offres liées (statut IMMERSING côté matching).
+  // Source 2 : fiches candidats en immersion rattachées via immersionCompanyId.
+  const [immersionByAnalysis, setImmersionByAnalysis] = useState<Record<string, string[]>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadImmersions = async () => {
+      try {
+        const [offersResult, candidatesResult] = await Promise.all([
+          offerGraphqlClient.query(GET_OFFERS_IMMERSION_MAP, {}).toPromise(),
+          candidateGraphqlClient.query(GET_IMMERSING_CANDIDATES_MAP, { first: 500 }).toPromise(),
+        ]);
+        if (cancelled) return;
+        const byAnalysis = new Map<string, Map<string, string>>();
+        const addName = (analysisId: string | null | undefined, id: string | null | undefined, fullName: string | null | undefined) => {
+          if (!analysisId || !fullName) return;
+          const names = byAnalysis.get(analysisId) ?? new Map<string, string>();
+          if (id) {
+            if (!names.has(id)) names.set(id, fullName);
+          } else if (![...names.values()].includes(fullName)) {
+            names.set(fullName, fullName);
+          }
+          byAnalysis.set(analysisId, names);
+        };
+        const offers = (offersResult.data?.offers ?? []) as {
+          needsAnalysisId?: string | null;
+          proposedCandidate?: { id?: string | null; fullName?: string | null; status?: string | null }[] | null;
+          matchedCandidate?: { id?: string | null; fullName?: string | null; status?: string | null }[] | null;
+        }[];
+        for (const offer of offers) {
+          const all = [...(offer.proposedCandidate ?? []), ...(offer.matchedCandidate ?? [])];
+          for (const c of all) {
+            if (c.status === 'IMMERSING') addName(offer.needsAnalysisId, c.id, c.fullName);
+          }
+        }
+        // Index des AB par identifiant d'entreprise MySQL pour le rattachement direct.
+        const analysisIdsByCompanyId = new Map<number, string[]>();
+        const analysisIdsByCompanyName = new Map<string, string[]>();
+        for (const item of items) {
+          const companyId = item.companyInfos?.id;
+          if (companyId != null) {
+            const list = analysisIdsByCompanyId.get(companyId) ?? [];
+            list.push(item.id);
+            analysisIdsByCompanyId.set(companyId, list);
+          }
+          const name = item.companyInfos?.name?.trim().toLowerCase();
+          if (name) {
+            const list = analysisIdsByCompanyName.get(name) ?? [];
+            list.push(item.id);
+            analysisIdsByCompanyName.set(name, list);
+          }
+        }
+        const edges = (candidatesResult.data?.candidatesPage?.edges ?? []) as {
+          node: {
+            id: string;
+            immersionCompanyId?: number | null;
+            immersionCompanyName?: string | null;
+            identity?: { fullName?: string | null } | null;
+          };
+        }[];
+        for (const { node } of edges) {
+          const fullName = node.identity?.fullName ?? null;
+          if (!fullName) continue;
+          if (node.immersionCompanyId != null) {
+            for (const analysisId of analysisIdsByCompanyId.get(node.immersionCompanyId) ?? []) {
+              addName(analysisId, node.id, fullName);
+            }
+          }
+          // Repli sur le nom (snapshot) quand l'ID est absent.
+          if (node.immersionCompanyName?.trim()) {
+            const key = node.immersionCompanyName.trim().toLowerCase();
+            for (const analysisId of analysisIdsByCompanyName.get(key) ?? []) {
+              addName(analysisId, node.id, fullName);
+            }
+          }
+        }
+        const merged: Record<string, string[]> = {};
+        for (const [analysisId, names] of byAnalysis) {
+          merged[analysisId] = [...names.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+        }
+        setImmersionByAnalysis(merged);
+      } catch {
+        if (!cancelled) setImmersionByAnalysis({});
+      }
+    };
+    void loadImmersions();
+    return () => { cancelled = true; };
+  }, [items]);
+
 
   const [selectedTps, setSelectedTps] = useState<Set<string>>(new Set());
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
@@ -339,7 +751,9 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
             .toPromise();
           if (historyResult.error) throw new Error(historyResult.error.message);
           const entries = (historyResult.data?.offerHistory ?? []) as DirectoryHistoryEntry[];
-          latestByOffer[offer.id] = entries[0] ?? null;
+          // Dernière note manuelle : on ignore les entrées système/auto
+          // (firstName/lastName/ownerEmail à null côté backend).
+          latestByOffer[offer.id] = entries.find((e) => e.ownerEmail || e.firstName || e.lastName) ?? null;
         }),
       );
       setHistoryByAnalysis((prev) => ({
@@ -509,7 +923,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                 )}
               </div>
             ) : (
-              <p className="text-xs text-[var(--ds-text-subtle)]">Aucune entrée pour cette offre.</p>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Aucune note manuelle pour cette offre.</p>
             )}
           </>
         )}
@@ -520,7 +934,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Liste des entreprises">
       <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
-      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
+      <div className="relative flex max-h-[85vh] w-full max-w-7xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
         <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-5 py-4">
           <div>
             <h2 className="text-base font-bold text-[var(--ds-text)]">Entreprises</h2>
@@ -611,6 +1025,16 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
               </button>
             )}
           </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Pastille :</span>
+            {INDICATOR_ORDER.map((color) => (
+              <span key={color} className="inline-flex items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
+                <span className={`inline-block h-2.5 w-2.5 rounded-full border ${INDICATOR_DOT[color]}`} />
+                {INDICATOR_LABELS[color]}
+              </span>
+            ))}
+            <span className="text-[11px] text-[var(--ds-text-subtle)]">— cliquez sur la pastille d’une entreprise pour changer sa couleur.</span>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -640,21 +1064,59 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Entreprise</th>
                       <th className="px-4 py-2.5 font-semibold">TP</th>
+                      <th className="px-4 py-2.5 font-semibold">Localisation</th>
+                      <th className="px-4 py-2.5 font-semibold">Commercial</th>
+                      <th className="px-4 py-2.5 font-semibold">Immersion</th>
                       <th className="px-4 py-2.5 font-semibold">Date d'activation</th>
                       <th className="px-4 py-2.5 font-semibold">Statut</th>
                       <th className="px-4 py-2.5 font-semibold">Historique</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--ds-border)]">
-                    {rows.map(({ analysis, tp }) => (
+                    {rows.map(({ analysis, tp }) => {
+                      const immersingNames = immersionByAnalysis[analysis.id] ?? [];
+                      return (
                       <tr
                         key={analysis.id}
                         onClick={() => navigate(`/rh/matching?needsAnalysis=${analysis.id}`)}
                         className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
                         title="Ouvrir le matching"
                       >
-                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{analysis.companyInfos?.name ?? '—'}</td>
+                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">
+                          <span className="flex items-center gap-2">
+                            <CompanyIndicatorDot
+                              key={`${analysis.id}:${analysis.companyIndicator ?? 'auto'}`}
+                              analysisId={analysis.id}
+                              status={analysis.status}
+                              serverIndicator={analysis.companyIndicator}
+                              hasImmersion={immersingNames.length > 0}
+                            />
+                            <span>{analysis.companyInfos?.name ?? '—'}</span>
+                          </span>
+                        </td>
                         <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{tp ?? '—'}</td>
+                        <td className="max-w-48 px-4 py-2.5 text-[var(--ds-text-muted)]" title={formatLocalisationCell(analysis)}>
+                          <span className="line-clamp-2">{formatLocalisationCell(analysis)}</span>
+                        </td>
+                        <td className="max-w-48 truncate px-4 py-2.5 text-[var(--ds-text-muted)]" title={commercialLabel(analysis)}>
+                          {commercialLabel(analysis)}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {immersingNames.length > 0 ? (
+                            <span title={immersingNames.join(', ')}>
+                              <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
+                                Oui
+                              </span>
+                              <span className="ml-1.5 line-clamp-2 max-w-40 text-xs text-[var(--ds-text-muted)]">
+                                {immersingNames.join(', ')}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]">
+                              Non
+                            </span>
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(activationDateOf(analysis))}</td>
                         <td className="px-4 py-2.5">
                           <AbActiveBadge status={analysis.abStatus} />
@@ -663,7 +1125,8 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                           {renderHistoryCell(analysis)}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -700,6 +1163,7 @@ export default function DashboardRH() {
   );
   const { stats, loading, error, refetch } = useCandidateStats(sectorArray);
   const [showCompanies, setShowCompanies] = useState(false);
+  const [showContracted, setShowContracted] = useState(false);
 
   const toggleSector = (s: string) =>
     setSelectedSectors((prev) => {
@@ -836,7 +1300,7 @@ export default function DashboardRH() {
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard icon={IconUsers} label="Total candidats" value={stats?.total ?? 0} accent={COLORS.blue} />
-        <KpiCard icon={IconSignature} label="En contrat" value={contracted} accent={COLORS.success} />
+        <KpiCard icon={IconSignature} label="En contrat" value={contracted} accent={COLORS.success} onClick={() => setShowContracted(true)} />
         <KpiCard icon={IconSearch} label="En recherche" value={seeking} accent={COLORS.blue} />
         <KpiCard icon={IconJob} label="En immersion" value={immersing} accent={COLORS.pink} />
       </div>
@@ -938,6 +1402,7 @@ export default function DashboardRH() {
       )}
 
       {showCompanies && <CompanyDirectoryModal onClose={() => setShowCompanies(false)} />}
+      {showContracted && <ContractedCandidatesModal onClose={() => setShowContracted(false)} />}
     </div>
   );
 }

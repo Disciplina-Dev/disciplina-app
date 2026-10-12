@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { MailTemplateService, INTERVIEW_INVITATION_SEEDED_KEY } from '../MailTemplateService';
+import { MailTemplateService, INTERVIEW_INVITATION_SEEDED_KEY, TEST_FAILURE_REDIRECTION_SEEDED_KEY } from '../MailTemplateService';
 import { AppSettingsRepository } from '../../repositories/mysql/AppSettingsRepository';
 import { MailTemplateModel } from '../../db/mongo/schemas/mailTemplate.schema';
 import { query } from '../../db/mysql/connection';
@@ -25,6 +25,29 @@ describe('MailTemplateService.seedInterviewInvitationDefault', () => {
         expect(total).toBe(1);
 
         const flag = await new AppSettingsRepository().get(INTERVIEW_INVITATION_SEEDED_KEY);
+        expect(flag).toBe('1');
+    }, 15000);
+});
+
+describe('MailTemplateService.seedTestFailureRedirectionDefault', () => {
+    it('seeds the test-failure redirection system template (kind test_failure_redirection) once, then idempotently skips', async () => {
+        await query('DELETE FROM app_settings WHERE setting_key = ?', [TEST_FAILURE_REDIRECTION_SEEDED_KEY]);
+        await MailTemplateModel.deleteMany({ scope: 'rh', kind: 'test_failure_redirection' });
+
+        const service = new MailTemplateService();
+        await service.seedTestFailureRedirectionDefault();
+        await service.seedTestFailureRedirectionDefault();
+
+        const tpl = await MailTemplateModel.findOne({ scope: 'rh', kind: 'test_failure_redirection' }).lean();
+        expect(tpl).not.toBeNull();
+        expect(tpl?.name).toBe('Redirection test non réussi');
+        expect(tpl?.user_id).toBe(0);
+        expect(String(tpl?.body)).toContain('{{orientations}}');
+
+        const total = await MailTemplateModel.countDocuments({ scope: 'rh', kind: 'test_failure_redirection' });
+        expect(total).toBe(1);
+
+        const flag = await new AppSettingsRepository().get(TEST_FAILURE_REDIRECTION_SEEDED_KEY);
         expect(flag).toBe('1');
     }, 15000);
 });

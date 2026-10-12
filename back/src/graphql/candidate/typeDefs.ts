@@ -310,6 +310,19 @@ export const typeDefs = gql`
         answer: String
     }
 
+    "Créneau horaire d'immersion (jour + début/fin)."
+    type ImmersionScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
+    input ImmersionScheduleSlotInput {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
     type Candidate {
         id: String!
         owner: CandidateOwner
@@ -328,10 +341,15 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlot]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -497,10 +515,15 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlotInput]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -529,10 +552,15 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlotInput]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
