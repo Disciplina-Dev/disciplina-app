@@ -290,7 +290,10 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         // Pastille manuelle : absente (`null`) = couleur automatique côté front.
         // Volontairement non repris dans `toNeedsAnalysisDocument` : la mise à
         // jour générique `update()` ne doit jamais réinitialiser ce champ.
+        // Idem pour `france_travail` / `koann` (suivi annuaire RH, mutations dédiées).
         companyIndicator: (doc as any).company_indicator ?? null,
+        franceTravail: (doc as any).france_travail ?? null,
+        koann: (doc as any).koann ?? null,
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
         updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
         lastActiveAt: doc.last_active_at ? new Date(doc.last_active_at).toISOString() : null,

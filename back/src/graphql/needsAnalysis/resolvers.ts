@@ -226,5 +226,21 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
             return needsAnalysisService.setIndicator(id, indicator ?? null);
         },
+        updateNeedsAnalysisTracking: async (
+            _: unknown,
+            { id, franceTravail, koann }: { id: string; franceTravail?: string | null; koann?: string | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.setTrackingRefs(id, franceTravail, koann);
+        },
+        updateNeedsAnalysisActivationDate: async (
+            _: unknown,
+            { id, lastActiveAt }: { id: string; lastActiveAt?: string | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.setActivationDate(id, lastActiveAt ?? null);
+        },
     },
 };

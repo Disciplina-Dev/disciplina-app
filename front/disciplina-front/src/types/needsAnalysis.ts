@@ -106,6 +106,9 @@ export interface NeedsAnalysis {
   driveFolderUrl?: string | null
   /** Pastille couleur manuelle du suivi entreprise (annuaire RH). Null = automatique. */
   companyIndicator?: string | null
+  /** Suivi entreprise (annuaire RH) : références libres « France Travail » et « KOANN ». */
+  franceTravail?: string | null
+  koann?: string | null
 }
 
 export interface AbBadge {

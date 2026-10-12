@@ -62,6 +62,8 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
             default: AdministrationType.NON_RENSEIGNE,
         },
         company_indicator: { type: String, enum: Object.values(CompanyIndicator), default: null },
+        france_travail: { type: String, default: null },
+        koann: { type: String, default: null },
         created_at: { type: Date },
         updated_at: { type: Date },
     },
