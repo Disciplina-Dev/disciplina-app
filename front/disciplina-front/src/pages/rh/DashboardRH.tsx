@@ -16,7 +16,7 @@ import {
 } from 'recharts';
 import { IconAlert, IconBell, IconChevronDown, IconClose, IconCompany, IconJob, IconLoader, IconRefresh, IconSearch, IconSignature, IconUsers } from '@/components/ui/icons'
 import { useCurrentUser, Permission } from '@/store/authStore';
-import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, useUpdateNeedsAnalysisIndicator, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, useUpdateNeedsAnalysisIndicator, useUpdateNeedsAnalysisTracking, useUpdateNeedsAnalysisActivationDate, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
 import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY, GET_OFFERS_IMMERSION_MAP, GET_IMMERSING_CANDIDATES_MAP } from '@/graphql/queries';
 import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import type { NeedsAnalysis } from '@/types/needsAnalysis';
@@ -600,6 +600,132 @@ function CompanyIndicatorDot({
   );
 }
 
+/** `2025-03-14T10:00:00.000Z` → `2025-03-14` pour `<input type="date">`. Vide si absente/invalide. */
+function toDateInputValue(iso?: string | null): string {
+  if (!iso) return '';
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return '';
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
+/**
+ * Cellule texte éditable du suivi entreprise (colonnes « France Travail » /
+ * « KOANN »). Enregistre au blur / Entrée, Échap annule. Le clic n'ouvre pas
+ * le matching (stopPropagation).
+ */
+function DirectoryTrackingCell({
+  analysisId,
+  field,
+  initialValue,
+  label,
+}: {
+  analysisId: string;
+  field: 'franceTravail' | 'koann';
+  initialValue?: string | null;
+  label: string;
+}) {
+  const { updateTracking } = useUpdateNeedsAnalysisTracking();
+  const [committed, setCommitted] = useState(initialValue ?? '');
+  const [draft, setDraft] = useState(initialValue ?? '');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  const save = () => {
+    if (draft === committed || saving) return;
+    setSaving(true);
+    setSaveError(false);
+    updateTracking(analysisId, { [field]: draft.trim() ? draft.trim() : null }).then((res) => {
+      setSaving(false);
+      if (res.error) {
+        setDraft(committed);
+        setSaveError(true);
+      } else {
+        setCommitted(draft.trim());
+        setDraft(draft.trim());
+      }
+    });
+  };
+
+  return (
+    <input
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={save}
+      onClick={(e) => e.stopPropagation()}
+      onFocus={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        if (e.key === 'Escape') {
+          setDraft(committed);
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+      placeholder="—"
+      aria-label={`${label} — ${analysisId}`}
+      title={saveError ? 'Échec d’enregistrement — réessayez' : label}
+      className={`w-28 rounded-md border bg-transparent px-1.5 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue ${
+        saveError ? 'border-[var(--ds-danger)]' : 'border-[var(--ds-border)]'
+      }${saving ? ' opacity-60' : ''}`}
+    />
+  );
+}
+
+/**
+ * Éditeur inline de la date d'activation. Affiche la date effective et
+ * enregistre dès le choix (ou l'effacement → retour au repli création).
+ */
+function DirectoryActivationCell({
+  analysisId,
+  lastActiveAt,
+  onSaved,
+}: {
+  analysisId: string;
+  lastActiveAt?: string | null;
+  onSaved: () => void;
+}) {
+  const { updateActivationDate } = useUpdateNeedsAnalysisActivationDate();
+  const [value, setValue] = useState(toDateInputValue(lastActiveAt));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  const save = (next: string) => {
+    setValue(next);
+    setSaving(true);
+    setSaveError(false);
+    // Vide = efface la date manuelle ; sinon ISO minuit UTC.
+    const payload = next ? new Date(`${next}T00:00:00.000Z`).toISOString() : null;
+    updateActivationDate(analysisId, payload).then((res) => {
+      setSaving(false);
+      if (res.error) {
+        setValue(toDateInputValue(lastActiveAt));
+        setSaveError(true);
+      } else {
+        onSaved();
+      }
+    });
+  };
+
+  return (
+    <input
+      type="date"
+      value={value}
+      onChange={(e) => {
+        e.stopPropagation();
+        save(e.target.value);
+      }}
+      onClick={(e) => e.stopPropagation()}
+      onFocus={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
+      aria-label={`Date d'activation — ${analysisId}`}
+      title={saveError ? 'Échec d’enregistrement — réessayez' : "Date d'activation (modifiable)"}
+      className={`rounded-md border bg-transparent px-1.5 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue ${
+        saveError ? 'border-[var(--ds-danger)]' : 'border-[var(--ds-border)]'
+      }${saving ? ' opacity-60' : ''}`}
+    />
+  );
+}
+
 function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { items, pageInfo, loading, error, refetch } = useNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
@@ -1068,6 +1194,8 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                       <th className="px-4 py-2.5 font-semibold">Commercial</th>
                       <th className="px-4 py-2.5 font-semibold">Immersion</th>
                       <th className="px-4 py-2.5 font-semibold">Date d'activation</th>
+                      <th className="px-4 py-2.5 font-semibold">France Travail</th>
+                      <th className="px-4 py-2.5 font-semibold">KOANN</th>
                       <th className="px-4 py-2.5 font-semibold">Statut</th>
                       <th className="px-4 py-2.5 font-semibold">Historique</th>
                     </tr>
@@ -1117,7 +1245,32 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(activationDateOf(analysis))}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]" title={`Activée le ${formatDirectoryDate(activationDateOf(analysis))}`}>
+                          <DirectoryActivationCell
+                            key={`${analysis.id}:${analysis.lastActiveAt ?? 'none'}`}
+                            analysisId={analysis.id}
+                            lastActiveAt={analysis.lastActiveAt}
+                            onSaved={() => refetch()}
+                          />
+                        </td>
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          <DirectoryTrackingCell
+                            key={`${analysis.id}:ft:${analysis.franceTravail ?? ''}`}
+                            analysisId={analysis.id}
+                            field="franceTravail"
+                            initialValue={analysis.franceTravail}
+                            label="France Travail"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          <DirectoryTrackingCell
+                            key={`${analysis.id}:ko:${analysis.koann ?? ''}`}
+                            analysisId={analysis.id}
+                            field="koann"
+                            initialValue={analysis.koann}
+                            label="KOANN"
+                          />
+                        </td>
                         <td className="px-4 py-2.5">
                           <AbActiveBadge status={analysis.abStatus} />
                         </td>
