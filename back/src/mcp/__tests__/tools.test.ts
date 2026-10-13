@@ -54,7 +54,7 @@ describe('MCP tools (static admin key)', () => {
                 'kpi_weekly_detail',
             ]),
         );
-        expect(names).toHaveLength(33);
+        expect(names).toHaveLength(45);
     });
 
     it('masks the SSN and serializes dates as ISO strings on get_candidate', async () => {

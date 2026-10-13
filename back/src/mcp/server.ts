@@ -5,10 +5,11 @@ import { registerCandidateTools } from './tools/candidates';
 import { registerOfferTools } from './tools/offers';
 import { registerKpiTools } from './tools/kpi';
 import { registerMiscTools } from './tools/misc';
+import { registerPedaTools } from './tools/peda';
 
 /**
  * Builds a fresh read-only MCP server exposing the whole CRM (companies, needs
- * analyses, candidates, offers/matching, KPI, sector settings, notifications).
+ * analyses, candidates, offers/matching, KPI, sector settings, notifications, pédagogie).
  *
  * Stateless: a new instance is created per HTTP request so the server can run on
  * serverless (Vercel). All tools delegate to the existing service layer — no data
@@ -26,6 +27,7 @@ export function buildMcpServer(): McpServer {
     registerOfferTools(server);
     registerKpiTools(server);
     registerMiscTools(server);
+    registerPedaTools(server);
 
     return server;
 }

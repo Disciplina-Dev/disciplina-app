@@ -625,6 +625,7 @@ Every new tool in `src/mcp/tools/` must (see `MCP_RGPD_AUDIT.md`):
 - be registered through `readTool` (scope check, audit log `mcp_audit_log`, daily quota) — never `server.registerTool` directly
 - declare its exposed fields explicitly (no spreading a domain object); no Art. 9 data (health/handicap), no `emergency_contact`, no free-form personal emails/names unless justified
 - apply the `ai_processing` consent filter (`mcp/candidateExposure.ts`) for anything returning candidate data
+- for péda data (alternants/sessions/ruptures), go through `mcp/pedaExposure.ts`: consent via `candidate_id`, `« Prénom N. »` label, counts masked below `PEDA_MIN_GROUP`
 - paginate lists (`MAX_PAGE_SIZE` = 50) and use read-only service variants (no side effects)
 - have a test asserting excluded fields are absent
 

@@ -20,7 +20,7 @@ export interface McpAuditEntry {
 export const CONSENT_TEXT_VERSION = 'v1';
 
 // Clés d'arguments qui désignent une fiche précise (consultation nominative).
-const SUBJECT_KEYS = ['id', 'companyId', 'candidateId', 'offerId', 'siret'];
+const SUBJECT_KEYS = ['id', 'companyId', 'candidateId', 'offerId', 'siret', 'alternantId', 'sessionId'];
 
 export function hashArgs(args: unknown): string {
     return createHash('sha256')

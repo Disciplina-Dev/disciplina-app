@@ -86,6 +86,10 @@ export class RuptureService {
         return rows.map((rupture) => ({ rupture, alternant: byId.get(rupture.alternant_id) ?? null }));
     }
 
+    async findByYear(year: number): Promise<Rupture[]> {
+        return this.ruptures.findByYear(requireMonth(year, 1).year);
+    }
+
     async declare(input: DeclareRuptureInput): Promise<Rupture> {
         const alternant = await this.alternants.findById(input.alternantId);
         if (!alternant) throw new Error('Alternant introuvable');
