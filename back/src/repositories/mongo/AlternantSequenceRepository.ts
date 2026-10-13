@@ -7,6 +7,25 @@ export class AlternantSequenceRepository {
         return getModels().AlternantSequence.find({ alternant_id: alternantId }).sort({ numero: 1 }).lean();
     }
 
+    async findByAlternantIds(alternantIds: string[]): Promise<AlternantSequence[]> {
+        if (alternantIds.length === 0) return [];
+        return getModels()
+            .AlternantSequence.find({ alternant_id: { $in: alternantIds } })
+            .sort({ prevue_le: 1 })
+            .lean();
+    }
+
+    /** SA en attente, non archivées, dont la date prévue est dans [from, to[ (bornes optionnelles). */
+    async findPendingInRange(from: Date | null, to: Date | null): Promise<AlternantSequence[]> {
+        const range: Record<string, Date> = {};
+        if (from) range.$gte = from;
+        if (to) range.$lt = to;
+        return getModels()
+            .AlternantSequence.find({ status: 'pending', archived_at: null, prevue_le: range })
+            .sort({ prevue_le: 1 })
+            .lean();
+    }
+
     async findById(id: string): Promise<AlternantSequence | null> {
         return getModels().AlternantSequence.findOne({ _id: id }).lean();
     }

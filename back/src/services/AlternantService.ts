@@ -136,6 +136,18 @@ export class AlternantService {
         return this.sequences.findByAlternantId(alternantId);
     }
 
+    async findByIds(ids: string[]): Promise<Alternant[]> {
+        return this.alternants.findByIds(ids);
+    }
+
+    async findSequencesByAlternantIds(alternantIds: string[]): Promise<AlternantSequence[]> {
+        return this.sequences.findByAlternantIds(alternantIds);
+    }
+
+    async findPendingSequences(from: Date | null, to: Date | null): Promise<AlternantSequence[]> {
+        return this.sequences.findPendingInRange(from, to);
+    }
+
     async findBySessionId(sessionId: string, includeArchived = false): Promise<Alternant[]> {
         return this.alternants.findBySessionId(sessionId, includeArchived);
     }
