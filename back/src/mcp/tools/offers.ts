@@ -64,10 +64,7 @@ export function registerOfferTools(server: McpServer): void {
                 (await offerHistory.findByOffer(offerId)).map((e) => ({
                     id: e._id,
                     offerId: e.offer_id,
-                    firstName: e.first_name,
-                    lastName: e.last_name,
                     text: e.text,
-                    ownerEmail: e.owner_email,
                     createdAt: e.created_at,
                 })),
             ),

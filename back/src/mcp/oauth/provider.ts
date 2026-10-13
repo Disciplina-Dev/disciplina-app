@@ -13,6 +13,7 @@ import { sha256Hex } from '../../external/crypto/hash';
 import { UserService } from '../../services/UserService';
 import { isRegion, type Region } from '../../types/tenant';
 import { buildRedirectUri, renderConsentPage } from './consentPage';
+import { McpAuditStore, CONSENT_TEXT_VERSION, hashArgs } from '../auditStore';
 import { McpOAuthClientStore } from './clientStore';
 import { McpOAuthRefreshTokenStore } from './refreshTokenStore';
 import {
@@ -115,6 +116,19 @@ export class McpOAuthProvider implements OAuthServerProvider {
         }
 
         await this.clientsStore.recordConsent(client.client_id, user.id, region);
+        try {
+            await new McpAuditStore().record({
+                userId: user.id,
+                clientId: client.client_id,
+                tool: 'oauth_consent',
+                subjectRef: `consent:${CONSENT_TEXT_VERSION}`,
+                argsHash: hashArgs({ consent: CONSENT_TEXT_VERSION }),
+                resultCount: 0,
+                status: 'consent',
+            });
+        } catch (err) {
+            logger.error({ err }, 'MCP consent audit write failed');
+        }
         logger.info(
             { clientId: client.client_id, clientName: client.client_name, userId: user.id, region, ip: res.req.ip },
             'MCP OAuth: authorization granted',

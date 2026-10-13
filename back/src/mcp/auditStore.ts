@@ -13,8 +13,11 @@ export interface McpAuditEntry {
     subjectRef: string | null;
     argsHash: string;
     resultCount: number;
-    status: 'ok' | 'error' | 'denied' | 'quota';
+    status: 'ok' | 'error' | 'denied' | 'quota' | 'consent';
 }
+
+// Version du texte d'information affiché sur la page de consentement OAuth (à incrémenter à chaque modification).
+export const CONSENT_TEXT_VERSION = 'v1';
 
 // Clés d'arguments qui désignent une fiche précise (consultation nominative).
 const SUBJECT_KEYS = ['id', 'companyId', 'candidateId', 'offerId', 'siret'];

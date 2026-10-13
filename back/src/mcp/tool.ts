@@ -7,6 +7,8 @@ import { DAILY_CALL_LIMIT, DAILY_RECORD_LIMIT } from './limits';
 import { logger } from '../external/logger/logger';
 
 const auditStore = new McpAuditStore();
+// Alerte (log warn) dès que 80 % du quota quotidien est consommé : signal d'export en masse.
+const ALERT_RATIO = 0.8;
 
 // Nombre d'enregistrements sortis : taille du tableau racine (ou de `items` d'une page), sinon 1 (fiche) / 0 (null).
 function countRecords(result: ToolResult): number {
@@ -81,6 +83,15 @@ export function readTool<S extends Shape>(
                         content: [{ type: 'text', text: 'Quota quotidien MCP atteint : réessayez dans 24 h.' }],
                         isError: true,
                     };
+                }
+                if (
+                    usage.records >= DAILY_RECORD_LIMIT * ALERT_RATIO ||
+                    usage.calls >= DAILY_CALL_LIMIT * ALERT_RATIO
+                ) {
+                    logger.warn(
+                        { userId: entry.userId, tool: name, ...usage },
+                        'MCP volume alert: quota nearly reached',
+                    );
                 }
             } catch (err) {
                 logger.error({ err }, 'MCP quota check failed');

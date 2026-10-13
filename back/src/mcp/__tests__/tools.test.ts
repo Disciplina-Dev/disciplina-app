@@ -151,9 +151,10 @@ describe('MCP tools (static admin key)', () => {
         const entries = await callTool<any[]>('list_offer_history', { offerId });
         expect(entries).toHaveLength(2);
         expect(entries[0].text).toBe('Relance faite');
-        expect(entries[0].firstName).toBe('Jean');
         expect(typeof entries[0].createdAt).toBe('string');
-        expect(entries[1].ownerEmail).toBeNull();
+        expect(entries[0]).not.toHaveProperty('firstName');
+        expect(entries[0]).not.toHaveProperty('lastName');
+        expect(entries[0]).not.toHaveProperty('ownerEmail');
     });
 
     it('list_company_conflicts is callable by an admin', async () => {
