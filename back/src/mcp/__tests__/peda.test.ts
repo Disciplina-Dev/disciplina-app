@@ -182,10 +182,10 @@ describe('MCP tools péda (static admin key)', () => {
         await createAlternant(`stat${run}`, candidateId);
 
         const kpi = await callTool('peda_kpi_overview', { year: 2026 });
-        expect(kpi.alternants.active === '<5' || kpi.alternants.active >= 5).toBe(true);
-        expect(kpi.alternants.archived).toBe('<5');
+        expect(kpi.alternantsSnapshot.active === '<5' || kpi.alternantsSnapshot.active >= 5).toBe(true);
+        expect(kpi.alternants).toBeUndefined();
         const ruptures = await callTool('rupture_stats', { year: 2030 });
-        expect(ruptures.total).toBe('<5');
+        expect(ruptures.total).toBe(0);
     });
 
     it('journalise la consultation nominative sans PII (alternantId)', async () => {

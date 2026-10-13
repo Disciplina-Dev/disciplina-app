@@ -9,7 +9,7 @@
 | Finalité | Aider les salariés à rechercher et synthétiser les fiches candidats / entreprises / offres / KPI, et à suivre l'avancement pédagogique (sessions, séquences d'accompagnement, ruptures) |
 | Base légale | Intérêt légitime (Art. 6.1.f) ; candidats : consentement `ai_processing` requis |
 | Personnes concernées | Candidats, alternants, contacts entreprise, salariés utilisateurs |
-| Catégories de données | Identité, coordonnées, parcours, offres, analyses du besoin, KPI. **Exclus** : données de santé/handicap, contact d'urgence, questions de tests, n° de sécurité sociale (masqué). **Péda** : alternant réduit à « Prénom N. » + session, entreprise (nom) et dates de contrat ; jamais email, téléphone, adresse, tuteur, détail libre de rupture ; motif de rupture regroupé (4 catégories) ; agrégats avec effectifs < 5 masqués |
+| Catégories de données | Identité, coordonnées, parcours, offres, analyses du besoin, KPI. **Exclus** : données de santé/handicap, contact d'urgence, questions de tests, n° de sécurité sociale (masqué). **Péda** : alternant réduit à « Prénom N. » + session, entreprise (nom) et dates de contrat ; jamais email, téléphone, adresse, tuteur, détail libre de rupture ; motif de rupture regroupé (4 catégories) ; agrégats : effectifs de 1 à 4 masqués + masquage complémentaire (aucune cellule masquée déductible par soustraction) |
 | Destinataires | Éditeur du client LLM (Anthropic) — sous-traitant, DPA à signer (M1, ouvert) |
 | Transferts hors UE | À qualifier (CCT / DPF) — M1 |
 | Durées | Journal d'accès `mcp_audit_log` : 365 j ; refresh tokens OAuth : 30 j (purge expirés +7 j) ; clients OAuth inactifs : 90 j ; logs techniques : 30 j |
@@ -23,3 +23,4 @@
 - Recherche nominative : le nom/prénom (3 caractères min.) n'est qu'un filtre en entrée ; la sortie ne contient que « Prénom N. ».
 - Point ouvert : le libellé du consentement `ai_processing` (« résumé de profil via IA locale ») ne couvre pas explicitement le suivi pédagogique ni un LLM tiers — à faire valider par le DPO et à reformuler à la prochaine version du corpus légal.
 - `list_notifications` : titre/message/lien des notifications `peda` et `candidate` masqués (noms en texte libre, non filtrables par consentement).
+- Agrégats (`session_stats`, `rupture_stats`, `peda_kpi_overview`) : alternants sans consentement `ai_processing` exclus des décomptes. `list_ruptures` reste nominatif (« Prénom N. »), non masqué par k, réservé PEDA / RESPONSABLE+.

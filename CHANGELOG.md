@@ -30,6 +30,18 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- MCP péda (#930) : 12 outils lecture seule (sessions, SA, alternants « Prénom N. », ruptures, KPI) minimisés RGPD ; `contactsComplete` sur les SA en retard / à venir.
+
+### Changed
+
+- MCP péda (#930) : `peda_kpi_overview.alternants` renommé `alternantsSnapshot` (instantané à ce jour, non filtré par année) ; un effectif nul n'est plus masqué.
+
+### Security
+
+- MCP péda (#930) : masquage complémentaire des agrégats (une cellule `<5` isolée n'est plus déductible par soustraction du total).
+
 ## [1.4.0] - 2026-10-09
 
 ### Added

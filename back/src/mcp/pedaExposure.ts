@@ -14,15 +14,26 @@ export const MIN_SEARCH_LENGTH = 3;
 
 export type MaskedCount = number | '<5';
 
+// Un effectif nul n'identifie personne : seuls les effectifs de 1 à 4 sont masqués.
+const isSmall = (n: number): boolean => n > 0 && n < PEDA_MIN_GROUP;
+
 export function maskCount(n: number): MaskedCount {
-    return n < PEDA_MIN_GROUP ? '<5' : n;
+    return isSmall(n) ? '<5' : n;
 }
 
-export function maskCounts<K extends string>(counts: Record<K, number>): Record<K, MaskedCount> {
-    return Object.fromEntries(Object.entries<number>(counts).map(([k, v]) => [k, maskCount(v)])) as Record<
-        K,
-        MaskedCount
-    >;
+/**
+ * Masque les cellules d'une partition dont la somme est publiée ou déductible (total, effectif
+ * complémentaire). Masquage secondaire : si une seule cellule est masquée, elle serait
+ * reconstituable par soustraction — on masque aussi la plus petite cellule restante.
+ */
+export function maskPartition<K extends string>(cells: Record<K, number>): Record<K, MaskedCount> {
+    const keys = Object.keys(cells) as K[];
+    const masked = new Set(keys.filter((k) => isSmall(cells[k])));
+    if (masked.size === 1) {
+        const [smallest] = keys.filter((k) => !masked.has(k)).sort((a, b) => cells[a] - cells[b]);
+        if (smallest !== undefined) masked.add(smallest);
+    }
+    return Object.fromEntries(keys.map((k) => [k, masked.has(k) ? '<5' : cells[k]])) as Record<K, MaskedCount>;
 }
 
 /** Alternants liés à un candidat ayant consenti au traitement par IA ; les autres sont écartés. */

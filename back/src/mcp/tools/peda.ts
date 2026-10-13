@@ -17,7 +17,7 @@ import {
     consentedAlternants,
     escapeRegex,
     maskCount,
-    maskCounts,
+    maskPartition,
     ruptureCategory,
     toAlternantDto,
 } from '../pedaExposure';
@@ -56,17 +56,28 @@ function countBy<T>(rows: T[], key: (row: T) => string): Record<string, number> 
     return out;
 }
 
+/** `done` + `notDone` + `pending` = `total` (masquage complémentaire) ; `overdue` ⊂ `pending`. */
 function sequenceCounts(seqs: AlternantSequence[], today: Date) {
+    const count = (status: AlternantSequenceStatus) => seqs.filter((s) => s.status === status).length;
+    const overdue = seqs.filter(
+        (s) => s.status === AlternantSequenceStatus.PENDING && new Date(s.prevue_le).getTime() < today.getTime(),
+    ).length;
     return {
-        total: seqs.length,
-        done: seqs.filter((s) => s.status === AlternantSequenceStatus.DONE).length,
-        notDone: seqs.filter((s) => s.status === AlternantSequenceStatus.NOT_DONE).length,
-        pending: seqs.filter((s) => s.status === AlternantSequenceStatus.PENDING).length,
-        overdue: seqs.filter(
-            (s) => s.status === AlternantSequenceStatus.PENDING && new Date(s.prevue_le).getTime() < today.getTime(),
-        ).length,
+        total: maskCount(seqs.length),
+        ...maskPartition({
+            done: count(AlternantSequenceStatus.DONE),
+            notDone: count(AlternantSequenceStatus.NOT_DONE),
+            pending: count(AlternantSequenceStatus.PENDING),
+        }),
+        overdue: maskCount(overdue),
     };
 }
+
+const activeArchived = (rows: { archived_at?: Date | string | null }[]) =>
+    maskPartition({
+        active: rows.filter((a) => !a.archived_at).length,
+        archived: rows.filter((a) => !!a.archived_at).length,
+    });
 
 async function sequenceDueList(from: Date | null, to: Date | null, today: Date, limit?: number, skip?: number) {
     const seqs = await alternants.findPendingSequences(from, to);
@@ -85,6 +96,7 @@ async function sequenceDueList(from: Date | null, to: Date | null, today: Date, 
                 prevueLe: new Date(s.prevue_le).toISOString(),
                 daysLate: Math.max(0, Math.floor((today.getTime() - new Date(s.prevue_le).getTime()) / DAY_MS)),
                 contacts: s.contacts,
+                contactsComplete: Object.values(s.contacts).every(Boolean),
             };
         });
     return pageOf(items, limit, skip);
@@ -126,7 +138,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'session_stats',
-        'Effectifs et avancement des séquences d’accompagnement (SA) par session. Agrégats : effectifs < 5 masqués.',
+        'Effectifs et avancement des séquences d’accompagnement (SA) par session. Agrégats : effectifs de 1 à 4 masqués (+ masquage complémentaire pour empêcher la déduction par soustraction). Alternants sans consentement IA exclus des décomptes.',
         { sessionId: z.string().optional().describe('Restreint à une session') },
         PEDA_SCOPE,
         async ({ sessionId }) => {
@@ -144,11 +156,8 @@ export function registerPedaTools(server: McpServer): void {
                     return {
                         sessionId: group === 'hors-session' ? null : group,
                         session: members[0]?.session ?? null,
-                        alternants: maskCounts({
-                            active: members.filter((a) => !a.archived_at).length,
-                            archived: members.filter((a) => !!a.archived_at).length,
-                        }),
-                        sequences: maskCounts(sequenceCounts(own, today)),
+                        alternants: activeArchived(members),
+                        sequences: sequenceCounts(own, today),
                     };
                 }),
             );
@@ -158,7 +167,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'list_sequences_overdue',
-        'SA en retard (date prévue dépassée, non réalisées), les plus anciennes d’abord. Alternants identifiés par « Prénom N. ».',
+        'SA en retard (date prévue dépassée, non réalisées), les plus anciennes d’abord. Alternants identifiés par « Prénom N. ». `contactsComplete` = les 3 contacts sont faits mais la SA n’est pas clôturée (à valider, pas « rien fait »).',
         { first: firstArg, offset: offsetArg },
         PEDA_SCOPE,
         async ({ first, offset }) => {
@@ -170,7 +179,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'list_sequences_upcoming',
-        'SA à venir dans les N prochains jours (défaut 14, aligné sur le dashboard péda).',
+        'SA à venir dans les N prochains jours (défaut 14, aligné sur le dashboard péda). `contactsComplete` = les 3 contacts sont déjà faits.',
         {
             days: z.number().int().min(1).max(90).optional().describe('Horizon en jours (défaut 14)'),
             first: firstArg,
@@ -249,7 +258,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'list_ruptures',
-        'Ruptures de contrat d’un mois : alternant (« Prénom N. »), session, date, catégorie de motif, poursuite de formation. Jamais le détail libre ni l’entreprise.',
+        'Ruptures de contrat d’un mois : alternant (« Prénom N. »), session, date, catégorie de motif, poursuite de formation. Jamais le détail libre ni l’entreprise. Niveau individuel, volontairement non masqué (k<5 ne s’applique qu’aux agrégats) : accès réservé au rôle PEDA et RESPONSABLE+, alternants consentis uniquement.',
         {
             year: yearArg,
             month: z.number().int().min(1).max(12).describe('Mois (1-12)'),
@@ -280,7 +289,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'rupture_stats',
-        'Ruptures de l’année par catégorie de motif et par mois. Agrégats : effectifs < 5 masqués.',
+        'Ruptures de l’année par catégorie de motif et par mois. Agrégats : effectifs de 1 à 4 masqués (+ masquage complémentaire anti-soustraction). Alternants sans consentement IA exclus.',
         { year: yearArg },
         PEDA_SCOPE,
         async ({ year }) => {
@@ -289,9 +298,9 @@ export function registerPedaTools(server: McpServer): void {
             return toolResult({
                 year,
                 total: maskCount(rows.length),
-                byCategory: maskCounts(countBy(rows, (r) => ruptureCategory(r.motif))),
-                byMonth: maskCounts(countBy(rows, (r) => String(new Date(r.date_rupture).getUTCMonth() + 1))),
-                poursuitFormation: maskCounts({
+                byCategory: maskPartition(countBy(rows, (r) => ruptureCategory(r.motif))),
+                byMonth: maskPartition(countBy(rows, (r) => String(new Date(r.date_rupture).getUTCMonth() + 1))),
+                poursuitFormation: maskPartition({
                     yes: rows.filter((r) => r.poursuit_formation).length,
                     no: rows.filter((r) => !r.poursuit_formation).length,
                 }),
@@ -302,7 +311,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'peda_kpi_overview',
-        'Synthèse péda de l’année : effectifs, avancement des SA (réalisées, en retard…), ruptures. Agrégats : effectifs < 5 masqués.',
+        'Synthèse péda de l’année : `alternantsSnapshot` (effectifs actifs/archivés À CE JOUR, non filtrés par année), SA de l’année (réalisées, en retard…), ruptures de l’année. Effectifs de 1 à 4 masqués (+ masquage complémentaire). Alternants sans consentement IA exclus.',
         { year: yearArg },
         PEDA_SCOPE,
         async ({ year }) => {
@@ -315,11 +324,8 @@ export function registerPedaTools(server: McpServer): void {
             const all = [...visible.values()];
             return toolResult({
                 year,
-                alternants: maskCounts({
-                    active: all.filter((a) => !a.archived_at).length,
-                    archived: all.filter((a) => !!a.archived_at).length,
-                }),
-                sequences: maskCounts(sequenceCounts(seqs, today)),
+                alternantsSnapshot: activeArchived(all),
+                sequences: sequenceCounts(seqs, today),
                 ruptures: maskCount(ruptureRows.length),
             });
         },
