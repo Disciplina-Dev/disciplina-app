@@ -619,6 +619,15 @@ Pre-commit hooks run Prettier and basic hygiene checks on staged files at `git c
 - All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons). The ban holds for application code; `src/mcp/` is the sole exception, because the MCP SDK's `registerTool` only accepts a Zod raw shape. See `docs/AUDIT.md` §4.1 — the exception is currently inconsistent (three zod versions coexist).
 - Exported as `export const env = data` (typed object)
 
+## MCP tools (RGPD)
+
+Every new tool in `src/mcp/tools/` must (see `MCP_RGPD_AUDIT.md`):
+- be registered through `readTool` (scope check, audit log `mcp_audit_log`, daily quota) — never `server.registerTool` directly
+- declare its exposed fields explicitly (no spreading a domain object); no Art. 9 data (health/handicap), no `emergency_contact`, no free-form personal emails/names unless justified
+- apply the `ai_processing` consent filter (`mcp/candidateExposure.ts`) for anything returning candidate data
+- paginate lists (`MAX_PAGE_SIZE` = 50) and use read-only service variants (no side effects)
+- have a test asserting excluded fields are absent
+
 ## Testing
 
 For testing conventions, patterns, and examples, see [`HOWTOTEST.md`](./HOWTOTEST.md).

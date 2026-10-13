@@ -7,6 +7,7 @@ import { AlternantModel } from '../../src/db/mongo/schemas/alternant.schema';
 import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-sequence.schema';
 
 const CLEARED_TABLES = [
+    'mcp_audit_log',
     'external_access',
     'external_link',
     'company_history',
