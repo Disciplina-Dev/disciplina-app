@@ -70,7 +70,8 @@ RUPTURES = {
 }
 # Comme l'app (RuptureService.syncArchiveStatus) : archivé seulement si l'apprenti quitte la formation.
 ARCHIVED = {i for i, r in RUPTURES.items() if not r[3]}
-# Contrat terminé dans le passé sans rupture (index → date de fin).
+# Contrat terminé dans le passé sans rupture (index → date de fin). Ses SA postérieures restent seedées :
+# le MCP doit les exclure des SA en retard / à venir.
 CONTRACT_ENDED = {12: datetime(2026, 8, 31)}
 # SA n°1 non réalisée (statut not_done), pour couvrir ce statut.
 NOT_DONE_SA1 = {2, 3}
@@ -130,6 +131,7 @@ def sequence_docs(i, now, today):
     first_status = "not_done" if i in NOT_DONE_SA1 else "done"
     first_done = None if i in NOT_DONE_SA1 else first + timedelta(days=2)
     second = today - timedelta(days=5 + i % 20) if i % 2 == 0 else today + timedelta(days=3 + i % 10)
+    second = max(second, first + timedelta(days=60))  # périodicité ~ trimestrielle, même pour un contrat récent
     plan = [
         (1, first, first_status, first_done, first_status == "done"),
         (2, second, "pending", None, i % 3 == 0),

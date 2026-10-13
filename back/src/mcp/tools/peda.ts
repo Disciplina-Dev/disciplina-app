@@ -73,18 +73,22 @@ function sequenceCounts(seqs: AlternantSequence[], today: Date) {
     };
 }
 
-const activeArchived = (rows: { archived_at?: Date | string | null }[]) =>
-    maskPartition({
-        active: rows.filter((a) => !a.archived_at).length,
-        archived: rows.filter((a) => !!a.archived_at).length,
-    });
+// Non masqué : `list_alternants` expose déjà ces effectifs (et l'état d'archivage) au même rôle.
+const activeArchived = (rows: { archived_at?: Date | string | null }[]) => ({
+    active: rows.filter((a) => !a.archived_at).length,
+    archived: rows.filter((a) => !!a.archived_at).length,
+});
 
 async function sequenceDueList(from: Date | null, to: Date | null, today: Date, limit?: number, skip?: number) {
     const seqs = await alternants.findPendingSequences(from, to);
     const owners = await consentedAlternants(await alternants.findByIds([...new Set(seqs.map((s) => s.alternant_id))]));
     const byId = new Map(owners.map((a) => [a._id, a]));
     const items = seqs
-        .filter((s) => byId.has(s.alternant_id))
+        .filter((s) => {
+            const end = byId.get(s.alternant_id)?.company?.end_date;
+            // Une SA postérieure à la fin du contrat n'aura jamais lieu : ni retard ni à venir.
+            return byId.has(s.alternant_id) && !(end && new Date(s.prevue_le) > new Date(end));
+        })
         .map((s) => {
             const owner = byId.get(s.alternant_id)!;
             return {
@@ -167,7 +171,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'list_sequences_overdue',
-        'SA en retard (date prévue dépassée, non réalisées), les plus anciennes d’abord. Alternants identifiés par « Prénom N. ». `contactsComplete` = les 3 contacts sont faits mais la SA n’est pas clôturée (à valider, pas « rien fait »).',
+        'SA en retard (date prévue dépassée, non réalisées), les plus anciennes d’abord. Alternants identifiés par « Prénom N. ». `contactsComplete` = les 3 contacts sont faits mais la SA n’est pas clôturée (à valider, pas « rien fait »). SA postérieures à la fin de contrat exclues.',
         { first: firstArg, offset: offsetArg },
         PEDA_SCOPE,
         async ({ first, offset }) => {
@@ -179,7 +183,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'list_sequences_upcoming',
-        'SA à venir dans les N prochains jours (défaut 14, aligné sur le dashboard péda). `contactsComplete` = les 3 contacts sont déjà faits.',
+        'SA à venir dans les N prochains jours (défaut 14, aligné sur le dashboard péda). `contactsComplete` = les 3 contacts sont déjà faits. SA postérieures à la fin de contrat exclues.',
         {
             days: z.number().int().min(1).max(90).optional().describe('Horizon en jours (défaut 14)'),
             first: firstArg,
@@ -311,7 +315,7 @@ export function registerPedaTools(server: McpServer): void {
     readTool(
         server,
         'peda_kpi_overview',
-        'Synthèse péda de l’année : `alternantsSnapshot` (effectifs actifs/archivés À CE JOUR, non filtrés par année), SA de l’année (réalisées, en retard…), ruptures de l’année. Effectifs de 1 à 4 masqués (+ masquage complémentaire). Alternants sans consentement IA exclus.',
+        'Synthèse péda de l’année : `alternantsSnapshot` (effectifs actifs/archivés À CE JOUR, non filtrés par année), SA de l’année (réalisées, en retard…), ruptures de l’année. Effectifs de 1 à 4 masqués (`<5`) ; une cellule complémentaire peut être `masqué` (valeur ≥ 5 cachée pour empêcher la soustraction). `alternantsSnapshot` non masqué. Alternants sans consentement IA exclus.',
         { year: yearArg },
         PEDA_SCOPE,
         async ({ year }) => {

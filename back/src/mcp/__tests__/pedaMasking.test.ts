@@ -7,15 +7,29 @@ describe('masquage k-anonymat péda', () => {
     });
 
     it('cas binaire : une cellule masquée masque aussi l’autre', () => {
-        expect(maskPartition({ yes: 7, no: 3 })).toEqual({ yes: '<5', no: '<5' });
+        expect(maskPartition({ yes: 7, no: 3 })).toEqual({ yes: 'masqué', no: '<5' });
     });
 
     it('masquage secondaire : la plus petite cellule visible suit', () => {
-        expect(maskPartition({ accord: 6, essai: 1, diplome: 9 })).toEqual({ accord: '<5', essai: '<5', diplome: 9 });
+        expect(maskPartition({ accord: 6, essai: 1, diplome: 9 })).toEqual({
+            accord: 'masqué',
+            essai: '<5',
+            diplome: 9,
+        });
     });
 
     it('plusieurs cellules masquées : pas de masquage supplémentaire', () => {
         expect(maskPartition({ accord: 6, essai: 1, autre: 2 })).toEqual({ accord: 6, essai: '<5', autre: '<5' });
+    });
+
+    it('« <5 » jamais posé sur une valeur ≥ 5', () => {
+        for (let a = 0; a <= 12; a++)
+            for (let b = 0; b <= 12; b++) {
+                const cells = { a, b, c: 20 };
+                const out = maskPartition(cells);
+                for (const k of Object.keys(cells) as (keyof typeof cells)[])
+                    if (out[k] === '<5') expect(cells[k]).toBeLessThan(5);
+            }
     });
 
     it('aucune cellule masquée : inchangé', () => {
@@ -27,7 +41,7 @@ describe('masquage k-anonymat péda', () => {
             for (let b = 0; b <= 12; b++)
                 for (let c = 0; c <= 12; c++) {
                     const out = maskPartition({ a, b, c });
-                    const masked = Object.values(out).filter((v) => v === '<5').length;
+                    const masked = Object.values(out).filter((v) => typeof v === 'string').length;
                     expect(masked).not.toBe(1);
                 }
     });
