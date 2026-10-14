@@ -42,6 +42,8 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 ### Security
 
 - MCP péda (#930) : masquage complémentaire des agrégats (une cellule `<5` isolée n'est plus déductible par soustraction du total). La cellule masquée par complément est étiquetée `masqué` (jamais `<5` sur une valeur ≥ 5).
+- Péda (#932) : noms, e-mails et destinataires des élèves retirés des logs (redaction pino, plus de `details` dans le log de fin de run) ; `peda_draft_history.recipient` anonymisé après 365 jours (la `dedup_key` est conservée).
+- Péda (#932) : recherche alternants/sessions échappée (plus d'injection de regex / ReDoS Mongo), terme plafonné à 100 caractères.
 
 ## [1.4.0] - 2026-10-09
 
