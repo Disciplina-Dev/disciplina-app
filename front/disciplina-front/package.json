@@ -37,7 +37,7 @@
     "dompurify": "^3.4.10",
     "iconoir-react": "^7.12.1",
     "lucide-react": "^1.47.0",
-    "pdfjs-dist": "6.3.289",
+    "pdfjs-dist": "6.4.299",
     "qrcode.react": "^4.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
