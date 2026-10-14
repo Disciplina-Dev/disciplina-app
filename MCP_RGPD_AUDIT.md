@@ -3,8 +3,9 @@
 > **Date** : octobre 2026
 > **Branche** : `915-chore-mcp-rgpd-audit`
 > **Contexte** : le backend expose un serveur MCP (Model Context Protocol) permettant à des clients LLM (claude.ai, Claude Desktop, Claude Code) de lire le CRM Disciplina.
-> **Périmètre** : `back/src/mcp/` (route, auth, RBAC, sérialisation, 29 outils, OAuth 2.1), tables `mcp_oauth_*`, journalisation associée. Complète [`RGPD.md`](RGPD.md), qui **ne mentionne pas MCP**.
+> **Périmètre** : `back/src/mcp/` (route, auth, RBAC, sérialisation, 45 outils dont 12 péda, OAuth 2.1), tables `mcp_oauth_*`, journalisation associée. Complète [`RGPD.md`](RGPD.md), qui **ne mentionne pas MCP**.
 > **Mise à jour** : 9 octobre 2026 — correctifs M2 à M5, M7 à M12 appliqués en code (branche `915-chore-mcp-rgpd-audit`), voir le **Statut** de chaque faille. Suite backend complète exécutée sur la stack `docker-compose.test.yml` : 87 fichiers, 542 tests passés.
+> **Mise à jour #930** : ajout du périmètre péda (alternants, séquences d'accompagnement, ruptures) — voir [§ Périmètre péda](#périmètre-péda-930) et [`rgpd/registre-mcp.md`](rgpd/registre-mcp.md).
 > **Méthode** : lecture statique du code, des tests et des documents légaux. Aucun test d'intrusion. Les points marqués *(à confirmer)* n'ont pas été vérifiés à la source.
 
 ---
@@ -45,14 +46,14 @@ Salarié (compte CRM) ──OAuth / clé statique──► POST /api/mcp ──�
 
 | Acteur | Données traitées | Rôle RGPD |
 |--------|-----------------|-----------|
-| **Centre de formation** | Fiches candidats, entreprises, offres, analyses du besoin, KPI | Responsable de traitement |
+| **Centre de formation** | Fiches candidats, entreprises, offres, analyses du besoin, KPI, suivi péda (alternants, sessions, séquences, ruptures) | Responsable de traitement |
 | **Salarié utilisateur** | Compte CRM, session OAuth (`mcp_oauth_*`) | Personne concernée + préposé |
 | **Éditeur du client LLM (Anthropic)** | Tout résultat d'outil entrant dans le contexte du modèle | Sous-traitant **non contractualisé** |
 | **Candidats / contacts entreprise** | Données de leurs fiches | Personnes concernées, non informées de ce flux |
 
 Faits structurants :
 
-- 29 outils, tous en lecture via `readTool` (`mcp/tool.ts:23`). Aucun n'écrit ni ne supprime.
+- 45 outils (dont 12 péda, `mcp/tools/peda.ts`), tous en lecture via `readTool` (`mcp/tool.ts:23`). Aucun n'écrit ni ne supprime.
 - Serveur sans état (pas de session ni SSE), corps limité à 1 Mo (`mcp/route.ts:29`).
 - Authentification : OAuth 2.1 (JWT) ou clé statique `MCP_API_KEY`.
 
@@ -366,19 +367,30 @@ const allowed = candidates.filter((c) => c.consentments?.ai_processing === true)
 
 > **Statut** : ✅ **Corrigé** — tests ajoutés (passés) pour M2, M3, M4, M5, M8, M9, M10, rétention (audit, jetons, clients), expiration d'access token. **Reste (mineur)** : redaction des logs (pas de test, vérifiée à la main sur pino).
 
-Couvert (`mcp/__tests__/`) : masquage SSN, pagination, `list_users` sans email, RBAC GUEST/EMPLOYEE, rotation du refresh, rejet de réutilisation, région invalide.
+Couvert (`mcp/__tests__/`) : masquage SSN, péda (`peda.test.ts`, `pedaMasking.test.ts`), pagination, `list_users` sans email, RBAC GUEST/EMPLOYEE, rotation du refresh, rejet de réutilisation, région invalide.
 
-Non couvert :
+Initialement non couvert (depuis ajouté, voir statut) : journal d'audit, masquage hors SSN, filtre de consentement, expiration/purge/suppression d'utilisateur, plafonds et rate limit, rejeu du code d'autorisation, `redirect_uri` divergent.
 
-- journal d'audit (inexistant) ;
-- masquage d'autres champs que le SSN ;
-- filtre de consentement ;
-- expiration des tokens, purge, suppression d'utilisateur ;
-- plafonds de volume et rate limit ;
-- rejeu du code d'autorisation, `redirect_uri` divergent ;
-- redaction du logger sur objets imbriqués.
+Reste non couvert : redaction du logger sur objets imbriqués.
 
 Respecter la règle projet : tests de composants, mock limité à `src/external/*`.
+
+---
+
+---
+
+## Périmètre péda (#930)
+
+12 outils en lecture (`mcp/tools/peda.ts`), exposition filtrée par `mcp/pedaExposure.ts` (`PEDA_MIN_GROUP = 5`). Accès : PEDA ou RESPONSABLE+. Détail : [`rgpd/registre-mcp.md`](rgpd/registre-mcp.md).
+
+| Risque | État |
+|---|---|
+| Consentement `ai_processing` (via `candidate_id`) ; alternants sans candidat lié invisibles | ✅ appliqué |
+| Libellé du consentement ne couvre pas explicitement le suivi péda ni un LLM tiers | ⏳ ouvert — DPO |
+| Ré-identification par petits effectifs (agrégats) | ✅ masquage k<5 + masquage complémentaire (anti-soustraction) |
+| `list_ruptures` nominatif (« Prénom N. »), non masqué par k | ⚠️ accepté — réservé PEDA / RESPONSABLE+ |
+| Notifications `peda` / `candidate` en texte libre | ✅ masquées (`misc.ts`) |
+| Journal d'audit : sujets `alternantId` / `sessionId` | ✅ `auditStore.ts` (`SUBJECT_KEYS`) |
 
 ---
 
