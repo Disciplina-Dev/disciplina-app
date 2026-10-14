@@ -43,8 +43,8 @@ src/
     needsAnalysis/      Needs-analysis GraphQL (MongoDB) — its own server
     candidate/          Candidates GraphQL (MongoDB)
     offers/             Offers GraphQL + matching logic (MongoDB)
-  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, tools per domain
-  scheduler/            pedaDraftScheduler — started from index.ts
+  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, 45 read-only tools per domain (kpi, candidates, companies, offers, needsAnalysis, misc, peda), `candidateExposure`/`pedaExposure` (RGPD filters), `auditStore`
+  scheduler/            pedaDraftScheduler, immersionEndScheduler, saNotificationScheduler — started from index.ts
   repositories/
     mysql/              16 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,
                         MatchLinkRepository, InterviewAccessRepository, FilizRepository…
@@ -68,7 +68,7 @@ src/
     matching/           Candidate ↔ offer matching endpoints
     needsAnalysis/      Needs-analysis REST endpoints
     notifications/      SSE notification stream
-    peda/               Pedagogical drafts (see scheduler/)
+    peda/               Péda: drafts, alternants, sessions, SA (séquences), ruptures (see scheduler/)
     mailTemplates/      Mail templates CRUD
     sectorSettings/     Sector reference settings
     filiz/              Filiz ERP endpoints
@@ -253,10 +253,10 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 ## Databases
 
 ### MySQL (`disciplina`)
-- 18 tables: `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
+- Main tables (non-exhaustive — see `database/mysql/mysql-init.sql`): `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
   `relance_history`, `commercial_kpi`, `rh_kpi`, `sector_settings`, `booking_settings`,
   `interview_access`, `match_link`, `todos`, `peda_config`, `peda_draft_history`, `app_settings`,
-  `filiz`, `needs_analysis`
+  `filiz`, `needs_analysis`, `mcp_oauth_clients`, `mcp_oauth_refresh_tokens`, `mcp_audit_log`
 - ⚠️ `needs_analysis` is **dead**: the entity moved to MongoDB and no code reads this table
   anymore, but `mysql-init.sql` still creates it. See `docs/AUDIT.md` §6.3.
 - Init: `database/mysql/mysql-init.sql`
