@@ -202,9 +202,17 @@ external/
   SIRET against `GET /api-sirene/3.11/siret/{siret}`. Throws `'SIRET not found'` (404),
   `'Invalid INSEE API key'` (401), or `'Rate limit exceeded'` (429).
 - `SireneService.searchEstablishments(criteria: SireneCriterion[], offset?: number): Promise<SireneListResult>`
-  — multi-criteria search (`siren`, `libelleCommuneEtablissement`, `activitePrincipaleUniteLegale`
-  are the only accepted `paramName`s), paginates with a 140ms delay between INSEE requests, filters
-  to active establishments (`etatAdministratif !== 'F'`), caps results at 20.
+  — multi-criteria search (`siren`, `libelleCommuneEtablissement`, `activitePrincipaleUniteLegale`,
+  `codeCommuneEtablissement`, `codePostalEtablissement`, `etatAdministratifEtablissement`,
+  `denominationUniteLegale`, `categorieEntreprise` are the accepted `paramName`s), paginates with a
+  140ms delay between INSEE requests, filters to active establishments (`etatAdministratif !== 'F'`)
+  unless the caller filters explicitly on `etatAdministratifEtablissement`, caps results at 20.
+- `EntreprisesSearchService.search(criteria: EntrepriseSearchCriteria, offset?: number)`
+  (`external/entreprises/`, no API key — open data) — backs `POST /api/sourcing/multicriteria` when a
+  dirigeant (`nomDirigeant`, `prenomDirigeant`), geo (`denomination`, `commune`, `codePostal`,
+  `departement`, `region`) or situation-admin (`etatAdministratif` A/C, `activitePrincipale`,
+  `trancheEffectif`) criterion is present; maps unités légales + `matching_etablissements` onto
+  `SireneEtablissement` (extra optionals `dirigeants`, `trancheEffectifs`, `activitePrincipale`).
 - Env: `INSEE_API_KEY` (optional — `external/insee/` is the only place it should be read).
 - Used by `CompaniesService.create()` (SIRET validation) and `rest/sourcing/controller.ts`
   (search-by-SIREN, multicriteria search).

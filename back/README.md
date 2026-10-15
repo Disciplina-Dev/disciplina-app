@@ -28,6 +28,7 @@ src/
     crypto/             HmacService, timing-safe compare + domain signers (relance URL, OAuth state)
     logger/             pino logger instance
     insee/              SireneService — INSEE Sirene API client (SIRET/SIREN lookup & search)
+    entreprises/        EntreprisesSearchService — Recherche d'entreprises API (dirigeant, geo, état, taille; no key)
     filiz/              FilizAuthClient + FilizService — Filiz ERP OAuth + degree/class APIs
     yousign/            Yousign e-signature client
     docuseal/           DocuSeal e-signature client
@@ -122,7 +123,7 @@ into the companies server.
 | POST | `/api/sourcing/search` | JWT | Find additional prospect contacts by name/address |
 | GET | `/api/sourcing/:siren` | JWT | Search establishments by SIREN; blacklist-aware (short-circuits if the whole SIREN is banned) |
 | GET | `/api/sourcing/:siret` | JWT | Validate a SIRET against INSEE; flags whether it's already in the portfolio |
-| POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria INSEE search (commune / NAF code / SIREN), excludes companies already in the portfolio |
+| POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria search (commune / NAF / SIREN via Sirene; + denomination, geo, dirigeant, état, taille via Recherche d'entreprises), excludes companies already in the portfolio |
 | GET | `/api/kpi/years` | JWT (ADMIN / RESPONSABLE) | List years with KPI data |
 | GET | `/api/kpi/summary` | JWT (ADMIN / RESPONSABLE) | Annual KPI summary per commercial (`?year=&site=`) |
 | GET | `/api/kpi/monthly` | JWT (ADMIN / RESPONSABLE) | Monthly KPI breakdown (`?year=&site=`) |
