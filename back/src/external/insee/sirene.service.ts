@@ -32,6 +32,10 @@ const ALLOWED_CRITERIA_PARAMS = new Set([
     'activitePrincipaleUniteLegale',
     'siren',
     'codeCommuneEtablissement',
+    'codePostalEtablissement',
+    'etatAdministratifEtablissement',
+    'denominationUniteLegale',
+    'categorieEntreprise',
 ]);
 
 export class SireneService {
@@ -116,9 +120,13 @@ export class SireneService {
             const raw = (await response.json()) as RawListResponse;
             lastHeader = raw.header;
 
+            // Par défaut on ne remonte que les établissements en activité.
+            // Si l'appelant filtre explicitement sur l'état administratif,
+            // on laisse l'API décider (permet de lister les établissements cessés).
+            const filterClosed = !criteria.some((c) => c.paramName === 'etatAdministratifEtablissement');
             const page = raw.etablissements
                 .map((e) => this.mapToDomain({ etablissement: e }))
-                .filter((e) => e.etatAdministratif !== 'F');
+                .filter((e) => (filterClosed ? e.etatAdministratif !== 'F' : true));
             active.push(...page);
 
             currentDebut += 20;
