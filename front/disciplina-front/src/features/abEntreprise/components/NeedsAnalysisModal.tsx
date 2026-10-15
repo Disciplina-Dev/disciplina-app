@@ -254,6 +254,18 @@ const DAYS: { key: keyof TrainingDaysState; label: string }[] = [
   { key: 'friday',    label: 'Vendredi' },
 ]
 
+// Jours travaillés du poste (planning entreprise) : semaine complète, week-end
+// inclus — distinct de DAYS (jours de formation au centre, lun–ven).
+const SCHEDULE_DAYS: { key: string; label: string }[] = [
+  { key: 'monday',    label: 'Lundi' },
+  { key: 'tuesday',   label: 'Mardi' },
+  { key: 'wednesday', label: 'Mercredi' },
+  { key: 'thursday',  label: 'Jeudi' },
+  { key: 'friday',    label: 'Vendredi' },
+  { key: 'saturday',  label: 'Samedi' },
+  { key: 'sunday',    label: 'Dimanche' },
+]
+
 const EMPTY_POSTE: Poste = {
   jobRole: '',
   count: 1,
@@ -534,7 +546,7 @@ function ScheduleDaysEditor({ value, onChange }: {
             </tr>
           </thead>
           <tbody>
-            {DAYS.map((d) => {
+            {SCHEDULE_DAYS.map((d) => {
               const slot = slotFor(d.label)
               const enabled = !!slot
               const setEnabled = (on: boolean) => {
