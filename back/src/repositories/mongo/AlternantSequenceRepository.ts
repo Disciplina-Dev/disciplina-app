@@ -30,6 +30,24 @@ export class AlternantSequenceRepository {
         return getModels().AlternantSequence.findOne({ _id: id }).lean();
     }
 
+    async findByIds(ids: string[]): Promise<AlternantSequence[]> {
+        if (ids.length === 0) return [];
+        return getModels().AlternantSequence.find({ _id: { $in: ids } }).lean();
+    }
+
+    /** Enregistre (ou retire si `eventId` est null) l'id d'événement Google d'un utilisateur. */
+    async setGoogleEventId(id: string, userId: number, eventId: string | null): Promise<void> {
+        const current = await this.findById(id);
+        if (!current) return;
+        const map: Record<string, string> = { ...(current.google_event_ids ?? {}) };
+        if (eventId) map[String(userId)] = eventId;
+        else delete map[String(userId)];
+        await getModels().AlternantSequence.updateOne(
+            { _id: id },
+            { $set: { google_event_ids: map, updated_at: new Date() } },
+        );
+    }
+
     async nextNumero(alternantId: string): Promise<number> {
         const latest = await getModels()
             .AlternantSequence.find({ alternant_id: alternantId })

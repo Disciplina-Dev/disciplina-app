@@ -136,6 +136,10 @@ export class AlternantService {
         return this.sequences.findByAlternantId(alternantId);
     }
 
+    async findSequenceById(id: string): Promise<AlternantSequence | null> {
+        return this.sequences.findById(id);
+    }
+
     async findByIds(ids: string[]): Promise<Alternant[]> {
         return this.alternants.findByIds(ids);
     }
@@ -397,6 +401,24 @@ export class AlternantService {
 
     async deleteSequence(sequenceId: string): Promise<boolean> {
         return this.sequences.delete(sequenceId);
+    }
+
+    /**
+     * Replanifie une SA en attente : déplace sa date prévue et décale d'autant
+     * les SA auto-générées suivantes encore en attente (même logique que la
+     * validation, pour garder le planning cohérent). Utilisé par l'édition
+     * depuis la liste Peda comme par la resynchronisation Google Calendar.
+     */
+    async rescheduleSequence(sequenceId: string, prevueLe: string): Promise<AlternantSequence | null> {
+        const seq = await this.sequences.findById(sequenceId);
+        if (!seq) return null;
+        if (seq.status === AlternantSequenceStatus.DONE) {
+            throw new Error('Une SA réalisée ne peut plus être replanifiée');
+        }
+        const date = requireValidDate(prevueLe, 'La date prévue');
+        const deltaMs = date.getTime() - new Date(seq.prevue_le).getTime();
+        await this.sequences.shiftLaterPending(seq.alternant_id, seq.numero, deltaMs);
+        return this.sequences.update(sequenceId, { prevue_le: date });
     }
 
     private async generateAutoSequences(alternantId: string, start: Date, end: Date | null): Promise<void> {

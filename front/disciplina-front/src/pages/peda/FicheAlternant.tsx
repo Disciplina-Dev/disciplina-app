@@ -37,6 +37,7 @@ import {
   linkAlternant,
   markSequence,
   removeAlternantCompany,
+  rescheduleSequence,
   unlinkAlternant,
   updateAlternant,
   updateSequenceContacts,
@@ -139,6 +140,9 @@ export default function FicheAlternant() {
   const [pendingCompletionId, setPendingCompletionId] = useState<string | null>(null)
   const [completionDate, setCompletionDate] = useState('')
   const [completing, setCompleting] = useState(false)
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null)
+  const [rescheduleDate, setRescheduleDate] = useState('')
+  const [rescheduling, setRescheduling] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -336,6 +340,22 @@ export default function FicheAlternant() {
       if (updated) setSequences((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Mise à jour impossible')
+    }
+  }
+
+  async function handleReschedule(seq: AlternantSequence) {
+    if (!id || !rescheduleDate) return
+    setRescheduling(true)
+    try {
+      // Midi UTC : évite tout décalage de jour selon le fuseau du tenant.
+      await rescheduleSequence(seq.id, `${rescheduleDate}T12:00:00.000Z`)
+      // Les SA suivantes ont été décalées côté backend → recharge.
+      setSequences(await fetchSequences(id))
+      setRescheduleId(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Replanification impossible')
+    } finally {
+      setRescheduling(false)
     }
   }
 
@@ -744,6 +764,19 @@ export default function FicheAlternant() {
                       <IconCalendar width={14} height={14} className="text-[var(--ds-text-subtle)]" />
                       Prévu le : {formatDate(seq.prevueLe)}
                       <span className={`font-semibold ${daysLabelClassName(seq.prevueLe, seq.status)}`}>· {daysLabel(seq.prevueLe, seq.status, seq.realiseeLe)}</span>
+                      {seq.status === 'pending' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRescheduleId((cur) => (cur === seq.id ? null : seq.id))
+                            setRescheduleDate(seq.prevueLe.slice(0, 10))
+                          }}
+                          title="Modifier la date de cette SA et décaler les suivantes"
+                          className="ml-1 inline-flex items-center gap-1 text-[12px] font-semibold text-teal-700 hover:underline"
+                        >
+                          <IconEdit width={12} height={12} /> Modifier
+                        </button>
+                      )}
                     </p>
                     {linkedOthers.length > 0 && seq.status === 'pending' && (
                       <p className="mt-1 flex items-center gap-1.5 text-[12px] text-[var(--ds-text-subtle)]">
@@ -787,6 +820,39 @@ export default function FicheAlternant() {
                     )}
                   </div>
                 </div>
+                {rescheduleId === seq.id && seq.status === 'pending' && (
+                  <div className="mt-3 rounded-xl border border-teal-700/30 bg-teal-700/5 p-3">
+                    <p className="flex items-center gap-1.5 text-[13px] font-bold text-[var(--ds-text)]">
+                      <IconEdit width={14} height={14} className="text-teal-700" />
+                      Replanifier la SA — les SA suivantes seront décalées d’autant :
+                    </p>
+                    <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+                      <div className="flex-1">
+                        <InputField
+                          id={`sa-reschedule-${seq.id}`}
+                          label="Nouvelle date prévue"
+                          type="date"
+                          value={rescheduleDate}
+                          onChange={(e) => setRescheduleDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => setRescheduleId(null)}>
+                          Annuler
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          isLoading={rescheduling}
+                          disabled={!rescheduleDate}
+                          onClick={() => handleReschedule(seq)}
+                        >
+                          Replanifier
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[var(--ds-border)] pt-3">
                   {CONTACT_LABELS.map(({ key, label }) => (
                     <ContactCheckbox

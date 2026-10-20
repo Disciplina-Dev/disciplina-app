@@ -182,6 +182,7 @@ export const typeDefs = gql`
         archiveAlternant(id: ID!): Alternant
         unarchiveAlternant(id: ID!): Alternant
         createSequence(alternantId: ID!, prevueLe: String!): AlternantSequence!
+        rescheduleSequence(id: ID!, prevueLe: String!): AlternantSequence
         updateSequenceContacts(id: ID!, contacts: AlternantSequenceContactsInput!): AlternantSequence
         completeSequence(id: ID!, realiseeLe: String!): AlternantSequence
         markSequence(id: ID!, status: AlternantSequenceStatus!): AlternantSequence
