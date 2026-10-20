@@ -1,5 +1,18 @@
-import { query } from '../../db/mysql/connection';
+import { query, getConnection } from '../../db/mysql/connection';
 import { UserRow, UserRowJoined } from '../../types/db-rows.types';
+
+/** users.sectors (json de libellés, déjà parsé ou en chaîne) → liste de libellés. */
+function parseSectorLabels(raw: unknown): string[] {
+    let labels = raw;
+    if (typeof labels === 'string') {
+        try {
+            labels = JSON.parse(labels);
+        } catch {
+            return [];
+        }
+    }
+    return Array.isArray(labels) ? labels.filter((l): l is string => typeof l === 'string') : [];
+}
 
 const USER_SELECT_COLUMNS = [
     'u.id',
@@ -106,6 +119,38 @@ export class UserRepository {
         );
     }
 
+    /**
+     * Double écriture : `user_sectors` suit `users.sectors` (le JSON reste la source
+     * de lecture le temps de la transition). Les libellés hors référentiel sont ignorés.
+     */
+    private async syncUserSectors(userId: number, rawSectors: unknown): Promise<void> {
+        const labels = [...new Set(parseSectorLabels(rawSectors))];
+        const conn = await getConnection();
+        try {
+            await conn.beginTransaction();
+            await conn.execute('DELETE FROM user_sectors WHERE user_id = ?', [userId]);
+            if (labels.length > 0) {
+                const [rows] = await conn.execute(
+                    `SELECT id FROM sectors WHERE level IN ('region', 'sector') AND label IN (${labels.map(() => '?').join(', ')})`,
+                    labels,
+                );
+                const ids = (rows as { id: number }[]).map((r) => r.id);
+                if (ids.length > 0) {
+                    await conn.execute(
+                        `INSERT IGNORE INTO user_sectors (user_id, sector_id) VALUES ${ids.map(() => '(?, ?)').join(', ')}`,
+                        ids.flatMap((id) => [userId, id]),
+                    );
+                }
+            }
+            await conn.commit();
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    }
+
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
         const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(
@@ -122,6 +167,7 @@ export class UserRepository {
                 user.refresh_token,
             ],
         );
+        await this.syncUserSectors(result.insertId, user.sectors);
         return result.insertId;
     }
 
@@ -167,6 +213,7 @@ export class UserRepository {
     async updateSectors(id: number, sectors: string[]): Promise<void> {
         const sectorsJson = sectors.length > 0 ? JSON.stringify(sectors) : null;
         await query('UPDATE users SET sectors = ? WHERE id = ?', [sectorsJson, id]);
+        await this.syncUserSectors(id, sectors);
     }
 
     /**
@@ -193,6 +240,7 @@ export class UserRepository {
         const sets = entries.map(([k]) => `${k} = ?`).join(', ');
         const values = entries.map(([, v]) => v);
         await query(`UPDATE users SET ${sets} WHERE id = ?`, [...values, id]);
+        if (entries.some(([k]) => k === 'sectors')) await this.syncUserSectors(id, fields.sectors);
     }
 
     async updateTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {
