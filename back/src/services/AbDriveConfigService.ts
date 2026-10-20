@@ -2,7 +2,7 @@ import { AbDriveConfig, AbDriveConfigRepository } from '../repositories/mongo/Ab
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
-import { ANNEMASSE_DRIVE_SECTOR, abDriveSectorsForTenant, sectorFromRegion } from '../utils/sector';
+import { ANNEMASSE_DRIVE_SECTOR, DEFAULT_SECTOR, abDriveSectorsForTenant, sectorFromRegion } from '../utils/sector';
 import { getRegion } from '../db/tenant';
 import { JobRole, User } from '../types/user.types';
 import { CompanyRegion } from '../types/needsAnalysisNoSql.types';
@@ -90,7 +90,7 @@ export class AbDriveConfigService {
             const sector =
                 getRegion() === 'annemasse'
                     ? ANNEMASSE_DRIVE_SECTOR
-                    : (sectorFromRegion(region) ?? 'Nord-Est');
+                    : (sectorFromRegion(region) ?? DEFAULT_SECTOR);
             const creator = creatorId ? await this.userService.findById(creatorId) : null;
             const actingUser =
                 actingUserId && actingUserId !== creatorId ? await this.userService.findById(actingUserId) : null;
