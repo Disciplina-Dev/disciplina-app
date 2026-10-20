@@ -35,6 +35,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 - MCP RGPD (#915) : consentement `ai_processing` appliqué aux outils candidats/offres, DTO minimisés, journal d'accès `mcp_audit_log`, quotas par utilisateur, clé statique `MCP_STATIC_KEY_ENABLED` désactivée en production par défaut, `MCP_JWT_SECRET` distinct, purge OAuth/audit planifiée.
 - MCP péda (#930) : 12 outils lecture seule (sessions, SA, alternants « Prénom N. », ruptures, KPI) minimisés RGPD ; `contactsComplete` sur les SA en retard / à venir.
+- Agenda des SA (#957) : les séquences d'accompagnement (SA) sont synchronisées sur l'agenda Google de chaque Peda connecté (événement journée entière tagué) ; vue « Calendrier » à côté de la liste des SA, réconciliation Google → app à l'ouverture de la liste comme du calendrier (et via « Synchroniser ») : déplacer un événement Google replanifie la SA, et la date d'une SA est aussi modifiable depuis la fiche alternant.
 
 ### Changed
 

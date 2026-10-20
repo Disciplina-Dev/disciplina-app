@@ -61,6 +61,8 @@ export interface AlternantSequence {
     soon_notified_at?: Date | string | null;
     /** Horodatage de la notif « SA en retard » (date prévue dépassée) — dédup scheduler. */
     late_notified_at?: Date | string | null;
+    /** Ids des événements Google Calendar créés pour cette SA, par id d'utilisateur Peda. */
+    google_event_ids?: Record<string, string> | null;
     /** `null` = active ; date posée = archivée avec son alternant. */
     archived_at?: Date | string | null;
     created_at: Date | string;

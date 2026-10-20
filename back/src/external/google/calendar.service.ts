@@ -23,6 +23,10 @@ export interface CalendarEvent {
     attendance?: Attendance;
     /** Marqué comme entretien (compté dans les KPI RH). */
     isInterview?: boolean;
+    /** Id de la SA (séquence d'accompagnement) à l'origine de l'événement, si applicable. */
+    saSequenceId?: string;
+    /** Id de l'alternant de la SA, pour lier l'événement à sa fiche. */
+    saAlternantId?: string;
 }
 
 /** Statut de présence stocké sur l'event. */
@@ -47,6 +51,12 @@ export interface CalendarEventInput {
     isInterview?: boolean;
     /** Invités (réservation publique). */
     attendees?: { email: string; displayName?: string }[];
+    /** Événement journée entière : `start`/`end` sont des dates `YYYY-MM-DD`. */
+    allDay?: boolean;
+    /** Id de la SA (séquence d'accompagnement) à l'origine de l'événement. */
+    saSequenceId?: string;
+    /** Id de l'alternant de la SA. */
+    saAlternantId?: string;
 }
 
 /** Intervalle occupé renvoyé par l'API freebusy. */
@@ -63,6 +73,10 @@ const ATTENDEE_EMAIL_KEY = 'attendeeEmail';
 const ATTENDANCE_KEY = 'attendance';
 /** Clé extendedProperties.private marquant un entretien (KPI). */
 const IS_INTERVIEW_KEY = 'isInterview';
+/** Clé extendedProperties.private reliant l'événement à une SA (séquence d'accompagnement). */
+const SA_SEQUENCE_ID_KEY = 'saSequenceId';
+/** Clé extendedProperties.private reliant l'événement à l'alternant de la SA. */
+const SA_ALTERNANT_ID_KEY = 'saAlternantId';
 
 export class GoogleCalendarService {
     private calendar: calendar_v3.Calendar;
@@ -144,8 +158,8 @@ function toRequestBody(input: CalendarEventInput): calendar_v3.Schema$Event {
         summary: input.summary,
         description: input.description,
         location: input.location,
-        start: { dateTime: input.start },
-        end: { dateTime: input.end },
+        start: input.allDay ? { date: input.start } : { dateTime: input.start },
+        end: input.allDay ? { date: input.end } : { dateTime: input.end },
         colorId: input.colorId,
         attendees: input.attendees,
         extendedProperties: {
@@ -153,6 +167,8 @@ function toRequestBody(input: CalendarEventInput): calendar_v3.Schema$Event {
                 [MEETING_LINK_KEY]: input.meetingLink ?? '',
                 [ATTENDEE_EMAIL_KEY]: input.attendeeEmail ?? '',
                 [IS_INTERVIEW_KEY]: input.isInterview ? '1' : '',
+                [SA_SEQUENCE_ID_KEY]: input.saSequenceId ?? '',
+                [SA_ALTERNANT_ID_KEY]: input.saAlternantId ?? '',
             },
         },
     };
@@ -181,5 +197,7 @@ function toCalendarEvent(e: calendar_v3.Schema$Event): CalendarEvent {
         attendeeEmail: e.extendedProperties?.private?.[ATTENDEE_EMAIL_KEY] || undefined,
         attendance: parseAttendance(e.extendedProperties?.private?.[ATTENDANCE_KEY]),
         isInterview: e.extendedProperties?.private?.[IS_INTERVIEW_KEY] === '1',
+        saSequenceId: e.extendedProperties?.private?.[SA_SEQUENCE_ID_KEY] || undefined,
+        saAlternantId: e.extendedProperties?.private?.[SA_ALTERNANT_ID_KEY] || undefined,
     };
 }
