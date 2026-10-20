@@ -1,4 +1,5 @@
 import { query, getConnection } from '../../db/mysql/connection';
+import { withSectorId } from './sectorId';
 import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesBlacklistRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
@@ -63,7 +64,7 @@ export class CompanyBlacklistRepository {
     async create(data: Partial<CompaniesBlacklistRow>): Promise<number> {
         const conn = await getConnection();
         try {
-            const { sql, values } = buildInsert('companies_blacklist', data);
+            const { sql, values } = buildInsert('companies_blacklist', await withSectorId(data));
             const result = await conn.execute(sql, values);
             return (result[0] as any).insertId;
         } finally {

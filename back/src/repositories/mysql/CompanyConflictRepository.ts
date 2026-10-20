@@ -1,4 +1,5 @@
 import { query, getConnection } from '../../db/mysql/connection';
+import { withSectorId } from './sectorId';
 import { CompanyConflictRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 
@@ -51,7 +52,7 @@ export class CompanyConflictRepository {
     async update(id: number, data: Partial<CompanyConflictRow>): Promise<boolean> {
         const conn = await getConnection();
         try {
-            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+            const cleaned = Object.fromEntries(Object.entries(await withSectorId(data)).filter(([_, v]) => v !== undefined));
             if (Object.keys(cleaned).length === 0) return false;
             const sets = Object.keys(cleaned)
                 .map((key) => `${key} = ?`)

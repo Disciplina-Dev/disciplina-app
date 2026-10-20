@@ -3,6 +3,7 @@ import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 import { isCompanySector } from '../../utils/sector';
+import { withSectorId } from './sectorId';
 
 const ALLOWED_STATUSES = new Set(['Oui', 'Oui OF', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const ALLOWED_RELANCE = new Set(['today', 'past', 'future']);
@@ -273,7 +274,7 @@ export class CompanyRepository {
     async create(data: Partial<CompaniesRow>): Promise<number> {
         const conn = await getConnection();
         try {
-            const { sql, values } = buildInsert('companies', data);
+            const { sql, values } = buildInsert('companies', await withSectorId(data));
             const result = await conn.execute(sql, values);
             return (result[0] as any).insertId;
         } finally {
@@ -286,7 +287,7 @@ export class CompanyRepository {
         try {
             // `null` est une valeur significative (ex. « aucune relance » vide relance_date) :
             // seuls les champs absents (undefined) sont ignorés.
-            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+            const cleaned = Object.fromEntries(Object.entries(await withSectorId(data)).filter(([_, v]) => v !== undefined));
             if (Object.keys(cleaned).length === 0) return false;
             const sets = Object.keys(cleaned)
                 .map((key) => `${key} = ?`)
