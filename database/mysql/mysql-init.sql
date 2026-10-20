@@ -89,6 +89,35 @@ CREATE TABLE IF NOT EXISTS `booking_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 
+-- Référentiel hiérarchique des secteurs : région > secteur > commune (adjacency
+-- list, parcours via WITH RECURSIVE). Seed en fin de fichier (base fraîche) ; le
+-- backend (back/src/db/mysql/sectorsMigration.ts) complète les bases existantes
+-- et verrouille la parité par test. `code` n'est unique que par niveau (la commune
+-- ANNECY et le secteur ANNECY coexistent). `location` reprend sector_settings.
+CREATE TABLE IF NOT EXISTS `sectors` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(64) NOT NULL,
+  `label` varchar(255) NOT NULL,
+  `level` enum('region','sector','commune') NOT NULL,
+  `parent_id` int DEFAULT NULL,
+  `location` varchar(255) NOT NULL DEFAULT '',
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `uq_sectors_level_code` (`level`, `code`),
+  KEY `idx_sectors_parent_id` (`parent_id`),
+  CONSTRAINT `fk_sectors_parent_id` FOREIGN KEY (`parent_id`) REFERENCES `sectors` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Secteurs d'un utilisateur (remplace à terme users.sectors json).
+CREATE TABLE IF NOT EXISTS `user_sectors` (
+  `user_id` int NOT NULL,
+  `sector_id` int NOT NULL,
+  PRIMARY KEY (`user_id`, `sector_id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_user_sectors_sector_id` (`sector_id`),
+  CONSTRAINT `fk_user_sectors_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_user_sectors_sector_id` FOREIGN KEY (`sector_id`) REFERENCES `sectors` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `companies` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int DEFAULT NULL,
@@ -98,6 +127,7 @@ CREATE TABLE IF NOT EXISTS `companies` (
   `phone` varchar(50) DEFAULT NULL,
   `email` varchar(255) DEFAULT NULL,
   `address` varchar(255) NOT NULL,
+  `sector_id` int DEFAULT NULL,
   `sector` varchar(255) NOT NULL DEFAULT 'Nord-Est',
   `main_activity` varchar(255) DEFAULT NULL,
   `siret` char(14) NOT NULL,
@@ -116,7 +146,9 @@ CREATE TABLE IF NOT EXISTS `companies` (
   UNIQUE KEY `siret` (`siret`),
   KEY `idx_companies_siren` (`siren`),
   KEY `idx_companies_user_id` (`user_id`),
-  CONSTRAINT `fk_companies_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
+  CONSTRAINT `fk_companies_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE,
+  KEY `idx_companies_sector_id` (`sector_id`),
+  CONSTRAINT `fk_companies_sector_id` FOREIGN KEY (`sector_id`) REFERENCES `sectors` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `company_conflict` (
@@ -128,6 +160,7 @@ CREATE TABLE IF NOT EXISTS `company_conflict` (
   `phone` varchar(50) DEFAULT NULL,
   `email` varchar(255) DEFAULT NULL,
   `address` varchar(255) DEFAULT NULL,
+  `sector_id` int DEFAULT NULL,
   `sector` varchar(255) DEFAULT NULL,
   `main_activity` varchar(255) DEFAULT NULL,
   `siret` char(14) DEFAULT NULL,
@@ -144,7 +177,9 @@ CREATE TABLE IF NOT EXISTS `company_conflict` (
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_company_conflict_siret` (`siret`),
-  CONSTRAINT `fk_company_conflict_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
+  CONSTRAINT `fk_company_conflict_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE,
+  KEY `idx_company_conflict_sector_id` (`sector_id`),
+  CONSTRAINT `fk_company_conflict_sector_id` FOREIGN KEY (`sector_id`) REFERENCES `sectors` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `companies_blacklist` (
@@ -155,6 +190,7 @@ CREATE TABLE IF NOT EXISTS `companies_blacklist` (
   `phone` varchar(50) DEFAULT NULL,
   `email` varchar(255) DEFAULT NULL,
   `address` varchar(255) NOT NULL,
+  `sector_id` int DEFAULT NULL,
   `sector` varchar(255) NOT NULL DEFAULT 'Nord-Est',
   `main_activity` varchar(255) DEFAULT NULL,
   `siret` char(14) NOT NULL,
@@ -172,7 +208,9 @@ CREATE TABLE IF NOT EXISTS `companies_blacklist` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `siret` (`siret`),
   KEY `idx_companies_blacklist_user_id` (`user_id`),
-  CONSTRAINT `fk_companies_blacklist_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE
+  CONSTRAINT `fk_companies_blacklist_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON UPDATE CASCADE,
+  KEY `idx_companies_blacklist_sector_id` (`sector_id`),
+  CONSTRAINT `fk_companies_blacklist_sector_id` FOREIGN KEY (`sector_id`) REFERENCES `sectors` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `company_history` (
@@ -438,6 +476,8 @@ CREATE TABLE disciplina_annemasse.peda_draft_history LIKE disciplina.peda_draft_
 CREATE TABLE disciplina_annemasse.refresh_tokens LIKE disciplina.refresh_tokens;
 CREATE TABLE disciplina_annemasse.relance_history LIKE disciplina.relance_history;
 CREATE TABLE disciplina_annemasse.sector_settings LIKE disciplina.sector_settings;
+CREATE TABLE disciplina_annemasse.sectors LIKE disciplina.sectors;
+CREATE TABLE disciplina_annemasse.user_sectors LIKE disciplina.user_sectors;
 CREATE TABLE disciplina_annemasse.todo_groups LIKE disciplina.todo_groups;
 CREATE TABLE disciplina_annemasse.todos LIKE disciplina.todos;
 
@@ -491,6 +531,23 @@ ALTER TABLE disciplina_annemasse.todos
   ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES disciplina_annemasse.todo_groups (id) ON DELETE SET NULL;
 
+-- Référentiel des secteurs : FK recréées (non copiées par LIKE). Seed au boot backend.
+ALTER TABLE disciplina_annemasse.sectors
+  ADD CONSTRAINT fk_sectors_parent_id FOREIGN KEY (parent_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.user_sectors
+  ADD CONSTRAINT fk_user_sectors_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT fk_user_sectors_sector_id FOREIGN KEY (sector_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.companies
+  ADD CONSTRAINT fk_companies_sector_id FOREIGN KEY (sector_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.company_conflict
+  ADD CONSTRAINT fk_company_conflict_sector_id FOREIGN KEY (sector_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.companies_blacklist
+  ADD CONSTRAINT fk_companies_blacklist_sector_id FOREIGN KEY (sector_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;
+
 -- `CREATE TABLE ... LIKE` copie les valeurs par défaut : booking_settings.timezone
 -- arrive ici en 'Indian/Reunion' (cf. la CREATE TABLE de `disciplina` plus haut) alors
 -- qu'Annemasse est en Europe/Paris. Sans cet ALTER, chaque page de réservation créée
@@ -540,3 +597,169 @@ INSERT IGNORE INTO sector_settings (sector, location) VALUES
 -- PAS une copie des zones Réunion ci-dessus (cf. GEO-11).
 INSERT IGNORE INTO disciplina_annemasse.sector_settings (sector, location) VALUES
     ('Annemasse', 'Disciplina Annemasse');
+
+-- Référentiel des secteurs (région > secteur > commune), source : ZONE_TO_COMMUNES.
+-- Idempotent ; le backend (sectorsMigration.ts) complète au boot les bases existantes.
+-- BEGIN sectors seed reunion
+INSERT IGNORE INTO sectors (code, label, level, parent_id)
+SELECT 'REUNION', 'La Réunion', 'region', NULL;
+
+INSERT IGNORE INTO sectors (code, label, level, parent_id)
+SELECT 'NORD', 'Nord-Est', 'sector', id FROM sectors WHERE level = 'region' AND code = 'REUNION';
+INSERT IGNORE INTO sectors (code, label, level, parent_id)
+SELECT 'OUEST', 'Ouest', 'sector', id FROM sectors WHERE level = 'region' AND code = 'REUNION';
+INSERT IGNORE INTO sectors (code, label, level, parent_id)
+SELECT 'SUD', 'Sud', 'sector', id FROM sectors WHERE level = 'region' AND code = 'REUNION';
+
+INSERT IGNORE INTO sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'SAINT_DENIS' AS code, 'Saint Denis' AS label
+  UNION ALL SELECT 'SAINTE_MARIE', 'Sainte Marie'
+  UNION ALL SELECT 'SAINTE_SUZANNE', 'Sainte Suzanne'
+  UNION ALL SELECT 'SAINTE_ROSE', 'Sainte Rose'
+  UNION ALL SELECT 'SAINT_BENOIT', 'Saint Benoit'
+  UNION ALL SELECT 'BRAS_PANON', 'Bras Panon'
+  UNION ALL SELECT 'SAINT_ANDRE', 'Saint Andre'
+  UNION ALL SELECT 'LA_PLAINE_DES_PALMISTES', 'La Plaine Des Palmistes'
+  UNION ALL SELECT 'SALAZIE', 'Salazie'
+  UNION ALL SELECT 'SAINTE_ANNE', 'Sainte Anne'
+) v JOIN sectors p ON p.level = 'sector' AND p.code = 'NORD';
+
+INSERT IGNORE INTO sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'SAINT_PAUL' AS code, 'Saint Paul' AS label
+  UNION ALL SELECT 'SAINT_GILLES', 'Saint Gilles'
+  UNION ALL SELECT 'LA_POSSESSION', 'La Possession'
+  UNION ALL SELECT 'LE_PORT', 'Le Port'
+  UNION ALL SELECT 'TROIS_BASSINS', 'Trois Bassins'
+  UNION ALL SELECT 'SAINT_LEU', 'Saint Leu'
+  UNION ALL SELECT 'LES_AVIRONS', 'Les Avirons'
+) v JOIN sectors p ON p.level = 'sector' AND p.code = 'OUEST';
+
+INSERT IGNORE INTO sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'SAINT_PIERRE' AS code, 'Saint Pierre' AS label
+  UNION ALL SELECT 'SAINT_LOUIS', 'Saint Louis'
+  UNION ALL SELECT 'ETANG_SALE', 'Etang Sale'
+  UNION ALL SELECT 'LE_TAMPON', 'Le Tampon'
+  UNION ALL SELECT 'SAINT_JOSEPH', 'Saint Joseph'
+  UNION ALL SELECT 'SAINT_PHILLIPE', 'Saint Phillipe'
+  UNION ALL SELECT 'PETIT_ILE', 'Petit Ile'
+  UNION ALL SELECT 'CILAOS', 'Cilaos'
+  UNION ALL SELECT 'ENTRE_DEUX', 'Entre Deux'
+) v JOIN sectors p ON p.level = 'sector' AND p.code = 'SUD';
+
+UPDATE sectors s JOIN sector_settings ss ON ss.sector = s.label SET s.location = ss.location WHERE s.level IN ('region', 'sector') AND s.location = '';
+-- END sectors seed reunion
+
+-- BEGIN sectors seed annemasse
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT 'ANNEMASSE', 'Annemasse', 'region', NULL;
+
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT 'GENEVE_FRONTIERE', 'Genève / Frontière', 'sector', id FROM disciplina_annemasse.sectors WHERE level = 'region' AND code = 'ANNEMASSE';
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT 'GENEVOIS', 'Saint-Julien / Genevois', 'sector', id FROM disciplina_annemasse.sectors WHERE level = 'region' AND code = 'ANNEMASSE';
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT 'ARVE', 'Arve', 'sector', id FROM disciplina_annemasse.sectors WHERE level = 'region' AND code = 'ANNEMASSE';
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT 'FAUCIGNY', 'Faucigny / La Roche', 'sector', id FROM disciplina_annemasse.sectors WHERE level = 'region' AND code = 'ANNEMASSE';
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT 'ANNECY', 'Annecy', 'sector', id FROM disciplina_annemasse.sectors WHERE level = 'region' AND code = 'ANNEMASSE';
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT 'CHABLAIS', 'Chablais', 'sector', id FROM disciplina_annemasse.sectors WHERE level = 'region' AND code = 'ANNEMASSE';
+
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'ANNEMASSE' AS code, 'Annemasse' AS label
+  UNION ALL SELECT 'AMBILLY', 'Ambilly'
+  UNION ALL SELECT 'GAILLARD', 'Gaillard'
+  UNION ALL SELECT 'VILLE_LA_GRAND', 'Ville La Grand'
+  UNION ALL SELECT 'VETRAZ_MONTHOUX', 'Vetraz Monthoux'
+  UNION ALL SELECT 'ETREMBIERES', 'Etrembieres'
+  UNION ALL SELECT 'CRANVES_SALES', 'Cranves Sales'
+  UNION ALL SELECT 'SAINT_CERGUES', 'Saint Cergues'
+  UNION ALL SELECT 'JUVIGNY', 'Juvigny'
+  UNION ALL SELECT 'BONNE', 'Bonne'
+  UNION ALL SELECT 'MACHILLY', 'Machilly'
+  UNION ALL SELECT 'DOUVAINE', 'Douvaine'
+  UNION ALL SELECT 'VEIGY_FONCENEX', 'Veigy Foncenex'
+  UNION ALL SELECT 'SCIEZ', 'Sciez'
+  UNION ALL SELECT 'THONON_LES_BAINS', 'Thonon Les Bains'
+  UNION ALL SELECT 'EVIAN_LES_BAINS', 'Evian Les Bains'
+) v JOIN disciplina_annemasse.sectors p ON p.level = 'sector' AND p.code = 'GENEVE_FRONTIERE';
+
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'SAINT_JULIEN_EN_GENEVOIS' AS code, 'Saint Julien En Genevois' AS label
+  UNION ALL SELECT 'ARCHAMPS', 'Archamps'
+  UNION ALL SELECT 'NEYDENS', 'Neydens'
+  UNION ALL SELECT 'COLLONGES_SOUS_SALEVE', 'Collonges Sous Saleve'
+  UNION ALL SELECT 'PRESILLY', 'Presilly'
+  UNION ALL SELECT 'BEAUMONT', 'Beaumont'
+  UNION ALL SELECT 'FEIGERES', 'Feigeres'
+  UNION ALL SELECT 'VIRY', 'Viry'
+  UNION ALL SELECT 'VALLEIRY', 'Valleiry'
+  UNION ALL SELECT 'VULBENS', 'Vulbens'
+  UNION ALL SELECT 'CHENEX', 'Chenex'
+) v JOIN disciplina_annemasse.sectors p ON p.level = 'sector' AND p.code = 'GENEVOIS';
+
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'REIGNIER_ESERY' AS code, 'Reignier Esery' AS label
+  UNION ALL SELECT 'ARENTHON', 'Arenthon'
+  UNION ALL SELECT 'CONTAMINE_SUR_ARVE', 'Contamine Sur Arve'
+  UNION ALL SELECT 'BONNEVILLE', 'Bonneville'
+  UNION ALL SELECT 'AYSE', 'Ayse'
+  UNION ALL SELECT 'MARIGNIER', 'Marignier'
+  UNION ALL SELECT 'VOUGY', 'Vougy'
+  UNION ALL SELECT 'CLUSES', 'Cluses'
+  UNION ALL SELECT 'SCIONZIER', 'Scionzier'
+  UNION ALL SELECT 'MARNAZ', 'Marnaz'
+) v JOIN disciplina_annemasse.sectors p ON p.level = 'sector' AND p.code = 'ARVE';
+
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'LA_ROCHE_SUR_FORON' AS code, 'La Roche Sur Foron' AS label
+  UNION ALL SELECT 'AMANCY', 'Amancy'
+  UNION ALL SELECT 'SAINT_PIERRE_EN_FAUCIGNY', 'Saint Pierre En Faucigny'
+  UNION ALL SELECT 'ETAUX', 'Etaux'
+  UNION ALL SELECT 'CORNIER', 'Cornier'
+  UNION ALL SELECT 'PERS_JUSSY', 'Pers Jussy'
+  UNION ALL SELECT 'SCIENTRIER', 'Scientrier'
+  UNION ALL SELECT 'ARBUSIGNY', 'Arbusigny'
+) v JOIN disciplina_annemasse.sectors p ON p.level = 'sector' AND p.code = 'FAUCIGNY';
+
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'ANNECY' AS code, 'Annecy' AS label
+  UNION ALL SELECT 'PRINGY', 'Pringy'
+  UNION ALL SELECT 'EPAGNY_METZ_TESSY', 'Epagny Metz Tessy'
+  UNION ALL SELECT 'POISY', 'Poisy'
+  UNION ALL SELECT 'MEYTHET', 'Meythet'
+  UNION ALL SELECT 'SEYNOD', 'Seynod'
+  UNION ALL SELECT 'CRAN_GEVRIER', 'Cran Gevrier'
+  UNION ALL SELECT 'ARGONAY', 'Argonay'
+) v JOIN disciplina_annemasse.sectors p ON p.level = 'sector' AND p.code = 'ANNECY';
+
+INSERT IGNORE INTO disciplina_annemasse.sectors (code, label, level, parent_id)
+SELECT v.code, v.label, 'commune', p.id
+FROM (
+  SELECT 'BONS_EN_CHABLAIS' AS code, 'Bons En Chablais' AS label
+  UNION ALL SELECT 'PERRIGNIER', 'Perrignier'
+  UNION ALL SELECT 'BOEGE', 'Boege'
+  UNION ALL SELECT 'FILLINGES', 'Fillinges'
+  UNION ALL SELECT 'VIUZ_EN_SALLAZ', 'Viuz En Sallaz'
+  UNION ALL SELECT 'SAINT_JEOIRE', 'Saint Jeoire'
+) v JOIN disciplina_annemasse.sectors p ON p.level = 'sector' AND p.code = 'CHABLAIS';
+
+UPDATE disciplina_annemasse.sectors s JOIN disciplina_annemasse.sector_settings ss ON ss.sector = s.label SET s.location = ss.location WHERE s.level IN ('region', 'sector') AND s.location = '';
+-- END sectors seed annemasse
