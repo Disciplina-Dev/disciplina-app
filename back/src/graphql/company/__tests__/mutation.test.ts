@@ -150,10 +150,8 @@ describe('GraphQL company mutations', () => {
             expect(json.errors).toBeUndefined();
             expect(json.data.createCompany.sector).toBe('Arve');
 
-            // The sector filter accepts the new vocabulary too
-            const repo = new CompanyRepository();
-            const found = await repo.findAll(50, undefined, undefined, { sectors: ['Arve'] });
-            expect(found.some((c) => c.siret === siret)).toBe(true);
+            // Le filtre par secteur Annemasse est couvert par sectorId.test.ts (base du tenant annemasse) :
+            // ici la base est celle de la Réunion, dont le référentiel n'a pas « Arve ».
         });
 
         it('falls back to the default sector for unknown values', async () => {

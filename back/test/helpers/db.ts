@@ -11,6 +11,7 @@ const CLEARED_TABLES = [
     'external_access',
     'external_link',
     'company_history',
+    'company_sectors',
     'companies',
     'companies_blacklist',
     'match_link',

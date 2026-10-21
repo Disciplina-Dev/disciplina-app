@@ -431,6 +431,17 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             CONSTRAINT fk_user_sectors_sector_id FOREIGN KEY (sector_id) REFERENCES sectors(id) ON DELETE RESTRICT ON UPDATE CASCADE
         )`,
     },
+    {
+        table: 'company_sectors',
+        ddl: `CREATE TABLE IF NOT EXISTS company_sectors (
+            company_id INT NOT NULL,
+            sector_id INT NOT NULL,
+            PRIMARY KEY (company_id, sector_id),
+            KEY idx_company_sectors_sector_id (sector_id),
+            CONSTRAINT fk_company_sectors_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT fk_company_sectors_sector_id FOREIGN KEY (sector_id) REFERENCES sectors(id) ON DELETE RESTRICT ON UPDATE CASCADE
+        )`,
+    },
 ];
 
 /** Lieux par défaut (modifiables ensuite par l'admin via l'interface). */

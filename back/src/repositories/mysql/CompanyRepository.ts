@@ -3,7 +3,7 @@ import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 import { isCompanySector } from '../../utils/sector';
-import { withSectorId } from './sectorId';
+import { syncCompanySectors, withSectorId } from './sectorId';
 
 const ALLOWED_STATUSES = new Set(['Oui', 'Oui OF', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const ALLOWED_RELANCE = new Set(['today', 'past', 'future']);
@@ -51,6 +51,12 @@ const SIREN_GROUP_JSON = `JSON_ARRAYAGG(JSON_OBJECT(
     'created_at', created_at
 ))`;
 
+// L'entreprise est rattachée au secteur de libellé `?` (company_sectors, multi-secteur).
+const HAS_SECTOR = `EXISTS (
+    SELECT 1 FROM company_sectors cs JOIN sectors s ON s.id = cs.sector_id
+    WHERE cs.company_id = companies.id AND s.level = 'sector' AND s.label = ?
+)`;
+
 export class CompanyRepository {
     private buildFilterClauses(filters?: CompanyFilters): { conditions: string[]; params: unknown[] } {
         const conditions: string[] = [];
@@ -81,11 +87,11 @@ export class CompanyRepository {
         const validSectors = [...new Set(rawSectors.filter((s) => isCompanySector(s)))];
         const mode = (filters?.sectorMode === 'AND' || filters?.sectorsMode === 'AND') ? 'AND' : 'OR';
         if (validSectors.length === 1) {
-            conditions.push('sector LIKE CONCAT("%", ?, "%")');
+            conditions.push(HAS_SECTOR);
             params.push(validSectors[0]);
         } else if (validSectors.length > 1) {
             const joiner = mode === 'AND' ? ' AND ' : ' OR ';
-            conditions.push(`(${validSectors.map(() => 'sector LIKE CONCAT("%", ?, "%")').join(joiner)})`);
+            conditions.push(`(${validSectors.map(() => HAS_SECTOR).join(joiner)})`);
             params.push(...validSectors);
         }
 
@@ -276,7 +282,9 @@ export class CompanyRepository {
         try {
             const { sql, values } = buildInsert('companies', await withSectorId(data));
             const result = await conn.execute(sql, values);
-            return (result[0] as any).insertId;
+            const insertId = (result[0] as any).insertId;
+            if (data.sector !== undefined) await syncCompanySectors(conn, insertId, data.sector);
+            return insertId;
         } finally {
             conn.release();
         }
@@ -294,6 +302,7 @@ export class CompanyRepository {
                 .join(', ');
             const values = [...Object.values(cleaned), id];
             const result = await conn.execute(`UPDATE companies SET ${sets} WHERE id = ?`, values);
+            if (data.sector !== undefined) await syncCompanySectors(conn, id, data.sector);
             return (result[0] as any).affectedRows > 0;
         } finally {
             conn.release();

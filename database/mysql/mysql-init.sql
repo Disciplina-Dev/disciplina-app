@@ -151,6 +151,16 @@ CREATE TABLE IF NOT EXISTS `companies` (
   CONSTRAINT `fk_companies_sector_id` FOREIGN KEY (`sector_id`) REFERENCES `sectors` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- Secteurs d'une entreprise (multi-secteur, #710) ; companies.sector_id reste le secteur principal.
+CREATE TABLE IF NOT EXISTS `company_sectors` (
+  `company_id` int NOT NULL,
+  `sector_id` int NOT NULL,
+  PRIMARY KEY (`company_id`, `sector_id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_company_sectors_sector_id` (`sector_id`),
+  CONSTRAINT `fk_company_sectors_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_company_sectors_sector_id` FOREIGN KEY (`sector_id`) REFERENCES `sectors` (`id`) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `company_conflict` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int DEFAULT NULL,
@@ -478,6 +488,7 @@ CREATE TABLE disciplina_annemasse.relance_history LIKE disciplina.relance_histor
 CREATE TABLE disciplina_annemasse.sector_settings LIKE disciplina.sector_settings;
 CREATE TABLE disciplina_annemasse.sectors LIKE disciplina.sectors;
 CREATE TABLE disciplina_annemasse.user_sectors LIKE disciplina.user_sectors;
+CREATE TABLE disciplina_annemasse.company_sectors LIKE disciplina.company_sectors;
 CREATE TABLE disciplina_annemasse.todo_groups LIKE disciplina.todo_groups;
 CREATE TABLE disciplina_annemasse.todos LIKE disciplina.todos;
 
@@ -538,6 +549,10 @@ ALTER TABLE disciplina_annemasse.sectors
 ALTER TABLE disciplina_annemasse.user_sectors
   ADD CONSTRAINT fk_user_sectors_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT fk_user_sectors_sector_id FOREIGN KEY (sector_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.company_sectors
+  ADD CONSTRAINT fk_company_sectors_company_id FOREIGN KEY (company_id) REFERENCES disciplina_annemasse.companies (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT fk_company_sectors_sector_id FOREIGN KEY (sector_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 ALTER TABLE disciplina_annemasse.companies
   ADD CONSTRAINT fk_companies_sector_id FOREIGN KEY (sector_id) REFERENCES disciplina_annemasse.sectors (id) ON DELETE RESTRICT ON UPDATE CASCADE;

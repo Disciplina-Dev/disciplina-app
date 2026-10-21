@@ -143,7 +143,7 @@ async function ensureSectorIdConstraints(dbQuery: QueryFn): Promise<void> {
 async function backfillSectorId(dbQuery: QueryFn): Promise<void> {
     for (const table of SECTOR_ID_TABLES) {
         const updated = await dbQuery<{ affectedRows: number }>(
-            `UPDATE ${table} t JOIN sectors s ON s.level = 'sector' AND s.label = t.sector SET t.sector_id = s.id WHERE t.sector_id IS NULL`,
+            `UPDATE ${table} t JOIN sectors s ON s.level = 'sector' AND s.label = TRIM(SUBSTRING_INDEX(t.sector, ',', 1)) SET t.sector_id = s.id WHERE t.sector_id IS NULL`,
         );
         if (Number(updated?.affectedRows) > 0) {
             logger.info(
@@ -157,6 +157,19 @@ async function backfillSectorId(dbQuery: QueryFn): Promise<void> {
             [],
         );
         if (orphans > 0) logger.warn({ table, orphans }, 'MySQL migration: rows whose sector label matches no sector');
+    }
+}
+
+/**
+ * companies.sector (libellés séparés par « , ») → lignes company_sectors, sans
+ * doublon. FIND_IN_SET évite le parsing côté TS (aucun libellé ne contient de virgule).
+ */
+async function backfillCompanySectors(dbQuery: QueryFn): Promise<void> {
+    const result = await dbQuery<{ affectedRows: number }>(
+        "INSERT IGNORE INTO company_sectors (company_id, sector_id) SELECT c.id, s.id FROM companies c JOIN sectors s ON s.level = 'sector' AND FIND_IN_SET(s.label, REPLACE(c.sector, ', ', ',')) > 0",
+    );
+    if (Number(result?.affectedRows) > 0) {
+        logger.info({ rows: result.affectedRows }, 'MySQL migration: backfilled company_sectors from companies.sector');
     }
 }
 
@@ -210,5 +223,6 @@ export async function migrateSectors(dbQuery: QueryFn, tenant: SectorTenant): Pr
     await seedSectors(dbQuery, tenant);
     await ensureSectorIdConstraints(dbQuery);
     await backfillSectorId(dbQuery);
+    await backfillCompanySectors(dbQuery);
     await backfillUserSectors(dbQuery);
 }

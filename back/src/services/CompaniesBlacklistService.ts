@@ -1,5 +1,6 @@
 import { getConnection } from '../db/mysql/connection';
 import { buildInsert } from '../db/mysql/queryBuilder';
+import { syncCompanySectors } from '../repositories/mysql/sectorId';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
 import { CompaniesBlacklistRow, CompaniesRow } from '../types/db-rows.types';
@@ -105,7 +106,8 @@ export class CompaniesBlacklistService {
                 'companies',
                 data as Record<string, string | number | boolean | Date | null>,
             );
-            await conn.execute(sql, values);
+            const [result] = await conn.execute(sql, values);
+            await syncCompanySectors(conn, (result as any).insertId, data.sector);
             await conn.execute('DELETE FROM companies_blacklist WHERE id = ?', [id]);
 
             await conn.commit();
