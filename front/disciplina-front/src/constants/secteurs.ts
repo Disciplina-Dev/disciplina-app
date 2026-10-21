@@ -134,19 +134,3 @@ export const ANNEMASSE_DRIVE_REGION = 'ANNEMASSE'
 export function driveRegionsForRegion(region: Region | null | undefined): string[] {
   return region === 'annemasse' ? [ANNEMASSE_DRIVE_REGION] : [...SECTEUR_KEYS]
 }
-
-/** Libellés des régions Drive (Réunion + dossier unique Annemasse). */
-export const DRIVE_REGION_LABELS: Record<string, string> = {
-  ...SECTEUR_LABELS,
-  [ANNEMASSE_DRIVE_REGION]: 'Annemasse',
-}
-
-/**
- * Secteur Drive AB unique du tenant Annemasse.
- */
-export const ANNEMASSE_AB_DRIVE_SECTOR = ANNEMASSE_SECTEUR
-
-/** Secteurs du formulaire config Drive AB selon le tenant. */
-export function abDriveSectorsForRegion(region: Region | null | undefined): string[] {
-  return region === 'annemasse' ? [ANNEMASSE_AB_DRIVE_SECTOR] : [...SECTEUR_VALUES]
-}
