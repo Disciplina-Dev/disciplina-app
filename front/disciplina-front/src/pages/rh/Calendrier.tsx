@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconMail, IconMapPin, IconPlus, IconRepeat, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
@@ -10,7 +11,7 @@ import { apiFetch } from '@/api/httpClient'
 import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
-import { userSecteursForRegion, normalizeUserSecteurForRegion } from '@/constants/secteurs'
+import { normalizeUserSecteurForRegion } from '@/constants/secteurs'
 import { useRegionStore } from '@/store/regionStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
@@ -829,7 +830,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
   const [loaded, setLoaded] = useState(false)
   const [custom, setCustom] = useState(false)
   const selfSectors = useAuthStore((s) => s.user?.sectors)
-  const region = useRegionStore((s) => s.region)
+  const { userSectors } = useSectors()
 
   useEffect(() => {
     let cancelled = false
@@ -841,7 +842,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
         setLoaded(true)
         // Défaut : lieu du secteur de l'utilisateur, sinon premier secteur du tenant ; rien si non configuré.
         if (autoDefault && !value.trim()) {
-          const validSectors = userSecteursForRegion(region)
+          const validSectors = userSectors
           const sector = selfSectors?.find((s) => validSectors.includes(s)) ?? validSectors[0]
           const match = withLocation.find((s) => s.sector === sector)
           if (match) onChange(match.location)
@@ -1096,7 +1097,7 @@ function AgendasPanel({ users, visible, onToggle, onToggleGroup }: {
   users: CalendarUser[]; visible: Set<number>; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
 }) {
   const region = useRegionStore((s) => s.region)
-  const sectors = userSecteursForRegion(region)
+  const { userSectors: sectors } = useSectors()
   const withoutSector = users.filter((u) => u.sectors.length === 0)
   return (
     <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-3">

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IconCheckCircle, IconFolderSettings, IconLoader, IconSave } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_DRIVE_FOLDER_CONFIG, UPDATE_DRIVE_FOLDER_CONFIG } from '@/graphql/queries'
-import { DRIVE_REGION_LABELS, driveRegionsForRegion } from '@/constants/secteurs'
-import { useRegionStore } from '@/store/regionStore'
+import { useSectors } from '@/hooks/useSectors'
 
 // Obligation : abréviations seules (AD, CC, NTC, REM, SA), pas de libellé long.
 const TP_ORDER = ['AD', 'CC', 'NTC', 'REM', 'SA']
@@ -16,9 +15,7 @@ const inputClass =
 
 export default function DriveConfig() {
   // Tenant Annemasse : un seul dossier par TP (cf. back/DriveFolderConfigService).
-  const region = useRegionStore((s) => s.region)
-  const REGIONS = useMemo(() => driveRegionsForRegion(region), [region])
-  const REGION_LABELS: Record<string, string> = DRIVE_REGION_LABELS
+  const { driveRegions: REGIONS, labelOf } = useSectors()
   const [rootFolderId, setRootFolderId] = useState('')
   const [folders, setFolders] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
@@ -111,7 +108,7 @@ export default function DriveConfig() {
               {REGIONS.map((region) => (
                 <div key={region}>
                   <label className="mb-1 block text-xs font-medium text-[var(--ds-text-subtle)]">
-                    {tp} - {REGION_LABELS[region]}
+                    {tp} - {labelOf(region)}
                   </label>
                   <input
                     className={inputClass}

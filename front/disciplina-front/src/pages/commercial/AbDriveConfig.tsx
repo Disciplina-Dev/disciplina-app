@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IconCheckCircle, IconFolderSettings, IconLoader, IconSave } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { needsAnalysisGraphqlClient } from '@/graphql/client'
 import { GET_AB_DRIVE_CONFIG, UPDATE_AB_DRIVE_CONFIG } from '@/graphql/queries'
-import { abDriveSectorsForRegion } from '@/constants/secteurs'
-import { useRegionStore } from '@/store/regionStore'
+import { useSectors } from '@/hooks/useSectors'
 const KINDS = ['UNSIGNED', 'SIGNED'] as const
 const KIND_LABELS: Record<string, string> = { UNSIGNED: 'Non signé', SIGNED: 'Signé' }
 
@@ -15,8 +14,7 @@ const inputClass =
 
 export default function AbDriveConfig() {
   // Tenant Annemasse : dossier unique « Annemasse » (cf. back/utils/sector.ts).
-  const region = useRegionStore((s) => s.region)
-  const SECTORS = useMemo(() => abDriveSectorsForRegion(region), [region])
+  const { userSectors: SECTORS } = useSectors()
   const [folders, setFolders] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -23,8 +24,7 @@ import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
-import { SECTEUR_LABELS, SECTEUR_KEYS, userSecteursForRegion, type SecteurKey } from '@/constants/secteurs';
-import { useRegionStore } from '@/store/regionStore';
+import { SECTEUR_LABELS, SECTEUR_KEYS, type SecteurKey } from '@/constants/secteurs';
 import { Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
 import { getTrialPeriodStatus } from '@/utils/trialPeriod';
 import ChipGroup from '@/components/ui/ChipGroup'
@@ -1301,8 +1301,7 @@ export default function DashboardRH() {
   const canViewAll = currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE;
   // Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
   // Réunion : Nord-Est/Ouest/Sud ; Annemasse : les 6 secteurs opérationnels.
-  const region = useRegionStore((s) => s.region);
-  const canonSectors = useMemo(() => userSecteursForRegion(region), [region]);
+  const { userSectors: canonSectors } = useSectors();
 
   // Filtre secteur global : null = tous ; sinon les secteurs cochés cumulés.
   // Pilote à la fois les indicateurs candidats, les diagrammes et les KPI RH.
