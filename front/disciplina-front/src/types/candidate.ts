@@ -5,7 +5,7 @@ export enum TitleProfessionalType {
     CC = "CC",       // Conseiller Commercial
     NTC = "NTC",     // Négociateur technico-commercial
     REM = "REM",     // Responsable d'établissement Marchand
-    SA = "SA"        // SA
+    CADGA = "CADGA"  // Chargé d'accueil et de gestion administrative
 }
 
 export enum CandidateStatus {

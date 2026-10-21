@@ -128,22 +128,30 @@ const OPCO_OPTIONS: { value: Opco; label: string }[] = [
 ]
 
 const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
-  SECRETARIAT: ['Secrétaire Assistante', 'Assistante de Direction'],
+  SECRETARIAT: ["Chargé d'accueil et de gestion administrative", 'Assistante de Direction'],
   VENTE: ['Conseiller Commercial', 'Négociateur Technico-Commercial', "Responsable d'Établissement Marchand"],
 }
 
 // Chaque intitulé de formation correspond à un titre professionnel (TP).
 const TITLE_TO_TP: Record<string, string> = {
-  'Secrétaire Assistante': 'SA',
+  "Chargé d'accueil et de gestion administrative": 'CADGA',
   'Assistante de Direction': 'AD',
   'Conseiller Commercial': 'CC',
   'Négociateur Technico-Commercial': 'NTC',
   "Responsable d'Établissement Marchand": 'REM',
+  // Legacy : intitulé utilisé avant le renommage du TP.
+  'Secrétaire Assistante': 'CADGA',
 }
 
-const TP_TO_TITLE: Record<string, string> = Object.fromEntries(
-  Object.entries(TITLE_TO_TP).map(([title, tp]) => [tp, title]),
-)
+const TP_TO_TITLE: Record<string, string> = {
+  AD: 'Assistante de Direction',
+  CC: 'Conseiller Commercial',
+  NTC: 'Négociateur Technico-Commercial',
+  REM: "Responsable d'Établissement Marchand",
+  CADGA: "Chargé d'accueil et de gestion administrative",
+  // Legacy : le backend normalise déjà « SA » en CADGA, conservé par sécurité.
+  SA: "Chargé d'accueil et de gestion administrative",
+}
 
 const SOFT_SKILLS_LIST = [
   'Rigueur et organisation',
@@ -165,7 +173,7 @@ const SOFT_SKILLS_LIST = [
 
 const MISSIONS: Record<TrainingDomain, Record<string, string[]>> = {
   SECRETARIAT: {
-    'Secrétaire Assistante': [
+    "Chargé d'accueil et de gestion administrative": [
       'Accueil physique et téléphonique',
       'Gestion du courrier entrant et sortant',
       'Rédaction et mise en forme de courriers simples',
@@ -252,6 +260,18 @@ const DAYS: { key: keyof TrainingDaysState; label: string }[] = [
   { key: 'wednesday', label: 'Mercredi' },
   { key: 'thursday',  label: 'Jeudi' },
   { key: 'friday',    label: 'Vendredi' },
+]
+
+// Jours travaillés du poste (planning entreprise) : semaine complète, week-end
+// inclus — distinct de DAYS (jours de formation au centre, lun–ven).
+const SCHEDULE_DAYS: { key: string; label: string }[] = [
+  { key: 'monday',    label: 'Lundi' },
+  { key: 'tuesday',   label: 'Mardi' },
+  { key: 'wednesday', label: 'Mercredi' },
+  { key: 'thursday',  label: 'Jeudi' },
+  { key: 'friday',    label: 'Vendredi' },
+  { key: 'saturday',  label: 'Samedi' },
+  { key: 'sunday',    label: 'Dimanche' },
 ]
 
 const EMPTY_POSTE: Poste = {
@@ -534,7 +554,7 @@ function ScheduleDaysEditor({ value, onChange }: {
             </tr>
           </thead>
           <tbody>
-            {DAYS.map((d) => {
+            {SCHEDULE_DAYS.map((d) => {
               const slot = slotFor(d.label)
               const enabled = !!slot
               const setEnabled = (on: boolean) => {

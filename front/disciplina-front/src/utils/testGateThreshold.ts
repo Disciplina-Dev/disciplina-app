@@ -2,7 +2,7 @@ import { TitleProfessionalType } from '@/types/candidate'
 
 /**
  * Moyenne minimale requise au gate des tests (épreuve écrite + ClassMarker)
- * selon le TP visé : 10 pour CC, 12 pour NTC, REM, AD et SA.
+ * selon le TP visé : 10 pour CC, 12 pour NTC, REM, AD et CADGA.
  */
 export function gateThresholdForTp(tp: TitleProfessionalType): number {
   return tp === TitleProfessionalType.CC ? 10 : 12

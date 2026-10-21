@@ -225,6 +225,12 @@ export interface NeedsAnalysis {
      * mandat signé → jaune, sinon blanc).
      */
     company_indicator?: CompanyIndicator | null;
+    /**
+     * Suivi entreprise (annuaire RH, tableau de bord) : références libres
+     * « France Travail » et « KOANN », éditables inline. `null`/vide = non renseigné.
+     */
+    france_travail?: string | null;
+    koann?: string | null;
     created_at?: Date;
     updated_at?: Date;
 }

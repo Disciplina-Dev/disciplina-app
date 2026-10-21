@@ -33,6 +33,8 @@ import {
   UPDATE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS_AB_STATUS,
   UPDATE_NEEDS_ANALYSIS_INDICATOR,
+  UPDATE_NEEDS_ANALYSIS_TRACKING,
+  UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE,
   SET_AB_RELANCE_DISABLED,
   SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY,
   GET_COMPANY_HISTORY,
@@ -1013,6 +1015,26 @@ export function useUpdateNeedsAnalysisIndicator() {
   }
 
   return { updateIndicator, result }
+}
+
+export function useUpdateNeedsAnalysisTracking() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_TRACKING)
+
+  const updateTracking = (id: string, fields: { franceTravail?: string | null; koann?: string | null }) => {
+    return executeMutation({ id, ...fields }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateTracking, result }
+}
+
+export function useUpdateNeedsAnalysisActivationDate() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE)
+
+  const updateActivationDate = (id: string, lastActiveAt: string | null) => {
+    return executeMutation({ id, lastActiveAt }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateActivationDate, result }
 }
 
 export function useDeleteNeedsAnalysis() {

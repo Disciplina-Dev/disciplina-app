@@ -218,6 +218,30 @@ describe('GraphQL peda sessions', () => {
         expect(survivor.data.alternant.sessionId).toBeNull();
     });
 
+    it('treats the search term literally (regex metacharacters are escaped)', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const created = await gqlFetch(
+            auth,
+            `mutation($input: CreateSessionInput!) { createSession(input: $input) { id } }`,
+            { input: sessionInput(suffix) },
+        );
+        expect(created.errors).toBeUndefined();
+        const id = created.data.createSession.id;
+        const SEARCH = `query($s: String) { sessions(search: $s) { id } }`;
+
+        for (const s of ['.', '.*', '(a+)+$', '[', 'x'.repeat(5000)]) {
+            const started = Date.now();
+            const res = await gqlFetch(auth, SEARCH, { s });
+            expect(res.errors).toBeUndefined();
+            expect(res.data.sessions.map((x: { id: string }) => x.id)).not.toContain(id);
+            expect(Date.now() - started).toBeLessThan(2000);
+        }
+
+        const hit = await gqlFetch(auth, SEARCH, { s: `MCO ${suffix}` });
+        expect(hit.data.sessions.map((x: { id: string }) => x.id)).toContain(id);
+    });
+
     it('forbids other employee roles without permission', async () => {
         const commercial = mintAuthCookies({ id: 3, email: 'com@test.local', role: 'COMMERCIAL', permission: 'GUEST' });
         const forbidden = await gqlFetch(commercial, `{ sessions { id } }`);

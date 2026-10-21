@@ -267,6 +267,67 @@ export class NeedsAnalysisService {
     }
 
     /**
+     * Met à jour les références libres du suivi entreprise (annuaire RH) :
+     * « France Travail » et « KOANN ». Chaîne vide / blanche = `null`
+     * (non renseigné). Tronque à 500 caractères (garde-fou de saisie libre).
+     */
+    async setTrackingRefs(id: string, franceTravail?: string | null, koann?: string | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        const patch: Record<string, string | null> = {};
+        if (franceTravail !== undefined) {
+            const trimmed = (franceTravail ?? '').trim();
+            patch.france_travail = trimmed ? trimmed.slice(0, 500) : null;
+        }
+        if (koann !== undefined) {
+            const trimmed = (koann ?? '').trim();
+            patch.koann = trimmed ? trimmed.slice(0, 500) : null;
+        }
+        const updated = await this.repository.update(id, patch as any);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id }, '[NeedsAnalysis] company tracking refs updated');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Corrige manuellement la date d'activation (`last_active_at`) affichée
+     * dans l'annuaire des entreprises. `null` / vide l'efface (repli sur la
+     * date de création côté front). N'interfère pas avec le tampon
+     * automatique : une future (ré)activation la ré-horodatera.
+     */
+    async setActivationDate(id: string, lastActiveAt?: string | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        let date: Date | null = null;
+        const raw = (lastActiveAt ?? '').trim();
+        if (raw) {
+            const parsed = new Date(raw);
+            if (Number.isNaN(parsed.getTime())) {
+                throw new Error('Invalid activation date');
+            }
+            date = parsed;
+        }
+        const updated = await this.repository.update(id, { last_active_at: date });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id }, '[NeedsAnalysis] activation date updated manually');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
      * Met à jour `last_active_at` si l'AB vient de (re)devenir effectivement
      * ACTIVE alors qu'elle ne l'était pas juste avant (`before`). Appelé après
      * chaque mutation susceptible de faire basculer le statut effectif

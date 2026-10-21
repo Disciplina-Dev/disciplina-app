@@ -119,7 +119,7 @@ export async function createApp(): Promise<express.Express> {
     // Les endpoints OAuth MCP sont à la racine de l'issuer et sont consommés par
     // claude.ai web depuis une iframe sandbox (Origin: null) : le contrôle
     // d'origine CORS y est inapplicable et bloquerait le POST /authorize (500).
-    // Le consentement reste protégé par MCP_API_KEY centrée sur le serveur.
+    // Le consentement est protégé par le login CRM (email + mot de passe) de la page /authorize.
     app.use((req: Request, res: Response, next: NextFunction) => {
         if (isMcpOAuthPath(req.path)) {
             return next();

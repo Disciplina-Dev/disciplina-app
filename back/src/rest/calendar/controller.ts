@@ -61,7 +61,7 @@ const VIEWABLE_ROLES: JobRole[] = [JobRole.RH];
  * compte non lié). Dans ce cas l'agenda doit être traité comme « non connecté »
  * plutôt que comme une panne Google (502).
  */
-function isGoogleAuthError(error: unknown): boolean {
+export function isGoogleAuthError(error: unknown): boolean {
     const e = error as { code?: number | string; response?: { status?: number }; message?: string };
     const status = typeof e?.code === 'number' ? e.code : e?.response?.status;
     if (status === 401) return true;

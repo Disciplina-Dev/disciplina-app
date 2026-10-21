@@ -264,7 +264,7 @@ Accueil physique, Accueil téléphonique, Encaissement, Mise en place des rayons
 
 ---
 
-### TP SA — Secrétaire Assistant
+### TP CADGA — Chargé d'accueil et de gestion administrative
 
 #### Niveaux prérequis
 - Niveau CAP / BEP avec 1 an d'expérience professionnelle

@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCalendar, IconCheckCircle, IconCompany, IconLoader, IconRefresh, IconSearch } from '@/components/ui/icons'
+import { IconCalendar, IconCheckCircle, IconCompany, IconLoader, IconRefresh, IconSearch, IconTraining } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
 import EmptyState from '@/components/ui/EmptyState'
 import PageHeader from '@/components/ui/PageHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import Tabs from '@/components/ui/Tabs'
+import PedaCalendrier from '@/components/peda/PedaCalendrier'
 import { fetchAlternants, fetchSequences } from '@/api/alternants'
+import { reconcilePedaCalendar } from '@/api/peda'
+import { fetchSessions } from '@/api/sessions'
 import type { Alternant, AlternantSequence } from '@/types/alternant'
+import type { Session } from '@/types/session'
 
 type Bucket = 'late' | 'soon' | 'upcoming'
+type View = 'list' | 'calendar'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 /** Seuil « En cours » : SA prévue dans moins de 14 jours. */
@@ -65,7 +71,9 @@ function pluralize(count: number, singular: string, plural?: string): string {
 export default function DashboardPeda() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Bucket>('late')
+  const [view, setView] = useState<View>('list')
   const [rows, setRows] = useState<DashboardRow[]>([])
+  const [sessionsById, setSessionsById] = useState<Record<string, Session>>({})
   const [beyondCount, setBeyondCount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,11 +81,45 @@ export default function DashboardPeda() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
+    // La vue calendrier charge ses propres données (API Google) : inutile de
+    // charger la liste des SA tant qu'elle n'est pas affichée.
+    if (view !== 'list') return
     let alive = true
     ;(async () => {
-      const alternants = await fetchAlternants()
-      const byAlternant = await Promise.all(alternants.map((a) => fetchSequences(a.id)))
+      const [alternants, sessions] = await Promise.all([
+        fetchAlternants(),
+        // Le jour de formation (jourCours) est optionnel : un échec ne doit pas bloquer le tableau de bord.
+        fetchSessions().catch(() => [] as Session[]),
+      ])
+      let byAlternant = await Promise.all(alternants.map((a) => fetchSequences(a.id)))
       if (!alive) return
+
+      // Pull Google Calendar → app : un événement SA déplacé dans l'agenda doit
+      // mettre à jour la date avant d'afficher la liste. Best-effort : un compte
+      // Google non connecté (AD/GESTION) ou une panne Google ne bloque pas l'écran.
+      const sequenceDates = byAlternant
+        .flat()
+        .map((seq) => new Date(seq.status === 'done' ? (seq.realiseeLe ?? seq.prevueLe) : seq.prevueLe).getTime())
+        .filter((t) => Number.isFinite(t))
+      if (sequenceDates.length > 0) {
+        const windowStart = new Date(Math.min(...sequenceDates) - 7 * DAY_MS)
+        const windowEnd = new Date(Math.max(...sequenceDates) + 8 * DAY_MS)
+        try {
+          const report = await reconcilePedaCalendar(windowStart, windowEnd)
+          if (!alive) return
+          // Une SA replanifiée décale les suivantes : on relit l'état consolidé.
+          if (report.rescheduled > 0) {
+            byAlternant = await Promise.all(alternants.map((a) => fetchSequences(a.id)))
+            if (!alive) return
+          }
+        } catch {
+          // Silencieux : la liste s'affiche avec l'état local.
+        }
+      }
+
+      const byId: Record<string, Session> = {}
+      for (const s of sessions) byId[s.id] = s
+      setSessionsById(byId)
       const collected: DashboardRow[] = []
       let beyond = 0
       alternants.forEach((alternant, index) => {
@@ -108,7 +150,7 @@ export default function DashboardPeda() {
     return () => {
       alive = false
     }
-  }, [refreshKey])
+  }, [refreshKey, view])
 
   const buckets = useMemo(() => {
     const grouped: Record<Bucket, DashboardRow[]> = { late: [], soon: [], upcoming: [] }
@@ -123,13 +165,16 @@ export default function DashboardPeda() {
     const needle = search.trim().toLowerCase()
     const current = buckets[tab]
     if (!needle) return current
-    return current.filter(
-      ({ alternant }) =>
+    return current.filter(({ alternant }) => {
+      const jourCours = (alternant.sessionId && sessionsById[alternant.sessionId]?.jourCours) || ''
+      return (
         alternant.fullName.toLowerCase().includes(needle) ||
         alternant.session.toLowerCase().includes(needle) ||
-        (alternant.company?.name ?? '').toLowerCase().includes(needle),
-    )
-  }, [buckets, tab, search])
+        jourCours.toLowerCase().includes(needle) ||
+        (alternant.company?.name ?? '').toLowerCase().includes(needle)
+      )
+    })
+  }, [buckets, tab, search, sessionsById])
 
   const distinctAlternants = useMemo(() => new Set(filtered.map((r) => r.alternant.id)).size, [filtered])
 
@@ -146,19 +191,32 @@ export default function DashboardPeda() {
         title="Tableau de bord des SA"
         description="Séquences d'accompagnement (SA) en attente, classées par échéance."
         actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            leftIcon={<IconRefresh width={16} height={16} />}
-            onClick={() => {
-              setLoading(true)
-              setError(null)
-              setRefreshKey((k) => k + 1)
-            }}
-            disabled={loading}
-          >
-            Actualiser
-          </Button>
+          <div className="flex items-center gap-3">
+            <SegmentedControl<View>
+              label="Mode d'affichage des séquences d'accompagnement"
+              value={view}
+              onChange={setView}
+              options={[
+                { value: 'list', label: 'Liste' },
+                { value: 'calendar', label: 'Calendrier' },
+              ]}
+            />
+            {view === 'list' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<IconRefresh width={16} height={16} />}
+                onClick={() => {
+                  setLoading(true)
+                  setError(null)
+                  setRefreshKey((k) => k + 1)
+                }}
+                disabled={loading}
+              >
+                Actualiser
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -168,7 +226,9 @@ export default function DashboardPeda() {
         </div>
       )}
 
-      {loading ? (
+      {view === 'calendar' ? (
+        <PedaCalendrier />
+      ) : loading ? (
         <div className="flex items-center justify-center py-16 text-[var(--ds-text-subtle)]">
           <IconLoader width={28} height={28} className="animate-spin" />
         </div>
@@ -222,47 +282,59 @@ export default function DashboardPeda() {
             />
           ) : (
             <ul className="space-y-3">
-              {filtered.map(({ alternant, sequence, diffDays }) => (
-                <li key={sequence.id}>
-                  <Card className="transition-colors hover:border-teal-700/30">
-                    <div className="flex flex-wrap items-center gap-4">
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/peda/alternants/${alternant.id}`)}
-                        title={`Ouvrir la fiche de ${alternant.fullName}`}
-                        className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
-                      >
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-700/10 text-sm font-bold text-teal-700">
-                          {(alternant.firstName[0] ?? '?').toUpperCase()}
-                          {(alternant.lastName[0] ?? '').toUpperCase()}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate font-bold text-[var(--ds-text)] hover:text-teal-700">
-                            {alternant.fullName}
+              {filtered.map(({ alternant, sequence, diffDays }) => {
+                const jourCours =
+                  (alternant.sessionId && sessionsById[alternant.sessionId]?.jourCours) || null
+                // Les entrées « En retard » affichent toujours le jour de formation (quitte à afficher « - »).
+                const showJourCours = diffDays < 0 || jourCours !== null
+                return (
+                  <li key={sequence.id}>
+                    <Card className="transition-colors hover:border-teal-700/30">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/peda/alternants/${alternant.id}`)}
+                          title={`Ouvrir la fiche de ${alternant.fullName}`}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left"
+                        >
+                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal-700/10 text-sm font-bold text-teal-700">
+                            {(alternant.firstName[0] ?? '?').toUpperCase()}
+                            {(alternant.lastName[0] ?? '').toUpperCase()}
                           </span>
-                          <span className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-[var(--ds-text-subtle)]">
-                            <span className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
-                              {alternant.session}
+                          <span className="min-w-0">
+                            <span className="block truncate font-bold text-[var(--ds-text)] hover:text-teal-700">
+                              {alternant.fullName}
                             </span>
-                            <span className="inline-flex items-center gap-1">
-                              <IconCompany width={12} height={12} />
-                              {alternant.company?.name || 'Sans entreprise'}
+                            <span className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-[var(--ds-text-subtle)]">
+                              <span className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
+                                {alternant.session}
+                              </span>
+                              {showJourCours && (
+                                <span className="inline-flex items-center gap-1">
+                                  <IconTraining width={12} height={12} />
+                                  Jour de formation : {jourCours ?? '-'}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1">
+                                <IconCompany width={12} height={12} />
+                                {alternant.company?.name || 'Sans entreprise'}
+                              </span>
                             </span>
                           </span>
+                        </button>
+                        <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                          <span className="font-semibold text-[var(--ds-text)]">SA n°{sequence.numero}</span>
+                          <span className="inline-flex items-center gap-1.5 text-[var(--ds-text-muted)]">
+                            <IconCalendar width={14} height={14} className="text-[var(--ds-text-subtle)]" />
+                            Prévue le {formatDate(sequence.prevueLe)}
+                          </span>
+                          <DelayBadge diffDays={diffDays} />
                         </span>
-                      </button>
-                      <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-                        <span className="font-semibold text-[var(--ds-text)]">SA n°{sequence.numero}</span>
-                        <span className="inline-flex items-center gap-1.5 text-[var(--ds-text-muted)]">
-                          <IconCalendar width={14} height={14} className="text-[var(--ds-text-subtle)]" />
-                          Prévue le {formatDate(sequence.prevueLe)}
-                        </span>
-                        <DelayBadge diffDays={diffDays} />
-                      </span>
-                    </div>
-                  </Card>
-                </li>
-              ))}
+                      </div>
+                    </Card>
+                  </li>
+                )
+              })}
             </ul>
           )}
 

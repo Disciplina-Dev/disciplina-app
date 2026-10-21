@@ -59,7 +59,8 @@ async function patchCandidatesValidator(conn: Connection): Promise<void> {
                             'TEST_FAILED',
                         ],
                     },
-                    tp_types: { bsonType: 'array', items: { enum: ['AD', 'CC', 'NTC', 'REM', 'SA'] } },
+                    // « SA » reste accepté pour les documents écrits avant le renommage en CADGA.
+                    tp_types: { bsonType: 'array', items: { enum: ['AD', 'CC', 'NTC', 'REM', 'CADGA', 'SA'] } },
                     training_site: { enum: ['NORD_SAINTE_MARIE', 'OUEST_SAINT_PAUL', 'SUD_SAINT_PIERRE'] },
                     training_sites: {
                         bsonType: 'array',

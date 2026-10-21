@@ -1774,6 +1774,8 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
           administrationType
           driveFolderUrl
           companyIndicator
+          franceTravail
+          koann
           immersionPeriod
           salerInfo {
             id
@@ -1960,6 +1962,10 @@ export const GET_NEEDS_ANALYSIS = gql`
       tags
       createdAt
       updatedAt
+      lastActiveAt
+      companyIndicator
+      franceTravail
+      koann
       driveFolderUrl
     }
   }
@@ -2046,6 +2052,25 @@ export const UPDATE_NEEDS_ANALYSIS_INDICATOR = gql`
     updateNeedsAnalysisIndicator(id: $id, indicator: $indicator) {
       id
       companyIndicator
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_TRACKING = gql`
+  mutation UpdateNeedsAnalysisTracking($id: ID!, $franceTravail: String, $koann: String) {
+    updateNeedsAnalysisTracking(id: $id, franceTravail: $franceTravail, koann: $koann) {
+      id
+      franceTravail
+      koann
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE = gql`
+  mutation UpdateNeedsAnalysisActivationDate($id: ID!, $lastActiveAt: String) {
+    updateNeedsAnalysisActivationDate(id: $id, lastActiveAt: $lastActiveAt) {
+      id
+      lastActiveAt
     }
   }
 `

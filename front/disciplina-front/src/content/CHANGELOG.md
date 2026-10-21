@@ -31,6 +31,37 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-10-21
+
+### Added
+
+- MCP RGPD (#915) : consentement `ai_processing` appliqué aux outils candidats/offres, DTO minimisés, journal d'accès `mcp_audit_log`, quotas par utilisateur, clé statique `MCP_STATIC_KEY_ENABLED` désactivée en production par défaut, `MCP_JWT_SECRET` distinct, purge OAuth/audit planifiée.
+- MCP péda (#930) : 12 outils lecture seule (sessions, SA, alternants « Prénom N. », ruptures, KPI) minimisés RGPD ; `contactsComplete` sur les SA en retard / à venir.
+- Agenda des SA (#957) : les séquences d'accompagnement (SA) sont synchronisées sur l'agenda Google de chaque Peda connecté (événement journée entière tagué) ; vue « Calendrier » à côté de la liste des SA, réconciliation Google → app à l'ouverture de la liste comme du calendrier (et via « Synchroniser ») : déplacer un événement Google replanifie la SA, et la date d'une SA est aussi modifiable depuis la fiche alternant.
+- Publication d'un brouillon d'AB dans le matching (#918) : option « visible dans le matching » sur la modale AB (affichée « Non envoyée »), champ `isVisibleInMatching` et mutation `setNeedsAnalysisMatchingVisibility` ; les offres sont créées/supprimées sans envoi en signature, sans doublon au premier envoi.
+- Jour de formation sur le dashboard péda (#919) : affiché pour les SA en retard et à venir (recherche incluse), avec repli silencieux si la session est indisponible.
+- Suivi entreprise dans l'annuaire RH (#926) : colonnes éditables « France Travail » et « KOANN » (`updateNeedsAnalysisTracking`) et correction manuelle de la date d'activation (`updateNeedsAnalysisActivationDate`).
+- Sourcing multi-critères des entreprises (#951) : recherche via l'API `recherche-entreprises.api.gouv.fr` (commune, département, région, dirigeant, état, activité, catégorie, effectif) en complément de SIRENE, avec pagination et limitation de débit.
+- Planning le week-end (#953) : samedi et dimanche disponibles dans les horaires du poste (AB) et d'immersion (fiche et liste candidats).
+
+### Changed
+
+- MCP péda (#930) : `peda_kpi_overview.alternants` renommé `alternantsSnapshot` (instantané à ce jour, non filtré par année) ; un effectif nul n'est plus masqué ; `alternantsSnapshot` n'est plus masqué (déjà exposé par `list_alternants`) ; `list_sequences_overdue` / `list_sequences_upcoming` excluent les SA postérieures à la fin de contrat.
+- Authentification Google par tenant (#883) : second client OAuth dédié à Annemasse (`GOOGLE_ANNEMASSE_*`) avec repli sur le client historique quand il n'est pas configuré.
+- Renommage du TP « SA » en « CADGA » (#995) : « Chargé d'accueil et de gestion administrative » dans les enums GraphQL/TS, les dossiers Drive, les PDF et le front ; les fiches et configurations portant encore « SA » restent lues (`normalizeTpCode`, `expandTpFilter`).
+- Entretiens AB (#1000) : les utilisateurs de rôle `GESTION` rejoignent les RH et les `is_interviewer` dans la liste des intervieweurs.
+
+### Fixed
+
+- Modale de changelog (#994) : rendue via un portail sur `document.body` pour un centrage et un alignement corrects.
+- Création rapide de candidat (#998) : le ou les TP sont désormais obligatoires (plus de `CC` par défaut), ce qui évite le mauvais routage du dossier Drive.
+
+### Security
+
+- MCP péda (#930) : masquage complémentaire des agrégats (une cellule `<5` isolée n'est plus déductible par soustraction du total). La cellule masquée par complément est étiquetée `masqué` (jamais `<5` sur une valeur ≥ 5).
+- Péda (#932) : noms, e-mails et destinataires des élèves retirés des logs (redaction pino, plus de `details` dans le log de fin de run) ; `peda_draft_history.recipient` anonymisé après 365 jours (la `dedup_key` est conservée).
+- Péda (#932) : recherche alternants/sessions échappée (plus d'injection de regex / ReDoS Mongo), terme plafonné à 100 caractères.
+
 ## [1.4.0] - 2026-10-09
 
 ### Added
