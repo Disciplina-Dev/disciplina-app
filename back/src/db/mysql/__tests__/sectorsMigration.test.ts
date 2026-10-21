@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { buildSectorSeed } from '../sectorsMigration';
 import { ANNEMASSE_COMPANY_SECTORS, ANNEMASSE_SECTOR, SECTORS } from '../../../utils/sector';
 import { Localisation } from '../../../types/matching.types';
+import { CompanyRegion } from '../../../types/needsAnalysisNoSql.types';
+import { TRAINING_SITE_TO_ZONE } from '../../../utils/zone';
 
 const labelsAt = (tenant: 'reunion' | 'annemasse', level: string) =>
     buildSectorSeed(tenant)
@@ -35,6 +37,23 @@ describe('buildSectorSeed', () => {
         const bons = buildSectorSeed('annemasse').filter((n) => n.code === Localisation.BONS_EN_CHABLAIS);
         expect(bons).toHaveLength(1);
         expect(bons[0].parentCode).toBe('CHABLAIS');
+    });
+
+    it('porte pour chaque tenant les codes de secteur de CompanyRegion', () => {
+        const codes = (tenant: 'reunion' | 'annemasse') =>
+            buildSectorSeed(tenant)
+                .filter((n) => n.level === 'sector')
+                .map((n) => n.code);
+        expect([...codes('reunion'), ...codes('annemasse')].sort()).toEqual(Object.values(CompanyRegion).sort());
+    });
+
+    it('associe chaque site de formation à un secteur Réunion du référentiel', () => {
+        const reunion = new Set(
+            buildSectorSeed('reunion')
+                .filter((n) => n.level === 'sector')
+                .map((n) => n.code),
+        );
+        for (const zone of Object.values(TRAINING_SITE_TO_ZONE)) expect(reunion.has(zone)).toBe(true);
     });
 
     it('liste les parents avant leurs enfants', () => {
