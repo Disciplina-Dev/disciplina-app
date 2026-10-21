@@ -10,6 +10,7 @@ import {
   userSecteursForRegion,
   type SecteurKey,
 } from '@/constants/secteurs'
+import { communeSectionsForRegion, SHARED_COMMUNES_BY_SECTION, type CommuneSection } from '@/features/matching/constants/regions'
 import { kpiSitesForRegion, KPI_SITE_LABELS } from '@/api/kpi'
 
 /**
@@ -32,6 +33,8 @@ export interface SectorsView {
   kpiSites: string[]
   /** Libellé d'une clé de secteur (NORD → « Nord-Est »), la clé si inconnue. */
   labelOf: (code: string) => string
+  /** Sections de communes (secteur + communes) des sélecteurs de mobilité. */
+  communeSections: CommuneSection[]
   /** Codes des communes d'un secteur (vide si inconnu ou non chargé). */
   communesOf: (sectorCode: string) => string[]
 }
@@ -60,6 +63,7 @@ export function useSectors(): SectorsView {
         driveRegions: driveRegionsForRegion(region),
         kpiSites: kpiSitesForRegion(region),
         labelOf: fallbackLabelOf,
+        communeSections: communeSectionsForRegion(region),
         communesOf: () => [],
       }
     }
@@ -81,6 +85,14 @@ export function useSectors(): SectorsView {
       kpiSites: siteKeys,
       labelOf: (code) =>
         byCode.get(code)?.label ?? (isAnnemasse && code === ANNEMASSE_DRIVE_REGION ? regionNode?.label : undefined) ?? fallbackLabelOf(code),
+      communeSections: sectors.map((s) => ({
+        key: s.code,
+        label: s.label,
+        options: [
+          ...nodes.filter((n) => n.level === 'commune' && n.parentId === s.id).map((n) => n.code),
+          ...(SHARED_COMMUNES_BY_SECTION[s.code] ?? []),
+        ],
+      })),
       communesOf: (sectorCode) => {
         const sector = byCode.get(sectorCode)
         return sector ? nodes.filter((n) => n.level === 'commune' && n.parentId === sector.id).map((n) => n.code) : []

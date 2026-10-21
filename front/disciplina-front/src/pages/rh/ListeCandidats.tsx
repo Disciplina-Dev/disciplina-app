@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { IconAlert, IconCalendar, IconCamera, IconCar, IconCheck, IconCopy, IconLoader, IconMail, IconMapPin, IconPhone, IconPlus, IconSliders, IconTraining, IconTrash, IconUser } from '@/components/ui/icons'
@@ -8,7 +9,6 @@ import ContractModal from '@/features/candidats/components/ContractModal';
 import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, Localisation } from '@/types/candidate';
 import { formatCommune, LOCALISATION_LABELS } from '@/data/reunionCommunes';
 import {
-  communeSectionsForRegion,
 } from '@/features/matching/constants/regions';
 import { useRegionStore } from '@/store/regionStore';
 import { ALL_DESIRED_SECTORS } from '@/data/candidateTemplates';
@@ -58,8 +58,7 @@ const formatTrainingSite = (site?: TrainingSite) => {
 
 // --- Commune sections selon le tenant (3 zones Réunion, 6 secteurs Annemasse) ---
 function useCommuneSections(): { key: string; label: string; options: string[] }[] {
-  const region = useRegionStore((s) => s.region);
-  return useMemo(() => communeSectionsForRegion(region), [region]);
+  return useSectors().communeSections;
 }
 
 // --- Tabs ---

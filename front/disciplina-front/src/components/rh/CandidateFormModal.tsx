@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IconAlert, IconClose, IconPlus, IconTrash, IconUser } from '@/components/ui/icons'
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
@@ -11,7 +11,7 @@ import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_
 import { apiFetch, apiJson } from '@/api/httpClient';
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
-import { communeSectionsForRegion } from '@/features/matching/constants/regions';
+import { useSectors } from '@/hooks/useSectors';
 import { useRegionStore } from '@/store/regionStore';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS, TP_TYPE_LABELS } from '@/data/candidateTemplates';
@@ -518,7 +518,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — la
   // section Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) est masquée.
   const isAnnemasse = region === 'annemasse';
-  const communeSections = useMemo(() => communeSectionsForRegion(region), [region]);
+  const { communeSections } = useSectors();
   // Clé de brouillon : par candidat en édition, unique en création.
   const draftKey = candidate ? editDraftKey(candidate._id) : CREATE_DRAFT_KEY;
   const [form, setForm] = useState<ABForm>(() => {
