@@ -5,6 +5,7 @@ import InputField from '@/components/ui/InputField'
 import { candidateGraphqlClient } from '@/graphql/client'
 import { CREATE_CANDIDATE, CHECK_CANDIDATE_EMAIL } from '@/graphql/queries'
 import { TitleProfessionalType } from '@/types/candidate'
+import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
 
 const CONSENT_VERSION = '2026-08-v1'
 
@@ -24,6 +25,7 @@ export default function CandidateQuickCreateModal({
   const [fullName, setFullName] = useState(prefill?.fullName ?? '')
   const [email, setEmail] = useState(prefill?.email ?? '')
   const [phone, setPhone] = useState(prefill?.phone ?? '')
+  const [tpTypes, setTpTypes] = useState<TitleProfessionalType[]>([])
   const [consentDataProcessing, setConsentDataProcessing] = useState(false)
   const [consentDataSharing, setConsentDataSharing] = useState(false)
   const [consentAiProcessing, setConsentAiProcessing] = useState(false)
@@ -71,6 +73,10 @@ export default function CandidateQuickCreateModal({
       setError('Le numéro de téléphone est obligatoire.')
       return
     }
+    if (tpTypes.length === 0) {
+      setError('Sélectionnez au moins un type de TP.')
+      return
+    }
     if (!consentDataProcessing) {
       setError('Le consentement au traitement des données est obligatoire.')
       return
@@ -84,7 +90,7 @@ export default function CandidateQuickCreateModal({
     try {
       const input = {
         status: 'SEEKING',
-        tpTypes: [TitleProfessionalType.CC],
+        tpTypes,
         identity: {
           fullName: fullName.trim(),
           email: email.trim(),
@@ -176,6 +182,30 @@ export default function CandidateQuickCreateModal({
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
           />
+
+          <fieldset>
+            <legend className="block text-sm font-medium text-[var(--ds-text-muted)] mb-1">Type(s) TP *</legend>
+            <div className="flex flex-wrap gap-3 pt-1.5">
+              {Object.values(TitleProfessionalType).map((tp) => (
+                <label
+                  key={tp}
+                  className="flex items-center gap-1.5 cursor-pointer text-sm text-[var(--ds-text-muted)]"
+                >
+                  <input
+                    type="checkbox"
+                    className="accent-blue-600 h-4 w-4"
+                    checked={tpTypes.includes(tp)}
+                    onChange={() =>
+                      setTpTypes((prev) =>
+                        prev.includes(tp) ? prev.filter((t) => t !== tp) : [...prev, tp],
+                      )
+                    }
+                  />
+                  {tp} — {TP_TYPE_LABELS[tp]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           {/* RGPD */}
           <div className="border-t border-[var(--ds-border)] pt-5 space-y-3">
