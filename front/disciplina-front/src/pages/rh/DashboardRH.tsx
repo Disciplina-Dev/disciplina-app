@@ -486,58 +486,6 @@ function autoIndicatorColor(status?: string | null, hasImmersion = false): Indic
  * posée, sinon la couleur automatique dérivée. Un clic ouvre la palette de
  * choix (5 couleurs + retour à l'automatique), partagée avec toute l'équipe.
  */
-
-/** Localisations uniques d'une AB (postes), libellées pour affichage. */
-function analysisLocalisations(analysis: NeedsAnalysis): string[] {
-  const raw = (analysis.positions ?? []).flatMap((p) => p.localisation ?? []);
-  return [...new Set(raw.filter(Boolean) as string[])].sort();
-}
-
-function formatLocalisationCell(analysis: NeedsAnalysis): string {
-  const locs = analysisLocalisations(analysis).map((l) => formatEnumLabel(l));
-  const commune = analysis.companyInfos?.commune?.trim();
-  if (commune && !locs.some((l) => l.toLowerCase() === commune.toLowerCase())) {
-    locs.push(commune);
-  }
-  return locs.length > 0 ? locs.join(', ') : '—';
-}
-
-function commercialLabel(analysis: NeedsAnalysis): string {
-  return analysis.salerInfo?.email?.trim() || '—';
-}
-
-type IndicatorColor = 'WHITE' | 'YELLOW' | 'GREEN' | 'ORANGE' | 'RED';
-
-const INDICATOR_ORDER: IndicatorColor[] = ['WHITE', 'YELLOW', 'GREEN', 'ORANGE', 'RED'];
-
-const INDICATOR_DOT: Record<IndicatorColor, string> = {
-  WHITE: 'bg-white border-gray-300',
-  YELLOW: 'bg-yellow-400 border-yellow-500',
-  GREEN: 'bg-green-500 border-green-600',
-  ORANGE: 'bg-orange-400 border-orange-500',
-  RED: 'bg-red-500 border-red-600',
-};
-
-const INDICATOR_LABELS: Record<IndicatorColor, string> = {
-  WHITE: 'Défaut',
-  YELLOW: 'Mandat signé',
-  GREEN: 'Immersion en cours',
-  ORANGE: 'À surveiller',
-  RED: 'Urgent',
-};
-
-/** Couleur automatique : immersion en cours → vert, mandat signé → jaune, sinon blanc. */
-function autoIndicatorColor(status?: string | null, hasImmersion = false): IndicatorColor {
-  if (hasImmersion) return 'GREEN';
-  if (status === 'SIGNE') return 'YELLOW';
-  return 'WHITE';
-}
-
-/**
- * Pastille de suivi devant le nom de l'entreprise. Affiche la couleur manuelle
- * posée, sinon la couleur automatique dérivée. Un clic ouvre la palette de
- * choix (5 couleurs + retour à l'automatique), partagée avec toute l'équipe.
- */
 function CompanyIndicatorDot({
   analysisId,
   status,
