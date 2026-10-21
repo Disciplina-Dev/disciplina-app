@@ -113,6 +113,24 @@ async function seedSectors(dbQuery: QueryFn, tenant: SectorTenant): Promise<void
     );
 }
 
+/**
+ * Les colonnes libellé `sector` ne sont plus écrites : sans DEFAULT 'Nord-Est', une ligne
+ * créée par l'application reste à NULL et le backfill ne lui invente pas de secteur.
+ */
+async function relaxLegacySectorColumns(dbQuery: QueryFn): Promise<void> {
+    for (const table of ['companies', 'companies_blacklist'] as const) {
+        const rows = await dbQuery<{ IS_NULLABLE: string }[]>(
+            "SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'sector'",
+            [table],
+        );
+        if (rows[0]?.IS_NULLABLE === 'NO') {
+            // Identifiers come from the hardcoded list above, never from user input
+            await dbQuery(`ALTER TABLE ${table} MODIFY COLUMN sector VARCHAR(255) NULL DEFAULT NULL`);
+            logger.info(`MySQL migration: ${table}.sector is now nullable without default`);
+        }
+    }
+}
+
 async function ensureSectorIdConstraints(dbQuery: QueryFn): Promise<void> {
     for (const table of SECTOR_ID_TABLES) {
         const index = `idx_${table}_sector_id`;
@@ -162,25 +180,27 @@ async function backfillSectorId(dbQuery: QueryFn): Promise<void> {
 
 /**
  * companies.sector (libellés séparés par « , ») → lignes company_sectors, sans
- * doublon. FIND_IN_SET évite le parsing côté TS (aucun libellé ne contient de virgule).
+ * doublon, pour les seules entreprises encore sans liaison : les colonnes libellé ne sont
+ * plus écrites par l'application, seuls des imports externes les renseignent encore.
+ * FIND_IN_SET évite le parsing côté TS (aucun libellé ne contient de virgule).
  */
 async function backfillCompanySectors(dbQuery: QueryFn): Promise<void> {
     const result = await dbQuery<{ affectedRows: number }>(
-        "INSERT IGNORE INTO company_sectors (company_id, sector_id) SELECT c.id, s.id FROM companies c JOIN sectors s ON s.level = 'sector' AND FIND_IN_SET(s.label, REPLACE(c.sector, ', ', ',')) > 0",
+        "INSERT IGNORE INTO company_sectors (company_id, sector_id) SELECT c.id, s.id FROM companies c JOIN sectors s ON s.level = 'sector' AND FIND_IN_SET(s.label, REPLACE(c.sector, ', ', ',')) > 0 WHERE NOT EXISTS (SELECT 1 FROM company_sectors x WHERE x.company_id = c.id)",
     );
     if (Number(result?.affectedRows) > 0) {
         logger.info({ rows: result.affectedRows }, 'MySQL migration: backfilled company_sectors from companies.sector');
     }
 }
 
-/** users.sectors (json de libellés) → lignes user_sectors, sans doublon ni écrasement. */
+/** users.sectors (json de libellés) → lignes user_sectors, pour les seuls users encore sans liaison. */
 async function backfillUserSectors(dbQuery: QueryFn): Promise<void> {
     const sectors = await dbQuery<{ id: number; label: string }[]>(
         "SELECT id, label FROM sectors WHERE level IN ('region', 'sector')",
     );
     const idByLabel = new Map(sectors.map((s) => [s.label, s.id]));
     const users = await dbQuery<{ id: number; sectors: unknown }[]>(
-        'SELECT id, sectors FROM users WHERE sectors IS NOT NULL',
+        'SELECT id, sectors FROM users WHERE sectors IS NOT NULL AND NOT EXISTS (SELECT 1 FROM user_sectors us WHERE us.user_id = users.id)',
     );
 
     const pairs: [number, number][] = [];
@@ -220,6 +240,7 @@ async function backfillUserSectors(dbQuery: QueryFn): Promise<void> {
  * REQUIRED_TABLES / REQUIRED_COLUMNS, et `sector_settings` seedée.
  */
 export async function migrateSectors(dbQuery: QueryFn, tenant: SectorTenant): Promise<void> {
+    await relaxLegacySectorColumns(dbQuery);
     await seedSectors(dbQuery, tenant);
     await ensureSectorIdConstraints(dbQuery);
     await backfillSectorId(dbQuery);

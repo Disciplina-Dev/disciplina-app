@@ -3,7 +3,7 @@ import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 import { isCompanySector } from '../../utils/sector';
-import { syncCompanySectors, withSectorId } from './sectorId';
+import { companySectorLabelsSql, syncCompanySectors, withSectorId } from './sectorId';
 
 const ALLOWED_STATUSES = new Set(['Oui', 'Oui OF', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const ALLOWED_RELANCE = new Set(['today', 'past', 'future']);
@@ -41,10 +41,13 @@ export interface CompanySirenGroupRow {
     companies: CompaniesRow[] | string;
 }
 
+// Le libellé `sector` est dérivé de company_sectors (la colonne companies.sector n'est plus lue).
+const COMPANY_COLUMNS = `companies.*, ${companySectorLabelsSql('companies')} AS sector`;
+
 const SIREN_GROUP_JSON = `JSON_ARRAYAGG(JSON_OBJECT(
     'id', id, 'ab_id', ab_id, 'user_id', user_id, 'legal_referent', legal_referent,
     'name', name, 'phone', phone, 'email', email, 'address', address,
-    'sector', sector, 'main_activity', main_activity, 'siret', siret, 'siren', siren,
+    'sector', ${companySectorLabelsSql('companies')}, 'main_activity', main_activity, 'siret', siret, 'siren', siren,
     'idcc', idcc, 'ape', ape, 'notes', notes, 'conclusion', conclusion, 'status', status,
     'relance_date', relance_date, 'relance_type', relance_type,
     'relance_template_id', relance_template_id, 'relance_channel', relance_channel,
@@ -85,7 +88,7 @@ export class CompanyRepository {
         }
         if (filters?.sectors?.length) rawSectors.push(...filters.sectors);
         const validSectors = [...new Set(rawSectors.filter((s) => isCompanySector(s)))];
-        const mode = (filters?.sectorMode === 'AND' || filters?.sectorsMode === 'AND') ? 'AND' : 'OR';
+        const mode = filters?.sectorMode === 'AND' || filters?.sectorsMode === 'AND' ? 'AND' : 'OR';
         if (validSectors.length === 1) {
             conditions.push(HAS_SECTOR);
             params.push(validSectors[0]);
@@ -147,7 +150,7 @@ export class CompanyRepository {
         if (search?.trim()) {
             const pattern = `%${search.trim().toLowerCase()}%`;
             return query<CompaniesRow[]>(
-                'SELECT * FROM companies WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ? ORDER BY id',
+                `SELECT ${COMPANY_COLUMNS} FROM companies WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ? ORDER BY id`,
                 [pattern, pattern],
             );
         }
@@ -159,7 +162,7 @@ export class CompanyRepository {
         if (relance) {
             const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
             const orderBy = relance === 'past' ? 'ORDER BY relance_date DESC, id' : 'ORDER BY relance_date ASC, id';
-            return query<CompaniesRow[]>(`SELECT * FROM companies ${where} ${orderBy}`, params);
+            return query<CompaniesRow[]>(`SELECT ${COMPANY_COLUMNS} FROM companies ${where} ${orderBy}`, params);
         }
 
         // Cursor pagination
@@ -171,7 +174,10 @@ export class CompanyRepository {
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
         const limit = Math.max(1, Math.floor(Number(first)) + 1);
-        return query<CompaniesRow[]>(`SELECT * FROM companies ${where} ORDER BY id LIMIT ${limit}`, params);
+        return query<CompaniesRow[]>(
+            `SELECT ${COMPANY_COLUMNS} FROM companies ${where} ORDER BY id LIMIT ${limit}`,
+            params,
+        );
     }
 
     async countByStatus(userID?: number | null): Promise<StatusCountRow[]> {
@@ -234,7 +240,7 @@ export class CompanyRepository {
     }
 
     async findByCommercial(userID: number): Promise<CompaniesRow[]> {
-        return query<CompaniesRow[]>('SELECT * FROM companies WHERE user_id = ?', [userID]);
+        return query<CompaniesRow[]>(`SELECT ${COMPANY_COLUMNS} FROM companies WHERE user_id = ?`, [userID]);
     }
 
     /** Companies of a commercial whose relance date is due (today or past). */
@@ -248,8 +254,8 @@ export class CompanyRepository {
 
     async findBySiret(siret: string): Promise<CompaniesRow | null> {
         const sql = siret.includes('%')
-            ? 'SELECT * FROM companies WHERE siret LIKE ?'
-            : 'SELECT * FROM companies WHERE siret = ?';
+            ? `SELECT ${COMPANY_COLUMNS} FROM companies WHERE siret LIKE ?`
+            : `SELECT ${COMPANY_COLUMNS} FROM companies WHERE siret = ?`;
         const results = await query<CompaniesRow[]>(sql, [siret]);
         return results.length > 0 ? results[0] : null;
     }
@@ -257,23 +263,27 @@ export class CompanyRepository {
     async findBySirets(sirets: string[]): Promise<CompaniesRow[]> {
         if (sirets.length === 0) return [];
         const placeholders = sirets.map(() => '?').join(', ');
-        return query<CompaniesRow[]>(`SELECT * FROM companies WHERE siret IN (${placeholders})`, sirets);
+        return query<CompaniesRow[]>(
+            `SELECT ${COMPANY_COLUMNS} FROM companies WHERE siret IN (${placeholders})`,
+            sirets,
+        );
     }
 
     async findAllBySiren(siren: string): Promise<CompaniesRow[]> {
-        return query<CompaniesRow[]>('SELECT * FROM companies WHERE siret LIKE ?', [`${siren}%`]);
+        return query<CompaniesRow[]>(`SELECT ${COMPANY_COLUMNS} FROM companies WHERE siret LIKE ?`, [`${siren}%`]);
     }
 
     async findById(id: number): Promise<CompaniesRow | null> {
-        const results = await query<CompaniesRow[]>('SELECT * FROM companies WHERE id = ?', [id]);
+        const results = await query<CompaniesRow[]>(`SELECT ${COMPANY_COLUMNS} FROM companies WHERE id = ?`, [id]);
         return results.length > 0 ? results[0] : null;
     }
 
     /** Recherche exacte par raison sociale (fallback matching sans lien direct). */
     async findByName(name: string): Promise<CompaniesRow | null> {
-        const results = await query<CompaniesRow[]>('SELECT * FROM companies WHERE name = ? ORDER BY id DESC LIMIT 1', [
-            name,
-        ]);
+        const results = await query<CompaniesRow[]>(
+            `SELECT ${COMPANY_COLUMNS} FROM companies WHERE name = ? ORDER BY id DESC LIMIT 1`,
+            [name],
+        );
         return results.length > 0 ? results[0] : null;
     }
 
@@ -295,7 +305,9 @@ export class CompanyRepository {
         try {
             // `null` est une valeur significative (ex. « aucune relance » vide relance_date) :
             // seuls les champs absents (undefined) sont ignorés.
-            const cleaned = Object.fromEntries(Object.entries(await withSectorId(data)).filter(([_, v]) => v !== undefined));
+            const cleaned = Object.fromEntries(
+                Object.entries(await withSectorId(data)).filter(([_, v]) => v !== undefined),
+            );
             if (Object.keys(cleaned).length === 0) return false;
             const sets = Object.keys(cleaned)
                 .map((key) => `${key} = ?`)

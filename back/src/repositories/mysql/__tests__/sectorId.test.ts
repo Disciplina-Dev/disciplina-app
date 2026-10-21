@@ -55,6 +55,17 @@ describe('companies.sector_id suit companies.sector (double écriture)', () => {
         expect(await storedSectorId(id)).toBe(await sectorIdOf('Sud'));
     });
 
+    it("le libellé lu est dérivé de company_sectors, la colonne companies.sector n'est plus écrite", async () => {
+        const id = await repo.create({ name: 'F', address: 'x', siret: '66666666666666', sector: 'Sud, Nord-Est' });
+        expect((await repo.findById(id))!.sector).toBe('Nord-Est, Sud');
+
+        const [raw] = await query<{ sector: string | null }[]>('SELECT sector FROM companies WHERE id = ?', [id]);
+        expect(raw.sector).toBeNull();
+
+        await repo.update(id, { sector: 'Ouest' });
+        expect((await repo.findById(id))!.sector).toBe('Ouest');
+    });
+
     describe('company_sectors et filtre multi-secteur', () => {
         const labelsOf = async (companyId: number): Promise<string[]> => {
             const rows = await query<{ label: string }[]>(

@@ -4,7 +4,7 @@ import { query } from '../../db/mysql/connection';
 /**
  * Id du secteur correspondant à `companies.sector` (libellé, éventuellement
  * multi-valeurs « a, b » : le premier fait foi). Null si vide ou hors référentiel.
- * Double écriture : `sector_id` suit `sector` à chaque écriture, comme le backfill.
+ * `sector_id` est écrit à partir du libellé reçu, comme le backfill.
  */
 export async function resolveSectorId(label: string | null | undefined): Promise<number | null> {
     const first = label?.split(',')[0]?.trim();
@@ -15,12 +15,29 @@ export async function resolveSectorId(label: string | null | undefined): Promise
     return rows[0]?.id ?? null;
 }
 
-/** Ajoute `sector_id` aux données d'écriture quand `sector` y figure (sauf `sector_id` explicite). */
+/**
+ * Remplace `sector` (libellé) par `sector_id` dans les données d'écriture : la colonne
+ * libellé n'est plus écrite, le libellé est dérivé du référentiel à la lecture.
+ * Un `sector_id` explicite l'emporte.
+ */
 export async function withSectorId<T extends { sector?: string | null; sector_id?: number | null }>(
     data: T,
-): Promise<T> {
-    if (data.sector === undefined || data.sector_id !== undefined) return data;
-    return { ...data, sector_id: await resolveSectorId(data.sector) };
+): Promise<Omit<T, 'sector'>> {
+    const { sector, ...rest } = data;
+    if (sector === undefined || rest.sector_id !== undefined) return rest;
+    return { ...rest, sector_id: await resolveSectorId(sector) };
+}
+
+/** Libellés (« a, b », ordre du référentiel) des secteurs rattachés à `table`.id via company_sectors. */
+export function companySectorLabelsSql(table: string): string {
+    return `(SELECT GROUP_CONCAT(s.label ORDER BY s.id SEPARATOR ', ')
+             FROM company_sectors cs JOIN sectors s ON s.id = cs.sector_id AND s.level = 'sector'
+             WHERE cs.company_id = ${table}.id)`;
+}
+
+/** Libellé du secteur unique `table`.sector_id (conflits, blacklist). */
+export function sectorLabelSql(table: string): string {
+    return `(SELECT s.label FROM sectors s WHERE s.id = ${table}.sector_id)`;
 }
 
 /** Libellés d'un `companies.sector` multi-valeurs (« a, b »), dédoublonnés. */

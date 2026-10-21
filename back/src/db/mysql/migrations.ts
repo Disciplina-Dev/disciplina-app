@@ -147,7 +147,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             phone VARCHAR(50) DEFAULT NULL,
             email VARCHAR(255) DEFAULT NULL,
             address VARCHAR(255) NOT NULL,
-            sector VARCHAR(255) NOT NULL DEFAULT 'Nord-Est',
+            sector VARCHAR(255) DEFAULT NULL,
             main_activity VARCHAR(255) DEFAULT NULL,
             siret CHAR(14) UNIQUE NOT NULL,
             idcc CHAR(4) DEFAULT NULL,

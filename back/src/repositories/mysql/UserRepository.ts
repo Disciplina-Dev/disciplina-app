@@ -127,8 +127,8 @@ export class UserRepository {
     }
 
     /**
-     * Double écriture : `user_sectors` suit `users.sectors` (le JSON n'est plus lu,
-     * il reste en miroir jusqu'au drop de la colonne). Les libellés hors référentiel sont ignorés.
+     * Remplace les liaisons `user_sectors` de l'utilisateur (le JSON `users.sectors`
+     * n'est ni lu ni écrit). Les libellés hors référentiel sont ignorés.
      */
     private async syncUserSectors(userId: number, rawSectors: unknown): Promise<void> {
         const labels = [...new Set(parseSectorLabels(rawSectors))];
@@ -159,9 +159,8 @@ export class UserRepository {
     }
 
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
-        const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(
-            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 user.email,
                 user.first_name,
@@ -169,7 +168,6 @@ export class UserRepository {
                 user.password,
                 user.role_id,
                 user.permission_id,
-                sectorsJson,
                 user.oauth_token,
                 user.refresh_token,
             ],
@@ -244,9 +242,12 @@ export class UserRepository {
         ];
         const entries = Object.entries(fields).filter(([k]) => allowed.includes(k as keyof UserRow));
         if (entries.length === 0) return;
-        const sets = entries.map(([k]) => `${k} = ?`).join(', ');
-        const values = entries.map(([, v]) => v);
-        await query(`UPDATE users SET ${sets} WHERE id = ?`, [...values, id]);
+        // `users.sectors` (JSON) n'est plus écrit : seule user_sectors porte les secteurs.
+        const columns = entries.filter(([k]) => k !== 'sectors');
+        if (columns.length > 0) {
+            const sets = columns.map(([k]) => `${k} = ?`).join(', ');
+            await query(`UPDATE users SET ${sets} WHERE id = ?`, [...columns.map(([, v]) => v), id]);
+        }
         if (entries.some(([k]) => k === 'sectors')) await this.syncUserSectors(id, fields.sectors);
     }
 

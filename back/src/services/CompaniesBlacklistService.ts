@@ -1,6 +1,6 @@
 import { getConnection } from '../db/mysql/connection';
 import { buildInsert } from '../db/mysql/queryBuilder';
-import { syncCompanySectors } from '../repositories/mysql/sectorId';
+import { syncCompanySectors, withSectorId } from '../repositories/mysql/sectorId';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
 import { CompaniesBlacklistRow, CompaniesRow } from '../types/db-rows.types';
@@ -104,7 +104,7 @@ export class CompaniesBlacklistService {
             // ne permettent pas. Seul le builder d'INSERT est mutualisé.
             const { sql, values } = buildInsert(
                 'companies',
-                data as Record<string, string | number | boolean | Date | null>,
+                (await withSectorId(data)) as Record<string, string | number | boolean | Date | null>,
             );
             const [result] = await conn.execute(sql, values);
             await syncCompanySectors(conn, (result as any).insertId, data.sector);

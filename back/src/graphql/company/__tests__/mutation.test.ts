@@ -114,7 +114,7 @@ describe('GraphQL company mutations', () => {
             expect(vjson.data.companyBySiret.name).toBe(`Test Corp ${suffix}`);
         });
 
-        it('stores an Annemasse company sector verbatim instead of resetting to Nord-Est', async () => {
+        it('stores a non-default company sector verbatim instead of resetting to Nord-Est', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
             const suffix = Date.now();
             const siret = `${suffix}2222222222`.slice(0, 14);
@@ -139,7 +139,7 @@ describe('GraphQL company mutations', () => {
                             name: `Annemasse Corp ${suffix}`,
                             siret,
                             address: '18 Av. de la République, 74100 Annemasse',
-                            sector: 'Arve',
+                            sector: 'Ouest',
                         },
                     },
                 }),
@@ -148,9 +148,9 @@ describe('GraphQL company mutations', () => {
 
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
-            expect(json.data.createCompany.sector).toBe('Arve');
+            expect(json.data.createCompany.sector).toBe('Ouest');
 
-            // Le filtre par secteur Annemasse est couvert par sectorId.test.ts (base du tenant annemasse) :
+            // Les secteurs Annemasse sont couverts par sectorId.test.ts (base du tenant annemasse) :
             // ici la base est celle de la Réunion, dont le référentiel n'a pas « Arve ».
         });
 

@@ -725,13 +725,20 @@ def seed_companies(conn):
         add_row_if_absent(
             conn, "companies", "siret = %s", (siret,),
             """INSERT IGNORE INTO companies
-               (id, user_id, ab_id, legal_referent, name, phone, email, address, sector,
+               (id, user_id, ab_id, legal_referent, name, phone, email, address, sector_id,
                 main_activity, siret, idcc, ape, notes, conclusion, status, relance_date,
                 relance_type, relance_channel)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,(SELECT id FROM sectors WHERE level = 'sector' AND label = %s LIMIT 1),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
             (cid, uid, ab_id, referent, name, phone, email, address, sector,
              activity, siret, idcc, ape, notes, conclusion, status, relance_date,
              relance_type, relance_channel),
+        )
+        # Liaison multi-secteur (company_sectors) : le libellé lu en dérive.
+        insert_mysql(
+            conn,
+            "INSERT IGNORE INTO company_sectors (company_id, sector_id) "
+            "SELECT id, sector_id FROM companies WHERE siret = %s AND sector_id IS NOT NULL",
+            (siret,),
         )
     print(f"[companies] {len(COMPANIES)} fiches OK")
 
@@ -742,9 +749,9 @@ def seed_blacklist(conn):
         add_row_if_absent(
             conn, "companies_blacklist", "siret = %s", (siret,),
             """INSERT IGNORE INTO companies_blacklist
-               (user_id, legal_referent, name, phone, email, address, sector,
+               (user_id, legal_referent, name, phone, email, address, sector_id,
                 main_activity, siret, idcc, ape, notes, conclusion, status, all_blacklist)
-               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+               VALUES (%s,%s,%s,%s,%s,%s,(SELECT id FROM sectors WHERE level = 'sector' AND label = %s LIMIT 1),%s,%s,%s,%s,%s,%s,%s,%s)""",
             (uid, None, name, phone, email, address, sector,
              activity, siret, idcc, ape, notes, conclusion, status, all_blacklist),
         )
