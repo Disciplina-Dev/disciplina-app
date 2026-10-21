@@ -4,7 +4,12 @@ import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
 import { CandidateHistoryService } from '../../services/CandidateHistoryService';
 import { randomUUID } from 'crypto';
-import { TitleProfessionalType, CandidateStatus, CandidateHistoryEntry } from '../../types/candidate.types';
+import {
+    TitleProfessionalType,
+    CandidateStatus,
+    CandidateHistoryEntry,
+    normalizeTpCode,
+} from '../../types/candidate.types';
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
@@ -123,7 +128,7 @@ function driveFolderConfigToGql(config: { rootFolderId: string | null; tpFolders
         rootFolderId: config.rootFolderId ?? null,
         // Une entrée par couple TP × région du tenant (même vide) pour piloter
         // le formulaire (NORD/OUEST/SUD pour Réunion, ANNEMASSE unique).
-        tpFolders: Object.values(TitleProfessionalType).flatMap((tp) =>
+        tpFolders: Object.values(TitleProfessionalType).flatMap((tp: string) =>
             driveRegionsForTenant(getRegion()).map((region) => ({
                 tp,
                 region,
@@ -294,7 +299,11 @@ export const resolvers = {
                 snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
             }
             if (!snakeInput.skills_assessment || snakeInput.skills_assessment.length === 0) {
-                const template = CANDIDATE_TEMPLATES[input.tpTypes[0]];
+                // Rétro-compat : un client existant peut encore envoyer l'ancien code « SA ».
+                const templateTp = input.tpTypes?.[0] ? normalizeTpCode(input.tpTypes[0]) : undefined;
+                const template = templateTp
+                    ? CANDIDATE_TEMPLATES[templateTp as TitleProfessionalType]
+                    : undefined;
                 if (template) {
                     snakeInput.skills_assessment = template.default_skills_assessment;
                 }

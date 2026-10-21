@@ -1,4 +1,4 @@
-import { Candidate, CandidateStatus } from '../../types/candidate.types';
+import { Candidate, CandidateStatus, normalizeTpCode, normalizeTpCodes } from '../../types/candidate.types';
 import { Offer } from '../../types/offer.types';
 import { FilizStudentInfos } from '../../external/filiz/type';
 import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
@@ -46,7 +46,8 @@ export function candidateToGql(candidate: Candidate): any {
         writtenTestScore: candidate.written_test_score ?? null,
         testAverage: candidate.test_average ?? null,
         testFailurePending: candidate.test_failure_pending ?? null,
-        tpTypes: candidate.tp_types ?? [],
+        // Rétro-compat : les fiches écrites avant le renommage portent encore « SA ».
+        tpTypes: normalizeTpCodes(candidate.tp_types ?? []),
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,
@@ -187,7 +188,7 @@ export function offerToMatchedOfferGql(offer: Offer, candidateId?: string): obje
         sector: null,
         localisation: offer.localisation,
         desiredTp: (offer.desired_tp ?? []).map((tp) => ({
-            tpType: tp.tp_type ?? null,
+            tpType: tp.tp_type ? normalizeTpCode(tp.tp_type) : null,
             missions: tp.missions ?? [],
             descriptionMissions: tp.description_missions ?? [],
         })),

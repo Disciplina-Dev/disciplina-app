@@ -1,5 +1,12 @@
 import { getModels } from '../../db/mongo/tenant';
-import { Candidate, CandidateOwner, CandidateRelanceEntry, CandidateStatus } from '../../types/candidate.types';
+import {
+    Candidate,
+    CandidateOwner,
+    CandidateRelanceEntry,
+    CandidateStatus,
+    expandTpFilter,
+    normalizeTpCode,
+} from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 
 export interface StatBucket {
@@ -179,7 +186,8 @@ export class CandidateRepository {
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
         if (filters?.hasVehicle !== undefined) conditions.push({ 'identity.has_vehicle': filters.hasVehicle });
         if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
-        if (filters?.tpType?.length) conditions.push({ tp_types: { $in: filters.tpType } });
+        // Un filtre CADGA doit aussi matcher les documents legacy encore en « SA ».
+        if (filters?.tpType?.length) conditions.push({ tp_types: { $in: expandTpFilter(filters.tpType) } });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
         if (filters?.geographicMobility?.length)
@@ -448,15 +456,37 @@ export class CandidateRepository {
 
         const toBuckets = (rows: { _id: unknown; count: number }[]) =>
             rows.filter((r) => r._id != null).map((r) => ({ key: String(r._id), count: r.count }));
+        // Les buckets TP peuvent contenir l'ancien code « SA » en plus de « CADGA » :
+        // on normalise puis on fusionne les deux buckets.
+        const mergeTpBuckets = (rows: { key: string; count: number }[]) => {
+            const merged = new Map<string, number>();
+            for (const row of rows) {
+                const key = normalizeTpCode(row.key);
+                merged.set(key, (merged.get(key) ?? 0) + row.count);
+            }
+            return [...merged].map(([key, count]) => ({ key, count }));
+        };
+
+        const tpAndStatusById = new Map<string, TpStatusBucket>();
+        for (const row of result?.byTpAndStatus ?? []) {
+            if (row._id?.tpType == null || row._id?.status == null) continue;
+            const tpType = normalizeTpCode(String(row._id.tpType));
+            const status = String(row._id.status);
+            const key = `${tpType}|${status}`;
+            const existing = tpAndStatusById.get(key);
+            tpAndStatusById.set(key, {
+                tpType,
+                status,
+                count: (existing?.count ?? 0) + row.count,
+            });
+        }
 
         return {
             total: result?.total[0]?.count ?? 0,
             byStatus: toBuckets(result?.byStatus ?? []),
-            byTpType: toBuckets(result?.byTpType ?? []),
+            byTpType: mergeTpBuckets(toBuckets(result?.byTpType ?? [])),
             byTrainingSite: toBuckets(result?.byTrainingSite ?? []),
-            byTpAndStatus: (result?.byTpAndStatus ?? [])
-                .filter((r) => r._id?.tpType != null && r._id?.status != null)
-                .map((r) => ({ tpType: String(r._id.tpType), status: String(r._id.status), count: r.count })),
+            byTpAndStatus: [...tpAndStatusById.values()],
         };
     }
 

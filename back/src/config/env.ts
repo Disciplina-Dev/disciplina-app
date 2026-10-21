@@ -216,6 +216,8 @@ const data = {
     DRIVE_CANDIDATS_NORD_CC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CC_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_REM_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_REM_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID'),
+    // Legacy : ancien nom du TP CADGA, conservé comme fallback de configuration.
     DRIVE_CANDIDATS_NORD_SA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_SA_FOLDER_ID'),
 
     // Dossier Drive où sont stockés les pièces jointes / signatures des modèles de mail.

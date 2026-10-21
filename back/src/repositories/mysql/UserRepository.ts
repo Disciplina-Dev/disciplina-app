@@ -117,12 +117,12 @@ export class UserRepository {
         );
     }
 
-    /** Users habilités à mener les entretiens AB (is_interviewer ou rôle RH). */
+    /** Users habilités à mener les entretiens AB (is_interviewer ou rôles RH/GESTION). */
     async findInterviewers(): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(
                 ', ',
-            )}, ${USER_JOIN} WHERE (u.is_interviewer = 1 OR r.name = 'RH') AND ${USER_ACTIVE} ORDER BY u.first_name, u.last_name`,
+            )}, ${USER_JOIN} WHERE (u.is_interviewer = 1 OR r.name IN ('RH', 'GESTION')) AND ${USER_ACTIVE} ORDER BY u.first_name, u.last_name`,
         );
     }
 

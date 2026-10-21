@@ -5,7 +5,34 @@ export enum TitleProfessionalType {
     CC = 'CC',
     NTC = 'NTC',
     REM = 'REM',
-    SA = 'SA',
+    CADGA = 'CADGA',
+}
+
+/** Ancien code du TP « Secrétaire Assistant », renommé « Chargé d'accueil et de gestion administrative ». */
+export const LEGACY_TP_SA = 'SA';
+
+/** Normalise un code TP legacy (« SA ») vers son code actuel (« CADGA »). */
+export function normalizeTpCode(code: string): string {
+    return code === LEGACY_TP_SA ? TitleProfessionalType.CADGA : code;
+}
+
+/** Normalise une liste de codes TP legacy vers les codes actuels. */
+export function normalizeTpCodes(codes: readonly string[]): string[] {
+    return codes.map(normalizeTpCode);
+}
+
+/**
+ * Étend un filtre TP à ses valeurs legacy stockées en base : un filtre « CADGA »
+ * doit aussi matcher les anciens documents portant encore « SA ».
+ */
+export function expandTpFilter(codes: readonly string[]): string[] {
+    const expanded = new Set<string>();
+    for (const code of codes) {
+        const normalized = normalizeTpCode(code);
+        expanded.add(normalized);
+        if (normalized === TitleProfessionalType.CADGA) expanded.add(LEGACY_TP_SA);
+    }
+    return [...expanded];
 }
 
 export enum CandidateStatus {

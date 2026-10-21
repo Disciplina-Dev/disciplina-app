@@ -12,7 +12,9 @@ import re
 
 from lib.company_csv import clean_text, remove_accents
 
-VALID_TP = {"AD", "CC", "NTC", "REM", "SA"}
+VALID_TP = {"AD", "CC", "NTC", "REM", "CADGA", "SA"}
+# « SA » (Secrétaire Assistant) est l'ancien code du TP désormais nommé CADGA.
+LEGACY_TP = {"SA": "CADGA"}
 
 # zone -> theme -> {field: column index}. `activite` and `exp` are optional per file.
 FILE_CONFIG = {
@@ -246,8 +248,10 @@ def split_tps(raw):
     tokens = re.split(r"[/\s]+", (raw or "").upper())
     seen = []
     for token in tokens:
-        if token in VALID_TP and token not in seen:
-            seen.append(token)
+        if token in VALID_TP:
+            tp = LEGACY_TP.get(token, token)
+            if tp not in seen:
+                seen.append(tp)
     return seen
 
 
