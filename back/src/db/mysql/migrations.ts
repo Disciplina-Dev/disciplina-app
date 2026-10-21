@@ -170,7 +170,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
     {
         // Table unifiée des liens signés remplaçant interview_access, match_link et external_link.
         // Chaque ligne représente un lien magique envoyé à un guest (candidat ou entreprise) :
-        // signature 128 chars (512 bits), sans code, valable 7 jours après sa première ouverture.
+        // signature 128 chars (512 bits), sans code, à durée illimitée (actif jusqu'à clôture).
         table: 'external_access',
         ddl: `CREATE TABLE IF NOT EXISTS external_access (
             signature VARCHAR(191) PRIMARY KEY,
@@ -378,6 +378,24 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             INDEX idx_mcp_refresh_client (client_id),
             INDEX idx_mcp_refresh_hash (token_hash),
             INDEX idx_mcp_refresh_user (user_id)
+        )`,
+    },
+    {
+        // Journal d'accès MCP (MCP_RGPD_AUDIT.md M4) : qui a consulté quoi, sans PII
+        // ni résultat. user_id = 0 pour la clé statique. Purge à 365 jours.
+        table: 'mcp_audit_log',
+        ddl: `CREATE TABLE IF NOT EXISTS mcp_audit_log (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            user_id INT NOT NULL,
+            client_id VARCHAR(128) DEFAULT NULL,
+            tool VARCHAR(64) NOT NULL,
+            subject_ref VARCHAR(80) DEFAULT NULL,
+            args_hash VARCHAR(32) NOT NULL,
+            result_count INT NOT NULL DEFAULT 0,
+            status VARCHAR(16) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_mcp_audit_user_date (user_id, created_at),
+            INDEX idx_mcp_audit_date (created_at)
         )`,
     },
 ];

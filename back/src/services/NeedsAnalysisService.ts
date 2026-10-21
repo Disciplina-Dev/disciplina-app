@@ -6,6 +6,7 @@ import {
     NeedsAnalysis as NeedsAnalysisNoSql,
     NeedsAnalysisWriteInput,
     NeedsAnalysisStatus,
+    CompanyIndicator,
 } from '../types/needsAnalysisNoSql.types';
 import { toNeedsAnalysis, toNeedsAnalysisDocument, NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { buildOffers, mergeOfferIdentity } from './mappers/offer.mapper';
@@ -242,6 +243,91 @@ export class NeedsAnalysisService {
     }
 
     /**
+     * Pose la pastille couleur manuelle du suivi entreprise (annuaire RH).
+     * `null` réinitialise la couleur automatique dérivée (immersion → vert,
+     * mandat signé → jaune, sinon blanc).
+     */
+    async setIndicator(id: string, indicator: CompanyIndicator | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (indicator !== null && !Object.values(CompanyIndicator).includes(indicator)) {
+            throw new Error('Invalid company indicator');
+        }
+        const updated = await this.repository.update(id, { company_indicator: indicator ?? null });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, indicator }, '[NeedsAnalysis] company indicator updated');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Met à jour les références libres du suivi entreprise (annuaire RH) :
+     * « France Travail » et « KOANN ». Chaîne vide / blanche = `null`
+     * (non renseigné). Tronque à 500 caractères (garde-fou de saisie libre).
+     */
+    async setTrackingRefs(id: string, franceTravail?: string | null, koann?: string | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        const patch: Record<string, string | null> = {};
+        if (franceTravail !== undefined) {
+            const trimmed = (franceTravail ?? '').trim();
+            patch.france_travail = trimmed ? trimmed.slice(0, 500) : null;
+        }
+        if (koann !== undefined) {
+            const trimmed = (koann ?? '').trim();
+            patch.koann = trimmed ? trimmed.slice(0, 500) : null;
+        }
+        const updated = await this.repository.update(id, patch as any);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id }, '[NeedsAnalysis] company tracking refs updated');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Corrige manuellement la date d'activation (`last_active_at`) affichée
+     * dans l'annuaire des entreprises. `null` / vide l'efface (repli sur la
+     * date de création côté front). N'interfère pas avec le tampon
+     * automatique : une future (ré)activation la ré-horodatera.
+     */
+    async setActivationDate(id: string, lastActiveAt?: string | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        let date: Date | null = null;
+        const raw = (lastActiveAt ?? '').trim();
+        if (raw) {
+            const parsed = new Date(raw);
+            if (Number.isNaN(parsed.getTime())) {
+                throw new Error('Invalid activation date');
+            }
+            date = parsed;
+        }
+        const updated = await this.repository.update(id, { last_active_at: date });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id }, '[NeedsAnalysis] activation date updated manually');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
      * Met à jour `last_active_at` si l'AB vient de (re)devenir effectivement
      * ACTIVE alors qu'elle ne l'était pas juste avant (`before`). Appelé après
      * chaque mutation susceptible de faire basculer le statut effectif
@@ -326,6 +412,14 @@ export class NeedsAnalysisService {
         );
         const created = await this.repository.create(document);
         await this.companiesService.setAbId(company.id, id);
+        // Brouillon publié dans le matching : offres créées sans envoi en
+        // signature, statut BROUILLON conservé (affiché « Non envoyée »).
+        // Hors du chemin critique : on log mais on ne fait pas échouer la création.
+        if (data.isVisibleInMatching) {
+            await this.createOffersAndNotifyRh(created, id, company.name || 'Entreprise').catch((err) => {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+            });
+        }
         logger.info({ id, status: created.status }, '[NeedsAnalysis] create() complete');
         return toNeedsAnalysis(created);
     }
@@ -440,10 +534,14 @@ export class NeedsAnalysisService {
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.
+        // Un brouillon déjà publié dans le matching a ses offres : pas de doublon.
         if (wasDraft) {
-            await this.createOffersAndNotifyRh(doc, analysis.id, company.name || 'Entreprise').catch((err) => {
-                logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
-            });
+            const existingOffers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (existingOffers.length === 0) {
+                await this.createOffersAndNotifyRh(doc, analysis.id, company.name || 'Entreprise').catch((err) => {
+                    logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                });
+            }
         }
 
         const updated = await this.repository.findById(id);
@@ -658,11 +756,13 @@ export class NeedsAnalysisService {
             trainingDays: data.trainingDays ?? existing.training_days,
             yousignSignatureRequestID: data.yousignSignatureRequestID ?? existing.signature_request_id ?? null,
             status: data.status ?? existing.status,
+            isVisibleInMatching: data.isVisibleInMatching ?? (existing as any).is_visible_in_matching ?? false,
         };
 
         if (!companyID) {
             throw new Error(`Company with ID ${companyID} not found`);
         }
+        this.validateData(merged);
         const before = await this.getAbStatus(id);
         const company = await this.companiesService.findById(companyID);
         if (!company) {
@@ -676,9 +776,31 @@ export class NeedsAnalysisService {
         }
 
         // L'AB n'a d'offres que si elle a déjà été envoyée en signature au moins une
-        // fois : dans ce cas, on répercute les changements de poste sur les offres
-        // existantes en préservant leur id stable et leur état de matching.
+        // fois (ou publiée dans le matching à l'état brouillon) : dans ce cas, on
+        // répercute les changements de poste sur les offres existantes en
+        // préservant leur id stable et leur état de matching.
         await this.syncOffers(id, updated);
+
+        // Publication vers le matching (brouillon rendu visible sans envoi) :
+        // crée les offres si elles n'existent pas encore. Dépublier supprime
+        // les offres (best-effort) : l'AB redevient un simple brouillon.
+        const wasVisible = !!(existing as any).is_visible_in_matching;
+        const nowVisible = !!merged.isVisibleInMatching;
+        if (nowVisible && !wasVisible) {
+            const offers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (offers.length === 0) {
+                await this.createOffersAndNotifyRh(updated, id, company.name || 'Entreprise').catch((err) => {
+                    logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                });
+            }
+        } else if (!nowVisible && wasVisible) {
+            try {
+                const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
+                logger.info({ id, removed }, '[NeedsAnalysis] offers cleared (unpublished from matching)');
+            } catch (err) {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers on unpublish');
+            }
+        }
 
         // L'ajout/retrait de postes peut réactiver une AB archivée (retour à ACTIVE).
         await this.refreshActivationStamp(id, before);
@@ -791,6 +913,64 @@ export class NeedsAnalysisService {
         return toNeedsAnalysis(updated);
     }
 
+    /**
+     * Publie un brouillon dans le matching (crée ses offres, sans envoi en
+     * signature — l'AB reste BROUILLON, affichée « Non envoyée ») ou l'en
+     * retire (supprime ses offres, best-effort). Réservé aux AB BROUILLON :
+     * une AB déjà envoyée/signée est déjà matchable.
+     */
+    async setMatchingVisibility(id: string, visible: boolean): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (existing.is_deleted) {
+            throw new Error('Cannot change matching visibility on a deleted needs analysis');
+        }
+        if (existing.status !== NeedsAnalysisStatus.BROUILLON) {
+            throw new Error('Only draft needs analyses can be published to matching');
+        }
+        const before = await this.getAbStatus(id);
+        await this.repository.update(id, { is_visible_in_matching: visible } as any);
+        if (visible) {
+            const offers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (offers.length === 0) {
+                const doc = await this.repository.findById(id);
+                if (doc) {
+                    const companyName =
+                        doc.company_infos?.name ??
+                        (doc.company_infos?.id
+                            ? await this.companiesService
+                                  .findById(doc.company_infos.id)
+                                  .then((c) => c?.name)
+                                  .catch(() => null)
+                            : null) ??
+                        'Entreprise';
+                    await this.createOffersAndNotifyRh(doc, id, companyName).catch((err) => {
+                        logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                    });
+                }
+            }
+        } else {
+            try {
+                const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
+                logger.info({ id, removed }, '[NeedsAnalysis] offers cleared (unpublished from matching)');
+            } catch (err) {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers on unpublish');
+            }
+        }
+        await this.refreshActivationStamp(id, before);
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, visible }, '[NeedsAnalysis] matching visibility updated');
+        return toNeedsAnalysis(updated);
+    }
+
     private validateData(data: Partial<NeedsAnalysisWriteInput>): void {
         if (!data.companyID) {
             throw new Error('Company ID is required');
@@ -800,6 +980,14 @@ export class NeedsAnalysisService {
         }
         if (!data.positions?.[0]?.title) {
             throw new Error('Job title is required');
+        }
+        for (const position of data.positions ?? []) {
+            const criteria = (position as any).criteria ?? {};
+            const ageMin = criteria.age_min ?? criteria.ageMin ?? null;
+            const ageMax = criteria.age_max ?? criteria.ageMax ?? null;
+            if (ageMin != null && ageMax != null && ageMax < ageMin) {
+                throw new Error("L'âge maximum ne peut pas être inférieur à l'âge minimum.");
+            }
         }
     }
 }

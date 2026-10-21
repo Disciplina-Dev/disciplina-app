@@ -171,10 +171,10 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 ### 3.14 Peda / absences
 
 - **Étapes** : PEDA configure le suivi (`GET/PUT/DELETE /api/peda/config*`) → lance une passe (`POST /api/peda/run`).
-- **Chaîne** : `peda/controller.ts` → `PedaService`, `PedaDraftService` (lit Google Sheets, rédige des brouillons de relance d'absence). Scheduler en arrière-plan : `scheduler/pedaDraftScheduler.ts` + `immersionEndScheduler.ts` (`setInterval`, démarrés dans `startServer`).
-- **Résultat attendu** : brouillons générés à partir des absences ; adresses email normalisées correctement.
+- **Chaîne** : `peda/controller.ts` → `PedaService`, `PedaDraftService` (lit Google Sheets, rédige des brouillons de relance d'absence). Schedulers en arrière-plan : `scheduler/pedaDraftScheduler.ts` + `immersionEndScheduler.ts` + `saNotificationScheduler.ts` (`setInterval`, démarrés dans `startServer`).
+- **Résultat attendu** : brouillons générés à partir des absences ; adresses email normalisées correctement ; notif Peda à la déclaration d'une rupture et au premier passage d'une SA « En cours » / « En retard ».
 - **External** : ⚠️ Google Sheets, Gmail.
-- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`.
+- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`, `services/__tests__/saNotification.test.ts` (SA en cours/en retard + notif rupture), `graphql/peda/__tests__/rupture.test.ts` (déclaration + rapport mensuel), `graphql/peda/__tests__/alternant.test.ts`, `graphql/peda/__tests__/session.test.ts`. Exposition MCP : voir 3.17.
 - **Statut** : _à remplir_
 
 ### 3.15 Notifications & Todos
@@ -195,6 +195,14 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Test vitest** : `rest/auth/__tests__/directory.test.ts`, `sensitive-fields.test.ts`.
 - **Statut** : _à remplir_
 
+### 3.17 MCP péda (lecture, RGPD)
+
+- **Étapes** : client LLM authentifié (OAuth ou clé statique) → `POST /api/mcp` → outils `list_sessions`, `get_session`, `session_stats`, `list_sequences_overdue`, `list_sequences_upcoming`, `list_alternant_sequences`, `list_alternants`, `get_alternant`, `list_ruptures`, `rupture_stats`, `peda_kpi_overview`, `peda_draft_stats`.
+- **Chaîne** : `mcp/tools/peda.ts` → `readTool` (scope, quota, `mcp_audit_log`) → services péda → `mcp/pedaExposure.ts` (consentement `ai_processing` via `candidate_id`, « Prénom N. », masquage k<`PEDA_MIN_GROUP`).
+- **Résultat attendu** : alternants sans consentement ou sans candidat lié absents ; aucun email/téléphone/tuteur ; agrégats de 1 à 4 masqués sans déduction par soustraction ; notifications `peda`/`candidate` masquées.
+- **External** : aucun.
+- **Test vitest** : `mcp/__tests__/peda.test.ts`, `mcp/__tests__/pedaMasking.test.ts`.
+- **Statut** : _à remplir_
 ---
 
 ## 4. Dépendances external & mode dégradé
@@ -239,7 +247,8 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.11 Email/relance | (pattern documenté) | **oui** |
 | 3.12 Classmarker | `webhookSignature` (garde) | flux PDF/Drive |
 | 3.13 KPI | — | **oui** |
-| 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification` | flux `run` complet |
+| 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification`, `saNotification`, `rupture`, `alternant`, `session` | flux `run` complet (drafts) |
+| 3.17 MCP péda | `mcp/peda`, `mcp/pedaMasking` | — |
 | 3.15 Notifs/Todos | `authBoundary` (SSE) | flux nominal |
 | 3.16 Admin users | `directory`, `sensitive-fields` | — |
 

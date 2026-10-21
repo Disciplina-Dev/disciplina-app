@@ -9,6 +9,7 @@ import {
     ImmersionPeriod,
     NeedsAnalysisStatus,
     AdministrationType,
+    CompanyIndicator,
 } from '../../../types/needsAnalysisNoSql.types';
 import { salerInfoSchema, referentsSchema } from './referents.schema';
 import { positionSchema } from './position.schema';
@@ -54,7 +55,15 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
         ab_status: { type: String, enum: ['ACTIVE', 'ARCHIVED', 'INACTIVE'], default: null },
         last_active_at: { type: Date, default: null },
         is_deleted: { type: Boolean, default: false },
-        administration_type: { type: String, enum: Object.values(AdministrationType), default: AdministrationType.NON_RENSEIGNE },
+        is_visible_in_matching: { type: Boolean, default: false },
+        administration_type: {
+            type: String,
+            enum: Object.values(AdministrationType),
+            default: AdministrationType.NON_RENSEIGNE,
+        },
+        company_indicator: { type: String, enum: Object.values(CompanyIndicator), default: null },
+        france_travail: { type: String, default: null },
+        koann: { type: String, default: null },
         created_at: { type: Date },
         updated_at: { type: Date },
     },

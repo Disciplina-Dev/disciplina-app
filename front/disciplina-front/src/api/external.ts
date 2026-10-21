@@ -14,7 +14,7 @@ export interface ExternalProfile {
 export class ExternalAuthError extends Error {}
 
 export type OpenExternalResult =
-  | { ok: true; referenceId: number; expiresAt: string }
+  | { ok: true; referenceId: number; expiresAt: string | null }
   | { ok: false; reason: 'invalid' | 'blocked' | 'expired' | 'completed' }
 
 export async function openExternalLink(signature: string): Promise<OpenExternalResult> {
@@ -28,10 +28,10 @@ export async function openExternalLink(signature: string): Promise<OpenExternalR
     success?: boolean
     message?: string
     user?: { referenceId: number }
-    expiresAt?: string
+    expiresAt?: string | null
   }
-  if (body.success && body.user && body.expiresAt) {
-    return { ok: true, referenceId: body.user.referenceId, expiresAt: body.expiresAt }
+  if (body.success && body.user) {
+    return { ok: true, referenceId: body.user.referenceId, expiresAt: body.expiresAt ?? null }
   }
   const message = body.message ?? ''
   if (/already completed/.test(message)) return { ok: false, reason: 'completed' }
@@ -55,6 +55,18 @@ export async function completeExternalCv(signature: string): Promise<void> {
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error ?? `Finalisation de l'import échouée (${res.status})`)
+  }
+}
+
+/** Clôture explicite du lien par l'invité (bouton « Clôturer le lien »). */
+export async function closeExternalLink(signature: string): Promise<void> {
+  const res = await apiFetch(`/api/external/${signature}/completed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(body.error ?? `Clôture du lien échouée (${res.status})`)
   }
 }
 

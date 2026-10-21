@@ -344,6 +344,9 @@ export default function QuestionnaireAB() {
   const [driveStatus, setDriveStatus] = useState<string | null>(null)
   // Sections de mobilité selon le tenant (3 zones Réunion, 6 secteurs Annemasse).
   const region = useRegionStore((s) => s.region)
+  // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — la
+  // section Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) est masquée.
+  const isAnnemasse = region === 'annemasse'
   const communeSections = useMemo(() => communeSectionsForRegion(region), [region])
 
   useEffect(() => {
@@ -546,7 +549,8 @@ export default function QuestionnaireAB() {
           <InputField id="school_justification" label="Justificatif (si applicable)" value={form.school_justification} onChange={e => set('school_justification', e.target.value)} />
         </Section>
 
-        {/* 4. Site(s) de formation — choix multiple */}
+        {/* 4. Site(s) de formation — choix multiple (Réunion uniquement, masqué sur Annemasse) */}
+        {!isAnnemasse && (
         <Section title="Positionnement sur les sites de formation">
           <p className="mb-2 text-sm text-[var(--ds-text-subtle)]">Plusieurs sites possibles.</p>
           <div className="space-y-2">
@@ -572,6 +576,7 @@ export default function QuestionnaireAB() {
             ))}
           </div>
         </Section>
+        )}
 
         {/* 5. Accompagnement */}
         <Section title="Accompagnement et dispositifs">

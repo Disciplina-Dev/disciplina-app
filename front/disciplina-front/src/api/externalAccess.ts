@@ -70,6 +70,10 @@ export async function revokeExternalAccess(signature: string): Promise<void> {
   await apiJson<{ success: boolean }>(`/api/external/${signature}/revoke`, { method: 'POST' })
 }
 
+export async function closeExternalAccess(signature: string): Promise<void> {
+  await apiJson<{ success: boolean }>(`/api/external/${signature}/close`, { method: 'POST' })
+}
+
 export async function regenerateExternalAccess(signature: string): Promise<void> {
   await apiJson<{ success: boolean }>(`/api/external/${signature}/regenerate`, { method: 'POST' })
 }

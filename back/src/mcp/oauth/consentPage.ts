@@ -19,7 +19,12 @@ export function escapeHtml(input: string): string {
 
 // Construit l'URL de retour vers le client OAuth (code émis ou erreur), en
 // reportant `state` reçu. Utilisé pour le lien « Refuser » et le redirect 302.
-export function buildRedirectUri(redirectUri: string, params: AuthorizationParams, code?: string, error?: string): string {
+export function buildRedirectUri(
+    redirectUri: string,
+    params: AuthorizationParams,
+    code?: string,
+    error?: string,
+): string {
     const url = new URL(redirectUri);
     if (code) url.searchParams.set('code', code);
     if (error) url.searchParams.set('error', error);
@@ -70,6 +75,7 @@ export function renderConsentPage(
         logoUri && clientName !== DEFAULT_CLIENT_NAME
             ? `<img class="client-logo" src="${logoUri}" alt="" referrerpolicy="no-referrer"/>`
             : '';
+    const privacyUrl = escapeHtml(`${env.FRONTEND_BASE_URL}/legal/confidentialite`);
     const forgotUrl = escapeHtml(`${env.FRONTEND_BASE_URL}/forgot-password`);
 
     return `<!DOCTYPE html>
@@ -102,6 +108,11 @@ export function renderConsentPage(
   .logo svg { height: 40px; width: auto; }
   .title { font-size: 20px; font-weight: 600; text-align: center; margin: 0 0 4px; }
   .subtitle { font-size: 14px; color: #6B6B6B; text-align: center; margin: 0 0 24px; }
+  .notice {
+    font-size: 12.5px; line-height: 1.5; color: #4A4A4A;
+    border-left: 3px solid #C9A227; padding: 4px 0 4px 12px; margin: 0 0 24px;
+  }
+  .notice a { color: inherit; }
   .info {
     background: #F4F3EF;
     border: 1px solid #E8E8E4; border-radius: 12px;
@@ -198,6 +209,13 @@ export function renderConsentPage(
       </div>
       ${resource ? `<div class="row"><span class="key">Destination</span><span class="val muted"><code>${resource}</code></span></div>` : ''}
     </div>
+
+    <p class="notice" id="data-notice">
+      Les données consultées (candidats, entreprises, offres&hellip;) seront transmises à ${clientName}
+      pour être traitées par un modèle d&rsquo;IA hébergé par un tiers, hors de Disciplina. Elles peuvent
+      inclure des données personnelles de candidats&nbsp;: ne les utilisez que pour votre travail.
+      Chaque consultation est journalisée. <a href="${privacyUrl}" rel="noreferrer">Politique de confidentialité</a>.
+    </p>
 
     <form method="post" action="/authorize">
       ${hiddenFields}

@@ -5,7 +5,34 @@ export enum TitleProfessionalType {
     CC = 'CC',
     NTC = 'NTC',
     REM = 'REM',
-    SA = 'SA',
+    CADGA = 'CADGA',
+}
+
+/** Ancien code du TP « Secrétaire Assistant », renommé « Chargé d'accueil et de gestion administrative ». */
+export const LEGACY_TP_SA = 'SA';
+
+/** Normalise un code TP legacy (« SA ») vers son code actuel (« CADGA »). */
+export function normalizeTpCode(code: string): string {
+    return code === LEGACY_TP_SA ? TitleProfessionalType.CADGA : code;
+}
+
+/** Normalise une liste de codes TP legacy vers les codes actuels. */
+export function normalizeTpCodes(codes: readonly string[]): string[] {
+    return codes.map(normalizeTpCode);
+}
+
+/**
+ * Étend un filtre TP à ses valeurs legacy stockées en base : un filtre « CADGA »
+ * doit aussi matcher les anciens documents portant encore « SA ».
+ */
+export function expandTpFilter(codes: readonly string[]): string[] {
+    const expanded = new Set<string>();
+    for (const code of codes) {
+        const normalized = normalizeTpCode(code);
+        expanded.add(normalized);
+        if (normalized === TitleProfessionalType.CADGA) expanded.add(LEGACY_TP_SA);
+    }
+    return [...expanded];
 }
 
 export enum CandidateStatus {
@@ -228,6 +255,28 @@ export interface CandidateConsentments {
     consent_version: string; // version du corpus légal au moment du consentement
 }
 
+/**
+ * Une relance reçue par un candidat : un envoi (disponibilité Oui/Non ou
+ * modèle RH) horodaté, avec la réponse éventuelle du candidat rattachée.
+ * Append-only dans `relance_history` (cf. `classmarker_history`) ; le compteur
+ * `relance_count` est incrémenté à chaque envoi.
+ */
+export interface CandidateRelanceEntry {
+    sent_at: Date;
+    kind: 'availability' | 'template';
+    template_id?: string;
+    subject?: string;
+    sent_by?: number; // id du RH émetteur
+    response_at?: Date;
+    answer?: string; // 'oui' | 'non' (relance disponibilité uniquement)
+}
+
+export interface ImmersionScheduleSlot {
+    day?: string | null;
+    start_hour?: string | null;
+    end_hour?: string | null;
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -247,11 +296,16 @@ export interface Candidate {
     immersion_end_date?: Date;
     immersion_company_id?: number; // entreprise d'immersion (réf MySQL companies)
     immersion_company_name?: string; // snapshot du nom au moment du choix
+    immersion_convention_number?: string; // numéro de convention d'immersion (saisie libre)
+    immersion_schedule?: ImmersionScheduleSlot[]; // horaires d'immersion (créneaux par jour)
     immersion_end_notified_at?: Date; // date d'émission de la notif « immersion terminée » (dédup)
     contract_offer_id?: string; // offre (Mongo offers) liée au contrat signé
     contract_company_id?: number; // entreprise du contrat (réf MySQL companies)
     contract_company_name?: string; // snapshot du nom au moment du choix
     contract_start_date?: Date;
+    contract_trial_end_date?: Date; // fin de période d'essai (45 jours ouvrés depuis le début, éditable)
+    contract_session_id?: string; // session pédagogique (réf Mongo sessions)
+    contract_session_name?: string; // snapshot du nom au moment du choix
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;
@@ -273,6 +327,11 @@ export interface Candidate {
     // Relance de disponibilité : date du dernier envoi et date de la réponse du candidat.
     last_relance_at?: Date;
     relance_response_at?: Date;
+    // Compteur de relances reçues (incrémenté à chaque envoi, tout type confondu).
+    relance_count?: number;
+    // Historique complet : une entrée par relance envoyée (append-only). `last_relance_at`
+    // reste la date du dernier envoi pour compat ; ici on garde la trace de tous.
+    relance_history?: CandidateRelanceEntry[];
     // Historique complet : un entrée par test passé (append-only). `classmarker`
     // reste le dernier résultat pour compat ; ici on garde la trace de tous.
     classmarker_history?: ClassMarkerResult[];

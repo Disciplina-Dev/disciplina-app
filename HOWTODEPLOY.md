@@ -144,6 +144,17 @@ The MCP endpoint also acts as an OAuth 2.1 authorization server so Claude.ai
   - `/.well-known/oauth-protected-resource/api/mcp`
   - `/register` `/authorize` `/token` `/revoke`
 
+**Environment variables (`back/.env`)**
+
+| Variable | Role |
+|---|---|
+| `MCP_API_KEY` | Static bearer key (≥ 32 chars). Anonymous ADMIN access: **ignored in production** unless `MCP_STATIC_KEY_ENABLED=true` |
+| `MCP_STATIC_KEY_ENABLED` | Set to `true` to allow the static key in production (OAuth stays active regardless) |
+| `MCP_JWT_SECRET` | Signs OAuth access tokens, distinct from `JWT_SECRET` (empty = fallback to `JWT_SECRET`). Setting it logs out running MCP sessions |
+| `MCP_OAUTH_ISSUER_URL` | Public HTTPS issuer URL |
+
+Per-user quotas apply (1000 calls / 2000 records per 24 h, alert at 80 %); access log `mcp_audit_log` is purged after 365 days. See `MCP_RGPD_AUDIT.md`.
+
 **Caddy requirement (one-time, on the Mac mini)**
 
 Caddy must route the OAuth root paths to the backend (`127.0.0.1:4000`). If Caddy

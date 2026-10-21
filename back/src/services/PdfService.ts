@@ -585,7 +585,9 @@ const TP_LABELS: Record<string, string> = {
     CC: 'CC — Conseiller Commercial',
     NTC: 'NTC — Négociateur Technico-Commercial',
     REM: "REM — Responsable d'Établissement Marchand",
-    SA: 'SA — Secrétaire Assistant',
+    CADGA: "CADGA — Chargé d'accueil et de gestion administrative",
+    // Rétro-compat : documents générés avant le renommage du TP.
+    SA: "CADGA — Chargé d'accueil et de gestion administrative",
 };
 
 const STATUS_LABELS: Record<string, string> = {

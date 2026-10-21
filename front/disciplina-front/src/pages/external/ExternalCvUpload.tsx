@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { IconAlert, IconCheckCircle, IconLoader, IconUpload } from '@/components/ui/icons'
 import { getExternalProfile, uploadExternalCv, completeExternalCv, ExternalAuthError, type ExternalProfile } from '@/api/external'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
+import ExternalGuestCloseButton from '@/features/external/components/ExternalGuestCloseButton'
 
 export default function ExternalCvUpload() {
   const { signature } = useParams<{ signature: string }>()
@@ -13,6 +14,7 @@ export default function ExternalCvUpload() {
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploaded, setUploaded] = useState(false)
+  const [closed, setClosed] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -86,6 +88,20 @@ export default function ExternalCvUpload() {
     )
   }
 
+  if (closed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">
+        <div className="w-full max-w-sm rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6 text-center shadow-sm">
+          <IconCheckCircle width={48} height={48} className="mx-auto text-[var(--ds-success)]" />
+          <h2 className="mt-4 text-[18px] font-extrabold text-[var(--ds-text)]">Lien clôturé</h2>
+          <p className="mt-2 text-[13px] text-[var(--ds-text-subtle)]">
+            Ce lien a été clôturé. Votre conseiller en a été notifié.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   if (uploaded) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">
@@ -103,8 +119,15 @@ export default function ExternalCvUpload() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">
       <div className="w-full max-w-md rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-6 shadow-sm">
-        <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
-        <h1 className="mt-1 text-[20px] font-extrabold text-[var(--ds-text)]">Import de votre CV</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
+            <h1 className="mt-1 text-[20px] font-extrabold text-[var(--ds-text)]">Import de votre CV</h1>
+          </div>
+          <div className="shrink-0">
+            <ExternalGuestCloseButton signature={signature!} onClosed={() => setClosed(true)} />
+          </div>
+        </div>
         <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">{profile.externalEmail}</p>
         <ExternalExpiryNotice expiresAt={profile.expiresAt} />
 

@@ -28,6 +28,7 @@ src/
     crypto/             HmacService, timing-safe compare + domain signers (relance URL, OAuth state)
     logger/             pino logger instance
     insee/              SireneService — INSEE Sirene API client (SIRET/SIREN lookup & search)
+    entreprises/        EntreprisesSearchService — Recherche d'entreprises API (dirigeant, geo, état, taille; no key)
     filiz/              FilizAuthClient + FilizService — Filiz ERP OAuth + degree/class APIs
     yousign/            Yousign e-signature client
     docuseal/           DocuSeal e-signature client
@@ -43,8 +44,8 @@ src/
     needsAnalysis/      Needs-analysis GraphQL (MongoDB) — its own server
     candidate/          Candidates GraphQL (MongoDB)
     offers/             Offers GraphQL + matching logic (MongoDB)
-  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, tools per domain
-  scheduler/            pedaDraftScheduler — started from index.ts
+  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, 45 read-only tools per domain (kpi, candidates, companies, offers, needsAnalysis, misc, peda), `candidateExposure`/`pedaExposure` (RGPD filters), `auditStore`
+  scheduler/            pedaDraftScheduler, immersionEndScheduler, saNotificationScheduler — started from index.ts
   repositories/
     mysql/              16 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,
                         MatchLinkRepository, InterviewAccessRepository, FilizRepository…
@@ -63,12 +64,12 @@ src/
     yousign/            Yousign signature webhook + SSE stream for needs-analysis signing
     docuseal/           DocuSeal signature webhook
     kpi/ rh-kpi/        Commercial and RH KPI dashboards — manual entry + Excel import
-    external/           Guest magic-link flows for candidates / companies (cookie `disc_at`, no code, 7 days after first open; ref 1 CV import, ref 2 matching, ref 3 interview slots)
+    external/           Guest magic-link flows for candidates / companies (cookie `disc_at`, no code, unlimited duration until explicit close; ref 1 CV import, ref 2 matching, ref 3 interview slots)
     booking/ calendar/  Interview slots and calendar
     matching/           Candidate ↔ offer matching endpoints
     needsAnalysis/      Needs-analysis REST endpoints
     notifications/      SSE notification stream
-    peda/               Pedagogical drafts (see scheduler/)
+    peda/               Péda: drafts, alternants, sessions, SA (séquences), ruptures (see scheduler/)
     mailTemplates/      Mail templates CRUD
     sectorSettings/     Sector reference settings
     filiz/              Filiz ERP endpoints
@@ -122,7 +123,7 @@ into the companies server.
 | POST | `/api/sourcing/search` | JWT | Find additional prospect contacts by name/address |
 | GET | `/api/sourcing/:siren` | JWT | Search establishments by SIREN; blacklist-aware (short-circuits if the whole SIREN is banned) |
 | GET | `/api/sourcing/:siret` | JWT | Validate a SIRET against INSEE; flags whether it's already in the portfolio |
-| POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria INSEE search (commune / NAF code / SIREN), excludes companies already in the portfolio |
+| POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria search (commune / NAF / SIREN via Sirene; + denomination, geo, dirigeant, état, taille via Recherche d'entreprises), excludes companies already in the portfolio |
 | GET | `/api/kpi/years` | JWT (ADMIN / RESPONSABLE) | List years with KPI data |
 | GET | `/api/kpi/summary` | JWT (ADMIN / RESPONSABLE) | Annual KPI summary per commercial (`?year=&site=`) |
 | GET | `/api/kpi/monthly` | JWT (ADMIN / RESPONSABLE) | Monthly KPI breakdown (`?year=&site=`) |
@@ -219,6 +220,10 @@ MYSQL_DATABASE=disciplina
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google
+# Second GCP OAuth client (tenant Annemasse). Empty = fallback to the client above.
+GOOGLE_ANNEMASSE_CLIENT_ID=
+GOOGLE_ANNEMASSE_CLIENT_SECRET=
+GOOGLE_ANNEMASSE_REDIRECT_URI=
 APP_BASE_URL=http://localhost:4000
 RELANCE_HMAC_SECRET=change-this-relance-secret
 GOOGLE_STATE_SECRET=change-this-google-state-secret
@@ -249,10 +254,10 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 ## Databases
 
 ### MySQL (`disciplina`)
-- 18 tables: `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
+- Main tables (non-exhaustive — see `database/mysql/mysql-init.sql`): `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
   `relance_history`, `commercial_kpi`, `rh_kpi`, `sector_settings`, `booking_settings`,
   `interview_access`, `match_link`, `todos`, `peda_config`, `peda_draft_history`, `app_settings`,
-  `filiz`, `needs_analysis`
+  `filiz`, `needs_analysis`, `mcp_oauth_clients`, `mcp_oauth_refresh_tokens`, `mcp_audit_log`
 - ⚠️ `needs_analysis` is **dead**: the entity moved to MongoDB and no code reads this table
   anymore, but `mysql-init.sql` still creates it. See `docs/AUDIT.md` §6.3.
 - Init: `database/mysql/mysql-init.sql`

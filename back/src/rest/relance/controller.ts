@@ -236,11 +236,16 @@ export async function sendRelance(req: AuthRequest, res: Response) {
                 }),
                 userService.googleTokenPersister(user.id),
             );
-            // Horodate la relance envoyée. La date de réponse d'un cycle précédent reste en base ;
+            // Horodate la relance envoyée (compteur + historique + `last_relance_at`).
+            // La date de réponse d'un cycle précédent reste en base ;
             // l'affichage ne la considère « à jour » que si elle est postérieure à cette relance.
             await candidateService
-                .update(candidate._id, { last_relance_at: new Date() })
-                .catch((err) => logger.error({ err, id: candidate._id }, '[relance] last_relance_at update failed'));
+                .recordRelanceSent(candidate._id, {
+                    sent_at: new Date(),
+                    kind: 'availability',
+                    sent_by: req.user.id,
+                })
+                .catch((err) => logger.error({ err, id: candidate._id }, '[relance] relance history update failed'));
             sent++;
         } catch {
             errors++;
@@ -291,8 +296,8 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
     // Désabonnement pointant vers la boîte du RH émetteur (Gmail bulk sender rules).
     const listUnsubscribe = user.email ? `<mailto:${user.email}?subject=Desabonnement>` : undefined;
 
-    // Un lien d'import CV (lien magique sans code, valable 7 jours après sa
-    // première ouverture) n'est généré que si le modèle le référence, pour ne
+    // Un lien d'import CV (lien magique sans code, à durée illimitée)
+    // n'est généré que si le modèle le référence, pour ne
     // pas créer de session externe sur des relances qui n'en ont pas besoin.
     // Les éventuels {{code}} laissés par d'anciens modèles sont retirés par
     // renderTemplate (clés inconnues → chaîne vide).
@@ -348,6 +353,16 @@ export async function sendBulkRelance(req: AuthRequest, res: Response): Promise<
                 },
                 userService.googleTokenPersister(user.id),
             );
+            // Compteur + historique (+ `last_relance_at`, comme la relance disponibilité).
+            await candidateService
+                .recordRelanceSent(candidate._id, {
+                    sent_at: new Date(),
+                    kind: 'template',
+                    template_id: templateId,
+                    subject: resolvedSubject,
+                    sent_by: req.user.id,
+                })
+                .catch((err) => logger.error({ err, id: candidate._id }, '[relance] relance history update failed'));
             sent++;
         } catch {
             errors++;
@@ -382,6 +397,11 @@ export async function handleResponse(req: Request, res: Response) {
     if (!updated) {
         return res.status(404).send(confirmationPage('Candidat introuvable.', false));
     }
+
+    // Rattache la réponse à la dernière relance envoyée (historique) — best-effort.
+    await candidateService
+        .recordRelanceResponse(id, answer, new Date())
+        .catch((err) => logger.error({ err, id }, '[relance] relance response history update failed'));
 
     const message =
         answer === 'non'

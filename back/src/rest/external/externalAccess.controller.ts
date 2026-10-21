@@ -67,8 +67,8 @@ export async function complete(req: ExternalGuestRequest, res: Response): Promis
 }
 
 /**
- * Ouverture d'un lien magique (sans code) : arme l'expiration à J+7 au premier
- * clic puis émet le cookie invité. Idempotent tant que le lien n'a pas expiré.
+ * Ouverture d'un lien magique (sans code, durée illimitée) : émet le cookie
+ * invité. Idempotent tant que le lien n'est ni clôturé ni bloqué.
  */
 export async function openAccess(req: Request, res: Response): Promise<void> {
     const { signature } = req.params as { signature: string };
@@ -91,8 +91,28 @@ export async function openAccess(req: Request, res: Response): Promise<void> {
             permission: 'GUEST',
             referenceId: result.referenceId,
         },
-        expiresAt: result.expiresAt.toISOString(),
+        expiresAt: result.expiresAt ? result.expiresAt.toISOString() : null,
     });
+}
+
+/**
+ * Clôture explicite d'un lien par le staff (bouton « Clôturer le lien » sur
+ * la page Accès externes). Marque la session COMPLETED, idempotent.
+ */
+export async function closeAccess(req: AuthRequest, res: Response): Promise<void> {
+    const { signature } = req.params as { signature: string };
+    if (!signature) {
+        res.status(400).json({ success: false, error: 'Signature requise' });
+        return;
+    }
+
+    const result = await externalAccessService.close(signature);
+    if (!result.success) {
+        res.status(404).json(result);
+        return;
+    }
+
+    res.status(200).json({ success: true });
 }
 
 export async function getProfile(req: ExternalGuestRequest, res: Response): Promise<void> {

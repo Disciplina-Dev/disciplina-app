@@ -21,9 +21,9 @@ export class CompanyBlacklistRepository {
         search?: string,
     ): Promise<CompaniesBlacklistRow[]> {
         if (search?.trim()) {
-            const pattern = `%${search.trim()}%`;
+            const pattern = `%${search.trim().toLowerCase()}%`;
             return query<CompaniesBlacklistRow[]>(
-                'SELECT * FROM companies_blacklist WHERE name LIKE ? OR siret LIKE ? ORDER BY id',
+                'SELECT * FROM companies_blacklist WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ? ORDER BY id',
                 [pattern, pattern],
             );
         }

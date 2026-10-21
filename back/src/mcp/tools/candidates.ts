@@ -5,8 +5,10 @@ import { CandidateHistoryService } from '../../services/CandidateHistoryService'
 import { OfferService } from '../../services/OfferService';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
+import { MAX_PAGE_SIZE } from '../limits';
 import { mcpToolScope } from '../rbac';
 import { JobRole, Permission } from '../../types/user.types';
+import { consentedIds, exposeCandidate, exposeCandidates } from '../candidateExposure';
 
 // Candidats : donnée RH (miroir des guards GraphQL candidate, majoritairement `[RH]`).
 const CANDIDATE_SCOPE = mcpToolScope(Permission.EMPLOYEE, [JobRole.RH]);
@@ -22,7 +24,7 @@ export function registerCandidateTools(server: McpServer): void {
         'Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.',
         { id: z.string().describe('Id du candidat (ObjectId Mongo)') },
         CANDIDATE_SCOPE,
-        async ({ id }) => toolResult(await candidates.findById(id)),
+        async ({ id }) => toolResult(exposeCandidate(await candidates.findByIdReadOnly(id))),
     );
 
     readTool(
@@ -31,11 +33,12 @@ export function registerCandidateTools(server: McpServer): void {
         'Liste / recherche les candidats (nom, email…). Pagination cursor-based.',
         {
             search: z.string().optional().describe('Terme de recherche'),
-            first: z.number().int().positive().max(200).optional().describe('Nombre max (défaut 50)'),
+            first: z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)'),
             after: z.string().optional().describe('Cursor de pagination'),
         },
         CANDIDATE_SCOPE,
-        async ({ search, first, after }) => toolResult(await candidates.findPage(first ?? 50, after, search)),
+        async ({ search, first, after }) =>
+            toolResult(exposeCandidates(await candidates.findPageReadOnly(first ?? 50, after, search))),
     );
 
     readTool(
@@ -44,7 +47,7 @@ export function registerCandidateTools(server: McpServer): void {
         'Récupère un candidat par son adresse email.',
         { email: z.string().describe('Email du candidat') },
         CANDIDATE_SCOPE,
-        async ({ email }) => toolResult(await candidates.findByEmail(email)),
+        async ({ email }) => toolResult(exposeCandidate(await candidates.findByEmail(email))),
     );
 
     readTool(
@@ -53,7 +56,12 @@ export function registerCandidateTools(server: McpServer): void {
         "Historique / suivi RH d'un candidat (événements automatiques et manuels).",
         { candidateId: z.string().describe('Id du candidat') },
         CANDIDATE_SCOPE,
-        async ({ candidateId }) => toolResult(await candidateHistory.findByCandidate(candidateId)),
+        async ({ candidateId }) =>
+            toolResult(
+                (await consentedIds([candidateId])).has(candidateId)
+                    ? await candidateHistory.findByCandidate(candidateId)
+                    : null,
+            ),
     );
 
     readTool(
@@ -62,7 +70,12 @@ export function registerCandidateTools(server: McpServer): void {
         "Placement courant d'un candidat (immersion ou contrat) dérivé des offres.",
         { candidateId: z.string().describe('Id du candidat') },
         CANDIDATE_SCOPE,
-        async ({ candidateId }) => toolResult(await offerService.getCandidatePlacement(candidateId)),
+        async ({ candidateId }) =>
+            toolResult(
+                (await consentedIds([candidateId])).has(candidateId)
+                    ? await offerService.getCandidatePlacement(candidateId)
+                    : null,
+            ),
     );
 
     readTool(
@@ -71,6 +84,11 @@ export function registerCandidateTools(server: McpServer): void {
         'Ids des offres sur lesquelles le candidat est retenu (matché).',
         { candidateId: z.string().describe('Id du candidat') },
         CANDIDATE_SCOPE,
-        async ({ candidateId }) => toolResult(await offerService.getMatchedOfferIds(candidateId)),
+        async ({ candidateId }) =>
+            toolResult(
+                (await consentedIds([candidateId])).has(candidateId)
+                    ? await offerService.getMatchedOfferIds(candidateId)
+                    : null,
+            ),
     );
 }

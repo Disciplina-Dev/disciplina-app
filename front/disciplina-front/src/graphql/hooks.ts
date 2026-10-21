@@ -32,7 +32,11 @@ import {
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS_AB_STATUS,
+  UPDATE_NEEDS_ANALYSIS_INDICATOR,
+  UPDATE_NEEDS_ANALYSIS_TRACKING,
+  UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE,
   SET_AB_RELANCE_DISABLED,
+  SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
@@ -391,10 +395,15 @@ function fromGql(c: any): Candidate {
     immersion_end_date: c.immersionEndDate ?? undefined,
     immersion_company_id: c.immersionCompanyId ?? undefined,
     immersion_company_name: c.immersionCompanyName ?? undefined,
+    immersion_convention_number: c.immersionConventionNumber ?? undefined,
+    immersion_schedule: c.immersionSchedule ?? undefined,
     contract_offer_id: c.contractOfferId ?? undefined,
     contract_company_id: c.contractCompanyId ?? undefined,
     contract_company_name: c.contractCompanyName ?? undefined,
     contract_start_date: c.contractStartDate ?? undefined,
+    contract_trial_end_date: c.contractTrialEndDate ?? undefined,
+    contract_session_id: c.contractSessionId ?? undefined,
+    contract_session_name: c.contractSessionName ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -518,6 +527,16 @@ function fromGql(c: any): Candidate {
     created_at: c.createdAt,
     last_relance_at: c.lastRelanceAt ?? undefined,
     relance_response_at: c.relanceResponseAt ?? undefined,
+    relance_count: c.relanceCount ?? undefined,
+    relance_history: c.relanceHistory?.map((e: any) => ({
+      sent_at: e.sentAt,
+      kind: e.kind,
+      template_id: e.templateId ?? undefined,
+      subject: e.subject ?? undefined,
+      sent_by: e.sentBy ?? undefined,
+      response_at: e.responseAt ?? undefined,
+      answer: e.answer ?? undefined,
+    })),
     emergency_contact: c.emergencyContact
       ? {
           last_name: c.emergencyContact.lastName ?? undefined,
@@ -553,10 +572,15 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
     ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
     ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
+    ...(c.immersion_convention_number !== undefined && { immersionConventionNumber: c.immersion_convention_number }),
+    ...(c.immersion_schedule !== undefined && { immersionSchedule: c.immersion_schedule }),
     ...(c.contract_offer_id !== undefined && { contractOfferId: c.contract_offer_id }),
     ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
     ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
     ...(c.contract_start_date !== undefined && { contractStartDate: c.contract_start_date }),
+    ...(c.contract_trial_end_date !== undefined && { contractTrialEndDate: c.contract_trial_end_date }),
+    ...(c.contract_session_id !== undefined && { contractSessionId: c.contract_session_id }),
+    ...(c.contract_session_name !== undefined && { contractSessionName: c.contract_session_name }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
@@ -983,6 +1007,36 @@ export function useUpdateNeedsAnalysisAbStatus() {
   return { updateAbStatus, result }
 }
 
+export function useUpdateNeedsAnalysisIndicator() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_INDICATOR)
+
+  const updateIndicator = (id: string, indicator: string | null) => {
+    return executeMutation({ id, indicator }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateIndicator, result }
+}
+
+export function useUpdateNeedsAnalysisTracking() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_TRACKING)
+
+  const updateTracking = (id: string, fields: { franceTravail?: string | null; koann?: string | null }) => {
+    return executeMutation({ id, ...fields }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateTracking, result }
+}
+
+export function useUpdateNeedsAnalysisActivationDate() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE)
+
+  const updateActivationDate = (id: string, lastActiveAt: string | null) => {
+    return executeMutation({ id, lastActiveAt }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateActivationDate, result }
+}
+
 export function useDeleteNeedsAnalysis() {
   const [result, executeMutation] = useMutation(DELETE_NEEDS_ANALYSIS)
 
@@ -1011,6 +1065,21 @@ export function useSetAbRelanceDisabled() {
   }
 
   return { setAbRelanceDisabled, result }
+}
+
+export function useSetNeedsAnalysisMatchingVisibility() {
+  const [result, executeMutation] = useMutation(SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY)
+
+  const setMatchingVisibility = (id: string, visible: boolean) => {
+    return executeMutation({ id, visible }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('setNeedsAnalysisMatchingVisibility failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { setMatchingVisibility, result }
 }
 
 export function useUpdateNeedsAnalysis() {

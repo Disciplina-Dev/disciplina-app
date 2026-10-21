@@ -2,6 +2,9 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SectorSettingsService } from '../../services/SectorSettingsService';
 import { NotificationService } from '../../services/NotificationService';
+import type { Notification } from '../../types/notification.types';
+import { UserService } from '../../services/UserService';
+import { toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
 import { mcpToolScope, PERMISSION_DENIED_MSG } from '../rbac';
@@ -19,6 +22,7 @@ const SECTOR_SETTINGS_SCOPE = mcpToolScope(Permission.EMPLOYEE, [
 
 const sectorSettings = new SectorSettingsService();
 const notifications = new NotificationService();
+const users = new UserService();
 
 export function registerMiscTools(server: McpServer): void {
     readTool(
@@ -28,6 +32,15 @@ export function registerMiscTools(server: McpServer): void {
         {},
         SECTOR_SETTINGS_SCOPE,
         async () => toolResult(await sectorSettings.list()),
+    );
+
+    readTool(
+        server,
+        'list_users',
+        'Annuaire des collaborateurs (id, prénom, nom, métier, niveau de permission) : permet de résoudre un `userID` / `owner` / `sent_by` en nom. Aucun email ni credential.',
+        {},
+        mcpToolScope(Permission.EMPLOYEE, []),
+        async () => toolResult((await users.findAll()).map(toDirectoryEntry)),
     );
 
     readTool(
@@ -43,7 +56,17 @@ export function registerMiscTools(server: McpServer): void {
             if (!me || (me.permission !== Permission.ADMIN && userId !== me.id)) {
                 return { content: [{ type: 'text', text: PERMISSION_DENIED_MSG }], isError: true };
             }
-            return toolResult(await notifications.listForUser(userId));
+            return toolResult((await notifications.listForUser(userId)).map(redactPersonalNotification));
         },
     );
+}
+
+// Les notifications `peda` (alternants) et `candidate` embarquent un nom dans title/message/link :
+// on ne les envoie pas au LLM tiers (pas de filtre de consentement possible sur du texte libre).
+const PERSONAL_CATEGORIES: Notification['category'][] = ['peda', 'candidate'];
+
+function redactPersonalNotification(n: Notification): Notification {
+    if (!PERSONAL_CATEGORIES.includes(n.category)) return n;
+    const { message: _message, link: _link, ...rest } = n;
+    return { ...rest, title: '[contenu masqué : donnée personnelle]' };
 }

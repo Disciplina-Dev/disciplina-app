@@ -26,6 +26,7 @@ import { isInterviewDatePast } from '@/utils/interview'
 import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
+import { abStatusBadge } from '@/types/needsAnalysis'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatScheduleSlots } from '@/utils/schedule'
@@ -140,7 +141,7 @@ function tpLabel(raw: string | null | undefined): string {
     CC: 'CC – Conseiller Commercial',
     NTC: 'NTC – Négociateur technico-commercial',
     REM: "REM – Responsable d'établissement Marchand",
-    SA: 'SA',
+    CADGA: "CADGA – Chargé d'accueil et de gestion administrative",
   }
   return map[raw] ?? raw
 }
@@ -2441,7 +2442,17 @@ function AbHeader({
           <IconArrowLeft width={18} height={18} />
         </button>
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-[var(--ds-text)]">{info?.name ?? fallbackName ?? 'Analyse de besoin'}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-semibold text-[var(--ds-text)]">{info?.name ?? fallbackName ?? 'Analyse de besoin'}</h1>
+            {ab && (() => {
+              const badge = abStatusBadge(ab.status, ab.isVisibleInMatching)
+              return (
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.bg} ${badge.text}`}>
+                  {badge.label}
+                </span>
+              )
+            })()}
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--ds-text-subtle)]">
             {info?.siret && <span>SIRET&nbsp;: {info.siret}</span>}
             {info?.activities && info.activities.length > 0 && (

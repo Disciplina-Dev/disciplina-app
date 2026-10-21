@@ -14,7 +14,7 @@ Stores complete candidate profiles including identity, education, support system
 |-------|------|----------|-------|
 | _id | string | yes | Auto-generated UUID |
 | candidate_id | string | yes | Unique candidate identifier |
-| tp_types | string[] | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, SA), multi-select |
+| tp_types | string[] | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, CADGA; legacy SA), multi-select |
 | identity | object | yes | Candidate personal information (see below) |
 | status | string | yes | enum: CandidateStatus |
 | formation_type | string | — | enum: VENTE, SECRETARIAT |
@@ -191,6 +191,7 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | training_days | string | — | JSON string of per-day availability (not parsed) |
 | signature_request_id | string | — | DocuSeal submission id (e-signature) |
 | status | string | — | enum: NeedsAnalysisStatus |
+| is_visible_in_matching | bool | — | Draft published to matching without signature (shown « Non envoyée », matched like unsigned) |
 | last_active_at | date | — | Last transition to effective ACTIVE (creation, then reactivations) |
 | created_at | date | — | Creation date |
 | updated_at | date | — | Last update date |
@@ -318,13 +319,72 @@ Weekly/monthly KPI counter buckets. Replaces the former MySQL tables `commercial
 Typed union on the application side:
 
 - `kind: commercial` → `count_oui`, `count_oui_of`, `count_non`, `count_ne_repond_pas`, `count_a_reflechir`, `count_relance`, `total_appels`, `total_trie`, `nbre_ent_ferme`, `nbre_ent_ouvert`, `visites_terrain`
-- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `immersions`, `contracts`, `ruptures`
+- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `interviews_postponed`, `interviews_declined`, `immersions`, `contracts`, `ruptures`
 
 All values are non-negative integers; unknown keys are ignored at read time (metrics may grow over time without schema change).
 
 ### Unique index
 
 `{ kind, user_id, site, sector, year, month, week }` with `partialFilterExpression: { user_id: { $type: "number" } }` — bucket uniqueness for real users. The partial filter excludes orphan rows (`user_id: null`): MongoDB unique indexes, unlike MySQL, reject duplicate null keys, so orphans are kept out of the index to preserve the unlimited/distinct behavior of the former MySQL unique keys.
+
+## Collection: sessions
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `nom` | string | required, indexed |
+| `filiere` | string \| null | |
+| `jour_cours` | string \| null | |
+| `date_debut`, `date_fin` | Date | required |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: alternants
+
+Péda domain. Fields stay snake_case (converted at resolver). Exposed through MCP only via `mcp/pedaExposure.ts` (consent via `candidate_id`).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `first_name`, `last_name` | string | required |
+| `session` | string | required (session name) |
+| `session_id` | string \| null | indexed, links `sessions` |
+| `email`, `phone` | string \| null | never exposed via MCP |
+| `candidate_id` | string \| null | links `candidates`; drives `ai_processing` consent for MCP |
+| `company` | object \| null | `name`, `address`, `mentor_name`, `start_date` (required), `end_date` |
+| `linked_alternant_ids` | string[] | |
+| `archived_at` | Date \| null | indexed |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: alternant_sequences
+
+SA (séquences d'accompagnement).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `alternant_id` | string | required, indexed |
+| `numero` | number | required |
+| `prevue_le` | Date | required |
+| `status` | enum | `pending` \| `done` \| `not_done` |
+| `realisee_le` | Date \| null | set at manual validation |
+| `contacts` | object | booleans `mentor`, `alternant`, `formateur` |
+| `auto_generated` | boolean | |
+| `soon_notified_at`, `late_notified_at` | Date \| null | scheduler dedup of « en cours » / « en retard » notifications |
+| `archived_at` | Date \| null | indexed |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: ruptures
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `alternant_id` | string | required, indexed |
+| `date_rupture` | Date | required, indexed |
+| `entreprise` | string \| null | |
+| `motif` | enum | one of `RUPTURE_MOTIFS` (`types/rupture.types.ts`) |
+| `detail` | string \| null | free text, never exposed via MCP |
+| `poursuit_formation` | boolean | required |
+| `created_at`, `updated_at` | Date | |
 
 ## Enums reference
 
@@ -358,7 +418,8 @@ All values are non-negative integers; unknown keys are ignored at read time (met
 | CC | Conseiller Commercial |
 | NTC | Négociateur Technico-Commercial |
 | REM | Responsable d'Exploitation Magasin |
-| SA | Secrétaire Assistant |
+| CADGA | Chargé d'accueil et de gestion administrative |
+| SA | Legacy — former code for CADGA (Secrétaire Assistant) |
 
 ### SchoolLevel
 

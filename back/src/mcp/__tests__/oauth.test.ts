@@ -139,10 +139,7 @@ async function exchangeTokens(clientId: string, verifier: string, code: string) 
 }
 
 // Appel MCP générique (tools/list ou tools/call) avec un Bearer.
-async function mcpCall(
-    payload: Record<string, unknown>,
-    token?: string,
-): Promise<Response> {
+async function mcpCall(payload: Record<string, unknown>, token?: string): Promise<Response> {
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         Accept: 'application/json, text/event-stream',
@@ -175,7 +172,10 @@ async function toolCall(token: string, name: string, args: Record<string, unknow
     return parsed;
 }
 
-async function grantedToken(clientId: string, user: ConsentUser): Promise<{ access_token: string; refresh_token: string }> {
+async function grantedToken(
+    clientId: string,
+    user: ConsentUser,
+): Promise<{ access_token: string; refresh_token: string }> {
     const { verifier, code } = await gate(clientId, user);
     const tokens = await exchangeTokens(clientId, verifier, code);
     return { access_token: tokens.access_token, refresh_token: tokens.refresh_token };
@@ -242,6 +242,8 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         expect(page).toContain('Disciplina Connector');
         expect(page).toContain('E-mail du compte Disciplina');
         expect(page).toContain('mcp:call');
+        expect(page).toContain('modèle d&rsquo;IA hébergé par un tiers');
+        expect(page).toContain('/legal/confidentialite');
         expect(page).toContain('lecture seule');
         expect(page).toContain('La Réunion');
 
@@ -335,7 +337,10 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         const { access_token } = await grantedToken(clientId, defaultUser);
 
         const listRes = await mcpCall({ jsonrpc: '2.0', method: 'tools/list', id: 'oc-test' }, access_token);
-        const list = (await mcpResult(listRes)) as { result?: { tools?: { name: string }[] }; error?: { message: string } };
+        const list = (await mcpResult(listRes)) as {
+            result?: { tools?: { name: string }[] };
+            error?: { message: string };
+        };
         const tools = list.result?.tools;
         if (!tools) {
             throw new Error(`tools/list OAuth returned ${listRes.status}: ${JSON.stringify(list).slice(0, 400)}`);
@@ -381,6 +386,43 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         });
         expect(reuse.status).toBe(400);
         expect(((await reuse.json()) as { error?: string }).error).toBe('invalid_grant');
+    });
+
+    it('révoque la session entière quand un refresh token déjà consommé est rejoué', async () => {
+        const { clientId } = await registerClient();
+        const { refresh_token } = await grantedToken(clientId, defaultUser);
+        const refresh = (token: string) =>
+            fetch(`${BASE}/token`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    grant_type: 'refresh_token',
+                    client_id: clientId,
+                    refresh_token: token,
+                }).toString(),
+            });
+
+        const rotated = (await (await refresh(refresh_token)).json()) as { refresh_token: string };
+        expect((await refresh(refresh_token)).status).toBe(400); // rejeu → révocation de la famille
+        expect((await refresh(rotated.refresh_token)).status).toBe(400); // le jeton légitime est coupé aussi
+    });
+
+    it("n'accepte un code d'autorisation qu'une seule fois", async () => {
+        const { clientId } = await registerClient();
+        const { verifier, code } = await gate(clientId, defaultUser);
+        await exchangeTokens(clientId, verifier, code);
+        const replay = await fetch(`${BASE}/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                grant_type: 'authorization_code',
+                client_id: clientId,
+                code,
+                redirect_uri: REDIRECT_URI,
+                code_verifier: verifier,
+            }).toString(),
+        });
+        expect(replay.status).toBe(400);
     });
 
     // --- RBAC : l'utilisateur attaché à la session OAuth scope les outils ---
@@ -505,5 +547,25 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         });
         expect(res.status).toBe(200);
         expect(await res.text()).toContain('Région invalide.');
+    });
+    // Doit rester le dernier test : le plafond par IP est partagé par tout le fichier.
+    it('limite les échecs de saisie du mot de passe sur /authorize (par compte puis par IP)', async () => {
+        const { clientId } = await registerClient();
+        const { challenge } = pkce();
+        const attempt = (email: string) =>
+            fetch(`${BASE}/authorize`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams(
+                    `${authorizeParams(clientId, challenge)}&email=${encodeURIComponent(email)}&password=wrong&region=reunion`,
+                ).toString(),
+                redirect: 'manual',
+            });
+
+        // Même compte : 429 au plus tard à la 11e tentative, quelle que soit l'IP.
+        const statuses: number[] = [];
+        for (let i = 0; i < 11; i++) statuses.push((await attempt('victim@test.local')).status);
+        expect(statuses.slice(0, 10).every((s) => s === 200 || s === 429)).toBe(true);
+        expect(statuses[10]).toBe(429);
     });
 });

@@ -10,6 +10,7 @@ import {
 import ExternalReferenceButton from './ExternalReferenceButton'
 import ExternalRegenerateButton from './ExternalRegenerateButton'
 import ExternalRevokeButton from './ExternalRevokeButton'
+import ExternalCloseButton from './ExternalCloseButton'
 
 interface ExternalAccessRowProps {
   access: ExternalAccessRowData
@@ -22,6 +23,7 @@ export default function ExternalAccessRow({ access, onChanged }: ExternalAccessR
   const signatureShort = access.signature.slice(0, 6)
   const canRegenerate = access.status === 'LOCKED' || access.status === 'EXPIRED'
   const canRevoke = access.status !== 'COMPLETED'
+  const canClose = access.status !== 'COMPLETED'
 
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 shadow-sm">
@@ -46,8 +48,9 @@ export default function ExternalAccessRow({ access, onChanged }: ExternalAccessR
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           <ExternalReferenceButton referenceId={access.reference_id} referenceKey={access.reference_key} />
+          <ExternalCloseButton signature={access.signature} allowed={canClose} onClosed={onChanged} />
           <ExternalRegenerateButton signature={access.signature} allowed={canRegenerate} onRegenerated={onChanged} />
           <ExternalRevokeButton signature={access.signature} allowed={canRevoke} onRevoked={onChanged} />
         </div>
@@ -58,10 +61,12 @@ export default function ExternalAccessRow({ access, onChanged }: ExternalAccessR
           <IconCalendar width={13} height={13} className="text-[var(--ds-text-subtle)]" />
           Créé le {access.created_at ? new Date(access.created_at).toLocaleDateString('fr-FR') : '—'}
         </span>
-        {access.expires_at && (
+        {access.expires_at ? (
           <span>
-            Expire le {new Date(access.expires_at).toLocaleDateString('fr-FR')} (7 jours après la première ouverture)
+            Expire le {new Date(access.expires_at).toLocaleDateString('fr-FR')} (lien historique à durée limitée)
           </span>
+        ) : (
+          <span>Lien à durée illimitée — actif jusqu'à clôture</span>
         )}
         <span>Référence : {EXTERNAL_REFERENCE_LABELS[access.reference_id] ?? access.reference_id}</span>
       </div>

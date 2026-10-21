@@ -21,7 +21,7 @@ const CANDIDATE = {
 const AUTH_OK = {
     success: true,
     user: { role: 'EXTERNAL_GUEST', permission: 'GUEST', referenceId: 2 },
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    expiresAt: null,
 };
 
 test.describe('3.7 Comparateur public @external', () => {
@@ -37,7 +37,7 @@ test.describe('3.7 Comparateur public @external', () => {
         await expect(page).toHaveURL(/\/external\/matching\/mock$/);
         await expect(page.getByText('Candidats proposés')).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Candidat exemple' })).toBeVisible();
-        await expect(page.getByText(/7 jours après sa première ouverture/)).toBeVisible();
+        await expect(page.getByText(/sans limite de durée/)).toBeVisible();
     });
 
     test('signature invalide → contenu de rejet', async ({ page }) => {
@@ -54,7 +54,7 @@ test.describe('3.7 Comparateur public @external', () => {
         );
         await page.goto('/external/authenticate?sig=expired-signature');
         await expect(page.getByText('Lien expiré')).toBeVisible();
-        await expect(page.getByText(/7 jours après sa première ouverture/)).toBeVisible();
+        await expect(page.getByText(/sans limite de durée/)).toBeVisible();
     });
 
     test('réponses soumises → écran merci', async ({ page }) => {

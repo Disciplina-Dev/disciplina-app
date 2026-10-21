@@ -2,7 +2,7 @@ import { beforeAll, afterAll, beforeEach } from 'vitest';
 import http from 'http';
 import mongoose from 'mongoose';
 import { startServer } from '../src/index';
-import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from '../src/graphql/server';
+import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI, PedaAPI } from '../src/graphql/server';
 import { dropMongo } from './helpers/db';
 import { closeMySQL } from '../src/db/mysql/connection';
 
@@ -25,6 +25,7 @@ afterAll(async () => {
     await timeout(CandidateAPI.stop(), 3000).catch(() => {});
     await timeout(OfferAPI.stop(), 3000).catch(() => {});
     await timeout(NeedsAnalysisAPI.stop(), 3000).catch(() => {});
+    await timeout(PedaAPI.stop(), 3000).catch(() => {});
     await timeout(mongoose.disconnect(), 3000).catch(() => {});
     if (server) {
         await new Promise<void>((resolve) => {

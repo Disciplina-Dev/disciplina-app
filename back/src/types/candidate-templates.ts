@@ -88,8 +88,8 @@ export const CANDIDATE_TEMPLATES: Record<TitleProfessionalType, CandidateTemplat
         ]),
     },
 
-    [TitleProfessionalType.SA]: {
-        tp_type: TitleProfessionalType.SA,
+    [TitleProfessionalType.CADGA]: {
+        tp_type: TitleProfessionalType.CADGA,
         has_english_level: false,
         available_sectors: ADMIN_SECTORS,
         available_expected_skills: ADMIN_EXPECTED_SKILLS,

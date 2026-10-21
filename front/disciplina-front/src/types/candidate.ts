@@ -5,7 +5,7 @@ export enum TitleProfessionalType {
     CC = "CC",       // Conseiller Commercial
     NTC = "NTC",     // Négociateur technico-commercial
     REM = "REM",     // Responsable d'établissement Marchand
-    SA = "SA"        // SA
+    CADGA = "CADGA"  // Chargé d'accueil et de gestion administrative
 }
 
 export enum CandidateStatus {
@@ -321,6 +321,16 @@ export interface CandidateConsentments {
     consent_version: string;
 }
 
+export interface CandidateRelanceEntry {
+    sent_at: string; // date d'envoi (ISO)
+    kind: 'availability' | 'template';
+    template_id?: string;
+    subject?: string;
+    sent_by?: number;
+    response_at?: string; // réponse du candidat (ISO)
+    answer?: string; // 'oui' | 'non'
+}
+
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
@@ -339,10 +349,15 @@ export interface Candidate {
     immersion_end_date?: string;
     immersion_company_id?: number;
     immersion_company_name?: string;
+    immersion_convention_number?: string;
+    immersion_schedule?: ScheduleSlot[];
     contract_offer_id?: string;
     contract_company_id?: number;
     contract_company_name?: string;
     contract_start_date?: string;
+    contract_trial_end_date?: string;
+    contract_session_id?: string;
+    contract_session_name?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;
@@ -361,6 +376,8 @@ export interface Candidate {
     created_at?: string;
     last_relance_at?: string;      // dernière relance de disponibilité envoyée
     relance_response_at?: string;  // date de réponse du candidat à la relance
+    relance_count?: number;        // nombre de relances reçues
+    relance_history?: CandidateRelanceEntry[]; // historique des relances (envois + réponses)
 }
 
 export enum CandidateHistoryType {

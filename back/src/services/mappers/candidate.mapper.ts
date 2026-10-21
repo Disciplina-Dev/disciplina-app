@@ -1,4 +1,4 @@
-import { Candidate, CandidateStatus } from '../../types/candidate.types';
+import { Candidate, CandidateStatus, normalizeTpCode, normalizeTpCodes } from '../../types/candidate.types';
 import { Offer } from '../../types/offer.types';
 import { FilizStudentInfos } from '../../external/filiz/type';
 import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
@@ -46,18 +46,34 @@ export function candidateToGql(candidate: Candidate): any {
         writtenTestScore: candidate.written_test_score ?? null,
         testAverage: candidate.test_average ?? null,
         testFailurePending: candidate.test_failure_pending ?? null,
-        tpTypes: candidate.tp_types ?? [],
+        // Rétro-compat : les fiches écrites avant le renommage portent encore « SA ».
+        tpTypes: normalizeTpCodes(candidate.tp_types ?? []),
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,
-        immersionStartDate: candidate.immersion_start_date?.toISOString() ?? null,
-        immersionEndDate: candidate.immersion_end_date?.toISOString() ?? null,
+        immersionStartDate: candidate.immersion_start_date ? new Date(candidate.immersion_start_date).toISOString() : null,
+        immersionEndDate: candidate.immersion_end_date ? new Date(candidate.immersion_end_date).toISOString() : null,
         immersionCompanyId: candidate.immersion_company_id ?? null,
         immersionCompanyName: candidate.immersion_company_name ?? null,
+        immersionConventionNumber: (candidate as any).immersion_convention_number ?? null,
+        immersionSchedule: ((candidate as any).immersion_schedule ?? []).map((s: any) =>
+            typeof s === 'string'
+                ? { day: null, startHour: s, endHour: null }
+                : {
+                      day: s?.day ?? null,
+                      startHour: s?.start_hour ?? (s as any)?.startHour ?? null,
+                      endHour: s?.end_hour ?? (s as any)?.endHour ?? null,
+                  },
+        ),
         contractOfferId: candidate.contract_offer_id ?? null,
         contractCompanyId: candidate.contract_company_id ?? null,
         contractCompanyName: candidate.contract_company_name ?? null,
-        contractStartDate: candidate.contract_start_date?.toISOString() ?? null,
+        contractStartDate: candidate.contract_start_date ? new Date(candidate.contract_start_date).toISOString() : null,
+        contractTrialEndDate: candidate.contract_trial_end_date
+            ? new Date(candidate.contract_trial_end_date).toISOString()
+            : null,
+        contractSessionId: candidate.contract_session_id ?? null,
+        contractSessionName: candidate.contract_session_name ?? null,
         desiredSectors: candidate.desired_sectors,
         expectedCompanySkills: candidate.expected_company_skills,
         identity: candidate.identity
@@ -98,6 +114,19 @@ export function candidateToGql(candidate: Candidate): any {
         createdAt: candidate.created_at ? new Date(candidate.created_at).toISOString() : null,
         lastRelanceAt: candidate.last_relance_at ? new Date(candidate.last_relance_at).toISOString() : null,
         relanceResponseAt: candidate.relance_response_at ? new Date(candidate.relance_response_at).toISOString() : null,
+        // Compteur : champ dédié, avec repli sur l'historique puis sur l'ancien
+        // horodatage seul (fiches relancées avant l'introduction du compteur).
+        relanceCount:
+            candidate.relance_count ?? candidate.relance_history?.length ?? (candidate.last_relance_at ? 1 : 0),
+        relanceHistory: (candidate.relance_history ?? []).map((e) => ({
+            sentAt: e.sent_at ? new Date(e.sent_at).toISOString() : null,
+            kind: e.kind ?? null,
+            templateId: e.template_id ?? null,
+            subject: e.subject ?? null,
+            sentBy: e.sent_by ?? null,
+            responseAt: e.response_at ? new Date(e.response_at).toISOString() : null,
+            answer: e.answer ?? null,
+        })),
     };
 }
 
@@ -159,7 +188,7 @@ export function offerToMatchedOfferGql(offer: Offer, candidateId?: string): obje
         sector: null,
         localisation: offer.localisation,
         desiredTp: (offer.desired_tp ?? []).map((tp) => ({
-            tpType: tp.tp_type ?? null,
+            tpType: tp.tp_type ? normalizeTpCode(tp.tp_type) : null,
             missions: tp.missions ?? [],
             descriptionMissions: tp.description_missions ?? [],
         })),

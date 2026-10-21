@@ -90,7 +90,7 @@ export class UserDeletionService {
     private async resolveReplacement(target: UserRowJoined, replacementUserId: number): Promise<UserRowJoined> {
         const replacement = await this.userRepository.findById(replacementUserId);
         if (!replacement || replacement.role_id !== target.role_id) {
-            throw new UserDeletionError("Le remplaçant doit être un user actif du même rôle", 409);
+            throw new UserDeletionError('Le remplaçant doit être un user actif du même rôle', 409);
         }
         return replacement;
     }
@@ -131,6 +131,9 @@ export class UserDeletionService {
             await conn.execute('DELETE FROM booking_settings WHERE user_id = ?', [targetId]);
             await conn.execute('DELETE FROM peda_config WHERE user_id = ?', [targetId]);
             await conn.execute('DELETE FROM refresh_tokens WHERE user_id = ?', [targetId]);
+            // Sessions OAuth MCP (RGPD Art. 17) : jetons supprimés, clients dissociés du compte.
+            await conn.execute('DELETE FROM mcp_oauth_refresh_tokens WHERE user_id = ?', [targetId]);
+            await conn.execute('UPDATE mcp_oauth_clients SET user_id = NULL WHERE user_id = ?', [targetId]);
 
             const flagged = await conn.execute(
                 'UPDATE users SET is_deleted = 1, deleted_at = NOW(), password = ?, oauth_token = NULL, refresh_token = NULL WHERE id = ? AND is_deleted = 0',

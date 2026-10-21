@@ -1,5 +1,12 @@
 import { getModels } from '../../db/mongo/tenant';
-import { Candidate, CandidateOwner, CandidateStatus } from '../../types/candidate.types';
+import {
+    Candidate,
+    CandidateOwner,
+    CandidateRelanceEntry,
+    CandidateStatus,
+    expandTpFilter,
+    normalizeTpCode,
+} from '../../types/candidate.types';
 import { decodeCursor } from '../../services/pagination';
 
 export interface StatBucket {
@@ -120,7 +127,10 @@ function diacriticInsensitivePattern(token: string): string {
             out += `\\${ch}`;
             continue;
         }
-        const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const base = ch
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase();
         if (ACCENT_CLASSES[base]) {
             out += ACCENT_CLASSES[base];
         } else {
@@ -176,7 +186,8 @@ export class CandidateRepository {
             conditions.push({ 'identity.driving_license_b': filters.drivingLicenseB });
         if (filters?.hasVehicle !== undefined) conditions.push({ 'identity.has_vehicle': filters.hasVehicle });
         if (filters?.sex) conditions.push({ 'identity.sex': filters.sex });
-        if (filters?.tpType?.length) conditions.push({ tp_types: { $in: filters.tpType } });
+        // Un filtre CADGA doit aussi matcher les documents legacy encore en « SA ».
+        if (filters?.tpType?.length) conditions.push({ tp_types: { $in: expandTpFilter(filters.tpType) } });
         // Mobilité et secteurs sont des tableaux côté document : `$in` matche si
         // l'un des choix du candidat figure parmi les valeurs sélectionnées (OR).
         if (filters?.geographicMobility?.length)
@@ -321,7 +332,8 @@ export class CandidateRepository {
 
         if (!trimmedSearch) {
             const filter = conditions.length ? { $and: conditions } : {};
-            return getModels().Candidate.find(filter)
+            return getModels()
+                .Candidate.find(filter)
                 .sort({ created_at: -1, _id: 1 })
                 .limit(first + 1)
                 .lean();
@@ -383,7 +395,8 @@ export class CandidateRepository {
 
     /** Documents candidats (uniquement le lien CV) pour les ids demandés. */
     async findCvLinksByIds(ids: string[]): Promise<Array<{ _id: string; cv_link?: string }>> {
-        return getModels().Candidate.find({ _id: { $in: ids } })
+        return getModels()
+            .Candidate.find({ _id: { $in: ids } })
             .select({ cv_link: 1, _id: 1 })
             .lean();
     }
@@ -392,7 +405,8 @@ export class CandidateRepository {
     async findConsentmentsByIds(
         ids: string[],
     ): Promise<Array<{ _id: string; consentments?: Candidate['consentments'] }>> {
-        return getModels().Candidate.find({ _id: { $in: ids } })
+        return getModels()
+            .Candidate.find({ _id: { $in: ids } })
             .select({ consentments: 1, _id: 1 })
             .lean();
     }
@@ -442,15 +456,37 @@ export class CandidateRepository {
 
         const toBuckets = (rows: { _id: unknown; count: number }[]) =>
             rows.filter((r) => r._id != null).map((r) => ({ key: String(r._id), count: r.count }));
+        // Les buckets TP peuvent contenir l'ancien code « SA » en plus de « CADGA » :
+        // on normalise puis on fusionne les deux buckets.
+        const mergeTpBuckets = (rows: { key: string; count: number }[]) => {
+            const merged = new Map<string, number>();
+            for (const row of rows) {
+                const key = normalizeTpCode(row.key);
+                merged.set(key, (merged.get(key) ?? 0) + row.count);
+            }
+            return [...merged].map(([key, count]) => ({ key, count }));
+        };
+
+        const tpAndStatusById = new Map<string, TpStatusBucket>();
+        for (const row of result?.byTpAndStatus ?? []) {
+            if (row._id?.tpType == null || row._id?.status == null) continue;
+            const tpType = normalizeTpCode(String(row._id.tpType));
+            const status = String(row._id.status);
+            const key = `${tpType}|${status}`;
+            const existing = tpAndStatusById.get(key);
+            tpAndStatusById.set(key, {
+                tpType,
+                status,
+                count: (existing?.count ?? 0) + row.count,
+            });
+        }
 
         return {
             total: result?.total[0]?.count ?? 0,
             byStatus: toBuckets(result?.byStatus ?? []),
-            byTpType: toBuckets(result?.byTpType ?? []),
+            byTpType: mergeTpBuckets(toBuckets(result?.byTpType ?? [])),
             byTrainingSite: toBuckets(result?.byTrainingSite ?? []),
-            byTpAndStatus: (result?.byTpAndStatus ?? [])
-                .filter((r) => r._id?.tpType != null && r._id?.status != null)
-                .map((r) => ({ tpType: String(r._id.tpType), status: String(r._id.status), count: r.count })),
+            byTpAndStatus: [...tpAndStatusById.values()],
         };
     }
 
@@ -462,10 +498,12 @@ export class CandidateRepository {
     // lesquels la notification « immersion terminée » n'a pas encore été émise.
     // Sert au scheduler de notification d'immersion.
     async findImmersionEndedUnnotified(now: Date): Promise<Candidate[]> {
-        return getModels().Candidate.find({
-            immersion_end_date: { $ne: null, $lte: now },
-            immersion_end_notified_at: null,
-        }).lean();
+        return getModels()
+            .Candidate.find({
+                immersion_end_date: { $ne: null, $lte: now },
+                immersion_end_notified_at: null,
+            })
+            .lean();
     }
 
     // Marque la notification « immersion terminée » comme émise (dédup scheduler).
@@ -476,10 +514,12 @@ export class CandidateRepository {
     // Candidats indisponibles dont la date de disponibilité est atteinte (fin
     // d'indisponibilité). Sert au scheduler de retour en recherche.
     async findExpiredUnavailable(now: Date): Promise<Candidate[]> {
-        return getModels().Candidate.find({
-            status: CandidateStatus.UNAVAILABLE,
-            'job_info.availability_date': { $ne: null, $lte: now },
-        }).lean();
+        return getModels()
+            .Candidate.find({
+                status: CandidateStatus.UNAVAILABLE,
+                'job_info.availability_date': { $ne: null, $lte: now },
+            })
+            .lean();
     }
 
     // Repasse un candidat indisponible en recherche, de façon atomique : la mise à
@@ -499,7 +539,9 @@ export class CandidateRepository {
         const normalized = email.trim();
         if (!normalized) return null;
         const escaped = normalized.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return getModels().Candidate.findOne({ 'identity.email': { $regex: `^${escaped}$`, $options: 'i' } }).lean();
+        return getModels()
+            .Candidate.findOne({ 'identity.email': { $regex: `^${escaped}$`, $options: 'i' } })
+            .lean();
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {
@@ -509,11 +551,72 @@ export class CandidateRepository {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
-        return getModels().Candidate.findOneAndUpdate(
+        return getModels()
+            .Candidate.findOneAndUpdate(
+                { _id: id },
+                { $set: flattenObject(data) },
+                { returnDocument: 'after', runValidators: true, context: 'query' },
+            )
+            .lean();
+    }
+
+    /**
+     * Enregistre une relance envoyée : met à jour `last_relance_at`, incrémente
+     * `relance_count` et ajoute l'entrée à `relance_history` (atomique).
+     */
+    async recordRelanceSent(id: string, entry: CandidateRelanceEntry): Promise<void> {
+        await getModels().Candidate.updateOne(
             { _id: id },
-            { $set: flattenObject(data) },
-            { returnDocument: 'after', runValidators: true, context: 'query' },
-        ).lean();
+            {
+                $set: { last_relance_at: entry.sent_at },
+                $inc: { relance_count: 1 },
+                $push: { relance_history: entry },
+            },
+        );
+    }
+
+    /**
+     * Rattache la réponse du candidat (lien Oui/Non) à sa relance : met à jour
+     * la dernière entrée d'historique sans réponse. Les candidats relancés avant
+     * l'introduction de l'historique reçoivent une entrée synthétique (sans
+     * incrément du compteur, qui ne compte que les envois).
+     */
+    async recordRelanceResponse(id: string, answer: string, at: Date): Promise<void> {
+        const candidate = await getModels().Candidate.findById(id).lean();
+        if (!candidate) return;
+        const history = (candidate.relance_history ?? []) as CandidateRelanceEntry[];
+        let pendingIdx = -1;
+        for (let i = history.length - 1; i >= 0; i--) {
+            if (!history[i].response_at) {
+                pendingIdx = i;
+                break;
+            }
+        }
+        if (pendingIdx >= 0) {
+            await getModels().Candidate.updateOne(
+                { _id: id },
+                {
+                    $set: {
+                        [`relance_history.${pendingIdx}.response_at`]: at,
+                        [`relance_history.${pendingIdx}.answer`]: answer,
+                    },
+                },
+            );
+            return;
+        }
+        await getModels().Candidate.updateOne(
+            { _id: id },
+            {
+                $push: {
+                    relance_history: {
+                        sent_at: candidate.last_relance_at ?? at,
+                        kind: 'availability',
+                        response_at: at,
+                        answer,
+                    },
+                },
+            },
+        );
     }
 
     async delete(id: string): Promise<boolean> {

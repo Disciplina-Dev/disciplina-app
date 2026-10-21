@@ -11,7 +11,7 @@ export enum DesiredTP {
   CC = 'CC',
   NTC = 'NTC',
   REM = 'REM',
-  SA = 'SA',
+  CADGA = 'CADGA',
 }
 
 export enum DesiredSex {

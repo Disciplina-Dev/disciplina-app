@@ -326,6 +326,24 @@ CREATE TABLE IF NOT EXISTS `mcp_oauth_clients` (
   PRIMARY KEY (`client_id`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- Journal d'accès MCP (RGPD, MCP_RGPD_AUDIT.md M4) : qui a consulté quel outil / quelle
+-- fiche, sans résultat ni argument en clair. user_id = 0 pour la clé MCP statique.
+-- Purgé à 365 jours par expiredAccessScheduler.
+CREATE TABLE IF NOT EXISTS `mcp_audit_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `client_id` varchar(128) DEFAULT NULL,
+  `tool` varchar(64) NOT NULL,
+  `subject_ref` varchar(80) DEFAULT NULL,
+  `args_hash` varchar(32) NOT NULL,
+  `result_count` int NOT NULL DEFAULT 0,
+  `status` varchar(16) NOT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_mcp_audit_user_date` (`user_id`, `created_at`),
+  KEY `idx_mcp_audit_date` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `relance_history` (
   `id` int NOT NULL AUTO_INCREMENT,
   `company_id` int NOT NULL,

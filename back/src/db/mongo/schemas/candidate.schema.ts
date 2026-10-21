@@ -2,6 +2,7 @@ import mongoose, { Schema, model, Document } from 'mongoose';
 import {
     Candidate,
     TitleProfessionalType,
+    LEGACY_TP_SA,
     CandidateStatus,
     SchoolLevel,
     TrainingSite,
@@ -23,6 +24,7 @@ import {
     CandidateOwner,
     EmergencyContact,
     CandidateConsentments,
+    CandidateRelanceEntry,
 } from '../../../types/candidate.types';
 import { Localisation } from '../../../types/matching.types';
 
@@ -247,12 +249,39 @@ const classMarkerResultSchema = new Schema<ClassMarkerResult>(
     { _id: false },
 );
 
+const candidateRelanceSchema = new Schema<CandidateRelanceEntry>(
+    {
+        sent_at: { type: Date, required: true },
+        kind: { type: String, enum: ['availability', 'template'], required: true },
+        template_id: { type: String },
+        subject: { type: String },
+        sent_by: { type: Number },
+        response_at: { type: Date },
+        answer: { type: String },
+    },
+    { _id: false },
+);
+
+const immersionScheduleSlotSchema = new Schema(
+    {
+        day: { type: String, default: null },
+        start_hour: { type: String, default: null },
+        end_hour: { type: String, default: null },
+    },
+    { _id: false },
+);
+
 const candidateSchema = new Schema<Candidate & Document>(
     {
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
         owner: { type: ownerSchema },
-        tp_types: { type: [String], enum: Object.values(TitleProfessionalType), default: undefined },
+        // « SA » reste accepté pour les documents legacy écrits avant le renommage.
+        tp_types: {
+            type: [String],
+            enum: [...Object.values(TitleProfessionalType), LEGACY_TP_SA],
+            default: undefined,
+        },
         identity: { type: identitySchema, required: true },
         emergency_contact: { type: emergencyContactSchema },
         consentments: { type: consentmentsSchema },
@@ -267,6 +296,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         immersion_end_date: { type: Date },
         immersion_company_id: { type: Number },
         immersion_company_name: { type: String },
+        immersion_convention_number: { type: String },
+        immersion_schedule: { type: [immersionScheduleSlotSchema], default: undefined },
         // Horodatage de l'envoi de la notification « immersion terminée » : évite
         // de re-notifier chaque jour une fois la date de fin passée (dédup scheduler).
         immersion_end_notified_at: { type: Date },
@@ -274,6 +305,9 @@ const candidateSchema = new Schema<Candidate & Document>(
         contract_company_id: { type: Number },
         contract_company_name: { type: String },
         contract_start_date: { type: Date },
+        contract_trial_end_date: { type: Date },
+        contract_session_id: { type: String },
+        contract_session_name: { type: String },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
         education: { type: educationSchema },
@@ -294,6 +328,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         created_at: { type: Date },
         last_relance_at: { type: Date },
         relance_response_at: { type: Date },
+        relance_count: { type: Number, default: 0 },
+        relance_history: { type: [candidateRelanceSchema], default: undefined },
         classmarker_history: { type: [classMarkerResultSchema], default: undefined },
     },
     { collection: 'candidates' },

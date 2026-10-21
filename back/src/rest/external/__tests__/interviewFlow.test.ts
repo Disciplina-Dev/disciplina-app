@@ -118,12 +118,11 @@ describe('External interview flow (reference 3)', () => {
 
             const res = await fetch(`${BASE}/${sig}/authenticate`, { method: 'POST' });
             expect(res.status).toBe(200);
-            const body = (await res.json()) as { success: boolean; user: { referenceId: number }; expiresAt: string };
+            const body = (await res.json()) as { success: boolean; user: { referenceId: number }; expiresAt: string | null };
             expect(body).toMatchObject({ success: true, user: { referenceId: 3 } });
-            // Première ouverture : expiration armée à ~J+7.
-            const expiresInMs = new Date(body.expiresAt).getTime() - Date.now();
-            expect(expiresInMs).toBeGreaterThan(6 * 24 * 60 * 60 * 1000);
-            expect(expiresInMs).toBeLessThanOrEqual(7 * 24 * 60 * 60 * 1000);
+            // Durée illimitée : aucune expiration n'est armée, `expires_at` reste à null.
+            expect(body.expiresAt).toBeNull();
+            expect((await repository.findBySignature(sig))?.expires_at).toBeNull();
 
             const setCookie = res.headers.get('set-cookie');
             expect(setCookie).toContain(ACCESS_TOKEN_COOKIE);

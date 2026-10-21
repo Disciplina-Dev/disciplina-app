@@ -60,3 +60,10 @@ export const needsAnalysisGraphqlClient = new Client({
   exchanges,
   fetchOptions: getFetchOptions,
 })
+
+// Client dédié à la pédagogie — alternants + séquences d'accompagnement (endpoint séparé)
+export const pedaGraphqlClient = new Client({
+  url: `${import.meta.env.VITE_API_URL}/api/graphql/peda`,
+  exchanges,
+  fetchOptions: getFetchOptions,
+})

@@ -8,6 +8,8 @@ import { typeDefs as offerTypeDefs } from './offers/typeDefs';
 import { UserTypeDefs } from './common.typeDefs';
 import { typeDefs as needsAnalysisTypeDefs } from './needsAnalysis/typeDefs';
 import { resolvers as needsAnalysisResolvers } from './needsAnalysis/resolvers';
+import { typeDefs as pedaTypeDefs } from './peda/typeDefs';
+import { resolvers as pedaResolvers } from './peda/resolver';
 import { todoTypeDefs } from './todo/typeDefs';
 import { todoResolvers } from './todo/resolver';
 import { CSRF_HEADER } from '../rest/middleware/tokenAuth';
@@ -50,5 +52,11 @@ export const CandidateAPI = new ApolloServer({
 export const OfferAPI = new ApolloServer({
     typeDefs: offerTypeDefs,
     resolvers: offerResolvers,
+    csrfPrevention,
+});
+
+export const PedaAPI = new ApolloServer({
+    typeDefs: pedaTypeDefs,
+    resolvers: pedaResolvers,
     csrfPrevention,
 });

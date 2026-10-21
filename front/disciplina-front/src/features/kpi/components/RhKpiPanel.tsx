@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconAlert, IconCalendarPlus, IconExternalLink, IconJob, IconLoader, IconRefresh, IconSchedule, IconSignature, IconUnlink, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
+import { IconAlert, IconCalendarPlus, IconClose, IconExternalLink, IconJob, IconLoader, IconRefresh, IconRepeat, IconSchedule, IconSignature, IconUnlink, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
 import { useAuthStore, Permission } from '@/store/authStore'
 import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
@@ -16,6 +16,7 @@ import Select from '@/components/ui/Select'
 const COLORS = {
   blue: '#1130A7', purple: '#60207E', pink: '#B10F55',
   success: '#1A7A4A', warning: '#A65C00', danger: '#C0152A', slate: '#475569',
+  amber: '#B45309', gray: '#6B7280',
 }
 
 /** Carte/colonne KPI. `derived` = calculée (pas une colonne stockée). */
@@ -28,6 +29,8 @@ const CARDS: CardDef[] = [
   { key: 'upcoming', derived: true, label: 'À venir', icon: IconSchedule, color: COLORS.slate },
   { key: 'interviews_attended', label: 'Venus', icon: IconUserCheck, color: COLORS.success, aggregateOnly: true },
   { key: 'interviews_noshow', label: 'Pas venus', icon: IconUserRemove, color: COLORS.danger, aggregateOnly: true },
+  { key: 'interviews_postponed', label: 'Reportés', icon: IconRepeat, color: COLORS.amber, aggregateOnly: true },
+  { key: 'interviews_declined', label: 'Déclinés', icon: IconClose, color: COLORS.gray, aggregateOnly: true },
   { key: 'immersions', label: 'Immersions', icon: IconJob, color: COLORS.pink },
   { key: 'contracts', label: 'Contrats', icon: IconSignature, color: COLORS.purple },
   { key: 'ruptures', label: 'Ruptures', icon: IconUnlink, color: COLORS.warning },
@@ -73,7 +76,7 @@ export default function RhKpiPanel({
   const permission = useAuthStore((s) => s.user?.permission)
   const isAggregate = permission === Permission.ADMIN || permission === Permission.RESPONSABLE
   // En vue individuelle (RH connecté), on affiche les métriques qui le concernent :
-  // Venus / Pas venus / Ruptures ne concernent que la vue globale agrégée.
+  // Venus / Pas venus / Reportés / Déclinés / Ruptures ne concernent que la vue globale agrégée.
   const visibleCards = useMemo(() =>
     CARDS.filter((c) => !c.aggregateOnly || isAggregate),
     [isAggregate],

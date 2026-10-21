@@ -11,6 +11,7 @@ import {
 } from '@/api/externalInterview'
 import { getExternalProfile } from '@/api/external'
 import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
+import ExternalGuestCloseButton from '@/features/external/components/ExternalGuestCloseButton'
 import { REGION_TIMEZONE } from '@/lib/timezone'
 
 function Centered({ children }: { children: React.ReactNode }) {
@@ -124,8 +125,15 @@ export default function ExternalInterview() {
   return (
     <div className="min-h-screen bg-[var(--ds-surface-sunken)] px-4 py-8">
       <div className="mx-auto max-w-lg">
-        <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
-        <h1 className="mt-1 text-[20px] font-extrabold text-[var(--ds-text)]">Choisissez votre créneau d'entretien</h1>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
+            <h1 className="mt-1 text-[20px] font-extrabold text-[var(--ds-text)]">Choisissez votre créneau d'entretien</h1>
+          </div>
+          <div className="shrink-0 pt-1">
+            <ExternalGuestCloseButton signature={signature} onClosed={() => setBookedSlot('closed')} />
+          </div>
+        </div>
         <ExternalExpiryNotice expiresAt={expiresAt} />
 
         {data.location && (

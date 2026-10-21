@@ -123,7 +123,7 @@ export function regionFromSector(sector?: string | null): DriveRegion | undefine
 }
 
 // Région de l'AB (NORD/OUEST/SUD) → secteur métier (Nord-Est/Ouest/Sud).
-const REGION_TO_SECTOR: Record<CompanyRegion, Sector> = {
+const REGION_TO_SECTOR: Partial<Record<CompanyRegion, Sector>> = {
     [CompanyRegion.NORD]: 'Nord-Est',
     [CompanyRegion.OUEST]: 'Ouest',
     [CompanyRegion.SUD]: 'Sud',

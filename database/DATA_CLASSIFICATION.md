@@ -69,10 +69,11 @@ accès à restreindre.
 | `match_link` (dépréciée) | S3+S2 | `signature`, `code`, `rh_email`, `company_email` | — | Idem |
 | `external_link` (dépréciée) | S3+S2 | `signature`, `code`, `external_email`, `rh_email` | — | Idem |
 
-Ces tables sont des liens magiques (sans code) associés à des emails, valables 7 jours
-après leur première ouverture. Les conserver au-delà de leur expiration n'a aucune valeur
-métier et allonge la surface d'exposition.
-Purgées par `back/src/scheduler/expiredAccessScheduler.ts`.
+`external_access` est un lien magique (sans code) associé à un email, à durée
+illimitée : actif jusqu'à clôture explicite (`COMPLETED`, bouton « Clôturer le
+lien ») ou révocation (`LOCKED`). Seules les lignes historiques déjà marquées
+`EXPIRED` (avec un `expires_at` passé) sont purgées après un délai de grâce par
+`back/src/scheduler/expiredAccessScheduler.ts`.
 
 ### Paramétrage & divers
 

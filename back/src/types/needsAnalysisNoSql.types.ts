@@ -5,6 +5,12 @@ export enum CompanyRegion {
     NORD = 'NORD',
     OUEST = 'OUEST',
     SUD = 'SUD',
+    GENEVE_FRONTIERE = 'GENEVE_FRONTIERE',
+    GENEVOIS = 'GENEVOIS',
+    ARVE = 'ARVE',
+    FAUCIGNY = 'FAUCIGNY',
+    ANNECY = 'ANNECY',
+    CHABLAIS = 'CHABLAIS',
 }
 
 export enum Opco {
@@ -67,6 +73,17 @@ export enum AdministrationType {
     NON_RENSEIGNE = 'NON_RENSEIGNE',
     ADMINISTRATION_PUBLIQUE = 'ADMINISTRATION_PUBLIQUE',
     ADMINISTRATION_PRIVEE = 'ADMINISTRATION_PRIVEE',
+}
+
+// Pastille couleur du suivi entreprise (annuaire du tableau de bord RH).
+// `null` (absent) = automatique : vert si immersion en cours, jaune si mandat
+// signé, blanc par défaut. Une valeur posée fige la couleur manuellement.
+export enum CompanyIndicator {
+    WHITE = 'WHITE',
+    YELLOW = 'YELLOW',
+    GREEN = 'GREEN',
+    ORANGE = 'ORANGE',
+    RED = 'RED',
 }
 
 export interface CompanyInfos {
@@ -194,8 +211,26 @@ export interface NeedsAnalysis {
     // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
     // d'être retirée — on conserve le document pour l'historique.
     is_deleted?: boolean;
+    /**
+     * Brouillon rendu visible dans le matching sans envoi en signature.
+     * L'AB reste BROUILLON (affichée « Non envoyée ») mais ses offres de
+     * matching sont créées : elle se comporte comme une AB non signée.
+     */
+    is_visible_in_matching?: boolean;
     /** Type d'administration de l'entreprise : publique, privée ou non renseigné (défaut rétrocompat). */
     administration_type?: AdministrationType | null;
+    /**
+     * Pastille couleur manuelle du suivi entreprise (annuaire RH).
+     * `null`/absent = couleur automatique dérivée (immersion → vert,
+     * mandat signé → jaune, sinon blanc).
+     */
+    company_indicator?: CompanyIndicator | null;
+    /**
+     * Suivi entreprise (annuaire RH, tableau de bord) : références libres
+     * « France Travail » et « KOANN », éditables inline. `null`/vide = non renseigné.
+     */
+    france_travail?: string | null;
+    koann?: string | null;
     created_at?: Date;
     updated_at?: Date;
 }
@@ -227,4 +262,6 @@ export interface NeedsAnalysisWriteInput {
     status?: NeedsAnalysisStatus;
     tags?: string[];
     createdAt?: string;
+    /** Rend le brouillon visible dans le matching (offres créées, statut BROUILLON conservé). */
+    isVisibleInMatching?: boolean;
 }
