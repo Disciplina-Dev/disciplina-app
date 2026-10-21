@@ -14,6 +14,13 @@ function parseSectorLabels(raw: unknown): string[] {
     return Array.isArray(labels) ? labels.filter((l): l is string => typeof l === 'string') : [];
 }
 
+// Lecture depuis user_sectors (libellés, dans l'ordre du référentiel) ; NULL si aucun secteur.
+const USER_SECTORS_SUBQUERY = `(
+    SELECT CAST(CONCAT('[', GROUP_CONCAT(JSON_QUOTE(s.label) ORDER BY s.id), ']') AS JSON)
+    FROM user_sectors us JOIN sectors s ON s.id = us.sector_id
+    WHERE us.user_id = u.id
+) AS sectors`;
+
 const USER_SELECT_COLUMNS = [
     'u.id',
     'u.email',
@@ -22,7 +29,7 @@ const USER_SELECT_COLUMNS = [
     'u.password',
     'u.role_id',
     'u.permission_id',
-    'u.sectors',
+    USER_SECTORS_SUBQUERY,
     'u.oauth_token',
     'u.refresh_token',
     'u.is_interviewer',
@@ -120,8 +127,8 @@ export class UserRepository {
     }
 
     /**
-     * Double écriture : `user_sectors` suit `users.sectors` (le JSON reste la source
-     * de lecture le temps de la transition). Les libellés hors référentiel sont ignorés.
+     * Double écriture : `user_sectors` suit `users.sectors` (le JSON n'est plus lu,
+     * il reste en miroir jusqu'au drop de la colonne). Les libellés hors référentiel sont ignorés.
      */
     private async syncUserSectors(userId: number, rawSectors: unknown): Promise<void> {
         const labels = [...new Set(parseSectorLabels(rawSectors))];
