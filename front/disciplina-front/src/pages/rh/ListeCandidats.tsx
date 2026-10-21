@@ -43,7 +43,7 @@ const getTpTypeColors = (tpType: TitleProfessionalType) => {
     case TitleProfessionalType.REM:
       // Lime
       return 'bg-[#ECFCCB] text-[#4D7C0F] ring-[#4D7C0F]/20';
-    case TitleProfessionalType.SA:
+    case TitleProfessionalType.CADGA:
       // Slate
       return 'bg-[#F1F5F9] text-[#334155] ring-[#334155]/20';
     default:

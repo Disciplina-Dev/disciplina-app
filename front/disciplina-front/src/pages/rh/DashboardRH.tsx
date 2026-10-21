@@ -46,7 +46,7 @@ const TP_LABELS: Record<string, string> = {
   [TitleProfessionalType.CC]: 'CC · Conseiller Commercial',
   [TitleProfessionalType.NTC]: 'NTC · Négociateur technico-commercial',
   [TitleProfessionalType.REM]: "REM · Responsable d'établissement Marchand",
-  [TitleProfessionalType.SA]: 'SA',
+  [TitleProfessionalType.CADGA]: "CADGA · Chargé d'accueil et de gestion administrative",
 };
 
 // Palette dédiée aux TP (cf. ListeCandidats).
@@ -55,7 +55,7 @@ const TP_COLORS: Record<string, string> = {
   [TitleProfessionalType.CC]: '#4338CA',
   [TitleProfessionalType.NTC]: '#A21CAF',
   [TitleProfessionalType.REM]: '#4D7C0F',
-  [TitleProfessionalType.SA]: '#334155',
+  [TitleProfessionalType.CADGA]: '#334155',
 };
 
 const TP_ORDER = Object.values(TitleProfessionalType) as string[];
@@ -432,7 +432,7 @@ function AbActiveBadge({ status }: { status?: string | null }) {
 
 /**
  * Annuaire des entreprises issues des analyses de besoin.
- * Tri : TP (ordre canonique AD, CC, NTC, REM, SA) puis date d'activation croissante.
+ * Tri : TP (ordre canonique AD, CC, NTC, REM, CADGA) puis date d'activation croissante.
  */
 
 /** Localisations uniques d'une AB (postes), libellées pour affichage. */
