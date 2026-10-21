@@ -1,6 +1,7 @@
 import express from 'express';
 import { mcpAuthRouter } from '@modelcontextprotocol/sdk/server/auth/router.js';
 import { env } from '../../config/env';
+import { mcpConsentAccountLimiter, mcpConsentIpLimiter } from '../../rest/middleware/rateLimiter';
 import { McpOAuthProvider } from './provider';
 import { MCP_SCOPE } from './tokens';
 
@@ -17,13 +18,19 @@ export function buildMcpOAuthRouter(): express.Router {
     const provider = new McpOAuthProvider();
 
     const consentHook = express.Router();
-    consentHook.post('/authorize', express.urlencoded({ extended: false }), (req, res, next) => {
-        const body = req.body as { email?: unknown; password?: unknown; region?: unknown } | undefined;
-        res.locals.loginEmail = typeof body?.email === 'string' ? body.email : '';
-        res.locals.loginPassword = typeof body?.password === 'string' ? body.password : '';
-        res.locals.loginRegion = typeof body?.region === 'string' ? body.region : '';
-        next();
-    });
+    consentHook.post(
+        '/authorize',
+        express.urlencoded({ extended: false }),
+        mcpConsentIpLimiter,
+        mcpConsentAccountLimiter,
+        (req, res, next) => {
+            const body = req.body as { email?: unknown; password?: unknown; region?: unknown } | undefined;
+            res.locals.loginEmail = typeof body?.email === 'string' ? body.email : '';
+            res.locals.loginPassword = typeof body?.password === 'string' ? body.password : '';
+            res.locals.loginRegion = typeof body?.region === 'string' ? body.region : '';
+            next();
+        },
+    );
 
     const sdkRouter = mcpAuthRouter({
         provider,

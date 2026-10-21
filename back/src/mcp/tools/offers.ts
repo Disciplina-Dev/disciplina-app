@@ -3,6 +3,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { OfferService } from '../../services/OfferService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { toolResult } from '../serialize';
+import { MAX_PAGE_SIZE, pageOf } from '../limits';
+import { filterOfferCandidates } from '../candidateExposure';
 import { readTool } from '../tool';
 import { mcpToolScope } from '../rbac';
 import { JobRole, Permission } from '../../types/user.types';
@@ -21,10 +23,16 @@ export function registerOfferTools(server: McpServer): void {
     readTool(
         server,
         'list_offers',
-        'Liste toutes les offres / postes (MongoDB) avec leurs critères de matching et statut.',
-        {},
+        'Liste les offres / postes (MongoDB) avec leurs critères de matching et statut. Paginé : { total, offset, nextOffset, items }.',
+        {
+            first: z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)'),
+            offset: z.number().int().nonnegative().optional().describe('Position de départ (défaut 0)'),
+        },
         OFFER_SCOPE,
-        async () => toolResult(await offerService.findAll(true)),
+        async ({ first, offset }) => {
+            const page = pageOf(await offerService.findAll(true), first, offset);
+            return toolResult({ ...page, items: await filterOfferCandidates(page.items) });
+        },
     );
 
     readTool(
@@ -33,7 +41,7 @@ export function registerOfferTools(server: McpServer): void {
         'Récupère une offre par id, avec les candidats suggérés par le matching automatique selon ses critères.',
         { id: z.string().describe("Id de l'offre") },
         OFFER_SCOPE,
-        async ({ id }) => toolResult(await offerService.find(id)),
+        async ({ id }) => toolResult(await filterOfferCandidates(await offerService.find(id))),
     );
 
     readTool(
@@ -56,10 +64,7 @@ export function registerOfferTools(server: McpServer): void {
                 (await offerHistory.findByOffer(offerId)).map((e) => ({
                     id: e._id,
                     offerId: e.offer_id,
-                    firstName: e.first_name,
-                    lastName: e.last_name,
                     text: e.text,
-                    ownerEmail: e.owner_email,
                     createdAt: e.created_at,
                 })),
             ),

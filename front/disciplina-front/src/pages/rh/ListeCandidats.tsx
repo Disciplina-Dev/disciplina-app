@@ -64,7 +64,7 @@ function useCommuneSections(): { key: string; label: string; options: string[] }
 
 // --- Tabs ---
 
-const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
 
 // Éditeur compact des horaires d'immersion (jours activables + créneau début/fin).
 function ImmersionScheduleEditor({ value, onChange }: {

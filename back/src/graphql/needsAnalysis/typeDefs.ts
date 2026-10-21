@@ -309,6 +309,9 @@ export const typeDefs = gql`
         # Pastille couleur manuelle du suivi entreprise. Null = automatique
         # (immersion en cours → vert, mandat signé → jaune, sinon blanc).
         companyIndicator: CompanyIndicator
+        # Suivi entreprise (annuaire RH) : références libres éditables inline.
+        franceTravail: String
+        koann: String
         createdAt: String
         updatedAt: String
         # Date du dernier passage au statut effectif ACTIVE (création puis
@@ -430,5 +433,11 @@ export const typeDefs = gql`
         # Pose la pastille couleur manuelle du suivi entreprise (annuaire RH) ;
         # indicator à null la réinitialise à la couleur automatique dérivée.
         updateNeedsAnalysisIndicator(id: ID!, indicator: CompanyIndicator): NeedsAnalysis!
+        # Met à jour les références libres du suivi entreprise (annuaire RH).
+        # Un champ omis est conservé, une chaîne vide l'efface (null).
+        updateNeedsAnalysisTracking(id: ID!, franceTravail: String, koann: String): NeedsAnalysis!
+        # Corrige manuellement la date d'activation affichée dans l'annuaire.
+        # Chaîne vide / null l'efface (repli sur la date de création).
+        updateNeedsAnalysisActivationDate(id: ID!, lastActiveAt: String): NeedsAnalysis!
     }
 `;

@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { env } from '../../config/env';
 import type { Region } from '../../types/tenant';
 
@@ -8,6 +8,8 @@ import type { Region } from '../../types/tenant';
 export const MCP_ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 export const MCP_AUTH_CODE_TTL_SECONDS = 5 * 60;
 export const MCP_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
+
+const mcpSecret = (): string => env.MCP_JWT_SECRET ?? env.JWT_SECRET;
 
 export const MCP_SCOPE = 'mcp:call';
 const MCP_ACCESS_TOKEN_TYPE = 'mcp_access';
@@ -28,14 +30,17 @@ export interface McpAuthCodePayload {
     region: Region;
     codeChallenge: string;
     redirectUri: string;
+    /** identifiant unique : permet l'usage unique du code (cf. provider). */
+    jti?: string;
+    exp?: number;
 }
 
 // Code d'autorisation stateless : signé JWT, zéro persistance (les cold starts /
 // redémarrages de container ne peuvent pas le perdre). Le challenge PKCE y est
 // encapsulé pour être re-exposé par `challengeForAuthorizationCode`, et
 // l'identité (userId + region issue du consentement) y transite jusqu'à l'échange.
-export function signAuthCode(payload: Omit<McpAuthCodePayload, 'typ'>): string {
-    return jwt.sign({ typ: MCP_AUTH_CODE_TYPE, ...payload }, env.JWT_SECRET, {
+export function signAuthCode(payload: Omit<McpAuthCodePayload, 'typ' | 'jti' | 'exp'>): string {
+    return jwt.sign({ typ: MCP_AUTH_CODE_TYPE, jti: randomUUID(), ...payload }, mcpSecret(), {
         expiresIn: MCP_AUTH_CODE_TTL_SECONDS,
         algorithm: 'HS256',
     });
@@ -43,7 +48,7 @@ export function signAuthCode(payload: Omit<McpAuthCodePayload, 'typ'>): string {
 
 export function verifyAuthCode(token: string): McpAuthCodePayload | null {
     try {
-        const payload = jwt.verify(token, env.JWT_SECRET) as McpAuthCodePayload & { typ?: string };
+        const payload = jwt.verify(token, mcpSecret()) as McpAuthCodePayload & { typ?: string };
         return payload.typ === MCP_AUTH_CODE_TYPE ? payload : null;
     } catch {
         return null;
@@ -54,7 +59,7 @@ export function verifyAuthCode(token: string): McpAuthCodePayload | null {
 // lookup DB (idéal serveur persistant comme serverless). sub = users.id de la
 // région `region` : c'est l'identité qui permettra de scoper les outils.
 export function signMcpAccessToken(clientId: string, sub: number, region: Region): string {
-    return jwt.sign({ typ: MCP_ACCESS_TOKEN_TYPE, clientId, sub, region, scope: [MCP_SCOPE] }, env.JWT_SECRET, {
+    return jwt.sign({ typ: MCP_ACCESS_TOKEN_TYPE, clientId, sub, region, scope: [MCP_SCOPE] }, mcpSecret(), {
         expiresIn: MCP_ACCESS_TOKEN_TTL_SECONDS,
         algorithm: 'HS256',
     });
@@ -69,7 +74,7 @@ export interface VerifiedAccessToken {
 
 export function verifyMcpAccessToken(token: string): VerifiedAccessToken | null {
     try {
-        const payload = jwt.verify(token, env.JWT_SECRET) as unknown as McpAccessTokenPayload & { exp: number };
+        const payload = jwt.verify(token, mcpSecret()) as unknown as McpAccessTokenPayload & { exp: number };
         if (payload.typ !== MCP_ACCESS_TOKEN_TYPE || typeof payload.exp !== 'number') return null;
         if (typeof payload.sub !== 'number' || !isMcpRegion(payload.region)) return null;
         return { clientId: payload.clientId, userId: payload.sub, region: payload.region, expiresAt: payload.exp };

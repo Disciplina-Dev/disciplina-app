@@ -223,7 +223,7 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   )
 }
 
-const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
 
 // Éditeur compact des horaires d'immersion (jours activables + créneau début/fin).
 // Même forme que ScheduleSlot (day/startHour/endHour) : seuls les jours activés sont persistés.
