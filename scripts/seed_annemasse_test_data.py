@@ -109,7 +109,7 @@ COMPANIES = [
     (
         1, 1, AB_IDS["a"], "Patrick Fuchs", "BOULANGERIE LE CROISSANT D'ANNEMASSE",
         "04 50 92 45 70", "contact@croissant-annemasse.fr",
-        "18 Av. de la République, 74100 Annemasse", "Nord-Est", "Boulangerie-pâtisserie",
+        "18 Av. de la République, 74100 Annemasse", "Genève / Frontière", "Boulangerie-pâtisserie",
         "74293240500012", "8434", "1071C",
         "Besoins : 1 poste vente/conseil (CC). Interlocutrice : Capucine (adhérente du magasin).",
         "Besoin confirmé : alternant vente (CC) pour octobre 2026", "Oui", None, None, None,
@@ -117,7 +117,7 @@ COMPANIES = [
     (
         2, 1, AB_IDS["b"], "Sonia Veyrat", "PARFUMERIE BELLE ESSENCE",
         "04 50 38 21 09", "contact@belle-essence.fr",
-        "52 rue de Genève, 74100 Annemasse", "Nord-Est", "Parfumerie — cosmétique",
+        "52 rue de Genève, 74100 Annemasse", "Genève / Frontière", "Parfumerie — cosmétique",
         "74320157500031", "8685", "4775Z",
         "Recrute via le magasin centre-ville. Demande un conseiller parfumerie.",
         "Besoin confirmé : conseiller·ère vente (CC)", "Oui", None, None, None,
@@ -125,7 +125,7 @@ COMPANIES = [
     (
         3, 1, None, "M. Belhem", "GARAGE SAINT-CERGUE AUTO",
         "04 50 95 33 78", None,
-        "5 route de Saint-Julien, 74240 Gaillard", "Nord-Est", "Réparation automobile",
+        "5 route de Saint-Julien, 74240 Gaillard", "Genève / Frontière", "Réparation automobile",
         "74304500000021", "1090", "4520A",
         "Intéressé par un alternant accueil/facturation d'atelier. Attend l'accord du gérant avant d'ouvrir un poste.",
         "", "À Réfléchir", date(2026, 9, 18), 1, "PHONE",
@@ -133,7 +133,7 @@ COMPANIES = [
     (
         4, 1, AB_IDS["c"], "Roger Bizzocchi", "BOUCHERIE DES TROIS FONTAINES",
         "04 50 20 47 51", "boucherie3fontaines@orange.fr",
-        "3 rue des Trois Fontaines, 74100 Annemasse", "Nord-Est", "Boucherie-charcuterie",
+        "3 rue des Trois Fontaines, 74100 Annemasse", "Genève / Frontière", "Boucherie-charcuterie",
         "74293318000078", "8434", "4722Z",
         "Convention envoyée le 02/09 — signature entreprise attendue.",
         "Poste CC validé, convention en attente de signature", "Oui", None, None, None,
@@ -141,7 +141,7 @@ COMPANIES = [
     (
         5, 1, None, "Jean-Pierre Vaudaux", "RESTAURANT LE CASINO DES ALPES",
         "04 50 87 11 26", None,
-        "7 place de l'Hôtel de Ville, 74100 Annemasse", "Nord-Est", "Restauration traditionnelle",
+        "7 place de l'Hôtel de Ville, 74100 Annemasse", "Genève / Frontière", "Restauration traditionnelle",
         "74291578000034", "1505", "5610A",
         "Équipe complète — ne recrute pas d'alternant cette année.",
         "Besoin non retenu cette année", "Non", None, None, None,
@@ -149,7 +149,7 @@ COMPANIES = [
     (
         6, 1, AB_IDS["d"], "Hélène Charvin", "OPTIQUE VISION CLAIRE",
         "04 50 71 84 30", "hl.optique74@gmail.com",
-        "27 rue de Chêne-roux, 74200 Thonon-les-Bains", "Nord-Est", "Optique — lunetterie",
+        "27 rue de Chêne-roux, 74200 Thonon-les-Bains", "Chablais", "Optique — lunetterie",
         "74320157500055", "1730", "4778A",
         "Plusieurs relances sans retour. Proposer un créneau le samedi matin.",
         "", "Réponds pas", date(2026, 8, 26), 2, "MAIL",
@@ -157,7 +157,7 @@ COMPANIES = [
     (
         7, 1, AB_IDS["e"], "Carine Mugnier", "BOULANGERIE LA FOURNÉE ANNEMASSIENNE",
         "04 50 36 78 90", "fournee.annemasse@gmail.com",
-        "9 rue du Commerce, 74380 Cranves-Sales", "Nord-Est", "Boulangerie",
+        "9 rue du Commerce, 74380 Cranves-Sales", "Genève / Frontière", "Boulangerie",
         "74304500000050", "8434", "1071C",
         "2 postes ouverts. Un candidat embauché, un candidat en immersion.",
         "Besoin couvert (contrat + immersion en cours)", "Oui", None, None, None,
@@ -165,7 +165,7 @@ COMPANIES = [
     (
         8, 2, None, "Gérard Besson", "BOULANGERIE LE PAIN D'OR",
         "04 50 42 60 81", None,
-        "22 route des Genévriers, 74100 Annemasse", "Nord-Est", "Boulangerie",
+        "22 route des Genévriers, 74100 Annemasse", "Genève / Frontière", "Boulangerie",
         "74304500000080", "8434", "1071C",
         "Cessation d'activité prévue fin d'année.",
         "Entreprise fermée", "Fermé", None, None, None,
@@ -176,12 +176,12 @@ COMPANIES = [
 BLACKLIST = [
     # user_id, name, phone, email, address, sector, activity, siret, idcc, ape, notes, conclusion, status, all_blacklist
     (1, "SNACK LE POINT CHAUD", "04 50 60 12 34", None,
-     "14 rue de la Gare, 74100 Annemasse", "Nord-Est", "Restauration rapide",
+     "14 rue de la Gare, 74100 Annemasse", "Genève / Frontière", "Restauration rapide",
      "74320041000019", "1634", "5610C",
      "Aucune réponse après 3 relances ; sollicitations abusives.",
      "Blacklistée — ne pas recontacter", "Fermé", 1),
     (1, "AGENCE IMMO DU LÉMAN", "04 50 70 12 12", None,
-     "6 quai des Pêcheurs, 74500 Évian-les-Bains", "Nord-Est", "Immobilier",
+     "6 quai des Pêcheurs, 74500 Évian-les-Bains", "Chablais", "Immobilier",
      "74320041000035", "1520", "6831Z",
      "Sollicite des alternants pour des missions hors convention (type intérim).",
      "Blacklistée", "Non", 1),
