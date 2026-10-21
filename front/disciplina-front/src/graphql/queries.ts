@@ -2161,3 +2161,15 @@ export const GET_IMMERSING_CANDIDATES_MAP = gql`
     }
   }
 `
+
+export const GET_SECTORS = gql`
+  query GetSectors {
+    sectors {
+      id
+      code
+      label
+      level
+      parentId
+    }
+  }
+`
