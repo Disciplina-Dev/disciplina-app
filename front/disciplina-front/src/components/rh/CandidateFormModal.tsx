@@ -990,7 +990,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
             <div className="rounded-xl border border-purple/20 bg-purple-50/50 p-4">
               <h3 className="text-sm font-bold text-purple">Étape préalable : résultats des tests</h3>
-              <p className="mt-1 text-xs text-[var(--ds-text-muted)]">Saisissez la note de l’épreuve écrite (sur 10) et vérifiez le score ClassMarker (sur 20). La moyenne (/20) doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / SA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
+              <p className="mt-1 text-xs text-[var(--ds-text-muted)]">Saisissez la note de l’épreuve écrite (sur 10) et vérifiez le score ClassMarker (sur 20). La moyenne (/20) doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / CADGA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
             </div>
             {gateError && (
               <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">

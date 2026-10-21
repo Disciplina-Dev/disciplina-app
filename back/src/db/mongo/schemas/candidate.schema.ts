@@ -2,6 +2,7 @@ import mongoose, { Schema, model, Document } from 'mongoose';
 import {
     Candidate,
     TitleProfessionalType,
+    LEGACY_TP_SA,
     CandidateStatus,
     SchoolLevel,
     TrainingSite,
@@ -275,7 +276,12 @@ const candidateSchema = new Schema<Candidate & Document>(
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
         owner: { type: ownerSchema },
-        tp_types: { type: [String], enum: Object.values(TitleProfessionalType), default: undefined },
+        // « SA » reste accepté pour les documents legacy écrits avant le renommage.
+        tp_types: {
+            type: [String],
+            enum: [...Object.values(TitleProfessionalType), LEGACY_TP_SA],
+            default: undefined,
+        },
         identity: { type: identitySchema, required: true },
         emergency_contact: { type: emergencyContactSchema },
         consentments: { type: consentmentsSchema },

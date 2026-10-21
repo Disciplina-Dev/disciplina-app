@@ -128,22 +128,30 @@ const OPCO_OPTIONS: { value: Opco; label: string }[] = [
 ]
 
 const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
-  SECRETARIAT: ['Secrétaire Assistante', 'Assistante de Direction'],
+  SECRETARIAT: ["Chargé d'accueil et de gestion administrative", 'Assistante de Direction'],
   VENTE: ['Conseiller Commercial', 'Négociateur Technico-Commercial', "Responsable d'Établissement Marchand"],
 }
 
 // Chaque intitulé de formation correspond à un titre professionnel (TP).
 const TITLE_TO_TP: Record<string, string> = {
-  'Secrétaire Assistante': 'SA',
+  "Chargé d'accueil et de gestion administrative": 'CADGA',
   'Assistante de Direction': 'AD',
   'Conseiller Commercial': 'CC',
   'Négociateur Technico-Commercial': 'NTC',
   "Responsable d'Établissement Marchand": 'REM',
+  // Legacy : intitulé utilisé avant le renommage du TP.
+  'Secrétaire Assistante': 'CADGA',
 }
 
-const TP_TO_TITLE: Record<string, string> = Object.fromEntries(
-  Object.entries(TITLE_TO_TP).map(([title, tp]) => [tp, title]),
-)
+const TP_TO_TITLE: Record<string, string> = {
+  AD: 'Assistante de Direction',
+  CC: 'Conseiller Commercial',
+  NTC: 'Négociateur Technico-Commercial',
+  REM: "Responsable d'Établissement Marchand",
+  CADGA: "Chargé d'accueil et de gestion administrative",
+  // Legacy : le backend normalise déjà « SA » en CADGA, conservé par sécurité.
+  SA: "Chargé d'accueil et de gestion administrative",
+}
 
 const SOFT_SKILLS_LIST = [
   'Rigueur et organisation',
@@ -165,7 +173,7 @@ const SOFT_SKILLS_LIST = [
 
 const MISSIONS: Record<TrainingDomain, Record<string, string[]>> = {
   SECRETARIAT: {
-    'Secrétaire Assistante': [
+    "Chargé d'accueil et de gestion administrative": [
       'Accueil physique et téléphonique',
       'Gestion du courrier entrant et sortant',
       'Rédaction et mise en forme de courriers simples',
