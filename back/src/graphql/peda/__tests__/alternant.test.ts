@@ -359,6 +359,25 @@ describe('GraphQL peda alternants', () => {
         expect(fetched.data.alternant).toBeNull();
     });
 
+    it('treats the search term literally (regex metacharacters are escaped)', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const created = (await gqlFetch(auth, CREATE, { input: createInput(suffix) })).data.createAlternant;
+        const SEARCH = `query($s: String) { alternants(search: $s) { id } }`;
+
+        // `.` ne doit pas matcher tout ; `(a+)+$` (ReDoS) doit revenir vite et vide.
+        for (const s of ['.', '.*', '(a+)+$', '[', 'x'.repeat(5000)]) {
+            const started = Date.now();
+            const res = await gqlFetch(auth, SEARCH, { s });
+            expect(res.errors).toBeUndefined();
+            expect(res.data.alternants.map((a: { id: string }) => a.id)).not.toContain(created.id);
+            expect(Date.now() - started).toBeLessThan(2000);
+        }
+
+        const hit = await gqlFetch(auth, SEARCH, { s: `Martin-${suffix}` });
+        expect(hit.data.alternants.map((a: { id: string }) => a.id)).toContain(created.id);
+    });
+
     it('authorises the PEDA role but forbids other employee roles without permission', async () => {
         const pedaGuest = mintAuthCookies({ id: 2, email: 'peda-guest@test.local', role: 'PEDA', permission: 'GUEST' });
         const res = await gqlFetch(pedaGuest, `{ alternants { id } }`);

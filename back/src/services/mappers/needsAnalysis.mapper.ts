@@ -12,6 +12,7 @@ import {
     AdministrationType,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
+import { normalizeTpCode, TitleProfessionalType } from '../../types/candidate.types';
 import { ZONE_TO_COMMUNES, Zone } from './abToOffer';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
@@ -53,8 +54,9 @@ export function toScheduleSlotGql(slot: any) {
 }
 
 function buildPositionTp(tp: any): PositionTp {
+    const rawTpType = tp.tp_type ?? tp.tpType ?? null;
     return {
-        tp_type: tp.tp_type ?? tp.tpType ?? null,
+        tp_type: rawTpType ? (normalizeTpCode(rawTpType) as TitleProfessionalType) : null,
         missions: tp.missions ?? [],
         description_missions: tp.description_missions ?? tp.descriptionMissions ?? [],
         other_missions: tp.other_missions ?? tp.otherMissions ?? null,
@@ -180,7 +182,7 @@ export function toNeedsAnalysisDocument(
 
 function toGqlPositionTp(tp: PositionTp) {
     return {
-        tpType: tp.tp_type ?? null,
+        tpType: tp.tp_type ? normalizeTpCode(tp.tp_type) : null,
         missions: tp.missions ?? [],
         descriptionMissions: tp.description_missions ?? [],
         otherDescriptionMissions: tp.other_description_missions ?? null,
@@ -290,7 +292,10 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         // Pastille manuelle : absente (`null`) = couleur automatique côté front.
         // Volontairement non repris dans `toNeedsAnalysisDocument` : la mise à
         // jour générique `update()` ne doit jamais réinitialiser ce champ.
+        // Idem pour `france_travail` / `koann` (suivi annuaire RH, mutations dédiées).
         companyIndicator: (doc as any).company_indicator ?? null,
+        franceTravail: (doc as any).france_travail ?? null,
+        koann: (doc as any).koann ?? null,
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
         updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
         lastActiveAt: doc.last_active_at ? new Date(doc.last_active_at).toISOString() : null,

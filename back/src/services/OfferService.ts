@@ -5,7 +5,7 @@ import { NeedsAnalysisService } from './NeedsAnalysisService';
 import { logger } from '../external/logger';
 import { CompaniesService } from './CompaniesService';
 import { CandidateService } from './CandidateService';
-import { Candidate, CandidateHistoryType, CandidateStatus } from '../types/candidate.types';
+import { Candidate, CandidateHistoryType, CandidateStatus, expandTpFilter } from '../types/candidate.types';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { OfferHistoryService } from './OfferHistoryService';
 import {
@@ -258,7 +258,7 @@ export class OfferService {
             const baseFilter: Record<string, any> = {};
             baseFilter['status'] = CandidateStatus.SEEKING;
 
-            const tps = offerTpCodes(offer);
+            const tps = expandTpFilter(offerTpCodes(offer));
             if (tps.length) baseFilter['$or'] = [{ tp_types: { $in: tps } }, { tp_type: { $in: tps } }];
             if (offer.criteria?.driving_license) baseFilter['identity.driving_license_b'] = true;
             if (offer.criteria?.has_vehicle) baseFilter['identity.has_vehicle'] = true;

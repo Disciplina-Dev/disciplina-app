@@ -59,7 +59,7 @@ const TP_COLORS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.CC]:  'bg-indigo-50 text-indigo-700 ring-indigo-200',
   [TitleProfessionalType.NTC]: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200',
   [TitleProfessionalType.REM]: 'bg-lime-50 text-lime-700 ring-lime-200',
-  [TitleProfessionalType.SA]:  'bg-slate-50 text-slate-700 ring-slate-200',
+  [TitleProfessionalType.CADGA]: 'bg-slate-50 text-slate-700 ring-slate-200',
 }
 
 const getStatusLabel = (status: CandidateStatus): string => CANDIDATE_STATUS_LABELS[status]
@@ -223,7 +223,7 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   )
 }
 
-const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi']
+const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
 
 // Éditeur compact des horaires d'immersion (jours activables + créneau début/fin).
 // Même forme que ScheduleSlot (day/startHour/endHour) : seuls les jours activés sont persistés.

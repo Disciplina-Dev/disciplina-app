@@ -52,7 +52,7 @@ export const SECTOR_LABELS: Record<string, string> = {
   [Sector.NONE]: 'Aucun',
 }
 
-/** Secteurs historiques, proposés aux TP commerciaux (CC, NTC, REM) et à SA. */
+/** Secteurs historiques, proposés aux TP commerciaux (CC, NTC, REM) et à CADGA. */
 export const COMMERCE_SECTORS: Sector[] = [
   Sector.BOULANGERIE,
   Sector.RESTAURATION,

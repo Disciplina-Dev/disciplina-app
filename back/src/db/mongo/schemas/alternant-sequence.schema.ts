@@ -28,6 +28,9 @@ const alternantSequenceSchema = new Schema<AlternantSequence & Document>(
         // évitent de re-notifier chaque jour une fois l'échéance atteinte (dédup scheduler).
         soon_notified_at: { type: Date, default: null },
         late_notified_at: { type: Date, default: null },
+        // Événements Google Calendar par utilisateur Peda (id user → id event) :
+        // permet de mettre à jour/supprimer l'événement sans re-scanner l'agenda.
+        google_event_ids: { type: Schema.Types.Mixed, default: {} },
         archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },

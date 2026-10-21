@@ -216,6 +216,8 @@ const data = {
     DRIVE_CANDIDATS_NORD_CC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CC_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_REM_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_REM_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID'),
+    // Legacy : ancien nom du TP CADGA, conservé comme fallback de configuration.
     DRIVE_CANDIDATS_NORD_SA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_SA_FOLDER_ID'),
 
     // Dossier Drive où sont stockés les pièces jointes / signatures des modèles de mail.
@@ -227,6 +229,13 @@ const data = {
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
     MCP_API_KEY: optionalString('MCP_API_KEY'),
+    // La clé statique est un accès ADMIN anonyme (RGPD, MCP_RGPD_AUDIT.md M7) : ignorée en
+    // production sauf opt-in explicite. L'OAuth (comptes nominatifs) reste toujours actif.
+    // Secret de signature des codes / access tokens OAuth MCP. Distinct de JWT_SECRET (sessions de
+    // l'application) pour qu'une compromission de l'un n'ouvre pas l'autre ; absent = JWT_SECRET
+    // (rétrocompatible). Le définir invalide les sessions MCP en cours.
+    MCP_JWT_SECRET: optionalString('MCP_JWT_SECRET'),
+    MCP_STATIC_KEY_ENABLED: process.env.MCP_STATIC_KEY_ENABLED === 'true',
 
     // URL publique HTTPS de l'authorization server OAuth MCP (claude.ai web). Le
     // SDK exige https sans fragment ni query ; le défaut localhost sert au dev/test.
