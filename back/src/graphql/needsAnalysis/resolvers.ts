@@ -179,7 +179,7 @@ export const resolvers = {
             const sectorFolders: Record<string, string> = {};
             const folders: { sector: string }[] = input.sectorFolders ?? [];
             const known = await Promise.all(folders.map((f) => sectorService.findByLabel(f.sector)));
-            const unknown = folders.find((_, i) => !known[i]);
+            const unknown = folders.find((__, i) => !known[i]);
             if (unknown) {
                 throw new GraphQLError(`Unknown sector: ${unknown.sector}`, { extensions: { code: 'BAD_USER_INPUT' } });
             }
