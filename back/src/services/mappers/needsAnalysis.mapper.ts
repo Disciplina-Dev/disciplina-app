@@ -12,6 +12,7 @@ import {
     AdministrationType,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
+import { normalizeTpCode, TitleProfessionalType } from '../../types/candidate.types';
 import { Zone } from './abToOffer';
 import { COMMUNE_TO_ZONE } from '../../utils/zone';
 

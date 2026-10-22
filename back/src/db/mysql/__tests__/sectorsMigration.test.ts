@@ -70,9 +70,8 @@ describe('buildSectorSeed', () => {
 const INIT_SQL = resolve(__dirname, '../../../../../database/mysql/mysql-init.sql');
 
 describe.skipIf(!existsSync(INIT_SQL))('seed de mysql-init.sql', () => {
-    const sql = readFileSync(INIT_SQL, 'utf8');
-
     it.each(['reunion', 'annemasse'] as const)('reflète buildSectorSeed(%s)', (tenant) => {
+        const sql = readFileSync(INIT_SQL, 'utf8');
         const block = sql.split(`-- BEGIN sectors seed ${tenant}`)[1]?.split('-- END')[0] ?? '';
         const inSql = [...block.matchAll(/SELECT '([A-Z_]+)'(?: AS code)?, '([^']*)'/g)].map((m) => `${m[1]}|${m[2]}`);
         const expected = buildSectorSeed(tenant).map((n) => `${n.code}|${n.label}`);
