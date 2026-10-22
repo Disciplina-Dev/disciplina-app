@@ -5,8 +5,8 @@ import { candidateGraphqlClient } from '@/graphql/client'
 import { GET_DRIVE_FOLDER_CONFIG, UPDATE_DRIVE_FOLDER_CONFIG } from '@/graphql/queries'
 import { useSectors } from '@/hooks/useSectors'
 
-// Obligation : abréviations seules (AD, CC, NTC, REM, SA), pas de libellé long.
-const TP_ORDER = ['AD', 'CC', 'NTC', 'REM', 'SA']
+// Obligation : abréviations seules (AD, CC, NTC, REM, CADGA), pas de libellé long.
+const TP_ORDER = ['AD', 'CC', 'NTC', 'REM', 'CADGA']
 
 const folderKey = (tp: string, region: string) => `${tp}_${region}`
 

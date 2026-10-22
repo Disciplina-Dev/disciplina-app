@@ -114,6 +114,8 @@ export const typeDefs = gql`
         CC
         NTC
         REM
+        CADGA
+        # Legacy : ancien code du TP CADGA, conservé pour les clients existants.
         SA
     }
 

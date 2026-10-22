@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { IconAnnounce, IconBug, IconClose, IconShieldCheck, IconSparkles, IconTools, IconWarning, type IconComponent } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import type { ChangeLogRelease, ChangeLogCategory } from '@/lib/changelog'
@@ -35,7 +36,7 @@ export default function ChangeLogModal({ releases, accent = '#60207E', onClose }
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
       onClick={onClose}
@@ -106,6 +107,7 @@ export default function ChangeLogModal({ releases, accent = '#60207E', onClose }
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

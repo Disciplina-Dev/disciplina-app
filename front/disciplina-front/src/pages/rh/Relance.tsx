@@ -47,7 +47,7 @@ const TP_LABEL: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.CC]: 'Conseiller Commercial',
   [TitleProfessionalType.NTC]: 'Négociateur technico-commercial',
   [TitleProfessionalType.REM]: "Responsable d'établissement Marchand",
-  [TitleProfessionalType.SA]: 'SA',
+  [TitleProfessionalType.CADGA]: "Chargé d'accueil et de gestion administrative",
 }
 
 function tpColors(tp: TitleProfessionalType): string {
@@ -60,7 +60,7 @@ function tpColors(tp: TitleProfessionalType): string {
       return 'bg-[#FAE8FF] text-[#A21CAF] ring-[#A21CAF]/20'
     case TitleProfessionalType.REM:
       return 'bg-[#ECFCCB] text-[#4D7C0F] ring-[#4D7C0F]/20'
-    case TitleProfessionalType.SA:
+    case TitleProfessionalType.CADGA:
       return 'bg-[#F1F5F9] text-[#334155] ring-[#334155]/20'
     default:
       return 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] ring-[var(--ds-border)]'

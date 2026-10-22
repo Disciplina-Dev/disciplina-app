@@ -639,14 +639,14 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-rem-1`,
             candidate_id: `${suffix}-rem-1`,
-            tp_types: [TitleProfessionalType.SA],
+            tp_types: [TitleProfessionalType.CADGA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} A`, email: `ftp-a-${suffix}@test.local`, phone: '0600000000' },
         });
         await repo.create({
             _id: `${suffix}-rem-2`,
             candidate_id: `${suffix}-rem-2`,
-            tp_types: [TitleProfessionalType.SA],
+            tp_types: [TitleProfessionalType.CADGA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} B`, email: `ftp-b-${suffix}@test.local`, phone: '0600000001' },
         });
@@ -668,7 +668,7 @@ describe('candidatesPage with filters', () => {
                         totalCount
                     }
                 }`,
-                variables: { search: `FLT-TP-${suffix}`, filters: { tpType: 'SA' } },
+                variables: { search: `FLT-TP-${suffix}`, filters: { tpType: 'CADGA' } },
             }),
         });
         const json = await res.json();
@@ -678,9 +678,48 @@ describe('candidatesPage with filters', () => {
         const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
         expect(nodes).toHaveLength(2);
         expect(json.data.candidatesPage.totalCount).toBe(2);
-        expect(nodes.every((n: any) => n.tpTypes.includes('SA'))).toBe(true);
+        expect(nodes.every((n: any) => n.tpTypes.includes('CADGA'))).toBe(true);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-1`);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-2`);
+    });
+
+    it('returns legacy SA TP documents as CADGA and filters them by CADGA', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `flt-tp-legacy-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-legacy`,
+            candidate_id: `${suffix}-legacy`,
+            tp_types: ['SA' as TitleProfessionalType],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-TP-LEGACY-${suffix}`,
+                email: `ftp-legacy-${suffix}@test.local`,
+                phone: '0600000002',
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id tpTypes } }
+                        totalCount
+                    }
+                }`,
+                variables: { search: `FLT-TP-LEGACY-${suffix}`, filters: { tpType: 'CADGA' } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].tpTypes).toEqual(['CADGA']);
     });
 
     it('filters by status', async () => {
