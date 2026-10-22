@@ -9,7 +9,7 @@ import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
-import { useCurrentUser, Permission } from '@/store/authStore'
+import { useCurrentUser, Permission, UserRole } from '@/store/authStore'
 import { useRegionStore } from '@/store/regionStore'
 import { regionTimezone, zonedWallClockToIso } from '@/lib/timezone'
 import { apiFetch } from '@/api/httpClient'
@@ -991,7 +991,10 @@ function PreselectedCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+  const canAdd =
+    currentUser?.role === UserRole.RH ||
+    currentUser?.permission === Permission.RESPONSABLE ||
+    currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
@@ -1064,7 +1067,10 @@ function ToSendCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+  const canAdd =
+    currentUser?.role === UserRole.RH ||
+    currentUser?.permission === Permission.RESPONSABLE ||
+    currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
@@ -1130,7 +1136,10 @@ function AlreadySentCandidatesSection({
   interviewLocation?: string | null
 }) {
   const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+  const canProposeOffers =
+    currentUser?.role === UserRole.RH ||
+    currentUser?.permission === Permission.RESPONSABLE ||
+    currentUser?.permission === Permission.ADMIN
 
   return (
     <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
