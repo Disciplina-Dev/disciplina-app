@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, it } from 'vitest';
 import { buildSectorSeed } from '../sectorsMigration';
@@ -66,8 +66,11 @@ describe('buildSectorSeed', () => {
     });
 });
 
-describe('seed de mysql-init.sql', () => {
-    const sql = readFileSync(resolve(__dirname, '../../../../../database/mysql/mysql-init.sql'), 'utf8');
+// Le conteneur de test (CI) ne contient que back/ : le script d'init n'y est pas.
+const INIT_SQL = resolve(__dirname, '../../../../../database/mysql/mysql-init.sql');
+
+describe.skipIf(!existsSync(INIT_SQL))('seed de mysql-init.sql', () => {
+    const sql = readFileSync(INIT_SQL, 'utf8');
 
     it.each(['reunion', 'annemasse'] as const)('reflète buildSectorSeed(%s)', (tenant) => {
         const block = sql.split(`-- BEGIN sectors seed ${tenant}`)[1]?.split('-- END')[0] ?? '';
