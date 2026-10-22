@@ -34,19 +34,41 @@ export interface ActivityEventRow {
  * commercial_kpi/rh_kpi ont migré vers MongoDB (voir repositories/mongo).
  */
 
-/** Clause de filtre secteur : `= ?` mono-secteur ou `IN (?)` multi-secteurs (site unique Annemasse). */
+/** Clause de filtre secteur : l'entreprise est rattachée à l'un des libellés (company_sectors). */
 function sectorClause(sector: string | string[]): [string, (string | string[])[]] {
-    if (Array.isArray(sector)) return ['c.sector IN (?)', [sector]];
-    return ['c.sector = ?', [sector]];
+    const labels = Array.isArray(sector) ? sector : [sector];
+    return [
+        `EXISTS (
+            SELECT 1 FROM company_sectors cs JOIN sectors s ON s.id = cs.sector_id
+            WHERE cs.company_id = c.id AND s.level = 'sector' AND s.label IN (?)
+        )`,
+        [labels],
+    ];
 }
+
+/**
+ * Jointure `ps` : libellé du premier secteur (ordre du référentiel) de chaque
+ * entreprise, pour qu'elle ne compte qu'une fois. Aucun libellé ne contient de virgule.
+ */
+const PRIMARY_SECTOR_JOIN = `LEFT JOIN (
+    SELECT cs.company_id, SUBSTRING_INDEX(GROUP_CONCAT(s.label ORDER BY s.id), ',', 1) AS label
+    FROM company_sectors cs JOIN sectors s ON s.id = cs.sector_id AND s.level = 'sector'
+    GROUP BY cs.company_id
+) ps ON ps.company_id = %ID%`;
+
+function primarySectorJoin(companyAlias: string): string {
+    return PRIMARY_SECTOR_JOIN.replace('%ID%', `${companyAlias}.id`);
+}
+
 export class KpiActivityRepository {
     /** Snapshot portefeuille : nombre d'entreprises par secteur / commercial / statut. */
     async liveStatusCounts(): Promise<LiveStatusRow[]> {
         return query<LiveStatusRow[]>(
-            `SELECT c.sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
+            `SELECT ps.label AS sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
              FROM companies c
              LEFT JOIN users u ON u.id = c.user_id
-             GROUP BY c.sector, c.user_id, u.first_name, u.last_name, c.status`,
+             ${primarySectorJoin('c')}
+             GROUP BY ps.label, c.user_id, u.first_name, u.last_name, c.status`,
         );
     }
 
@@ -57,11 +79,12 @@ export class KpiActivityRepository {
     async portfolioStatusCounts(sector: string | string[]): Promise<LiveStatusRow[]> {
         const [clause, params] = sectorClause(sector);
         return query<LiveStatusRow[]>(
-            `SELECT c.sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
+            `SELECT ps.label AS sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
              FROM companies c
              LEFT JOIN users u ON u.id = c.user_id
+             ${primarySectorJoin('c')}
              WHERE ${clause}
-             GROUP BY c.sector, c.user_id, u.first_name, u.last_name, c.status`,
+             GROUP BY ps.label, c.user_id, u.first_name, u.last_name, c.status`,
             params,
         );
     }
@@ -69,11 +92,12 @@ export class KpiActivityRepository {
     /** Snapshot portefeuille : appels loggés par secteur / commercial. */
     async liveCallCounts(): Promise<LiveCallsRow[]> {
         return query<LiveCallsRow[]>(
-            `SELECT co.sector, l.user_id, u.first_name, u.last_name, COUNT(*) AS nb
+            `SELECT ps.label AS sector, l.user_id, u.first_name, u.last_name, COUNT(*) AS nb
              FROM contact_logs l
              JOIN companies co ON co.id = l.company_id
              LEFT JOIN users u ON u.id = l.user_id
-             GROUP BY co.sector, l.user_id, u.first_name, u.last_name`,
+             ${primarySectorJoin('co')}
+             GROUP BY ps.label, l.user_id, u.first_name, u.last_name`,
         );
     }
 

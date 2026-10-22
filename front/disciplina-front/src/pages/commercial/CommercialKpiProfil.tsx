@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { IconArrowLeft, IconMapPin, IconWarning } from '@/components/ui/icons'
@@ -14,7 +15,7 @@ import {
   type KpiUserDetail,
   type KpiUserSiteDetail,
 } from '@/api/kpi'
-import { SITE_LABELS, emptyMetrics, KPI_METRICS } from '@/features/kpi/config'
+import { emptyMetrics, KPI_METRICS } from '@/features/kpi/config'
 import KpiSummaryCards from '@/features/kpi/components/KpiSummaryCards'
 import KpiTable from '@/features/kpi/components/KpiTable'
 import KpiWeeklyTable from '@/features/kpi/components/KpiWeeklyTable'
@@ -50,6 +51,7 @@ interface KpiProfilViewProps {
 
 /** Vue profil KPI réutilisable : page dédiée (managers) ou dashboard du commercial. */
 export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProfilViewProps) {
+  const { labelOf } = useSectors()
   const currentYear = new Date().getFullYear()
 
   const [year, setYear] = useState(currentYear)
@@ -137,7 +139,7 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
             <p className="mt-1.5 flex items-center gap-1.5 text-[13px] text-[var(--ds-text-subtle)]">
               <IconMapPin className="h-3.5 w-3.5" />
               {detail.sites.length > 0
-                ? detail.sites.map((s) => SITE_LABELS[s.site]).join(' · ')
+                ? detail.sites.map((s) => labelOf(s.site)).join(' · ')
                 : 'Aucun secteur avec des données cette année'}
             </p>
           </div>
@@ -171,7 +173,7 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
           {detail.sites.map((site) => (
             <section key={site.site}>
               <h2 className="mb-4 text-[17px] font-bold text-[var(--ds-text)]">
-                Secteur {SITE_LABELS[site.site]}
+                Secteur {labelOf(site.site)}
               </h2>
               <div className="space-y-6">
                 <KpiTable
@@ -214,6 +216,7 @@ export function KpiProfilView({ userId: id, canEdit, showBack = false }: KpiProf
 
 /** Valeurs actuelles du portefeuille du commercial, par secteur. */
 function LivePortfolioSection({ live, userId }: { live: KpiLiveSnapshot | null; userId: number }) {
+  const { labelOf } = useSectors()
   if (!live) return null
 
   const sites = live.sites
@@ -232,7 +235,7 @@ function LivePortfolioSection({ live, userId }: { live: KpiLiveSnapshot | null; 
       <h2 className="mb-4 text-[17px] font-bold text-[var(--ds-text)]">
         Portefeuille — valeurs actuelles
         <span className="ml-2 text-[12px] font-medium text-[var(--ds-text-subtle)]">
-          {sites.map((s) => SITE_LABELS[s.site]).join(' · ')} ·{' '}
+          {sites.map((s) => labelOf(s.site)).join(' · ')} ·{' '}
           {totals.total_trie.toLocaleString('fr-FR')} entreprise(s)
         </span>
       </h2>

@@ -1,5 +1,25 @@
-import { query } from '../../db/mysql/connection';
+import { query, getConnection } from '../../db/mysql/connection';
 import { UserRow, UserRowJoined } from '../../types/db-rows.types';
+
+/** users.sectors (json de libellés, déjà parsé ou en chaîne) → liste de libellés. */
+function parseSectorLabels(raw: unknown): string[] {
+    let labels = raw;
+    if (typeof labels === 'string') {
+        try {
+            labels = JSON.parse(labels);
+        } catch {
+            return [];
+        }
+    }
+    return Array.isArray(labels) ? labels.filter((l): l is string => typeof l === 'string') : [];
+}
+
+// Lecture depuis user_sectors (libellés, dans l'ordre du référentiel) ; NULL si aucun secteur.
+const USER_SECTORS_SUBQUERY = `(
+    SELECT CAST(CONCAT('[', GROUP_CONCAT(JSON_QUOTE(s.label) ORDER BY s.id), ']') AS JSON)
+    FROM user_sectors us JOIN sectors s ON s.id = us.sector_id
+    WHERE us.user_id = u.id
+) AS sectors`;
 
 const USER_SELECT_COLUMNS = [
     'u.id',
@@ -9,7 +29,7 @@ const USER_SELECT_COLUMNS = [
     'u.password',
     'u.role_id',
     'u.permission_id',
-    'u.sectors',
+    USER_SECTORS_SUBQUERY,
     'u.oauth_token',
     'u.refresh_token',
     'u.is_interviewer',
@@ -106,10 +126,41 @@ export class UserRepository {
         );
     }
 
+    /**
+     * Remplace les liaisons `user_sectors` de l'utilisateur (le JSON `users.sectors`
+     * n'est ni lu ni écrit). Les libellés hors référentiel sont ignorés.
+     */
+    private async syncUserSectors(userId: number, rawSectors: unknown): Promise<void> {
+        const labels = [...new Set(parseSectorLabels(rawSectors))];
+        const conn = await getConnection();
+        try {
+            await conn.beginTransaction();
+            await conn.execute('DELETE FROM user_sectors WHERE user_id = ?', [userId]);
+            if (labels.length > 0) {
+                const [rows] = await conn.execute(
+                    `SELECT id FROM sectors WHERE level IN ('region', 'sector') AND label IN (${labels.map(() => '?').join(', ')})`,
+                    labels,
+                );
+                const ids = (rows as { id: number }[]).map((r) => r.id);
+                if (ids.length > 0) {
+                    await conn.execute(
+                        `INSERT IGNORE INTO user_sectors (user_id, sector_id) VALUES ${ids.map(() => '(?, ?)').join(', ')}`,
+                        ids.flatMap((id) => [userId, id]),
+                    );
+                }
+            }
+            await conn.commit();
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    }
+
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
-        const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(
-            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 user.email,
                 user.first_name,
@@ -117,11 +168,11 @@ export class UserRepository {
                 user.password,
                 user.role_id,
                 user.permission_id,
-                sectorsJson,
                 user.oauth_token,
                 user.refresh_token,
             ],
         );
+        await this.syncUserSectors(result.insertId, user.sectors);
         return result.insertId;
     }
 
@@ -167,6 +218,7 @@ export class UserRepository {
     async updateSectors(id: number, sectors: string[]): Promise<void> {
         const sectorsJson = sectors.length > 0 ? JSON.stringify(sectors) : null;
         await query('UPDATE users SET sectors = ? WHERE id = ?', [sectorsJson, id]);
+        await this.syncUserSectors(id, sectors);
     }
 
     /**
@@ -190,9 +242,13 @@ export class UserRepository {
         ];
         const entries = Object.entries(fields).filter(([k]) => allowed.includes(k as keyof UserRow));
         if (entries.length === 0) return;
-        const sets = entries.map(([k]) => `${k} = ?`).join(', ');
-        const values = entries.map(([, v]) => v);
-        await query(`UPDATE users SET ${sets} WHERE id = ?`, [...values, id]);
+        // `users.sectors` (JSON) n'est plus écrit : seule user_sectors porte les secteurs.
+        const columns = entries.filter(([k]) => k !== 'sectors');
+        if (columns.length > 0) {
+            const sets = columns.map(([k]) => `${k} = ?`).join(', ');
+            await query(`UPDATE users SET ${sets} WHERE id = ?`, [...columns.map(([, v]) => v), id]);
+        }
+        if (entries.some(([k]) => k === 'sectors')) await this.syncUserSectors(id, fields.sectors);
     }
 
     async updateTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {

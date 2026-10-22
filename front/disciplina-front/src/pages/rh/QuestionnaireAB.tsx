@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { IconArrowLeft, IconCheckCircle, IconPlus, IconSave, IconTrash } from '@/components/ui/icons'
 import InputField from '@/components/ui/InputField'
 import MultiSelectField from '@/components/ui/MultiSelectField'
 import Button from '@/components/ui/Button'
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes'
-import { communeSectionsForRegion } from '@/features/matching/constants/regions'
+import { useSectors } from '@/hooks/useSectors'
 import { useRegionStore } from '@/store/regionStore'
 import { SkillLevel, TitleProfessionalType, TrainingSite, Localisation } from '@/types/candidate'
 import type { Candidate } from '@/types/candidate'
@@ -347,7 +347,7 @@ export default function QuestionnaireAB() {
   // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — la
   // section Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) est masquée.
   const isAnnemasse = region === 'annemasse'
-  const communeSections = useMemo(() => communeSectionsForRegion(region), [region])
+  const { communeSections } = useSectors()
 
   useEffect(() => {
     if (candidate) setForm(initForm(candidate))

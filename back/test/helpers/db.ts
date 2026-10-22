@@ -11,6 +11,7 @@ const CLEARED_TABLES = [
     'external_access',
     'external_link',
     'company_history',
+    'company_sectors',
     'companies',
     'companies_blacklist',
     'match_link',
@@ -19,6 +20,7 @@ const CLEARED_TABLES = [
     // Mongo `kpis`, vidés via dropMongo().
     'todos',
     'todo_groups',
+    'user_sectors',
     'users',
     'refresh_tokens',
 ];

@@ -5,8 +5,7 @@ import { useForm } from 'react-hook-form'
 import { IconCheck, IconChevronDown, IconChevronRight, IconClose, IconEdit, IconJob, IconMinus, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
-import { useRegionStore } from '@/store/regionStore'
-import { communeSectionsForRegion } from '@/features/matching/constants/regions'
+import { useSectors } from '@/hooks/useSectors'
 import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
@@ -686,8 +685,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
   // Localisation du poste bornée au tenant (3 zones Réunion, 6 secteurs
   // Annemasse) pour ne pas mélanger les communes des deux tenants.
-  const region = useRegionStore((s) => s.region)
-  const communeSections = useMemo(() => communeSectionsForRegion(region), [region])
+  const { communeSections } = useSectors()
   const tenantCommunes = useMemo(
     () => new Set(communeSections.flatMap((s) => s.options)),
     [communeSections],
