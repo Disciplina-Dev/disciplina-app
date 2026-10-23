@@ -48,6 +48,7 @@ interface MatchedCandidate {
   comment?: string | null
   cvWebview?: string | null
   hasCv?: boolean
+  isRupture?: boolean
   interviewLocation?: string
   bookedInterviewSlot?: string | null
   interviewConclusion?: InterviewConclusion | null
@@ -234,11 +235,18 @@ function CandidateRow({
     <div className="rounded-lg border border-[var(--ds-border)] p-3">
       <div className="flex items-center justify-between gap-2 mb-1">
         <p className="text-sm font-semibold text-[var(--ds-text)]">{candidate.fullName}</p>
-        {candidate.status && (
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[candidate.status as MatchedCandidateStatus] ?? 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]'}`}>
-            {MATCHED_CANDIDATE_STATUS_LABELS[candidate.status as MatchedCandidateStatus] ?? candidate.status}
-          </span>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {candidate.isRupture && (
+            <span className="rounded-full bg-[var(--ds-danger-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ds-danger)]">
+              Rupture
+            </span>
+          )}
+          {candidate.status && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[candidate.status as MatchedCandidateStatus] ?? 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]'}`}>
+              {MATCHED_CANDIDATE_STATUS_LABELS[candidate.status as MatchedCandidateStatus] ?? candidate.status}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex flex-wrap gap-3 mb-2">
         {candidate.email && (
@@ -384,7 +392,14 @@ function CandidateCard({
               {isAccepted ? <IconUserCheck width={16} height={16} /> : <IconUser width={16} height={16} />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{candidate.fullName}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{candidate.fullName}</p>
+                {candidate.isRupture && (
+                  <span className="shrink-0 rounded-full bg-[var(--ds-danger-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ds-danger)]">
+                    Rupture
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-[var(--ds-text-subtle)]">
                 {sexLabel(candidate.sex)}{candidate.age ? ` · ${candidate.age} ans` : ''}
               </p>
