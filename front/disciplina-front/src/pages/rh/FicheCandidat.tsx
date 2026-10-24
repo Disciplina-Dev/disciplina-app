@@ -1132,7 +1132,7 @@ export default function FicheCandidat() {
           )}
           {formData.filiz_folder_id ? (
             <Button variant="secondary" size="sm" leftIcon={<IconExternalLink width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
-              onClick={() => window.open(`https://app.filiz.io/folders/${formData.filiz_folder_id}`, '_blank')}>
+              onClick={() => window.open(`${import.meta.env.VITE_FILIZ_APP_URL ?? 'https://app.filiz.io'}/folders/${formData.filiz_folder_id}`, '_blank', 'noopener,noreferrer')}>
               Dossier Filiz
             </Button>
           ) : (
