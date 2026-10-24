@@ -51,7 +51,9 @@ export function candidateToGql(candidate: Candidate): any {
         trainingSite: candidate.training_site,
         trainingSites: candidate.training_sites ?? (candidate.training_site ? [candidate.training_site] : []),
         immersionAgreement: candidate.immersion_agreement,
-        immersionStartDate: candidate.immersion_start_date ? new Date(candidate.immersion_start_date).toISOString() : null,
+        immersionStartDate: candidate.immersion_start_date
+            ? new Date(candidate.immersion_start_date).toISOString()
+            : null,
         immersionEndDate: candidate.immersion_end_date ? new Date(candidate.immersion_end_date).toISOString() : null,
         immersionCompanyId: candidate.immersion_company_id ?? null,
         immersionCompanyName: candidate.immersion_company_name ?? null,
@@ -130,24 +132,55 @@ export function candidateToGql(candidate: Candidate): any {
     };
 }
 
+// Indicatifs à 3 chiffres (DOM-TOM) ; tout autre indicatif international est lu sur 2 chiffres.
+const THREE_DIGIT_DIAL_CODES = new Set(['262', '508', '590', '594', '596', '681', '687', '689']);
+
+export function splitFullName(fullName: string): { firstName: string; lastName: string } {
+    const tokens = fullName.trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return { firstName: '', lastName: '' };
+    // Convention « Prénom(s) NOM(S) » : le nom commence au premier mot entièrement en majuscules.
+    const lastNameStart = tokens.findIndex(
+        (t, i) => i > 0 && t.length > 1 && t === t.toUpperCase() && t !== t.toLowerCase(),
+    );
+    const split = lastNameStart > 0 ? lastNameStart : 1;
+    return { firstName: tokens.slice(0, split).join(' '), lastName: tokens.slice(split).join(' ') };
+}
+
+export function parseFilizPhone(rawPhone: string): { dialCode: string; number: string } {
+    const compact = rawPhone.replace(/[\s.\-()]/g, '');
+    const international = compact.match(/^(?:\+|00)(\d+)$/);
+    if (international) {
+        const digits = international[1];
+        const dialCode = THREE_DIGIT_DIAL_CODES.has(digits.slice(0, 3)) ? digits.slice(0, 3) : digits.slice(0, 2);
+        return { dialCode, number: digits.slice(dialCode.length).replace(/^0/, '') };
+    }
+    // Numéro local : indicatif Réunion pour les préfixes 0262/0692/0693, France métropolitaine sinon.
+    const dialCode = /^0(262|692|693)/.test(compact) ? '262' : '33';
+    return { dialCode, number: compact };
+}
+
+// Champs que Filiz exige et qu'on ne peut pas deviner : mieux vaut refuser que d'envoyer une valeur inventée.
+export function missingFilizStudentFields(candidate: Candidate): string[] {
+    const identity = candidate.identity ?? ({} as Candidate['identity']);
+    const missing: string[] = [];
+    if (!identity.full_name?.trim()) missing.push('full_name');
+    if (!identity.email) missing.push('email');
+    if (!identity.date_of_birth || Number.isNaN(new Date(identity.date_of_birth).getTime()))
+        missing.push('date_of_birth');
+    if (!identity.place_of_birth) missing.push('place_of_birth');
+    if (identity.sex !== 'F' && identity.sex !== 'M') missing.push('sex');
+    return missing;
+}
+
 export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentInfos {
-    const fullName = candidate.identity.full_name ?? '';
-    const spaceIndex = fullName.indexOf(' ');
-    const firstName = spaceIndex >= 0 ? fullName.slice(0, spaceIndex) : fullName;
-    const lastName = spaceIndex >= 0 ? fullName.slice(spaceIndex + 1) : '';
+    const { firstName, lastName } = splitFullName(candidate.identity.full_name ?? '');
 
-    const rawPhone = candidate.identity.phone ?? '';
-    const phoneNumber = rawPhone.replace(/\s/g, '').replace(/^(\+|00)\d{3}/, '');
-
-    const birthDate = candidate.identity.date_of_birth
-        ? new Date(candidate.identity.date_of_birth).toLocaleDateString('en-US', {
-              month: '2-digit',
-              day: '2-digit',
-              year: 'numeric',
-          })
-        : '';
-
-    const sexe = candidate.identity.sex === 'F' ? 2 : 1;
+    // Date en MM/DD/YYYY (format attendu par Filiz), en UTC pour ne pas dépendre du fuseau du serveur.
+    const dob = candidate.identity.date_of_birth ? new Date(candidate.identity.date_of_birth) : null;
+    const birthDate =
+        dob && !Number.isNaN(dob.getTime())
+            ? `${String(dob.getUTCMonth() + 1).padStart(2, '0')}/${String(dob.getUTCDate()).padStart(2, '0')}/${dob.getUTCFullYear()}`
+            : '';
 
     return {
         firstName,
@@ -163,8 +196,8 @@ export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentIn
         cityOfBirth: candidate.identity.place_of_birth ?? '',
         departmentOfBirth: candidate.identity.department_of_birth ?? '97400',
         nationality: 1,
-        phoneNumber: { dialCode: '262', number: phoneNumber },
-        sexe,
+        phoneNumber: parseFilizPhone(candidate.identity.phone ?? ''),
+        sexe: candidate.identity.sex === 'F' ? 2 : 1,
     };
 }
 
