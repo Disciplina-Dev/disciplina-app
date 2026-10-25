@@ -93,6 +93,7 @@ function ABSelectField({ id, label, value, onChange, children }: { id: string; l
 type ABForm = {
   // identité
   dateOfBirth: string; placeOfBirth: string; departmentOfBirth: string; age: string;
+  bornInFrance: string; nationality: string; residencePermit: string; country: string;
   sex: string;
   fullName: string; socialSecurityNumber: string; email: string; phone: string;
   address: string; postalCode: string; city: string;
@@ -194,6 +195,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
+    bornInFrance: '', nationality: '', residencePermit: '', country: '',
     sex: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', hasVehicle: '', transportMeans: '', pshReferralRequest: '',
@@ -251,6 +253,10 @@ function candidateToForm(c: Candidate): ABForm {
     dateOfBirth: c.identity.date_of_birth ? c.identity.date_of_birth.slice(0, 10) : '',
     placeOfBirth: c.identity.place_of_birth ?? '',
     departmentOfBirth: c.identity.department_of_birth ?? '',
+    bornInFrance: bs(c.identity.born_in_france),
+    nationality: c.identity.nationality != null ? String(c.identity.nationality) : '',
+    residencePermit: bs(c.identity.residence_permit),
+    country: c.identity.country ?? '',
     age: c.identity.age != null ? String(c.identity.age) : '',
     address: c.identity.address ?? '',
     postalCode: c.identity.postal_code ?? '',
@@ -372,6 +378,10 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       departmentOfBirth: f.departmentOfBirth || undefined,
+      bornInFrance: pb(f.bornInFrance),
+      nationality: f.nationality ? parseInt(f.nationality) : undefined,
+      residencePermit: f.nationality === '3' ? pb(f.residencePermit) : undefined,
+      country: f.country || undefined,
       age: f.age ? parseInt(f.age) : undefined,
       address: f.address || undefined,
       postalCode: f.postalCode || undefined,
@@ -1195,6 +1205,25 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               if (city) set('city', city);
             }} />
             <InputField id="cn-city" label="Ville" value={form.city} onChange={e => set('city', e.target.value)} />
+            <InputField id="cn-country" label="Pays de résidence" placeholder="France" value={form.country} onChange={e => set('country', e.target.value)} />
+            <ABSelectField id="cn-nationality" label="Nationalité" value={form.nationality} onChange={v => set('nationality', v)}>
+              <option value="">Non renseignée</option>
+              <option value="1">Française</option>
+              <option value="2">Pays européen</option>
+              <option value="3">Autre</option>
+            </ABSelectField>
+            <ABSelectField id="cn-born-fr" label="Né en France" value={form.bornInFrance} onChange={v => set('bornInFrance', v)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Oui</option>
+              <option value="false">Non</option>
+            </ABSelectField>
+            {form.nationality === '3' && (
+              <ABSelectField id="cn-permit" label="Titre de séjour autorisant à travailler" value={form.residencePermit} onChange={v => set('residencePermit', v)}>
+                <option value="">Non renseigné</option>
+                <option value="true">Oui</option>
+                <option value="false">Non</option>
+              </ABSelectField>
+            )}
           </div>
           <ABTextarea label="Description (contexte du candidat pour le matching)" value={form.description} onChange={v => set('description', v)} rows={4} />
 

@@ -13,7 +13,7 @@ import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/gra
 import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_CANDIDATE_SENT_COMPANIES, GET_COMPANY_OPTIONS, MATCH_OFFER, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
 import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch, apiJson } from '@/api/httpClient'
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, NATIONALITY_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
@@ -1260,6 +1260,12 @@ export default function FicheCandidat() {
                     onChange={e => updateIdentity('postal_code', e.target.value)} />
                 ) : <p className={valueCls}>{formData.identity.postal_code || '—'}</p>}
               </Field>
+              <Field label="Pays de résidence">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.identity.country ?? ''} placeholder="France"
+                    onChange={e => updateIdentity('country', e.target.value)} />
+                ) : <p className={valueCls}>{formData.identity.country || '—'}</p>}
+              </Field>
               <Field label="Permis B">
                 {isEditing ? (
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
@@ -1318,6 +1324,41 @@ export default function FicheCandidat() {
                   ) : <p className={valueCls}>{formData.identity.department_of_birth || '—'}</p>}
                 </Field>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Nationalité">
+                  {isEditing ? (
+                    <select className={selectCls} value={formData.identity.nationality ?? ''}
+                      onChange={e => updateIdentity('nationality', e.target.value ? Number(e.target.value) : undefined)}>
+                      <option value="">Non renseignée</option>
+                      <option value={1}>Française</option>
+                      <option value={2}>Pays européen</option>
+                      <option value={3}>Autre</option>
+                    </select>
+                  ) : <p className={valueCls}>{NATIONALITY_LABELS[formData.identity.nationality ?? 0] ?? '—'}</p>}
+                </Field>
+                <Field label="Né en France">
+                  {isEditing ? (
+                    <select className={selectCls}
+                      value={formData.identity.born_in_france == null ? '' : String(formData.identity.born_in_france)}
+                      onChange={e => updateIdentity('born_in_france', e.target.value === '' ? undefined : e.target.value === 'true')}>
+                      <option value="">Non renseigné</option>
+                      <option value="true">Oui</option>
+                      <option value="false">Non</option>
+                    </select>
+                  ) : <p className={valueCls}>{formData.identity.born_in_france == null ? '—' : formData.identity.born_in_france ? 'Oui' : 'Non'}</p>}
+                </Field>
+              </div>
+              {formData.identity.nationality === 3 && (
+                <Field label="Titre de séjour autorisant à travailler">
+                  {isEditing ? (
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" className="rounded" checked={!!formData.identity.residence_permit}
+                        onChange={e => updateIdentity('residence_permit', e.target.checked)} />
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
+                    </label>
+                  ) : <p className={valueCls}>{formData.identity.residence_permit ? 'Oui' : 'Non'}</p>}
+                </Field>
+              )}
               <Field label="Sexe">
                 {isEditing ? (
                   <select className={selectCls} value={formData.identity.sex ?? ''}
