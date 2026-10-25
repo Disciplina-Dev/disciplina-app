@@ -107,6 +107,13 @@ describe('Filiz student mapping', () => {
         expect(missingFilizStudentFields(foreign)).toEqual(['residence_permit']);
     });
 
+    it('rejects a department name instead of its code', () => {
+        const named = { identity: { ...complete.identity, department_of_birth: 'La Réunion' } } as any;
+        expect(missingFilizStudentFields(named)).toEqual(['department_of_birth']);
+        const corsica = { identity: { ...complete.identity, department_of_birth: '2A' } } as any;
+        expect(missingFilizStudentFields(corsica)).toEqual([]);
+    });
+
     it('requires a last name', () => {
         const mononym = { identity: { ...complete.identity, full_name: 'Madonna' } } as any;
         expect(missingFilizBasicFields(mononym)).toEqual(['full_name']);

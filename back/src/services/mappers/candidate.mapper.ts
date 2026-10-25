@@ -198,12 +198,15 @@ export function missingFilizBasicFields(candidate: Candidate): string[] {
     return missing;
 }
 
+// Filiz attend le code du département (974, 2A…), pas son nom : un ancien nom saisi à la main compte comme manquant.
+const FILIZ_DEPARTMENT_CODE = /^(\d{2,3}|2[AB])$/;
+
 // Champs supplémentaires exigés pour démarrer aux étapes 3 et 4 (identité complète de l'étudiant).
 export function missingFilizStudentFields(candidate: Candidate): string[] {
     const identity = candidate.identity ?? ({} as Candidate['identity']);
     const missing = missingFilizBasicFields(candidate);
     if (!identity.place_of_birth) missing.push('place_of_birth');
-    if (!identity.department_of_birth) missing.push('department_of_birth');
+    if (!FILIZ_DEPARTMENT_CODE.test(identity.department_of_birth ?? '')) missing.push('department_of_birth');
     if (identity.born_in_france == null) missing.push('born_in_france');
     if (identity.nationality == null) missing.push('nationality');
     if (identity.nationality === 3 && identity.residence_permit == null) missing.push('residence_permit');

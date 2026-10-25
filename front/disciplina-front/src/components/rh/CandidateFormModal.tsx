@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
+import { DEPARTEMENTS } from '@/lib/departements';
 import { candidateGraphqlClient, graphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS, ADD_CANDIDATE_HISTORY_ENTRY } from '@/graphql/queries';
 import { apiFetch, apiJson } from '@/api/httpClient';
@@ -1193,7 +1194,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             }} />
             {/* <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} /> */}
             <AddressAutocomplete id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={v => set('placeOfBirth', v)} apiEndpoint="/api/sourcing/completion" />
-            <AddressAutocomplete id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)} apiEndpoint="/api/sourcing/departement" />
+            <ABSelectField id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)}>
+              <option value="">Non renseigné</option>
+              {DEPARTEMENTS.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+            </ABSelectField>
             <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]" />
             <div className="col-span-2">
               <AddressAutocomplete id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={v => set('address', v)} apiEndpoint="/api/sourcing/completion" />

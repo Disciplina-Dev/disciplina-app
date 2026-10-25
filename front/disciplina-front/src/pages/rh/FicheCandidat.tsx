@@ -31,6 +31,7 @@ import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
 import FilizFolderModal from '@/components/rh/FilizFolderModal'
+import { DEPARTEMENTS } from '@/lib/departements'
 import ConfirmDeleteModal from '@/components/rh/ConfirmDeleteModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
 import PdfViewer from '@/components/rh/PdfViewer'
@@ -38,6 +39,9 @@ import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
 import { useRegionStore } from '@/store/regionStore'
+
+// Création de dossier Filiz coupée en prod tant que le flux n'est pas validé (build avec VITE_FILIZ_FOLDER_CREATION=true pour réactiver).
+const FILIZ_FOLDER_CREATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_FILIZ_FOLDER_CREATION === 'true'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -1135,7 +1139,7 @@ export default function FicheCandidat() {
               onClick={() => window.open(`${import.meta.env.VITE_FILIZ_APP_URL ?? 'https://app.filiz.io'}/folders/${formData.filiz_folder_id}`, '_blank', 'noopener,noreferrer')}>
               Dossier Filiz
             </Button>
-          ) : (
+          ) : FILIZ_FOLDER_CREATION_ENABLED && (
             <Button variant="secondary" size="sm" leftIcon={<IconFolderPlus width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={() => setShowFilizModal(true)}>
               Créer dossier Filiz
@@ -1319,8 +1323,11 @@ export default function FicheCandidat() {
                 </Field>
                 <Field label="Département de naissance">
                   {isEditing ? (
-                    <input className={inputCls} value={formData.identity.department_of_birth ?? ''}
-                      onChange={e => updateIdentity('department_of_birth', e.target.value)} />
+                    <select className={selectCls} value={formData.identity.department_of_birth ?? ''}
+                      onChange={e => updateIdentity('department_of_birth', e.target.value)}>
+                      <option value="">Non renseigné</option>
+                      {DEPARTEMENTS.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                    </select>
                   ) : <p className={valueCls}>{formData.identity.department_of_birth || '—'}</p>}
                 </Field>
               </div>
@@ -2169,12 +2176,12 @@ export default function FicheCandidat() {
         />
       )}
 
-      <FilizFolderModal
+      {FILIZ_FOLDER_CREATION_ENABLED && <FilizFolderModal
         open={showFilizModal}
         onClose={() => setShowFilizModal(false)}
         candidateId={formData._id}
         onSuccess={(filizFolderId) => setFormData(prev => prev ? { ...prev, filiz_folder_id: filizFolderId } : prev)}
-      />
+      />}
       <ConfirmDeleteModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
