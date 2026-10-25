@@ -8,6 +8,7 @@ import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-seq
 
 const CLEARED_TABLES = [
     'mcp_audit_log',
+    'filiz_folders',
     'external_access',
     'external_link',
     'company_history',

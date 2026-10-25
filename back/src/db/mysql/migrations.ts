@@ -432,6 +432,23 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Dossiers Filiz créés depuis Disciplina. start_step : étape choisie à la création
+        // (immuable) ; step : étape courante côté Filiz (même valeur à la création).
+        table: 'filiz_folders',
+        ddl: `CREATE TABLE IF NOT EXISTS filiz_folders (
+            folder_id VARCHAR(64) NOT NULL PRIMARY KEY,
+            candidate_id VARCHAR(64) NOT NULL,
+            class_id VARCHAR(64) NOT NULL,
+            start_step TINYINT UNSIGNED NOT NULL,
+            step TINYINT UNSIGNED NOT NULL,
+            company_siret CHAR(14) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_filiz_folders_candidate (candidate_id),
+            INDEX idx_filiz_folders_class (class_id)
+        )`,
+    },
+    {
         table: 'company_sectors',
         ddl: `CREATE TABLE IF NOT EXISTS company_sectors (
             company_id INT NOT NULL,

@@ -1,6 +1,12 @@
-import { Candidate, CandidateStatus, normalizeTpCode, normalizeTpCodes } from '../../types/candidate.types';
+import {
+    Candidate,
+    CandidateStatus,
+    NationalityCode,
+    normalizeTpCode,
+    normalizeTpCodes,
+} from '../../types/candidate.types';
 import { Offer } from '../../types/offer.types';
-import { FilizStudentInfos } from '../../external/filiz/type';
+import { FilizPersonInfos, FilizStudentInfos } from '../../external/filiz/type';
 import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
 
 export function camelToSnakeCase(obj: any): any {
@@ -159,45 +165,89 @@ export function parseFilizPhone(rawPhone: string): { dialCode: string; number: s
     return { dialCode, number: compact };
 }
 
-// Champs que Filiz exige et qu'on ne peut pas deviner : mieux vaut refuser que d'envoyer une valeur inventée.
-export function missingFilizStudentFields(candidate: Candidate): string[] {
+const isValidDate = (d: unknown): boolean => !!d && !Number.isNaN(new Date(d as string).getTime());
+
+// Sexe saisi dans la fiche (FILLE/GARCON) ou hérité d'anciens imports (F/M) → code Filiz (1 homme, 2 femme).
+function filizSex(sex: string | undefined): 1 | 2 | null {
+    if (sex === 'GARCON' || sex === 'M') return 1;
+    if (sex === 'FILLE' || sex === 'F') return 2;
+    return null;
+}
+
+// Majorité à la date `now` ; null si la date de naissance est absente ou invalide.
+export function isAdult(candidate: Candidate, now = new Date()): boolean | null {
+    const dob = candidate.identity?.date_of_birth;
+    if (!isValidDate(dob)) return null;
+    const birth = new Date(dob as Date);
+    let age = now.getUTCFullYear() - birth.getUTCFullYear();
+    const beforeBirthday =
+        now.getUTCMonth() < birth.getUTCMonth() ||
+        (now.getUTCMonth() === birth.getUTCMonth() && now.getUTCDate() < birth.getUTCDate());
+    if (beforeBirthday) age--;
+    return age >= 18;
+}
+
+// Champs exigés quelle que soit l'étape : mieux vaut refuser que d'envoyer une valeur inventée.
+export function missingFilizBasicFields(candidate: Candidate): string[] {
     const identity = candidate.identity ?? ({} as Candidate['identity']);
     const missing: string[] = [];
-    if (!identity.full_name?.trim()) missing.push('full_name');
+    const { firstName, lastName } = splitFullName(identity.full_name ?? '');
+    if (!firstName || !lastName) missing.push('full_name');
     if (!identity.email) missing.push('email');
-    if (!identity.date_of_birth || Number.isNaN(new Date(identity.date_of_birth).getTime()))
-        missing.push('date_of_birth');
-    if (!identity.place_of_birth) missing.push('place_of_birth');
-    if (identity.sex !== 'F' && identity.sex !== 'M') missing.push('sex');
+    if (!isValidDate(identity.date_of_birth)) missing.push('date_of_birth');
     return missing;
 }
 
-export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentInfos {
+// Champs supplémentaires exigés pour démarrer aux étapes 3 et 4 (identité complète de l'étudiant).
+export function missingFilizStudentFields(candidate: Candidate): string[] {
+    const identity = candidate.identity ?? ({} as Candidate['identity']);
+    const missing = missingFilizBasicFields(candidate);
+    if (!identity.place_of_birth) missing.push('place_of_birth');
+    if (!identity.department_of_birth) missing.push('department_of_birth');
+    if (identity.born_in_france == null) missing.push('born_in_france');
+    if (identity.nationality == null) missing.push('nationality');
+    if (identity.nationality === 3 && identity.residence_permit == null) missing.push('residence_permit');
+    if (filizSex(identity.sex) == null) missing.push('sex');
+    if (!identity.phone || parseFilizPhone(identity.phone).number.replace(/\D/g, '') === '') missing.push('phone');
+    if (!identity.address) missing.push('address');
+    if (!identity.postal_code) missing.push('postal_code');
+    if (!identity.city) missing.push('city');
+    if (!identity.country) missing.push('country');
+    return missing;
+}
+
+export function mapCandidateToFilizBasics(candidate: Candidate): FilizPersonInfos {
     const { firstName, lastName } = splitFullName(candidate.identity.full_name ?? '');
+    return { firstName, lastName, mailAddress: candidate.identity.email };
+}
+
+// À n'appeler que si `missingFilizStudentFields` est vide.
+export function mapCandidateToFilizStudent(candidate: Candidate): FilizStudentInfos {
+    const identity = candidate.identity;
 
     // Date en MM/DD/YYYY (format attendu par Filiz), en UTC pour ne pas dépendre du fuseau du serveur.
-    const dob = candidate.identity.date_of_birth ? new Date(candidate.identity.date_of_birth) : null;
+    const dob = identity.date_of_birth ? new Date(identity.date_of_birth) : null;
     const birthDate =
         dob && !Number.isNaN(dob.getTime())
             ? `${String(dob.getUTCMonth() + 1).padStart(2, '0')}/${String(dob.getUTCDate()).padStart(2, '0')}/${dob.getUTCFullYear()}`
             : '';
 
     return {
-        firstName,
-        lastName,
-        mailAddress: candidate.identity.email,
+        ...mapCandidateToFilizBasics(candidate),
         address: {
-            street: candidate.identity.address ?? '',
-            city: candidate.identity.city ?? '',
-            country: 'France',
-            postcode: candidate.identity.postal_code ?? '',
+            street: identity.address ?? '',
+            city: identity.city ?? '',
+            country: identity.country ?? '',
+            postcode: identity.postal_code ?? '',
         },
         birthDate,
-        cityOfBirth: candidate.identity.place_of_birth ?? '',
-        departmentOfBirth: candidate.identity.department_of_birth ?? '97400',
-        nationality: 1,
-        phoneNumber: parseFilizPhone(candidate.identity.phone ?? ''),
-        sexe: candidate.identity.sex === 'F' ? 2 : 1,
+        bornInFrance: identity.born_in_france as boolean,
+        cityOfBirth: identity.place_of_birth ?? '',
+        departmentOfBirth: identity.department_of_birth ?? '',
+        nationality: identity.nationality as NationalityCode,
+        ...(identity.nationality === 3 ? { residencePermit: identity.residence_permit } : {}),
+        phoneNumber: parseFilizPhone(identity.phone ?? ''),
+        sexe: filizSex(identity.sex) as number,
     };
 }
 
