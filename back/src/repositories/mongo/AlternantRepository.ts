@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
 import { searchNeedle } from './searchRegex';
-import { Alternant } from '../../types/alternant.types';
+import { Alternant, AlternantArchiveReason } from '../../types/alternant.types';
 
 export class AlternantRepository {
     /**
@@ -106,11 +106,21 @@ export class AlternantRepository {
     }
 
     /** Archive (`date` non nulle) ou désarchive (`null`) un alternant. */
-    async setArchived(id: string, date: Date | null): Promise<Alternant | null> {
+    async setArchived(
+        id: string,
+        date: Date | null,
+        reason: AlternantArchiveReason | null = null,
+    ): Promise<Alternant | null> {
         return getModels()
             .Alternant.findOneAndUpdate(
                 { _id: id },
-                { $set: { archived_at: date, updated_at: new Date() } },
+                {
+                    $set: {
+                        archived_at: date,
+                        archive_reason: date ? (reason ?? 'rupture') : null,
+                        updated_at: new Date(),
+                    },
+                },
                 { returnDocument: 'after', runValidators: true, context: 'query' },
             )
             .lean();

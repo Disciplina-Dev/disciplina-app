@@ -353,6 +353,7 @@ Péda domain. Fields stay snake_case (converted at resolver). Exposed through MC
 | `company` | object \| null | `name`, `address`, `mentor_name`, `start_date` (required), `end_date` |
 | `linked_alternant_ids` | string[] | |
 | `archived_at` | Date \| null | indexed |
+| `archive_reason` | enum \| null | `rupture` \| `fin_formation`; `null` on archives older than the field is read as `rupture` |
 | `created_at`, `updated_at` | Date | |
 
 ## Collection: alternant_sequences

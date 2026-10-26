@@ -4,6 +4,7 @@ import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
 import { SessionRepository } from '../repositories/mongo/SessionRepository';
 import {
     Alternant,
+    AlternantArchiveReason,
     AlternantCompany,
     AlternantSequence,
     AlternantSequenceContacts,
@@ -316,16 +317,17 @@ export class AlternantService {
     }
 
     /**
-     * Archive un alternant et toutes ses SA (rupture « quitte la formation »).
-     * Les SA archivées n'alimentent plus le dashboard ni les compteurs.
+     * Archive un alternant et toutes ses SA, en conservant la raison
+     * (rupture « quitte la formation » ou fin de formation). Les SA archivées
+     * n'alimentent plus le dashboard ni les compteurs.
      */
-    async archive(id: string): Promise<Alternant | null> {
+    async archive(id: string, reason: AlternantArchiveReason = 'rupture'): Promise<Alternant | null> {
         const existing = await this.alternants.findById(id);
         if (!existing) return null;
         const now = new Date();
         await this.sequences.setArchivedByAlternantId(id, now);
-        const updated = await this.alternants.setArchived(id, now);
-        logger.info({ alternantId: id }, 'Alternant archivé');
+        const updated = await this.alternants.setArchived(id, now, reason);
+        logger.info({ alternantId: id, reason }, 'Alternant archivé');
         return updated;
     }
 
