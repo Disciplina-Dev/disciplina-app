@@ -42,6 +42,7 @@ const alternantSchema = new Schema<Alternant & Document>(
         linked_alternant_ids: { type: [String], default: [] },
         filiz: { type: filizSchema, default: undefined },
         archived_at: { type: Date, default: null, index: true },
+        archive_reason: { type: String, enum: ['rupture', 'fin_formation'], default: null },
         created_at: { type: Date },
         updated_at: { type: Date },
     },
