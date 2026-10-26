@@ -1,10 +1,11 @@
 import { FilizAuthClient } from './auth-client';
 import { env } from '../../config/env';
 import { logger } from '../logger';
-import { FilizClass, FilizCreateFolderPayload, FilizDegree } from './type';
+import { FilizClass, FilizCreateFolderPayload, FilizDegree, FilizFolder, FilizUser } from './type';
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const DEGREE_FETCH_CONCURRENCY = 5;
+const FOLDER_FETCH_CONCURRENCY = 5;
 
 export class FilizService {
     private client = new FilizAuthClient();
@@ -83,6 +84,45 @@ export class FilizService {
     async getClassInfos(degreeId: string): Promise<FilizClass[] | null> {
         const classes = await this.request<FilizClass[]>(`/api/class?degreeId=${encodeURIComponent(degreeId)}`);
         return Array.isArray(classes) ? classes : null;
+    }
+
+    // Filiz ne renvoie ici que les ids : le détail se récupère folder par folder (getFolders).
+    async listFolderIds(): Promise<string[] | null> {
+        const json = await this.request<{ error?: string; folders?: string[] }>('/api/folder');
+        if (!json || json.error) return null;
+        return json.folders ?? null;
+    }
+
+    async getFolder(folderId: string): Promise<FilizFolder | null> {
+        const json = await this.request<FilizFolder & { error?: string }>(
+            `/api/folder?folderId=${encodeURIComponent(folderId)}`,
+        );
+        if (!json || json.error) return null;
+        return json;
+    }
+
+    // Concurrence bornée, comme getDegreesInfos. Les folders en échec sont omis (comptés dans `failed`).
+    async getFolders(folderIds: string[]): Promise<{ folders: FilizFolder[]; failed: number }> {
+        const folders: FilizFolder[] = [];
+        let failed = 0;
+        for (let i = 0; i < folderIds.length; i += FOLDER_FETCH_CONCURRENCY) {
+            const results = await Promise.all(
+                folderIds.slice(i, i + FOLDER_FETCH_CONCURRENCY).map((id) => this.getFolder(id)),
+            );
+            for (const result of results) {
+                if (result) folders.push(result);
+                else failed++;
+            }
+        }
+        return { folders, failed };
+    }
+
+    async getUser(userId: string): Promise<FilizUser | null> {
+        const json = await this.request<FilizUser & { error?: string }>(
+            `/api/user?userId=${encodeURIComponent(userId)}`,
+        );
+        if (!json || json.error) return null;
+        return json;
     }
 
     async createDegree(payload: Record<string, unknown>): Promise<string | null> {

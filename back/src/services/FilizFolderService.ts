@@ -6,7 +6,8 @@ import { FilizService } from '../external/filiz/filiz.service';
 import { logger } from '../external/logger';
 import { CandidateService } from './CandidateService';
 import { assertConsent, ConsentType } from './consentGuard';
-import { FilizFolderRepository } from '../repositories/mysql/FilizFolderRepository';
+import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
+import { AlternantFiliz } from '../types/alternant.types';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import {
@@ -105,7 +106,7 @@ export function buildFilizFolderPayload(
 export class FilizFolderService {
     private offerRepository = new OfferRepository();
     private needsAnalysisRepository = new NeedsAnalysisRepository();
-    private filizFolderRepository = new FilizFolderRepository();
+    private alternantRepository = new AlternantRepository();
     private candidateService = new CandidateService();
     private filizService = new FilizService();
 
@@ -164,17 +165,49 @@ export class FilizFolderService {
             return { ok: false, status: 500, error: 'Failed to update candidate' };
         }
         try {
-            await this.filizFolderRepository.insert({
-                folderId,
-                candidateId,
-                classId,
-                startStep: prepared.step,
-                companySiret: prepared.companySiret,
-            });
+            await this.mirrorFolder(candidate, folderId, classId, prepared.step, prepared.companySiret);
         } catch (err) {
-            // Le dossier et son rattachement existent ; seule la ligne de suivi manque.
-            logger.error({ err, candidateId, folderId }, 'filiz folder created but filiz_folders insert failed');
+            // Le dossier et son rattachement existent ; la prochaine synchro Filiz recréera le miroir.
+            logger.error({ err, candidateId, folderId }, 'filiz folder created but alternant mirror failed');
         }
         return { ok: true, folderId, step: prepared.step };
+    }
+
+    // Le miroir porte l'étape de démarrage et le SIRET, que la synchro ne peut pas relire chez Filiz.
+    private async mirrorFolder(
+        candidate: Candidate,
+        folderId: string,
+        classId: string,
+        step: FilizStartStep,
+        companySiret: string | null,
+    ): Promise<void> {
+        const filiz: AlternantFiliz = {
+            folder_id: folderId,
+            class_id: classId,
+            degree_id: null,
+            student_id: null,
+            step,
+            start_step: step,
+            company_siret: companySiret,
+            updated_at: null,
+            synced_at: new Date(),
+        };
+        const unlinked = await this.alternantRepository.findUnlinkedByCandidateId(candidate._id);
+        if (unlinked) {
+            await this.alternantRepository.setFiliz(unlinked._id, filiz);
+            return;
+        }
+        const { firstName, lastName, mailAddress } = mapCandidateToFilizBasics(candidate);
+        await this.alternantRepository.create({
+            first_name: firstName,
+            last_name: lastName,
+            session: '',
+            session_id: null,
+            email: mailAddress,
+            candidate_id: candidate._id,
+            company: null,
+            linked_alternant_ids: [],
+            filiz,
+        });
     }
 }

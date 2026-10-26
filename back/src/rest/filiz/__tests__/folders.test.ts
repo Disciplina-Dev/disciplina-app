@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { env } from '../../../config/env';
-import { query } from '../../../db/mysql/connection';
+import { AlternantModel } from '../../../db/mongo/schemas/alternant.schema';
 import { NeedsAnalysisModel } from '../../../db/mongo/schemas/needsAnalysis.schema';
 import { OfferModel } from '../../../db/mongo/schemas/offer.schema';
 import { CandidateService } from '../../../services/CandidateService';
@@ -66,14 +66,14 @@ async function postFolder(candidateId: string) {
 
 describe('POST /api/filiz/folders — start step', () => {
     beforeEach(async () => {
-        await query('DELETE FROM filiz_folders');
+        await AlternantModel.deleteMany({ 'filiz.folder_id': { $exists: true } });
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
     });
 
-    it('starts at step 1 for a candidate with only name, email and birth date, and tracks the folder', async () => {
+    it('starts at step 1 for a candidate with only name, email and birth date, and mirrors the folder on an alternant', async () => {
         const spy = vi.spyOn(FilizService.prototype, 'createFolder').mockResolvedValue('folder-step1');
         const id = await seedCandidate(`cand-folders-1-${Date.now()}`, { date_of_birth: new Date('2000-05-12') });
 
@@ -88,15 +88,10 @@ describe('POST /api/filiz/folders — start step', () => {
             lastName: 'DUPONT',
             mailAddress: `${id}@test.local`,
         });
-        const rows = await query<any[]>('SELECT * FROM filiz_folders WHERE folder_id = ?', ['folder-step1']);
-        expect(rows).toHaveLength(1);
-        expect(rows[0]).toMatchObject({
-            candidate_id: id,
-            class_id: 'class-1',
-            start_step: 1,
-            step: 1,
-            company_siret: null,
-        });
+        const alternants = await AlternantModel.find({ 'filiz.folder_id': 'folder-step1' }).lean();
+        expect(alternants).toHaveLength(1);
+        expect(alternants[0]).toMatchObject({ first_name: 'Jean', last_name: 'DUPONT', candidate_id: id });
+        expect(alternants[0].filiz).toMatchObject({ class_id: 'class-1', start_step: 1, step: 1, company_siret: null });
     });
 
     it('starts at step 4 with a complete identity and a contract linked to a company', async () => {
@@ -134,8 +129,8 @@ describe('POST /api/filiz/folders — start step', () => {
             contractType: 'APPRENTICESHIP',
             missionTitle: 'Vendeur',
         });
-        const rows = await query<any[]>('SELECT * FROM filiz_folders WHERE folder_id = ?', ['folder-step4']);
-        expect(rows[0]).toMatchObject({ start_step: 4, company_siret: '22222222222207' });
+        const alternant = await AlternantModel.findOne({ 'filiz.folder_id': 'folder-step4' }).lean();
+        expect(alternant?.filiz).toMatchObject({ start_step: 4, company_siret: '22222222222207' });
     });
 
     it('refuses a minor without calling Filiz', async () => {
