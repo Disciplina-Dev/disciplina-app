@@ -2,6 +2,11 @@ import { Candidate } from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { NeedsAnalysis, Referents } from '../types/needsAnalysisNoSql.types';
 import { FilizCreateFolderPayload, FilizPersonInfos, FilizStartStep } from '../external/filiz/type';
+import { FilizService } from '../external/filiz/filiz.service';
+import { logger } from '../external/logger';
+import { CandidateService } from './CandidateService';
+import { assertConsent, ConsentType } from './consentGuard';
+import { FilizFolderRepository } from '../repositories/mysql/FilizFolderRepository';
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
 import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
 import {
@@ -12,6 +17,10 @@ import {
     missingFilizStudentFields,
     splitFullName,
 } from './mappers/candidate.mapper';
+
+export type FilizFolderCreation =
+    | { ok: true; folderId: string; step?: FilizStartStep }
+    | { ok: false; status: 404 | 422 | 500 | 502; error: string; missing?: string[] };
 
 export interface FilizEmployer {
     siret?: string;
@@ -96,6 +105,9 @@ export function buildFilizFolderPayload(
 export class FilizFolderService {
     private offerRepository = new OfferRepository();
     private needsAnalysisRepository = new NeedsAnalysisRepository();
+    private filizFolderRepository = new FilizFolderRepository();
+    private candidateService = new CandidateService();
+    private filizService = new FilizService();
 
     // Entreprise du contrat du candidat : offre → besoin entreprise. Vide tant qu'aucun contrat n'est enregistré.
     private async resolveEmployer(candidate: Candidate): Promise<FilizEmployer> {
@@ -131,5 +143,38 @@ export class FilizFolderService {
             step,
             companySiret: step === 4 ? (employer.siret ?? null) : null,
         };
+    }
+
+    async create(candidateId: string, classId: string, fileManager: FilizPersonInfos): Promise<FilizFolderCreation> {
+        const candidate = await this.candidateService.findById(candidateId);
+        if (!candidate) return { ok: false, status: 404, error: `Candidate ${candidateId} not found` };
+        if (candidate.filiz_folder_id) return { ok: true, folderId: candidate.filiz_folder_id };
+
+        assertConsent(candidate, [ConsentType.DATA_SHARING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
+        const prepared = await this.prepare(candidate, classId, fileManager);
+        if (!prepared.ok) return { ok: false, status: 422, error: prepared.error, missing: prepared.missing };
+
+        const folderId = await this.filizService.createFolder(prepared.payload);
+        if (!folderId) return { ok: false, status: 502, error: 'Filiz folder creation failed' };
+
+        const updated = await this.candidateService.update(candidateId, { filiz_folder_id: folderId });
+        if (!updated) {
+            // Le dossier existe chez Filiz mais n'est pas rattaché : l'id est loggé pour rattrapage manuel.
+            logger.error({ candidateId, folderId }, 'filiz folder created but candidate update failed');
+            return { ok: false, status: 500, error: 'Failed to update candidate' };
+        }
+        try {
+            await this.filizFolderRepository.insert({
+                folderId,
+                candidateId,
+                classId,
+                startStep: prepared.step,
+                companySiret: prepared.companySiret,
+            });
+        } catch (err) {
+            // Le dossier et son rattachement existent ; seule la ligne de suivi manque.
+            logger.error({ err, candidateId, folderId }, 'filiz folder created but filiz_folders insert failed');
+        }
+        return { ok: true, folderId, step: prepared.step };
     }
 }

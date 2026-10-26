@@ -1,16 +1,12 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { FilizService } from '../../external/filiz/filiz.service';
-import { CandidateService } from '../../services/CandidateService';
 import { FilizFolderService } from '../../services/FilizFolderService';
-import { FilizFolderRepository } from '../../repositories/mysql/FilizFolderRepository';
-import { assertConsent, ConsentType } from '../../services/consentGuard';
+import { env } from '../../config/env';
 import { logger } from '../../external/logger';
 
 const filizService = new FilizService();
-const candidateService = new CandidateService();
 const filizFolderService = new FilizFolderService();
-const filizFolderRepository = new FilizFolderRepository();
 // Création en cours par candidat : évite deux dossiers Filiz sur double clic / requêtes parallèles (instance unique).
 const foldersInProgress = new Set<string>();
 
@@ -48,6 +44,10 @@ export async function getClasses(req: AuthRequest, res: Response): Promise<void>
 }
 
 export async function createFolder(req: AuthRequest, res: Response): Promise<void> {
+    if (!env.FILIZ_FOLDER_CREATION_ENABLED) {
+        res.status(403).json({ error: 'Filiz folder creation is disabled' });
+        return;
+    }
     const { candidateId, classId, fileManagerFirstName, fileManagerLastName } = req.body ?? {};
     // L'email du gestionnaire vient du JWT, pas du body : il ne doit pas être falsifiable.
     const fileManagerEmail: unknown = req.user?.email;
@@ -70,50 +70,19 @@ export async function createFolder(req: AuthRequest, res: Response): Promise<voi
     }
     foldersInProgress.add(candidateId);
     try {
-        const candidate = await candidateService.findById(candidateId);
-        if (!candidate) {
-            res.status(404).json({ error: `Candidate ${candidateId} not found` });
-            return;
-        }
-        if (candidate.filiz_folder_id) {
-            res.json({ folderId: candidate.filiz_folder_id });
-            return;
-        }
-        const prepared = await filizFolderService.prepare(candidate, classId, {
+        const created = await filizFolderService.create(candidateId, classId, {
             firstName: fileManagerFirstName,
             lastName: fileManagerLastName,
             mailAddress: fileManagerEmail,
         });
-        if (!prepared.ok) {
-            res.status(422).json({ error: prepared.error, ...(prepared.missing ? { missing: prepared.missing } : {}) });
-            return;
-        }
-        assertConsent(candidate, [ConsentType.DATA_SHARING], { mode: 'warn' }); // TODO flip to 'block' after backfill window
-        const folderId = await filizService.createFolder(prepared.payload);
-        if (!folderId) {
-            res.status(502).json({ error: 'Filiz folder creation failed' });
-            return;
-        }
-        const updated = await candidateService.update(candidateId, { filiz_folder_id: folderId });
-        if (!updated) {
-            // Le dossier existe chez Filiz mais n'est pas rattaché : l'id est loggé pour rattrapage manuel.
-            logger.error({ candidateId, folderId }, 'filiz folder created but candidate update failed');
-            res.status(500).json({ error: 'Failed to update candidate' });
-            return;
-        }
-        try {
-            await filizFolderRepository.insert({
-                folderId,
-                candidateId,
-                classId,
-                startStep: prepared.step,
-                companySiret: prepared.companySiret,
+        if (!created.ok) {
+            res.status(created.status).json({
+                error: created.error,
+                ...(created.missing ? { missing: created.missing } : {}),
             });
-        } catch (err) {
-            // Le dossier et son rattachement existent : la ligne de suivi sera reconstruite par la sync.
-            logger.error({ err, candidateId, folderId }, 'filiz folder created but filiz_folders insert failed');
+            return;
         }
-        res.json({ folderId, step: prepared.step });
+        res.json({ folderId: created.folderId, ...(created.step ? { step: created.step } : {}) });
     } catch (err) {
         logger.error({ err }, 'filiz createFolder failed');
         res.status(500).json({ error: 'Internal server error' });
