@@ -87,6 +87,26 @@ export interface FilizClass {
     realizationAddress: FilizRealizationAddress;
 }
 
+// Réponse de GET /api/folder?folderId= — seuls les champs utilisés par la sync sont typés.
+export interface FilizFolder {
+    folderId: string;
+    step: number;
+    creationDate?: string;
+    updateDate?: string;
+    degreeId?: string;
+    classId?: string;
+    studentId?: string;
+    companyId?: string;
+}
+
+// Réponse de GET /api/user?userId=.
+export interface FilizUser {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    mailAddress?: string;
+}
+
 export interface FilizAddress {
     street: string;
     complement?: string;
