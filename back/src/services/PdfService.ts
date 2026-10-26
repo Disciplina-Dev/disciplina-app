@@ -1195,10 +1195,13 @@ function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
             } else {
                 // multiplechoice : liste des options, marquage candidat / bonne réponse
                 doc.font('Helvetica').fontSize(9.5);
+                // Questionnaire interne à réponses multiples : clés séparées par des virgules ("A,C").
+                const correctKeys = (q.correct_option ?? '').split(',');
+                const chosenKeys = (q.user_response ?? '').split(',');
                 Object.entries(opts).forEach(([key, val]) => {
                     if (typeof val !== 'string') return;
-                    const isCorrect = key === q.correct_option;
-                    const isChosen = key === q.user_response;
+                    const isCorrect = correctKeys.includes(key);
+                    const isChosen = chosenKeys.includes(key);
                     const marks = [isChosen ? 'choix du candidat' : '', isCorrect ? 'bonne réponse' : '']
                         .filter(Boolean)
                         .join(', ');

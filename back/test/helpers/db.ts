@@ -5,6 +5,7 @@ import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
 import { AlternantModel } from '../../src/db/mongo/schemas/alternant.schema';
 import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-sequence.schema';
+import { QuestionnaireAttemptModel, QuestionnaireModel } from '../../src/db/mongo/schemas/questionnaire.schema';
 
 const CLEARED_TABLES = [
     'mcp_audit_log',
@@ -64,4 +65,6 @@ export async function dropMongo(): Promise<void> {
     // Buckets KPI (ex-tables MySQL commercial_kpi / rh_kpi) : vidés comme elles
     // l'étaient pour isoler chaque test.
     await KpiModel.deleteMany({});
+    await QuestionnaireModel.deleteMany({});
+    await QuestionnaireAttemptModel.deleteMany({});
 }

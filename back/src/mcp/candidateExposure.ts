@@ -11,7 +11,8 @@ import { MASKED_SSN } from '../external/crypto/ssn-cipher';
 
 function stripQuestions(result: ClassMarkerResult | undefined): ClassMarkerResult | undefined {
     if (!result) return result;
-    const { questions: _questions, ...rest } = result;
+    // tab_switch_count (questionnaire interne) : indice de comportement, jamais transmis à un LLM.
+    const { questions: _questions, tab_switch_count: _tabs, ...rest } = result;
     return rest;
 }
 

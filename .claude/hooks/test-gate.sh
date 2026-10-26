@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # Stop hook: si la session a touché du source back/front (hors tests), lance la
 # suite pertinente et bloque (exit 2) en cas d'échec réel.
-# Les tests backend tournent avec l'env du dev (back/.env) — surtout pas d'override
-# de MYSQL_PORT : le 3307 de docker-compose.test.yml va de pair avec tout un jeu de
-# credentials de test, le forcer seul fait échouer 100% des tests.
-# Non bloquant si la DB configurée n'est pas joignable.
+# Les tests backend tournent UNIQUEMENT contre docker-compose.test.yml, avec le jeu
+# complet de credentials de test (jamais l'env du dev : les tests vident les bases).
+# Non bloquant si la stack de test n'est pas joignable.
 set -uo pipefail
 INPUT="$(cat)"
 ROOT="$(git rev-parse --show-toplevel)"
@@ -22,47 +21,45 @@ if [ -z "$BACK_SRC" ] && [ -z "$FRONT_SRC" ]; then
     exit 0
 fi
 
-# Lit une clé dans l'env courant, sinon back/.env, sinon .env racine, sinon défaut.
-env_value() {
-    local key="$1" fallback="$2" raw
-    raw="${!key:-}"
-    if [ -z "$raw" ] && [ -f back/.env ]; then
-        raw=$(grep -E "^${key}=" back/.env | tail -1 | cut -d= -f2- || true)
-    fi
-    if [ -z "$raw" ] && [ -f .env ]; then
-        raw=$(grep -E "^${key}=" .env | tail -1 | cut -d= -f2- || true)
-    fi
-    printf '%s' "${raw:-$fallback}"
-}
-
 FAIL=0
 
 if [ -n "$BACK_SRC" ]; then
-    MYSQL_H=$(env_value MYSQL_HOST 127.0.0.1)
-    # 4010, pas 3306 : c'est le port hôte par défaut de docker-compose.yaml
-    # (${MYSQL_PORT:-4010}) quand MYSQL_PORT est vide/absent du .env.
-    MYSQL_P=$(env_value MYSQL_PORT 4010)
-    MONGO_H=$(env_value MONGO_HOST 127.0.0.1)
-    MONGO_P=$(env_value MONGO_PORT 27017)
-    # Hôtes internes au réseau compose : injoignables depuis l'hôte, on teste en local.
-    case "$MYSQL_H" in sql-db | nosql-db) MYSQL_H=127.0.0.1 ;; esac
-    case "$MONGO_H" in sql-db | nosql-db) MONGO_H=127.0.0.1 ;; esac
-
-    if nc -z -w1 "$MYSQL_H" "$MYSQL_P" 2>/dev/null && nc -z -w1 "$MONGO_H" "$MONGO_P" 2>/dev/null; then
-        # Les valeurs ci-dessus sont déjà traduites pour l'hôte (sql-db -> 127.0.0.1,
-        # port compose réel) : il faut les repasser explicitement à npm test, sinon
-        # dotenv recharge .env/back/.env tel quel et retombe sur sql-db (ENOTFOUND).
-        # API_PORT dédié : évite un conflit avec le conteneur backend de dev, déjà
-        # sur le 4000 si `docker compose up` tourne en parallèle.
+    # JAMAIS la base de dev : les tests vident MySQL (truncateMysql) et Mongo (dropMongo).
+    # Une version précédente réutilisait back/.env et a effacé la base de dev locale.
+    # On vise uniquement docker-compose.test.yml (3307 / 27018, comptes de test),
+    # avec chaque variable de connexion forcée : dotenv ne surcharge jamais une
+    # variable déjà posée, donc rien du .env de dev ne peut s'y substituer.
+    TEST_MYSQL_P=3307
+    TEST_MONGO_P=27018
+    if ! nc -z -w1 127.0.0.1 "$TEST_MYSQL_P" 2>/dev/null || ! nc -z -w1 127.0.0.1 "$TEST_MONGO_P" 2>/dev/null; then
+        docker compose -f docker-compose.test.yml up -d --wait test-sql-db test-nosql-db >/dev/null 2>&1 || true
+    fi
+    if nc -z -w1 127.0.0.1 "$TEST_MYSQL_P" 2>/dev/null && nc -z -w1 127.0.0.1 "$TEST_MONGO_P" 2>/dev/null; then
+        TEST_API_PORT=4099
+        # PDF des analyses de besoin (puppeteer) : sur macOS, Chrome n'est pas dans
+        # les chemins Linux connus de PdfService — on le fournit s'il est installé.
+        MAC_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        if [ -z "${PUPPETEER_EXECUTABLE_PATH:-}" ] && [ -x "$MAC_CHROME" ]; then
+            export PUPPETEER_EXECUTABLE_PATH="$MAC_CHROME"
+        fi
         if ! (
-            cd back && MYSQL_HOST="$MYSQL_H" MYSQL_PORT="$MYSQL_P" MONGO_HOST="$MONGO_H" MONGO_PORT="$MONGO_P" \
-                API_PORT="${API_PORT:-4099}" npm test
+            cd back && env NODE_ENV=test \
+                MYSQL_HOST=127.0.0.1 MYSQL_PORT="$TEST_MYSQL_P" MYSQL_DATABASE=disciplina \
+                MYSQL_USER=disciplina_app MYSQL_PASSWORD=test-app-password MYSQL_ROOT_PASSWORD=test-root-password \
+                MYSQL_URI= MYSQL_ANNEMASSE_URI= \
+                MONGO_HOST=127.0.0.1 MONGO_PORT="$TEST_MONGO_P" MONGO_DB_NAME=human_ressources_test \
+                MONGO_ROOT_USERNAME=test-root MONGO_ROOT_PASSWORD=test-root-password \
+                MONGO_ANNEMASSE_USERNAME=test-root MONGO_ANNEMASSE_PASSWORD=test-root-password \
+                MONGO_URI= MONGO_ANNEMASSE_URI= \
+                API_PORT="$TEST_API_PORT" MCP_OAUTH_ISSUER_URL="http://localhost:$TEST_API_PORT" \
+                MCP_API_KEY=test-mcp-api-key-0123456789abcdef0123456789 \
+                npm test
         ); then
             echo "test-gate: tests backend en échec — corrige avant de terminer." >&2
             FAIL=1
         fi
     else
-        echo "test-gate: DBs non joignables (${MYSQL_H}:${MYSQL_P} / ${MONGO_H}:${MONGO_P}) — tests backend non exécutés. Démarre-les avec: docker compose up -d sql-db nosql-db" >&2
+        echo "test-gate: stack de test injoignable (127.0.0.1:${TEST_MYSQL_P} / 127.0.0.1:${TEST_MONGO_P}) — tests backend non exécutés. Démarre-la avec: docker compose -f docker-compose.test.yml up -d test-sql-db test-nosql-db" >&2
     fi
 fi
 

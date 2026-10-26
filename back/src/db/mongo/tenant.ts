@@ -16,6 +16,7 @@ import { RuptureModel } from './schemas/rupture.schema';
 import { SessionModel } from './schemas/session.schema';
 import { AbDriveConfigModel } from './schemas/abDriveConfig.schema';
 import { DriveFolderConfigModel } from './schemas/driveFolderConfig.schema';
+import { QuestionnaireAttemptModel, QuestionnaireModel } from './schemas/questionnaire.schema';
 import { getAnnemasseConnection } from './connection';
 
 function tenantConnection(region: Region): Connection {
@@ -49,6 +50,8 @@ export function getModels() {
         Session: modelOn(region, SessionModel),
         AbDriveConfig: modelOn(region, AbDriveConfigModel),
         DriveFolderConfig: modelOn(region, DriveFolderConfigModel),
+        Questionnaire: modelOn(region, QuestionnaireModel),
+        QuestionnaireAttempt: modelOn(region, QuestionnaireAttemptModel),
     };
 }
 

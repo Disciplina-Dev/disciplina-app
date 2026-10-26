@@ -35,16 +35,19 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 - MCP RGPD (#915) : consentement `ai_processing` appliqué aux outils candidats/offres, DTO minimisés, journal d'accès `mcp_audit_log`, quotas par utilisateur, clé statique `MCP_STATIC_KEY_ENABLED` désactivée en production par défaut, `MCP_JWT_SECRET` distinct, purge OAuth/audit planifiée.
 - MCP péda (#930) : 12 outils lecture seule (sessions, SA, alternants « Prénom N. », ruptures, KPI) minimisés RGPD ; `contactsComplete` sur les SA en retard / à venir.
+- Questionnaires internes (#968), remplaçants de ClassMarker : éditeur par blocs (QCM 1 ou plusieurs réponses, vrai/faux, réponse libre corrigée automatiquement), import/export JSON, mode « Tester », verrouillage après le 1er passage + duplication en v2 ; lien unique + QR depuis la fiche candidat, page candidat `/test/:token` (une question par page, chrono serveur, pas de retour arrière, lien lié au 1er appareil), suivi en direct sur la fiche ; résultats filtrables (export CSV, détail réponse par réponse) et téléchargement direct du PDF des résultats, sans compte Google. Questionnaires ClassMarker repris dans `Classmarker/questions/jsons/`.
 
 ### Changed
 
 - MCP péda (#930) : `peda_kpi_overview.alternants` renommé `alternantsSnapshot` (instantané à ce jour, non filtré par année) ; un effectif nul n'est plus masqué ; `alternantsSnapshot` n'est plus masqué (déjà exposé par `list_alternants`) ; `list_sequences_overdue` / `list_sequences_upcoming` excluent les SA postérieures à la fin de contrat.
+- Résultats de test (#968) : la logique du webhook ClassMarker est extraite dans `TestResultService` ; les résultats internes sont écrits au même format (`candidate.classmarker` / `classmarker_history`, `source: 'internal'`), donc fiche, gate, PDF et MCP sont inchangés. ClassMarker reste branché pendant la transition.
 
 ### Security
 
 - MCP péda (#930) : masquage complémentaire des agrégats (une cellule `<5` isolée n'est plus déductible par soustraction du total). La cellule masquée par complément est étiquetée `masqué` (jamais `<5` sur une valeur ≥ 5).
 - Péda (#932) : noms, e-mails et destinataires des élèves retirés des logs (redaction pino, plus de `details` dans le log de fin de run) ; `peda_draft_history.recipient` anonymisé après 365 jours (la `dedup_key` est conservée).
 - Péda (#932) : recherche alternants/sessions échappée (plus d'injection de regex / ReDoS Mongo), terme plafonné à 100 caractères.
+- Questionnaires internes (#968) : jeton de lien de 256 bits stocké haché, bonnes réponses jamais envoyées au navigateur avant validation, route publique limitée en débit ; RGPD : passages supprimés avec le candidat, invitation jamais commencée purgée à expiration, `tab_switch_count` jamais transmis au MCP.
 
 ## [1.4.0] - 2026-10-09
 

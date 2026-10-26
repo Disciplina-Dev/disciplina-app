@@ -37,6 +37,8 @@ import { router as externalRouter } from './rest/external/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
+import { router as questionnaireRouter } from './rest/questionnaire/route';
+import { router as questionnairePublicRouter } from './rest/questionnaire/public.route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
 import { startSaNotificationScheduler } from './scheduler/saNotificationScheduler';
@@ -173,6 +175,8 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
+    app.use('/api/questionnaires', questionnaireRouter);
+    app.use('/api/q', questionnairePublicRouter);
     // OAuth MCP (claude.ai web) : endpoints .well-known/authorize/token/register/
     // revoke à la racine de l'issuer — avant mcpRouter et errorHandler.
     app.use(buildMcpOAuthRouter());

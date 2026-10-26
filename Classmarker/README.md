@@ -5,6 +5,27 @@
 
 ---
 
+## 0. État d'avancement (26/10/2026)
+
+Le module est livré sur la branche (phases 1 à 4 du §9) ; ClassMarker reste branché pendant la transition (phase 5).
+
+| Où | Quoi |
+|---|---|
+| Back | `rest/questionnaire/` (correcteur `/api/questionnaires`, page publique `/api/q/:token`), `services/Questionnaire*Service.ts`, `questionnaireValidation.ts`, `questionnaireScoring.ts`, `TestResultService.ts` (ex-webhook), schémas `db/mongo/schemas/questionnaire.schema.ts` |
+| Front | `/rh/questionnaires` (liste, import/export JSON), `/rh/questionnaires/:id` (éditeur par blocs, « Tester »), `/rh/questionnaires/resultats[/:attemptId]`, `/test/:token` (page candidat), `QuestionnaireLinksModal` + suivi sur la fiche |
+| Tests | `back/src/rest/questionnaire/__tests__/questionnaire.test.ts` |
+| Questionnaires prêts | `questions/jsons/` — voir [`questions/README.md`](questions/README.md) |
+| Routes et collections | `back/README.md` (REST endpoints), `database/mongodb/mongo-schema.md` |
+
+**Écarts par rapport au plan initial :**
+
+- **REST au lieu de GraphQL** pour le correcteur (§4.5) : `/api/questionnaires`, protégé par `requireRolesOrManager('RH')`.
+- **Réponse libre ajoutée** (26/10/2026, type `text`) : nécessaire pour reprendre les questions de conjugaison des tests ClassMarker. Correction **automatique** sur une liste de réponses acceptées (pas de correction manuelle) — voir §8bis.
+- **Téléchargement direct du PDF** (23/10/2026) : `GET /api/questionnaires/attempts/:id/pdf`, généré à la volée, sans compte Google. Boutons sur la fiche candidat (RH / responsable / admin), dans Résultats et dans le détail d'un passage ; marche aussi pour un passage de test. Le dépôt sur Drive reste automatique quand un compte Google est connecté.
+- **Résultats** : case « Inclure les passages de test » pour retrouver les essais faits avec « Tester ».
+
+---
+
 ## 1. Avis général
 
 **Oui, c'est le bon choix, et c'est faisable sans casser l'existant.** ClassMarker ne fait que deux choses : afficher le quiz et calculer la note. Tout le reste est déjà chez nous :
@@ -87,7 +108,7 @@ Légende priorité : **P0** = indispensable pour couper ClassMarker · **P1** = 
 - [ ] **P0** Éditeur **par blocs** : bouton « + Ajouter une question », chaque bloc = énoncé + type + choix + bonne(s) réponse(s) + points ; modifier, supprimer, dupliquer, **réordonner**
 - [ ] **P0** **Import JSON** d'un questionnaire (validation + aperçu avant enregistrement, erreurs ligne par ligne) et **export JSON** (sauvegarde / copie vers une autre région)
 - [ ] **P0** Types de question : QCM 1 réponse, QCM plusieurs réponses, vrai/faux
-- ~~Type réponse courte~~ — **reporté** (correction manuelle = écran + recalcul en plus ; QCM/VF suffisent pour du positionnement)
+- [x] **Réponse libre** (type `text`, ajouté le 26/10/2026) — correction **automatique** sur 1 à 10 réponses acceptées (casse, espaces, ponctuation finale ignorés ; accents comptés). La correction manuelle reste hors périmètre.
 - [ ] **P0** Points par question (défaut 1)
 - [ ] **P1** Ordre aléatoire **des réponses** seulement au départ (questions dans l'ordre défini)
 - ~~Image dans une question~~ — **reporté** (stockage + contrôle sécurité des uploads)
@@ -102,7 +123,8 @@ Légende priorité : **P0** = indispensable pour couper ClassMarker · **P1** = 
 - [ ] **P0** Détail d'un passage : chaque question, réponse donnée, bonne réponse, points, temps passé
 - [ ] **P0** Lien vers la fiche candidat (et depuis la fiche, l'onglet test existant continue de marcher)
 - [ ] **P0** Bouton **« Envoyer / renvoyer le PDF sur Google Drive »** (réutilise `uploadResultPdf`)
-- ~~Correction manuelle réponse courte~~ — reporté avec le type « réponse courte »
+- [x] Bouton **« Télécharger le PDF »** (sans Drive) : détail du passage, liste des résultats, fiche candidat
+- ~~Correction manuelle réponse libre~~ — hors périmètre (la réponse libre est corrigée automatiquement)
 - ~~**Import CSV de résultats**~~ — hors périmètre (décision Q10)
 - [ ] **P1** Export CSV/Excel des résultats filtrés
 - [ ] **P1** Annuler/invalider un passage (ex. problème technique) et autoriser un nouveau passage
@@ -202,8 +224,9 @@ Légende priorité : **P0** = indispensable pour couper ClassMarker · **P1** = 
   _id, title, description, tp_types: string[],
   duration_minutes: number, pass_threshold: number /* 50 */,
   immediate_feedback: boolean, allow_skip: boolean, shuffle_choices: boolean,
-  questions: [{ _id, type: 'single'|'multiple'|'true_false',
-                text, points, choices: [{ _id, text, correct }] }],
+  questions: [{ _id, type: 'single'|'multiple'|'true_false'|'text',
+                text, points, choices: [{ _id, text, correct }],
+                accepted_answers?: string[] /* type 'text' uniquement */ }],
   status: 'draft'|'active'|'archived', version: number,
   locked: boolean,                    // true dès le 1er passage → duplication obligatoire
   created_by, created_at, updated_at
@@ -216,7 +239,7 @@ Légende priorité : **P0** = indispensable pour couper ClassMarker · **P1** = 
   status: 'invited'|'in_progress'|'completed'|'expired'|'cancelled',
   started_at?, deadline?, completed_at?, current_index: number,
   device_hash, tab_switch_count: number, is_test_run: boolean,
-  answers: [{ question_id, choice_ids, text?, correct, points, answered_at }],
+  answers: [{ question_id, choice_ids, text_answer?, skipped, correct, points, answered_at }],
   score: { percentage, points_scored, points_available, passed }
 }
 ```
@@ -238,12 +261,16 @@ Le résultat final est **recopié** dans `candidate.classmarker` (+ `classmarker
     { "type": "single", "text": "Que signifie CRM ?", "points": 1,
       "choices": [ { "text": "Customer Relationship Management", "correct": true },
                    { "text": "Central Resource Module", "correct": false } ] },
-    { "type": "true_false", "text": "Un devis engage le client.", "points": 1, "answer": false }
+    { "type": "true_false", "text": "Un devis engage le client.", "points": 1, "answer": false },
+    { "type": "text", "text": "J'ai ........ le devis hier. (verbe envoyer)", "points": 1,
+      "accepted_answers": ["envoyé"] }
   ]
 }
 ```
 
 Validation serveur : taille max (ex. 500 Ko, 200 questions), au moins 1 bonne réponse par QCM, texte brut uniquement (pas de HTML).
+
+**Réponse libre (`text`)** : le candidat tape sa réponse (200 caractères max). Elle est juste si elle correspond à l'une des `accepted_answers` (1 à 10), en ignorant la casse, les espaces en trop, les guillemets et la ponctuation finale. Les accents comptent : « envoye » ≠ « envoyé ». Le résultat est recopié au format ClassMarker `freetext` (`options.exact_match`), déjà géré par le PDF et la fiche.
 
 ## 8ter. Recommandations ajoutées (19/10/2026)
 
@@ -255,7 +282,8 @@ Validation serveur : taille max (ex. 500 Ko, 200 questions), au moins 1 bonne r�
 | ➕ Verrouillage après 1er passage + duplication v2 | Anciens scores jamais faussés, plus simple qu'un snapshot |
 | ➕ Compteur de changements d'onglet | Anti-triche minimum, informatif |
 | ➕ Enregistrement immédiat de chaque réponse | Zéro perte si coupure |
-| ➖ Réponse courte, images | Reportés : coût élevé, peu utile pour du positionnement |
+| ➖ Images | Reporté : coût élevé, peu utile pour du positionnement |
+| ➕ Réponse libre (26/10/2026) | Questions de conjugaison des tests ClassMarker NTC / Conseiller commercial |
 | ➖ Envoi du lien par mail | Inutile avec QR sur place |
 | ➖ Stats par question | Plus tard, quand le volume de passages le justifie |
 | ✏️ Aléatoire : réponses seulement | Plus simple, même effet anti-copie |
@@ -283,7 +311,7 @@ Validation serveur : taille max (ex. 500 Ko, 200 questions), au moins 1 bonne r�
 - **Q1** → candidats CRM uniquement (fiche candidat Mongo).
 - **Q2** → nom + email **pré-remplis depuis le CRM, confirmés** par le candidat (lien unique par candidat).
 - **Q3** → feedback correct/incorrect = **option par questionnaire**.
-- **Q10** → « importer » = **envoi PDF sur Google Drive** (auto + bouton renvoyer). Import CSV retiré du périmètre.
+- **Q10** → « importer » = **envoi PDF sur Google Drive** (auto + bouton renvoyer). Import CSV retiré du périmètre. Complété le 23/10/2026 : **téléchargement direct du PDF** sans passer par Drive.
 
 - **Q4** → score final **affiché** au candidat (écran de fin).
 - **Q5** → option par questionnaire `allow_skip` (question passée = 0 point).

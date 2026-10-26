@@ -30,6 +30,8 @@ import {
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
+import QuestionnaireLinksModal from '@/components/rh/QuestionnaireLinksModal'
+import CandidateQuestionnaireStatus from '@/components/rh/CandidateQuestionnaireStatus'
 import FilizFolderModal from '@/components/rh/FilizFolderModal'
 import ConfirmDeleteModal from '@/components/rh/ConfirmDeleteModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
@@ -293,7 +295,7 @@ export default function FicheCandidat() {
   const { deleteCandidate } = useDeleteCandidate()
   // Verdict du test : la moyenne est à 50%. L'AB n'est possible que si le candidat
   // a réussi au moins un test (>= 50%).
-  const { result: testResult } = useClassMarkerResult(id)
+  const { result: testResult, progress: testProgress } = useClassMarkerResult(id)
   const testPassed =
     !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
 
@@ -318,6 +320,7 @@ export default function FicheCandidat() {
   const [mailMode, setMailMode] = useState<'regular' | 'cv-import' | null>(null)
   const [cvChoiceOpen, setCvChoiceOpen] = useState<'top' | 'bottom' | null>(null)
   const [showClassMarker, setShowClassMarker] = useState(false)
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false)
   const [showFilizModal, setShowFilizModal] = useState(false)
   const [capturingPhoto, setCapturingPhoto] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
@@ -1164,8 +1167,8 @@ export default function FicheCandidat() {
             Envoyer un mail
           </Button>
           <Button variant="secondary" size="sm" leftIcon={<IconQrCode width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
-            onClick={() => setShowClassMarker(true)}>
-            Liens de test
+            onClick={() => setShowQuestionnaire(true)}>
+            Envoyer un test
           </Button>
         </div>
 
@@ -1943,6 +1946,7 @@ export default function FicheCandidat() {
           {id && <div className="md:col-span-2"><CandidateHistory candidateId={id} /></div>}
 
           {/* Résultat ClassMarker */}
+          {id && <CandidateQuestionnaireStatus candidateId={id} live={testProgress} />}
           {id && <div className="md:col-span-2"><CandidateTestScore candidateId={id} /></div>}
 
           {/* Dossier Drive */}
@@ -2114,6 +2118,17 @@ export default function FicheCandidat() {
               identity: { ...prev.identity, avatar_updated_at: updatedAt, avatar_url: url },
             } : prev)
           }}
+        />
+      )}
+
+      {showQuestionnaire && formData._id && (
+        <QuestionnaireLinksModal
+          open={showQuestionnaire}
+          onClose={() => setShowQuestionnaire(false)}
+          candidateId={formData._id}
+          candidateName={formData.identity?.full_name ?? `${first} ${last}`}
+          live={testProgress}
+          onOpenLegacy={() => { setShowQuestionnaire(false); setShowClassMarker(true) }}
         />
       )}
 

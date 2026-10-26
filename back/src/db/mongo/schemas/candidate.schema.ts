@@ -244,6 +244,10 @@ const classMarkerResultSchema = new Schema<ClassMarkerResult>(
         duration: { type: String },
         pdf_link: { type: String },
         questions: { type: [Schema.Types.Mixed], default: undefined },
+        source: { type: String, enum: ['classmarker', 'internal'] },
+        questionnaire_id: { type: String },
+        attempt_id: { type: String },
+        tab_switch_count: { type: Number },
     },
     { _id: false },
 );
