@@ -156,11 +156,15 @@ export const typeDefs = gql`
         dateOfBirth: String
         placeOfBirth: String
         departmentOfBirth: String
+        bornInFrance: Boolean
+        nationality: Int
+        residencePermit: Boolean
         age: Int
         sex: String
         address: String
         postalCode: String
         city: String
+        country: String
         drivingLicenseB: Boolean
         hasVehicle: Boolean
         transportMeans: String
@@ -383,11 +387,15 @@ export const typeDefs = gql`
         dateOfBirth: String
         placeOfBirth: String
         departmentOfBirth: String
+        bornInFrance: Boolean
+        nationality: Int
+        residencePermit: Boolean
         age: Int
         sex: String
         address: String
         postalCode: String
         city: String
+        country: String
         drivingLicenseB: Boolean
         hasVehicle: Boolean
         transportMeans: String

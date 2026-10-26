@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
 import { searchNeedle } from './searchRegex';
-import { Alternant, AlternantArchiveReason } from '../../types/alternant.types';
+import { Alternant, AlternantFiliz, AlternantArchiveReason } from '../../types/alternant.types';
 
 export class AlternantRepository {
     /**
@@ -60,6 +60,36 @@ export class AlternantRepository {
         const filter: Record<string, unknown> = { session_id: sessionId };
         if (!includeArchived) filter.archived_at = null;
         return getModels().Alternant.find(filter).sort({ last_name: 1, first_name: 1 }).lean();
+    }
+
+    async findByFilizFolderId(folderId: string): Promise<Alternant | null> {
+        return getModels().Alternant.findOne({ 'filiz.folder_id': folderId }).lean();
+    }
+
+    /** Alternant issu d'un candidat, pas encore rattaché à un folder Filiz. */
+    async findUnlinkedByCandidateId(candidateId: string): Promise<Alternant | null> {
+        return getModels()
+            .Alternant.findOne({ candidate_id: candidateId, filiz: { $exists: false } })
+            .lean();
+    }
+
+    async findByFilizClassId(classId: string): Promise<Alternant[]> {
+        return getModels().Alternant.find({ 'filiz.class_id': classId }).sort({ last_name: 1, first_name: 1 }).lean();
+    }
+
+    async findByFilizDegreeId(degreeId: string): Promise<Alternant[]> {
+        return getModels().Alternant.find({ 'filiz.degree_id': degreeId }).sort({ last_name: 1, first_name: 1 }).lean();
+    }
+
+    /** Remplace le miroir Filiz sans toucher aux champs saisis par la péda. */
+    async setFiliz(id: string, filiz: AlternantFiliz): Promise<Alternant | null> {
+        return getModels()
+            .Alternant.findOneAndUpdate(
+                { _id: id },
+                { $set: { filiz, updated_at: new Date() } },
+                { returnDocument: 'after', runValidators: true, context: 'query' },
+            )
+            .lean();
     }
 
     /** Recherche par email (exact, insensible à la casse + espaces) pour la détection de doublons. */

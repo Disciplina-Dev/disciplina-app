@@ -11,7 +11,13 @@ interface FilizFolderModalProps {
   onSuccess: (filizFolderId: string) => void
 }
 
-export default function FilizFolderModal({ open, onClose, candidateId, onSuccess }: FilizFolderModalProps) {
+// Les hooks Filiz (appels API) ne tournent que modal ouvert : sinon chaque fiche candidat interrogerait Filiz.
+export default function FilizFolderModal(props: FilizFolderModalProps) {
+  if (!props.open) return null
+  return <FilizFolderModalContent {...props} />
+}
+
+function FilizFolderModalContent({ onClose, candidateId, onSuccess }: FilizFolderModalProps) {
   const user = useAuthStore(s => s.user)
   const [selectedDegreeId, setSelectedDegreeId] = useState<string | null>(null)
   const [selectedClassId, setSelectedClassId] = useState<string>('')
@@ -45,18 +51,18 @@ export default function FilizFolderModal({ open, onClose, candidateId, onSuccess
         fileManagerLastName,
         fileManagerEmail: user?.email ?? '',
       })
-      if (result?.folderId) {
-        onSuccess(result.folderId)
-        onClose()
+      if (!result?.folderId) {
+        setError('Filiz n’a pas renvoyé d’identifiant de dossier.')
+        return
       }
+      onSuccess(result.folderId)
+      onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors de la création du dossier Filiz')
     } finally {
       setSubmitting(false)
     }
   }
-
-  if (!open) return null
 
   return (
     <div

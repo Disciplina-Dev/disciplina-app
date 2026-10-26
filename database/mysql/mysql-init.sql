@@ -258,6 +258,20 @@ CREATE TABLE IF NOT EXISTS `filiz` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+CREATE TABLE IF NOT EXISTS `filiz_folders` (
+  `folder_id` varchar(64) NOT NULL,
+  `candidate_id` varchar(64) NOT NULL,
+  `class_id` varchar(64) NOT NULL,
+  `start_step` tinyint unsigned NOT NULL,
+  `step` tinyint unsigned NOT NULL,
+  `company_siret` char(14) DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`folder_id`),
+  KEY `idx_filiz_folders_candidate` (`candidate_id`),
+  KEY `idx_filiz_folders_class` (`class_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `external_references` (
   `id`   int NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -479,6 +493,7 @@ CREATE TABLE disciplina_annemasse.companies_blacklist LIKE disciplina.companies_
 CREATE TABLE disciplina_annemasse.company_history LIKE disciplina.company_history;
 CREATE TABLE disciplina_annemasse.contact_logs LIKE disciplina.contact_logs;
 CREATE TABLE disciplina_annemasse.filiz LIKE disciplina.filiz;
+CREATE TABLE disciplina_annemasse.filiz_folders LIKE disciplina.filiz_folders;
 CREATE TABLE disciplina_annemasse.external_references LIKE disciplina.external_references;
 CREATE TABLE disciplina_annemasse.external_access LIKE disciplina.external_access;
 CREATE TABLE disciplina_annemasse.peda_config LIKE disciplina.peda_config;
