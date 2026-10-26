@@ -22,6 +22,7 @@ const ALTERNANT_FIELDS = gql`
       endDate
     }
     linkedAlternantIds
+    filizInProgress
     archived
     archivedAt
     createdAt

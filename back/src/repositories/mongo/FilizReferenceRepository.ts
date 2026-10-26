@@ -1,4 +1,5 @@
 import { getModels } from '../../db/mongo/tenant';
+import { searchNeedle } from './searchRegex';
 import { FilizClassRef, FilizDegreeRef } from '../../types/filizReference.types';
 
 export class FilizReferenceRepository {
@@ -22,5 +23,15 @@ export class FilizReferenceRepository {
 
     async findClassesByDegree(degreeId: string): Promise<FilizClassRef[]> {
         return getModels().FilizClass.find({ degree_id: degreeId }).sort({ name: 1 }).lean();
+    }
+
+    async findClasses(search?: string): Promise<FilizClassRef[]> {
+        const needle = search?.trim() ? searchNeedle(search) : '';
+        const filter = needle ? { name: { $regex: needle, $options: 'i' } } : {};
+        return getModels().FilizClass.find(filter).sort({ start_date: 1, name: 1 }).lean();
+    }
+
+    async findClassById(id: string): Promise<FilizClassRef | null> {
+        return getModels().FilizClass.findOne({ _id: id }).lean();
     }
 }

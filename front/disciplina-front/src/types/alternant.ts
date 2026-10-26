@@ -20,6 +20,8 @@ export interface Alternant {
   candidateId: string | null
   company: AlternantCompany | null
   linkedAlternantIds: string[]
+  /** `true` = folder Filiz encore à son étape de départ (dossier pas fini de remplir). */
+  filizInProgress: boolean
   /** `true` = archivé suite à une rupture « quitte la formation ». */
   archived: boolean
   archivedAt: string | null

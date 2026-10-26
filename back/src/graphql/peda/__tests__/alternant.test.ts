@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { env } from '../../../config/env';
+import { AlternantModel } from '../../../db/mongo/schemas/alternant.schema';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/peda`;
 
@@ -376,6 +377,34 @@ describe('GraphQL peda alternants', () => {
 
         const hit = await gqlFetch(auth, SEARCH, { s: `Martin-${suffix}` });
         expect(hit.data.alternants.map((a: { id: string }) => a.id)).toContain(created.id);
+    });
+
+    it('flags filizInProgress only while the Filiz folder is still at its start step', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const created = (await gqlFetch(auth, CREATE, { input: createInput(suffix) })).data.createAlternant;
+        const read = async () =>
+            (await gqlFetch(auth, `query($id: ID!) { alternant(id: $id) { filizInProgress } }`, { id: created.id }))
+                .data.alternant.filizInProgress;
+        const setFiliz = (filiz: Record<string, unknown>) =>
+            AlternantModel.updateOne(
+                { _id: created.id },
+                {
+                    $set: {
+                        filiz: { folder_id: `peda-fip-${suffix}`, class_id: 'c', synced_at: new Date(), ...filiz },
+                    },
+                },
+            );
+
+        expect(await read()).toBe(false);
+        await setFiliz({ step: 1, start_step: 1 });
+        expect(await read()).toBe(true);
+        await setFiliz({ step: 4, start_step: 1 });
+        expect(await read()).toBe(false);
+        await setFiliz({ step: 3, start_step: null });
+        expect(await read()).toBe(false);
+
+        await AlternantModel.deleteOne({ _id: created.id });
     });
 
     it('authorises the PEDA role but forbids other employee roles without permission', async () => {

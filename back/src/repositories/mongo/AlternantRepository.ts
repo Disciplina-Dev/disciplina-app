@@ -73,8 +73,10 @@ export class AlternantRepository {
             .lean();
     }
 
-    async findByFilizClassId(classId: string): Promise<Alternant[]> {
-        return getModels().Alternant.find({ 'filiz.class_id': classId }).sort({ last_name: 1, first_name: 1 }).lean();
+    async findByFilizClassId(classId: string, includeArchived = false): Promise<Alternant[]> {
+        const filter: Record<string, unknown> = { 'filiz.class_id': classId };
+        if (!includeArchived) filter.archived_at = null;
+        return getModels().Alternant.find(filter).sort({ last_name: 1, first_name: 1 }).lean();
     }
 
     async findByFilizDegreeId(degreeId: string): Promise<Alternant[]> {
