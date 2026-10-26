@@ -965,11 +965,15 @@ export const GET_CANDIDATE_FULL = gql`
         dateOfBirth
         placeOfBirth
         departmentOfBirth
+        bornInFrance
+        nationality
+        residencePermit
         age
         sex
         address
         postalCode
         city
+        country
         drivingLicenseB
         hasVehicle
         transportMeans

@@ -239,6 +239,9 @@ describe('MCP tools (static admin key)', () => {
                 email: `${id}@test.local`,
                 phone: '0692000005',
                 psh_referral_request: true,
+                nationality: 3,
+                born_in_france: false,
+                residence_permit: true,
             } as any,
             emergency_contact: { full_name: 'Tiers Urgence', phone: '0692999999' },
             synthesis: { special_needs: 'amenagement', pedagogical_recommendations: { psh_specific_support: true } },
@@ -258,6 +261,9 @@ describe('MCP tools (static admin key)', () => {
         const json = JSON.stringify(candidate);
         for (const leaked of [
             'psh_',
+            'nationality',
+            'born_in_france',
+            'residence_permit',
             'special_needs',
             'emergency_contact',
             'Tiers Urgence',
