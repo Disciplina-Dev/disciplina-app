@@ -192,6 +192,8 @@ const data = {
     // Création de dossiers coupée en prod tant que le flux n'est pas validé (FILIZ_FOLDER_CREATION=true pour réactiver).
     FILIZ_FOLDER_CREATION_ENABLED:
         process.env.NODE_ENV !== 'production' || process.env.FILIZ_FOLDER_CREATION === 'true',
+    // Modification des promotions Filiz (PATCH /api/class) coupée en prod tant que non validée (FILIZ_CLASS_UPDATE=true pour réactiver).
+    FILIZ_CLASS_UPDATE_ENABLED: process.env.NODE_ENV !== 'production' || process.env.FILIZ_CLASS_UPDATE === 'true',
     FILIZ_BASE_URI: optionalString('FILIZ_BASE_URI', 'https://api.dev.partners.filiz.io'),
     FILIZ_AUTH_URI: requireStringWithCIFallback('FILIZ_AUTH_URI', 'http://localhost/ci-filiz-auth'),
 

@@ -53,6 +53,15 @@ const SESSION_ALTERNANTS = gql`
   }
 `
 
+const RENAME_SESSION = gql`
+  mutation RenameSession($id: ID!, $nom: String!) {
+    renameSession(id: $id, nom: $nom) {
+      ...SessionFields
+    }
+  }
+  ${SESSION_FIELDS}
+`
+
 function unwrap<T>(res: { error?: { message: string }; data?: T }): T {
   if (res.error) throw new Error(res.error.message.replace(/^\[GraphQL\]\s*/, ''))
   return res.data as T
@@ -79,4 +88,9 @@ export async function fetchSessionAlternants(sessionId: string): Promise<Alterna
     { requestPolicy: 'network-only' },
   )
   return unwrap<{ sessionAlternants: Alternant[] }>(res).sessionAlternants
+}
+
+export async function renameSession(id: string, nom: string): Promise<Session | null> {
+  const res = await pedaGraphqlClient.mutation(RENAME_SESSION, { id, nom })
+  return unwrap<{ renameSession: Session | null }>(res).renameSession
 }

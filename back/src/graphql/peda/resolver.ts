@@ -103,6 +103,11 @@ export const resolvers = {
         },
     },
     Mutation: {
+        renameSession: async (_: unknown, { id, nom }: { id: string; nom: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const renamed = await sessionService.rename(id, nom);
+            return renamed ? sessionToGql(renamed, await sessionService.countAlternants(id)) : null;
+        },
         createAlternant: async (_: unknown, { input }: { input: CreateAlternantInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const created = await alternantService.create(input);

@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { FilizService } from '../../../external/filiz/filiz.service';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { env } from '../../../config/env';
 import { getModels } from '../../../db/mongo/tenant';
@@ -25,6 +26,10 @@ function gqlFetch(auth: { cookieHeader: string; csrfHeader: string }, query: str
 const SESSION_FIELDS = `id nom filiere jourCours dateDebut dateFin alternantCount`;
 
 describe('GraphQL peda sessions', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
     it('lists Filiz classes as sessions, with their degree as filière', async () => {
         const auth = pedaAuth();
         const suffix = Date.now();
@@ -143,5 +148,86 @@ describe('GraphQL peda sessions', () => {
         const forbidden = await gqlFetch(commercial, `{ sessions { id } }`);
         expect(forbidden.errors).toBeDefined();
         expect(String(forbidden.errors[0].message)).toMatch(/Forbidden/);
+    });
+
+    describe('renameSession', () => {
+        const RENAME = `mutation($id: ID!, $nom: String!) { renameSession(id: $id, nom: $nom) { id nom } }`;
+
+        async function withClass(run: (classId: string) => Promise<void>) {
+            const classId = `sess-rename-${Date.now()}`;
+            await getModels().FilizClass.create({
+                _id: classId,
+                degree_id: 'sess-degree',
+                name: 'Ancien nom',
+                start_date: null,
+                end_date: null,
+                apprenticeship_contract: true,
+                professionalization_contract: false,
+                synced_at: new Date(),
+            });
+            try {
+                await run(classId);
+            } finally {
+                await getModels().FilizClass.deleteOne({ _id: classId });
+            }
+        }
+
+        it('GETs the class, PATCHes the full payload with the new name and updates the local mirror', async () => {
+            await withClass(async (classId) => {
+                const current = {
+                    degreeId: 'sess-degree',
+                    classId,
+                    className: 'Ancien nom',
+                    startDate: '09/01/2026',
+                    endDate: '06/30/2027',
+                    classStudyConfig: { degreeAmount: '10000' },
+                };
+                vi.spyOn(FilizService.prototype, 'getClass').mockResolvedValue(current as any);
+                const patch = vi.spyOn(FilizService.prototype, 'updateClass').mockResolvedValue(classId);
+
+                const res = await gqlFetch(pedaAuth(), RENAME, { id: classId, nom: '  Nouveau nom  ' });
+                expect(res.errors).toBeUndefined();
+                expect(res.data.renameSession).toEqual({ id: classId, nom: 'Nouveau nom' });
+
+                const sent = patch.mock.calls[0][0];
+                expect(sent).toMatchObject({ classId, className: 'Nouveau nom', startDate: '09/01/2026' });
+                expect(sent).not.toHaveProperty('degreeId');
+                expect((await getModels().FilizClass.findOne({ _id: classId }).lean())?.name).toBe('Nouveau nom');
+            });
+        });
+
+        it('leaves the local class untouched when Filiz rejects the PATCH', async () => {
+            await withClass(async (classId) => {
+                vi.spyOn(FilizService.prototype, 'getClass').mockResolvedValue({
+                    classId,
+                    className: 'Ancien nom',
+                } as any);
+                vi.spyOn(FilizService.prototype, 'updateClass').mockResolvedValue(null);
+
+                const res = await gqlFetch(pedaAuth(), RENAME, { id: classId, nom: 'Nouveau nom' });
+                expect(res.errors).toBeDefined();
+                expect((await getModels().FilizClass.findOne({ _id: classId }).lean())?.name).toBe('Ancien nom');
+            });
+        });
+
+        it('rejects an empty name without calling Filiz', async () => {
+            await withClass(async (classId) => {
+                const get = vi.spyOn(FilizService.prototype, 'getClass');
+                const res = await gqlFetch(pedaAuth(), RENAME, { id: classId, nom: '   ' });
+                expect(res.errors).toBeDefined();
+                expect(get).not.toHaveBeenCalled();
+            });
+        });
+
+        it('forbids other employee roles', async () => {
+            const commercial = mintAuthCookies({
+                id: 3,
+                email: 'com@test.local',
+                role: 'COMMERCIAL',
+                permission: 'GUEST',
+            });
+            const res = await gqlFetch(commercial, RENAME, { id: 'x', nom: 'y' });
+            expect(String(res.errors[0].message)).toMatch(/Forbidden/);
+        });
     });
 });

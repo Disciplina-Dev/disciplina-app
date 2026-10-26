@@ -175,5 +175,6 @@ export const typeDefs = gql`
         declareRupture(input: DeclareRuptureInput!): Rupture!
         updateRupture(id: ID!, input: UpdateRuptureInput!): Rupture
         deleteRupture(id: ID!): Boolean!
+        renameSession(id: ID!, nom: String!): Session
     }
 `;

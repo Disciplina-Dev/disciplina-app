@@ -10,7 +10,8 @@ import {
 } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import Card, { CardHeader } from '@/components/ui/Card'
-import { fetchSession, fetchSessionAlternants } from '@/api/sessions'
+import InputField from '@/components/ui/InputField'
+import { fetchSession, fetchSessionAlternants, renameSession } from '@/api/sessions'
 import type { Alternant } from '@/types/alternant'
 import type { Session } from '@/types/session'
 
@@ -25,7 +26,24 @@ export default function FicheSession() {
   const [members, setMembers] = useState<Alternant[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [draftName, setDraftName] = useState('')
+  const [saving, setSaving] = useState(false)
 
+  async function handleRename() {
+    if (!id || !draftName.trim()) return
+    setSaving(true)
+    setError(null)
+    try {
+      const updated = await renameSession(id, draftName)
+      if (updated) setSession(updated)
+      setEditing(false)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Renommage impossible')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -83,7 +101,43 @@ export default function FicheSession() {
             <IconTraining width={24} height={24} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-[var(--ds-text)]">{session.nom}</h1>
+            {editing ? (
+              <form
+                className="flex items-end gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  void handleRename()
+                }}
+              >
+                <InputField
+                  id="session-name"
+                  label="Nom de la promotion"
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  autoFocus
+                />
+                <Button type="submit" size="sm" disabled={saving || !draftName.trim()}>
+                  Enregistrer
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
+                  Annuler
+                </Button>
+              </form>
+            ) : (
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-[var(--ds-text)]">{session.nom}</h1>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDraftName(session.nom)
+                    setEditing(true)
+                  }}
+                >
+                  Renommer
+                </Button>
+              </div>
+            )}
             <p className="mt-0.5 text-sm text-[var(--ds-text-subtle)]">
               {session.filiere ?? 'Filière non renseignée'} · {members.length} alternant{members.length > 1 ? 's' : ''}
             </p>

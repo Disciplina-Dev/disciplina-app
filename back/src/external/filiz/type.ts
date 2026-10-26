@@ -72,7 +72,9 @@ interface FilizClassStudyConfig {
     degreeDuration: string;
     generalEducationDuration: string;
     remainsAtNilCharge: boolean;
+    subjectValidation?: boolean;
     apprenticeshipContractConfig: FilizApprenticeshipContractConfig;
+    professionalizationContractConfig?: { generalEducationDuration: string };
 }
 
 export interface FilizClass {

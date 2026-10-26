@@ -14,7 +14,7 @@ export class FilizService {
     // erreur Filiz journalisée. Renvoie le JSON, ou null en cas d'échec.
     private async request<T>(
         path: string,
-        init: { method: 'GET' | 'POST'; body?: unknown } = { method: 'GET' },
+        init: { method: 'GET' | 'POST' | 'PATCH'; body?: unknown } = { method: 'GET' },
     ): Promise<T | null> {
         for (let attempt = 0; attempt < 2; attempt++) {
             const token = await this.client.getToken();
@@ -137,6 +137,26 @@ export class FilizService {
     async createClass(payload: Record<string, unknown>): Promise<string | null> {
         const json = await this.request<{ error?: string; classId?: string }>('/api/class', {
             method: 'POST',
+            body: payload,
+        });
+        if (!json || json.error) return null;
+        return json.classId ?? null;
+    }
+
+    // GET /api/class?classId= : certains déploiements renvoient un objet, d'autres un tableau d'un élément.
+    async getClass(classId: string): Promise<FilizClass | null> {
+        const json = await this.request<(FilizClass & { error?: string }) | FilizClass[]>(
+            `/api/class?classId=${encodeURIComponent(classId)}`,
+        );
+        const found = Array.isArray(json) ? json[0] : json;
+        if (!found || (found as { error?: string }).error) return null;
+        return found;
+    }
+
+    // PATCH /api/class : le body complet de la promotion est obligatoire (pas de mise à jour partielle).
+    async updateClass(payload: Record<string, unknown>): Promise<string | null> {
+        const json = await this.request<{ error?: string; classId?: string }>('/api/class', {
+            method: 'PATCH',
             body: payload,
         });
         if (!json || json.error) return null;
