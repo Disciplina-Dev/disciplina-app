@@ -43,8 +43,8 @@ src/
                         MultiSelectField, AddressAutocomplete, RichTextEditor,
                         SignaturePad, MailModal, RouteBreadcrumb
     rh/                 RH-specific components: CandidateFormModal, CandidateAvatar,
-                        CandidateTestScore, ClassMarkerLinksModal, FilizFolderModal,
-                        WebcamCaptureModal
+                        CandidateTestScore, ClassMarkerLinksModal, QuestionnaireLinksModal,
+                        CandidateQuestionnaireStatus, FilizFolderModal, WebcamCaptureModal
     admin/              UserEditModal
     notifications/      NotificationBell (SSE-based)
     ProtectedRoute.tsx  Role-based route guard
@@ -66,6 +66,9 @@ src/
   pages/                Route-level page components (organized by role)
     rh/                 DashboardRH, FicheCandidat, ListeCandidats, Matching,
                         Calendrier, MailTemplates, Relance, DriveConfig…
+      questionnaires/   Internal tests (ClassMarker replacement, #968): list + JSON
+                        import/export, block editor, results, attempt detail, PDF
+    test/               PublicTest — candidate test page (no account)
     commercial/         DashboardCommercial, PortefeuilleEntreprises, ListeAB,
                         CreateAB, Sourcing, ListeNoire, RelanceCommercial…
     entreprise/         DashboardEntreprise, FormulaireAB, GestionApprentis,
@@ -115,6 +118,7 @@ src/
 | `/public/match/:signature` | `MatchComparator` | View & answer match proposals |
 | `/public/interview` | `InterviewGate` | Public interview auth gate |
 | `/public/interview/:signature` | `InterviewSlotPicker` | Pick interview slot |
+| `/test/:token` | `PublicTest` | Candidate takes an internal questionnaire (one question per page, server timer, device-locked link) |
 | `*` | `NotFound` | 404 |
 
 ### Admin (`/admin`) — Role: ADMIN
@@ -150,6 +154,10 @@ src/
 | `/rh/candidats` | `ListeCandidats` | Candidate list |
 | `/rh/candidats/:id` | `FicheCandidat` | Candidate detail |
 | `/rh/candidats/:id/questionnaire` | `QuestionnaireAB` | Candidate questionnaire |
+| `/rh/questionnaires` | `Questionnaires` | Internal tests: list, JSON import/export, archive |
+| `/rh/questionnaires/:id` | `QuestionnaireEditor` | Block editor (single/multiple choice, true/false, free text), test run |
+| `/rh/questionnaires/resultats` | `QuestionnaireResults` | Attempts list, filters, CSV export, PDF download |
+| `/rh/questionnaires/resultats/:attemptId` | `QuestionnaireAttemptDetail` | Answer-by-answer detail, PDF download / Drive upload, cancel |
 | `/rh/matching` | `Matching` | Job matching |
 | `/rh/calendrier` | `Calendrier` | Calendar |
 | `/rh/analyses-besoin` | `ABEntreprisesRecues` | Received needs analyses |

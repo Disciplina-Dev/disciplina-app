@@ -74,6 +74,17 @@ export const bookingRateLimiter = rateLimit({
     message: RATE_LIMIT_MESSAGE,
 });
 
+// Page candidat des questionnaires internes : non authentifiée, plafonnée par IP
+// (anti-rejeu massif). Large : une salle entière passe souvent derrière la même IP (wifi),
+// et l'énumération est vaine sur un jeton aléatoire de 256 bits.
+export const questionnaireRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: RATE_LIMIT_MESSAGE,
+});
+
 // Endpoint MCP (clé Bearer unique, accès lecture au CRM). Plafonné par IP en
 // amont de la vérif de clé pour couper tout brute-force sur MCP_API_KEY.
 export const mcpRateLimiter = rateLimit({

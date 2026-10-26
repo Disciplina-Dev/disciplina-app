@@ -59,7 +59,8 @@ src/
     email/              Gmail email sending + drafts (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
     candidates/         Quick-create candidate endpoint + CV upload to Drive
-    classmarker/        ClassMarker test links and webhooks
+    classmarker/        ClassMarker test links and webhooks (legacy, kept during the transition)
+    questionnaire/      Internal tests replacing ClassMarker (#968): staff CRUD/results + public `/api/q/:token`
     sourcing/           SIREN/SIRET/multicriteria prospecting search via INSEE, blacklist-aware
     yousign/            Yousign signature webhook + SSE stream for needs-analysis signing
     docuseal/           DocuSeal signature webhook
@@ -116,6 +117,20 @@ into the companies server.
 | POST | `/api/webhooks/classmarker` | None | ClassMarker webhook (saves test result) |
 | GET | `/api/webhooks/classmarker/stream` | None | SSE stream for live ClassMarker results |
 | GET | `/api/webhooks/classmarker/result/:candidateId` | None | Fetch stored ClassMarker result |
+| GET | `/api/questionnaires` · `/api/questionnaires/active` | JWT (RH / RESPONSABLE / ADMIN) | List questionnaires (all / active only) |
+| POST | `/api/questionnaires` | JWT (RH / RESPONSABLE / ADMIN) | Create or import a questionnaire (JSON, 500 KB max — format in `Classmarker/README.md` §8bis) |
+| GET · PUT · DELETE | `/api/questionnaires/:id` | JWT (RH / RESPONSABLE / ADMIN) | Read / update (refused once locked) / delete |
+| POST | `/api/questionnaires/:id/duplicate` · `/:id/status` | JWT (RH / RESPONSABLE / ADMIN) | Duplicate as next version · set `draft` / `active` / `archived` |
+| GET | `/api/questionnaires/:id/export` | JWT (RH / RESPONSABLE / ADMIN) | Export in the import JSON format |
+| POST | `/api/questionnaires/:id/invitations` | JWT (RH / RESPONSABLE / ADMIN) | Create a single-use candidate link (`candidate_id`, `validity_minutes`) |
+| POST | `/api/questionnaires/:id/test-run` | JWT (RH / RESPONSABLE / ADMIN) | Test-run link: nothing written on any candidate, questionnaire not locked |
+| GET | `/api/questionnaires/attempts` | JWT (RH / RESPONSABLE / ADMIN) | Attempts list (filters, `includeTestRuns=true`, pagination) |
+| GET | `/api/questionnaires/attempts/candidate/:candidateId` | JWT (AD / GESTION / RH / PEDA / COMMERCIAL) | Attempts of a candidate (fiche follow-up) |
+| GET | `/api/questionnaires/attempts/:attemptId` | JWT (RH / RESPONSABLE / ADMIN) | Attempt detail: answers, correct answers, time per question |
+| GET | `/api/questionnaires/attempts/:attemptId/pdf` | JWT (RH / RESPONSABLE / ADMIN) | Download the result PDF, generated on the fly (no Google account needed; test runs included) |
+| POST | `/api/questionnaires/attempts/:attemptId/resend-pdf` · `/cancel` | JWT (RH / RESPONSABLE / ADMIN) | Upload the PDF to the candidate's Drive · cancel an open attempt |
+| GET | `/api/q/:token` | Link token | Candidate page state (never the correct answers) — rate-limited 300/min/IP |
+| POST | `/api/q/:token/start` · `/answer` · `/visibility` | Link token + device cookie | Start (server timer, device lock) · answer the current question only · report a tab switch |
 | POST | `/api/webhooks/yousign` | None | Yousign webhook — needs-analysis signature completed |
 | GET | `/api/webhooks/yousign/stream` | None | SSE stream of signature status for a commercial (`?userID=`) |
 | POST | `/api/candidates/quick-create` | JWT (RH / ADMIN) | Quick-create a candidate (dedup by name) |
@@ -267,9 +282,9 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
   [`CONVENTION.md`](./CONVENTION.md#schema-migrations)
 
 ### MongoDB (`human_ressources`)
-- 11 collections: `candidates`, `candidate_history`, `candidate_avatars`, `offers`,
+- 13 collections: `candidates`, `candidate_history`, `candidate_avatars`, `offers`,
   `needs_analysis`, `notifications`, `mail_templates`, `mail_signatures`, `ab_drive_config`,
-  `drive_folder_config`, `jobs`
+  `drive_folder_config`, `questionnaires`, `questionnaire_attempts`, `jobs`
 - ⚠️ `jobs` is **dead**: replaced by `offers` + `offers.matching`, no code reads it, yet
   `mongo-init.js:28` still creates it. See `docs/AUDIT.md` §6.3.
 - Schema reference: [`database/mongodb/mongo-schema.md`](../database/mongodb/mongo-schema.md)
