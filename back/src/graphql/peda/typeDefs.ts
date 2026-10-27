@@ -32,6 +32,7 @@ export const typeDefs = gql`
         candidateId: String
         company: AlternantCompany
         linkedAlternantIds: [String!]!
+        filizInProgress: Boolean!
         archived: Boolean!
         archivedAt: String
         archiveReason: AlternantArchiveReason
@@ -101,22 +102,6 @@ export const typeDefs = gql`
         email: String
         phone: String
         candidateId: String
-    }
-
-    input CreateSessionInput {
-        nom: String!
-        filiere: String
-        jourCours: String
-        dateDebut: String!
-        dateFin: String!
-    }
-
-    input UpdateSessionInput {
-        nom: String
-        filiere: String
-        jourCours: String
-        dateDebut: String
-        dateFin: String
     }
 
     input AlternantSequenceContactsInput {
@@ -193,13 +178,9 @@ export const typeDefs = gql`
         completeSequence(id: ID!, realiseeLe: String!): AlternantSequence
         markSequence(id: ID!, status: AlternantSequenceStatus!): AlternantSequence
         deleteSequence(id: ID!): Boolean!
-        createSession(input: CreateSessionInput!): Session!
-        updateSession(id: ID!, input: UpdateSessionInput!): Session
-        deleteSession(id: ID!): Boolean!
-        assignAlternantToSession(sessionId: ID!, alternantId: ID!): Session
-        removeAlternantFromSession(sessionId: ID!, alternantId: ID!): Session
         declareRupture(input: DeclareRuptureInput!): Rupture!
         updateRupture(id: ID!, input: UpdateRuptureInput!): Rupture
         deleteRupture(id: ID!): Boolean!
+        renameSession(id: ID!, nom: String!): Session
     }
 `;

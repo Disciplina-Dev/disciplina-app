@@ -65,4 +65,25 @@ describe('FilizService (fetch stubbed, real DB token cache)', () => {
         );
         expect(await new FilizService().getDegreesInfos()).toBeNull();
     });
+
+    it('getClass accepts an object or a one-element array; updateClass PATCHes the body', async () => {
+        const calls: { method?: string; body?: string }[] = [];
+        let shape: 'object' | 'array' = 'object';
+        vi.stubGlobal(
+            'fetch',
+            vi.fn(async (url: unknown, init?: RequestInit) => {
+                if (isAuth(url)) return tokenResponse('tok');
+                calls.push({ method: init?.method, body: init?.body as string | undefined });
+                if (init?.method === 'PATCH') return json(200, { classId: 'c1' });
+                return json(200, shape === 'object' ? { classId: 'c1' } : [{ classId: 'c1' }]);
+            }),
+        );
+
+        const service = new FilizService();
+        expect(await service.getClass('c1')).toEqual({ classId: 'c1' });
+        shape = 'array';
+        expect(await service.getClass('c1')).toEqual({ classId: 'c1' });
+        expect(await service.updateClass({ classId: 'c1', className: 'X' })).toBe('c1');
+        expect(calls.at(-1)).toEqual({ method: 'PATCH', body: JSON.stringify({ classId: 'c1', className: 'X' }) });
+    });
 });

@@ -16,7 +16,7 @@ import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
 import { fetchAlternants } from '@/api/alternants'
 import type { Alternant } from '@/types/alternant'
 
-type AlternantTab = 'actifs' | 'ruptures' | 'fin_formation'
+type ArchiveTab = 'enCours' | 'actifs' | 'archives'
 
 export default function ListeAlternants() {
   const navigate = useNavigate()
@@ -54,16 +54,10 @@ export default function ListeAlternants() {
     }
   }, [debouncedSearch])
 
-  const actifs = useMemo(() => alternants.filter((a) => !a.archived), [alternants])
-  const ruptures = useMemo(
-    () => alternants.filter((a) => a.archived && a.archiveReason !== 'fin_formation'),
-    [alternants],
-  )
-  const finsFormation = useMemo(
-    () => alternants.filter((a) => a.archived && a.archiveReason === 'fin_formation'),
-    [alternants],
-  )
-  const visible = tab === 'actifs' ? actifs : tab === 'ruptures' ? ruptures : finsFormation
+  const enCours = useMemo(() => alternants.filter((a) => a.filizInProgress), [alternants])
+  const actifs = useMemo(() => alternants.filter((a) => !a.archived && !a.filizInProgress), [alternants])
+  const archives = useMemo(() => alternants.filter((a) => a.archived), [alternants])
+  const visible = tab === 'enCours' ? enCours : tab === 'actifs' ? actifs : archives
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
@@ -72,9 +66,7 @@ export default function ListeAlternants() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--ds-text)]">Alternants</h1>
           <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">
-            {loading
-              ? 'Chargement…'
-              : `${actifs.length} actif${actifs.length > 1 ? 's' : ''} · ${ruptures.length} archivé${ruptures.length > 1 ? 's' : ''} (rupture) · ${finsFormation.length} fin de formation`}
+            {loading ? 'Chargement…' : `${actifs.length} actif${actifs.length > 1 ? 's' : ''} · ${enCours.length} en cours · ${archives.length} archivé${archives.length > 1 ? 's' : ''}`}
           </p>
         </div>
         <Button
@@ -93,8 +85,8 @@ export default function ListeAlternants() {
         onChange={setTab}
         options={[
           { value: 'actifs', label: 'Actifs', count: actifs.length },
-          { value: 'ruptures', label: 'Archivés (ruptures)', count: ruptures.length },
-          { value: 'fin_formation', label: 'Fin de formation', count: finsFormation.length },
+          { value: 'enCours', label: 'En cours', count: enCours.length },
+          { value: 'archives', label: 'Archivés', count: archives.length },
         ]}
       />
 
@@ -152,6 +144,11 @@ export default function ListeAlternants() {
                   <span className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
                     {a.session}
                   </span>
+                  {a.filizInProgress && (
+                    <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                      En cours
+                    </span>
+                  )}
                   {a.archived ? (
                     <span className="inline-flex items-center rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-[var(--ds-text-subtle)] ring-1 ring-inset ring-[var(--ds-border)]">
                       {a.archiveReason === 'fin_formation' ? 'Fin de formation' : 'Archivé'}
@@ -203,8 +200,8 @@ export default function ListeAlternants() {
               <p className="text-sm">
                 {tab === 'ruptures'
                   ? 'Les alternants ayant quitté la formation apparaîtront ici.'
-                  : tab === 'fin_formation'
-                    ? 'Les alternants archivés via « Fin de formation » apparaîtront ici.'
+                  : tab === 'enCours'
+                    ? 'Les alternants dont le dossier Filiz reste à compléter apparaîtront ici.'
                     : 'Créez le premier alternant avec le bouton « Nouvel alternant ».'}
               </p>
             </div>

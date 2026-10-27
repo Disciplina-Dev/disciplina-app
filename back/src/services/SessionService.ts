@@ -1,149 +1,71 @@
-import { SessionRepository } from '../repositories/mongo/SessionRepository';
+import { FilizReferenceRepository } from '../repositories/mongo/FilizReferenceRepository';
+import { FilizClassRef, FilizDegreeRef } from '../types/filizReference.types';
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
-import { JOURS_COURS, Session } from '../types/session.types';
-import { logger } from '../external/logger';
+import { FilizService } from '../external/filiz/filiz.service';
+import { toClassRef } from './FilizSyncService';
+import { env } from '../config/env';
+import { Session } from '../types/session.types';
 
-export interface CreateSessionInput {
-    nom: string;
-    filiere?: string | null;
-    jourCours?: string | null;
-    dateDebut: string;
-    dateFin: string;
-}
-
-export interface UpdateSessionInput {
-    nom?: string;
-    filiere?: string | null;
-    jourCours?: string | null;
-    dateDebut?: string;
-    dateFin?: string;
-}
-
-function requireNonBlank(value: string | undefined, field: string): string {
-    const trimmed = value?.trim() ?? '';
-    if (!trimmed) throw new Error(`${field} est obligatoire`);
-    return trimmed;
-}
-
-function requireValidDate(iso: string | undefined, field: string): Date {
-    if (!iso) throw new Error(`${field} est obligatoire`);
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) throw new Error(`${field} invalide`);
-    return d;
-}
-
-function normalizeJourCours(value: string | null | undefined): string | null {
-    const trimmed = value?.trim() ?? '';
-    if (!trimmed) return null;
-    if (!(JOURS_COURS as readonly string[]).includes(trimmed)) {
-        throw new Error(`Jour de cours invalide (attendu : ${JOURS_COURS.join(', ')})`);
-    }
-    return trimmed;
+// Une classe Filiz tient lieu de session : le diplôme devient la filière, les dates viennent de Filiz.
+function classToSession(c: FilizClassRef, degrees: Map<string, FilizDegreeRef>): Session {
+    return {
+        _id: c._id,
+        nom: c.name,
+        filiere: degrees.get(c.degree_id)?.title ?? null,
+        jour_cours: null,
+        date_debut: c.start_date ?? c.synced_at,
+        date_fin: c.end_date ?? c.synced_at,
+        created_at: c.synced_at,
+        updated_at: c.synced_at,
+    };
 }
 
 export class SessionService {
-    private sessions = new SessionRepository();
     private alternants = new AlternantRepository();
+    private filizReference = new FilizReferenceRepository();
+    private filizService = new FilizService();
+
+    private async degreesById(): Promise<Map<string, FilizDegreeRef>> {
+        return new Map((await this.filizReference.findDegrees()).map((d) => [d._id, d]));
+    }
 
     async findAll(search?: string): Promise<Session[]> {
-        return this.sessions.findAll(search);
+        const [classes, degrees] = await Promise.all([this.filizReference.findClasses(search), this.degreesById()]);
+        return classes.map((c) => classToSession(c, degrees));
     }
 
     async findById(id: string): Promise<Session | null> {
-        return this.sessions.findById(id);
+        const found = await this.filizReference.findClassById(id);
+        return found ? classToSession(found, await this.degreesById()) : null;
     }
 
-    async create(input: CreateSessionInput): Promise<Session> {
-        const nom = requireNonBlank(input.nom, 'Le nom de la session');
-        const dateDebut = requireValidDate(input.dateDebut, 'La date de début');
-        const dateFin = requireValidDate(input.dateFin, 'La date de fin');
-        if (dateFin.getTime() < dateDebut.getTime()) {
-            throw new Error('La date de fin doit être postérieure à la date de début');
-        }
-        const duplicate = await this.sessions.findByNom(nom);
-        if (duplicate) throw new Error('Une session existe déjà avec ce nom');
-
-        const created = await this.sessions.create({
-            nom,
-            filiere: input.filiere?.trim() || null,
-            jour_cours: normalizeJourCours(input.jourCours),
-            date_debut: dateDebut,
-            date_fin: dateFin,
-        });
-        logger.info({ sessionId: created._id }, 'Session créée');
-        return created;
-    }
-
-    async update(id: string, input: UpdateSessionInput): Promise<Session | null> {
-        const existing = await this.sessions.findById(id);
-        if (!existing) return null;
-        const patch: Record<string, unknown> = {};
-        if (input.nom !== undefined) {
-            const nom = requireNonBlank(input.nom, 'Le nom de la session');
-            const duplicate = await this.sessions.findByNom(nom);
-            if (duplicate && duplicate._id !== id) throw new Error('Une session existe déjà avec ce nom');
-            patch.nom = nom;
-        }
-        if (input.filiere !== undefined) patch.filiere = input.filiere?.trim() || null;
-        if (input.jourCours !== undefined) patch.jour_cours = normalizeJourCours(input.jourCours);
-
-        const nextDebut = input.dateDebut !== undefined ? requireValidDate(input.dateDebut, 'La date de début') : null;
-        const nextFin = input.dateFin !== undefined ? requireValidDate(input.dateFin, 'La date de fin') : null;
-        const debut = nextDebut ?? new Date(existing.date_debut);
-        const fin = nextFin ?? new Date(existing.date_fin);
-        if (fin.getTime() < debut.getTime()) {
-            throw new Error('La date de fin doit être postérieure à la date de début');
-        }
-        if (nextDebut) patch.date_debut = nextDebut;
-        if (nextFin) patch.date_fin = nextFin;
-
-        const updated = await this.sessions.update(id, patch);
-        // Le nom est dénormalisé sur les alternants : on le resynchronise (archivés inclus).
-        if (updated && patch.nom !== undefined) {
-            const members = await this.alternants.findBySessionId(id, true);
-            for (const member of members) {
-                await this.alternants.update(member._id, { session: updated.nom });
-            }
-        }
-        logger.info({ sessionId: id }, 'Session modifiée');
-        return updated;
-    }
-
-    async delete(id: string): Promise<boolean> {
-        const existing = await this.sessions.findById(id);
-        if (!existing) return false;
-        // Les alternants gardent leur libellé `session` mais sont désassignés (archivés inclus).
-        const members = await this.alternants.findBySessionId(id, true);
-        for (const member of members) {
-            await this.alternants.update(member._id, { session_id: null });
-        }
-        logger.info({ sessionId: id }, 'Session supprimée');
-        return this.sessions.delete(id);
-    }
-
-    /** Assigne un alternant à une session (met à jour session_id + libellé). */
-    async assignAlternant(sessionId: string, alternantId: string): Promise<Session | null> {
-        const session = await this.sessions.findById(sessionId);
-        if (!session) throw new Error('Session introuvable');
-        const alternant = await this.alternants.findById(alternantId);
-        if (!alternant) throw new Error('Alternant introuvable');
-        await this.alternants.update(alternantId, { session_id: sessionId, session: session.nom });
-        return this.sessions.findById(sessionId);
-    }
-
-    /** Retire un alternant d'une session (session_id effacé, libellé conservé). */
-    async unassignAlternant(sessionId: string, alternantId: string): Promise<Session | null> {
-        const session = await this.sessions.findById(sessionId);
-        if (!session) throw new Error('Session introuvable');
-        const alternant = await this.alternants.findById(alternantId);
-        if (!alternant) throw new Error('Alternant introuvable');
-        if ((alternant.session_id ?? null) !== sessionId) return session;
-        await this.alternants.update(alternantId, { session_id: null });
-        return this.sessions.findById(sessionId);
+    async findAlternants(id: string) {
+        return this.alternants.findByFilizClassId(id);
     }
 
     async countAlternants(sessionId: string): Promise<number> {
-        const members = await this.alternants.findBySessionId(sessionId);
-        return members.length;
+        return (await this.alternants.findByFilizClassId(sessionId)).length;
+    }
+
+    /**
+     * Renomme la promotion côté Filiz (GET → remplace className → PATCH, le body complet étant obligatoire),
+     * puis répercute le nom dans le miroir local pour que l'onglet le reflète sans attendre la sync.
+     */
+    async rename(id: string, nom: string): Promise<Session | null> {
+        if (!env.FILIZ_CLASS_UPDATE_ENABLED) throw new Error('Modification des promotions Filiz désactivée');
+        const className = nom.trim();
+        if (!className) throw new Error('Le nom de la session est obligatoire');
+        const local = await this.filizReference.findClassById(id);
+        if (!local) return null;
+
+        const current = await this.filizService.getClass(id);
+        if (!current) throw new Error('Promotion introuvable côté Filiz');
+        const body: Record<string, unknown> = { ...current, classId: id, className };
+        delete body.degreeId;
+        const updated = await this.filizService.updateClass(body);
+        if (!updated) throw new Error('Filiz a refusé la modification de la promotion');
+
+        await this.filizReference.upsertClasses([toClassRef({ ...current, degreeId: local.degree_id, className })]);
+        return this.findById(id);
     }
 }

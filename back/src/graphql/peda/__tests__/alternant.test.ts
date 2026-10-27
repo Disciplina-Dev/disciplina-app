@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { env } from '../../../config/env';
+import { AlternantModel } from '../../../db/mongo/schemas/alternant.schema';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/peda`;
 
@@ -378,46 +379,32 @@ describe('GraphQL peda alternants', () => {
         expect(hit.data.alternants.map((a: { id: string }) => a.id)).toContain(created.id);
     });
 
-    it('distinguishes a fin de formation archive from a rupture archive', async () => {
+    it('flags filizInProgress only while the Filiz folder is still at its start step', async () => {
         const auth = pedaAuth();
-        const a = (await gqlFetch(auth, CREATE, { input: createInput(Date.now()) })).data.createAlternant;
+        const suffix = Date.now();
+        const created = (await gqlFetch(auth, CREATE, { input: createInput(suffix) })).data.createAlternant;
+        const read = async () =>
+            (await gqlFetch(auth, `query($id: ID!) { alternant(id: $id) { filizInProgress } }`, { id: created.id }))
+                .data.alternant.filizInProgress;
+        const setFiliz = (filiz: Record<string, unknown>) =>
+            AlternantModel.updateOne(
+                { _id: created.id },
+                {
+                    $set: {
+                        filiz: { folder_id: `peda-fip-${suffix}`, class_id: 'c', synced_at: new Date(), ...filiz },
+                    },
+                },
+            );
 
-        const archived = await gqlFetch(
-            auth,
-            `mutation($id: ID!, $reason: AlternantArchiveReason!) {
-                archiveAlternant(id: $id, reason: $reason) { archived archivedAt archiveReason }
-            }`,
-            { id: a.id, reason: 'fin_formation' },
-        );
-        expect(archived.errors).toBeUndefined();
-        expect(archived.data.archiveAlternant.archived).toBe(true);
-        expect(archived.data.archiveAlternant.archivedAt).not.toBeNull();
-        expect(archived.data.archiveAlternant.archiveReason).toBe('fin_formation');
+        expect(await read()).toBe(false);
+        await setFiliz({ step: 1, start_step: 1 });
+        expect(await read()).toBe(true);
+        await setFiliz({ step: 4, start_step: 1 });
+        expect(await read()).toBe(false);
+        await setFiliz({ step: 3, start_step: null });
+        expect(await read()).toBe(false);
 
-        const seqs = await gqlFetch(
-            auth,
-            `query($alternantId: ID!) { alternantSequences(alternantId: $alternantId) { archived } }`,
-            { alternantId: a.id },
-        );
-        expect(seqs.data.alternantSequences.every((s: { archived: boolean }) => s.archived)).toBe(true);
-
-        const unarchived = await gqlFetch(
-            auth,
-            `mutation($id: ID!) { unarchiveAlternant(id: $id) { archived archiveReason } }`,
-            { id: a.id },
-        );
-        expect(unarchived.errors).toBeUndefined();
-        expect(unarchived.data.unarchiveAlternant.archived).toBe(false);
-        expect(unarchived.data.unarchiveAlternant.archiveReason).toBeNull();
-
-        // Sans raison explicite, l'archivage reste une archive de rupture.
-        const defaulted = await gqlFetch(
-            auth,
-            `mutation($id: ID!) { archiveAlternant(id: $id) { archived archiveReason } }`,
-            { id: a.id },
-        );
-        expect(defaulted.errors).toBeUndefined();
-        expect(defaulted.data.archiveAlternant.archiveReason).toBe('rupture');
+        await AlternantModel.deleteOne({ _id: created.id });
     });
 
     it('authorises the PEDA role but forbids other employee roles without permission', async () => {

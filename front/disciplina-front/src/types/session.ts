@@ -21,19 +21,3 @@ export interface Session {
   createdAt: string | null
   updatedAt: string | null
 }
-
-export interface CreateSessionInput {
-  nom: string
-  filiere?: string | null
-  jourCours?: string | null
-  dateDebut: string
-  dateFin: string
-}
-
-export interface UpdateSessionInput {
-  nom?: string
-  filiere?: string | null
-  jourCours?: string | null
-  dateDebut?: string
-  dateFin?: string
-}
