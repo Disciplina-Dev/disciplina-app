@@ -127,9 +127,9 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 
 - **Étapes** : réglages de disponibilité (`GET/PUT /api/booking/settings`) ; parcours public `/booking/:slug` → choisir créneau → réserver ; calendrier interne.
 - **Chaîne** : `GET /api/booking/public/:slug`, `/slots`, `POST /book` → `booking/service.ts`. Calendrier : `GET /api/calendar/users|events`, `POST /events`, `PATCH /events/:id`, `/events/:id/attendance`, `DELETE /events/:id` → `external/google/calendar.service.ts`.
-- **Résultat attendu** : créneaux libres corrects ; réservation crée l'event Google Calendar.
+- **Résultat attendu** : créneaux libres corrects ; réservation crée l'event Google Calendar. Recherche dans le calendrier RH par email **ou** nom/prénom de l'invité (champs optionnels à la création, absents des créneaux historiques → recherche email seule).
 - **External** : ⚠️ Google Calendar.
-- **Test vitest** : aucun (gap).
+- **Test vitest** : `rest/calendar/__tests__/events.test.ts` (authz secteur), `rest/calendar/__tests__/attendee.test.ts` (création + nom/prénom, rétro-compatibilité).
 - **Statut** : _à remplir_
 
 ### 3.10 E-signature AB
