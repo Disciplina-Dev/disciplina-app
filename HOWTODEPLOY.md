@@ -92,7 +92,7 @@ docker compose -f docker-compose.test.yml up --build --force-recreate \
 
 ### Log verification
 
-- Dozzle — `http://localhost:9999` — check backend/frontend logs for errors
+- `docker compose logs --tail 200 backend frontend` — check for errors
 - Jaeger — `http://localhost:16686` — spot-check traces
 
 ## 5. Rollback
