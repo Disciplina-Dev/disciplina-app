@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCompany, IconLoader, IconMail, IconPhone, IconPlus, IconSearch, IconTraining, IconUser } from '@/components/ui/icons'
+import {
+  IconCompany,
+  IconLoader,
+  IconMail,
+  IconPhone,
+  IconPlus,
+  IconSearch,
+  IconTraining,
+  IconUser,
+} from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import Tabs from '@/components/ui/Tabs'
 import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
 import { fetchAlternants } from '@/api/alternants'
 import type { Alternant } from '@/types/alternant'
 
-type ArchiveTab = 'actifs' | 'archives'
+type AlternantTab = 'enCours' | 'actifs' | 'archives'
 
 export default function ListeAlternants() {
   const navigate = useNavigate()
@@ -17,7 +26,7 @@ export default function ListeAlternants() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [tab, setTab] = useState<ArchiveTab>('actifs')
+  const [tab, setTab] = useState<AlternantTab>('actifs')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350)
@@ -45,9 +54,10 @@ export default function ListeAlternants() {
     }
   }, [debouncedSearch])
 
-  const actifs = useMemo(() => alternants.filter((a) => !a.archived), [alternants])
+  const enCours = useMemo(() => alternants.filter((a) => a.filizInProgress), [alternants])
+  const actifs = useMemo(() => alternants.filter((a) => !a.archived && !a.filizInProgress), [alternants])
   const archives = useMemo(() => alternants.filter((a) => a.archived), [alternants])
-  const visible = tab === 'actifs' ? actifs : archives
+  const visible = tab === 'enCours' ? enCours : tab === 'actifs' ? actifs : archives
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
@@ -56,7 +66,7 @@ export default function ListeAlternants() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--ds-text)]">Alternants</h1>
           <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">
-            {loading ? 'Chargement…' : `${actifs.length} actif${actifs.length > 1 ? 's' : ''} · ${archives.length} archivé${archives.length > 1 ? 's' : ''}`}
+            {loading ? 'Chargement…' : `${actifs.length} actif${actifs.length > 1 ? 's' : ''} · ${enCours.length} en cours · ${archives.length} archivé${archives.length > 1 ? 's' : ''}`}
           </p>
         </div>
         <Button
@@ -69,12 +79,13 @@ export default function ListeAlternants() {
         </Button>
       </div>
 
-      <Tabs<ArchiveTab>
-        label="Filtrer les alternants par statut d'archive"
+      <Tabs<AlternantTab>
+        label="Filtrer les alternants par statut"
         value={tab}
         onChange={setTab}
         options={[
           { value: 'actifs', label: 'Actifs', count: actifs.length },
+          { value: 'enCours', label: 'En cours', count: enCours.length },
           { value: 'archives', label: 'Archivés', count: archives.length },
         ]}
       />
@@ -133,9 +144,14 @@ export default function ListeAlternants() {
                   <span className="inline-flex items-center rounded-md bg-[#CCFBF1] px-2 py-0.5 text-xs font-bold text-[#0F766E] ring-1 ring-inset ring-[#0F766E]/20">
                     {a.session}
                   </span>
+                  {a.filizInProgress && (
+                    <span className="inline-flex items-center rounded-md bg-amber-50 px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-amber-700 ring-1 ring-inset ring-amber-600/20">
+                      En cours
+                    </span>
+                  )}
                   {a.archived ? (
                     <span className="inline-flex items-center rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-[var(--ds-text-subtle)] ring-1 ring-inset ring-[var(--ds-border)]">
-                      Archivé
+                      {a.archiveReason === 'fin_formation' ? 'Fin de formation' : 'Archivé'}
                     </span>
                   ) : (
                     !a.company && (
@@ -183,8 +199,10 @@ export default function ListeAlternants() {
               <p className="text-lg font-medium text-[var(--ds-text)]">Aucun alternant trouvé</p>
               <p className="text-sm">
                 {tab === 'archives'
-                  ? 'Les alternants ayant quitté la formation apparaîtront ici.'
-                  : 'Créez le premier alternant avec le bouton « Nouvel alternant ».'}
+                  ? 'Les alternants ayant quitté la formation ou terminé leur cursus apparaîtront ici.'
+                  : tab === 'enCours'
+                    ? 'Les alternants dont le dossier Filiz reste à compléter apparaîtront ici.'
+                    : 'Créez le premier alternant avec le bouton « Nouvel alternant ».'}
               </p>
             </div>
           )}

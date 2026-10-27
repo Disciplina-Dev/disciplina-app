@@ -120,7 +120,7 @@ des [conditions générales d'utilisation](/legal/cgu/entreprise).
 | Google (Workspace, Drive, Gmail, Agenda) | Stockage documentaire, messagerie, agenda | Curriculum vitæ, documents, photographies, emails, rendez-vous | Union européenne, avec possibilité d'accès et de traitement hors UE |
 | Sentry | Supervision technique, détection d'erreurs | Journaux techniques, données de navigation, enregistrements d'écran | Union européenne (instance allemande) |
 | DocuSeal | Signature électronique | Nom, signature, documents signés | Hors Union européenne |
-| ClassMarker | Évaluations en ligne | Nom du candidat, résultats des tests | Hors Union européenne |
+| ClassMarker | Évaluations en ligne — en cours de remplacement par le questionnaire interne de l'application (aucun transfert externe) ; retiré à la fin de la période de transition | Identifiant du candidat, résultats des tests | Hors Union européenne |
 | Brevo | Acheminement des emails | Adresse email, contenu des messages | Union européenne |
 | Modèle de langage local | Génération du résumé de profil | Données du dossier candidat | Infrastructure de [[NOM_ORGANISME]], aucun transfert externe |
 
@@ -159,6 +159,8 @@ peut être communiqué sur demande à [[EMAIL_DPO]].
 | Dossier d'un candidat n'ayant pas donné suite | 1 an à compter du dernier contact | Suppression |
 | Numéro de sécurité sociale | Durée nécessaire à la formalité justifiant sa collecte | Suppression |
 | Photographie | Durée de l'accompagnement, ou jusqu'au retrait du consentement | Suppression |
+| Réponses et score aux questionnaires d'évaluation internes | Conservés avec le dossier du candidat, supprimés avec lui | Suppression |
+| Lien de questionnaire jamais utilisé | Jusqu'à son expiration (15 minutes par défaut) | Suppression automatique |
 | Données d'entreprises et d'offres | 3 ans à compter du dernier contact ; 1 an après la clôture d'une offre | Suppression ou anonymisation |
 | Documents signés électroniquement | 5 ans | Archivage |
 | Emails et relances | 3 ans | Suppression |

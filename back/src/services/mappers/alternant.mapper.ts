@@ -21,8 +21,13 @@ export function alternantToGql(a: Alternant): object {
               }
             : null,
         linkedAlternantIds: a.linked_alternant_ids ?? [],
+        // Folder Filiz encore à son étape de départ : dossier pas fini de remplir.
+        filizInProgress: !a.archived_at && a.filiz?.start_step != null && a.filiz.step === a.filiz.start_step,
         archived: a.archived_at != null,
         archivedAt: a.archived_at ? new Date(a.archived_at).toISOString() : null,
+        // Les archives antérieures au champ n'ont pas de raison : elles
+        // provenaient toutes d'une rupture « quitte la formation ».
+        archiveReason: a.archived_at != null ? (a.archive_reason ?? 'rupture') : null,
         createdAt: a.created_at ? new Date(a.created_at).toISOString() : null,
         updatedAt: a.updated_at ? new Date(a.updated_at).toISOString() : null,
     };

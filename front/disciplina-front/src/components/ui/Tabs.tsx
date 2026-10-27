@@ -115,8 +115,10 @@ export default function Tabs<T extends string | number>({
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ds-accent)]',
               'disabled:cursor-not-allowed disabled:opacity-50',
               width === 'full' ? 'flex-1' : '',
+              // `--ds-text-inverse` suit le thème : en sombre la pilule `solid`
+              // devient claire, un libellé `text-white` y serait illisible.
               isActive
-                ? 'text-white'
+                ? 'text-[var(--ds-text-inverse)]'
                 : 'text-[var(--ds-text-subtle)] hover:text-[var(--ds-text)]',
             ].join(' ')}
           >

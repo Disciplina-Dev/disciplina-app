@@ -33,7 +33,8 @@ Stores complete candidate profiles including identity, education, support system
 | pdf_link | string | — | Link to generated candidate PDF |
 | cv_link | string | — | Link to the candidate's CV uploaded to Google Drive |
 | drive_folder_id | string | — | Google Drive folder ID holding the candidate's documents |
-| classmarker | object | — | ClassMarker test results (see below) |
+| classmarker | object | — | Latest test result — ClassMarker or internal questionnaire, same shape (see below) |
+| classmarker_history | array of objects | — | Every test result, oldest first (same shape as `classmarker`) |
 | created_at | date | — | Candidate creation date (first interview date on CSV import) |
 
 ### Embedded object: identity
@@ -170,6 +171,12 @@ Stores complete candidate profiles including identity, education, support system
 | test_name | string | — | Name of test |
 | completed_at | date | — | When test was completed |
 | duration | string | — | How long test took |
+| questions | array | — | Per-question detail: `question_id`, `question_type` (`multiplechoice` / `freetext`), `question`, `options`, `correct_option`, `user_response`, `points_scored`, `points_available`, `result` |
+| pdf_link | string | — | Result PDF uploaded to the candidate's Drive (absent if no Google account was connected) |
+| source | `'classmarker'` \| `'internal'` | — | Absent on legacy ClassMarker results |
+| questionnaire_id | string | — | Internal questionnaire only |
+| attempt_id | string | — | Internal questionnaire only — links to `questionnaire_attempts` |
+| tab_switch_count | int | — | Internal questionnaire only — informative, never sent to the MCP |
 
 ---
 
@@ -353,6 +360,7 @@ Péda domain. Fields stay snake_case (converted at resolver). Exposed through MC
 | `company` | object \| null | `name`, `address`, `mentor_name`, `start_date` (required), `end_date` |
 | `linked_alternant_ids` | string[] | |
 | `archived_at` | Date \| null | indexed |
+| `archive_reason` | enum \| null | `rupture` \| `fin_formation`; `null` on archives older than the field is read as `rupture` |
 | `created_at`, `updated_at` | Date | |
 
 ## Collection: alternant_sequences
@@ -385,6 +393,51 @@ SA (séquences d'accompagnement).
 | `detail` | string \| null | free text, never exposed via MCP |
 | `poursuit_formation` | boolean | required |
 | `created_at`, `updated_at` | Date | |
+
+## Collection: questionnaires
+
+Internal tests replacing ClassMarker (#968). Per region (`getModels()`), nothing shared.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | UUID |
+| `title`, `description` | string | plain text only (HTML refused) |
+| `tp_types` | string[] | targeted titles (`AD`, `CC`, `NTC`, `REM`, `CADGA`) |
+| `duration_minutes` | number | 1–240, server-side timer |
+| `pass_threshold` | number | %, default 50 — shown to staff only |
+| `immediate_feedback`, `allow_skip`, `shuffle_choices` | boolean | |
+| `questions[]` | object | `_id`, `type` (`single` / `multiple` / `true_false` / `text`), `text`, `points`, `choices[]` (`_id`, `text`, `correct`), `accepted_answers[]` (type `text` only) |
+| `status` | enum | `draft` / `active` / `archived`, indexed |
+| `version` | number | incremented on duplication |
+| `locked` | boolean | true after the first real attempt — edit refused, duplicate instead |
+| `created_by` | number | MySQL user id |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: questionnaire_attempts
+
+One document per link (candidate invitation or staff test run).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | UUID |
+| `questionnaire_id`, `questionnaire_version` | string, number | |
+| `candidate_id` | string | absent on a test run |
+| `invited_by` | number | MySQL user id |
+| `token_hash` | string | SHA-256 of the link secret, unique — the secret itself is never stored |
+| `expires_at` | Date | link validity before start |
+| `purge_at` | Date | TTL index: an invitation never started is deleted at expiry; removed on start |
+| `status` | enum | `invited` / `in_progress` / `completed` / `expired` / `cancelled` |
+| `started_at`, `deadline`, `completed_at` | Date | `deadline` = start + duration (10 s network grace) |
+| `current_index` | number | only the current question accepts an answer |
+| `choice_order` | object | per-question choice order frozen at start (`shuffle_choices`) |
+| `device_hash` | string | SHA-256 of the device cookie — link locked to the first device |
+| `tab_switch_count` | number | informative |
+| `is_test_run`, `identity_confirmed` | boolean | |
+| `answers[]` | object | `question_id`, `choice_ids`, `text_answer` (type `text`), `skipped`, `correct`, `points`, `answered_at` |
+| `score` | object | `percentage`, `points_scored`, `points_available`, `passed` |
+| `created_at`, `updated_at` | Date | |
+
+Indexes: `{questionnaire_id, created_at}`, `{candidate_id, created_at}`, `{status, created_at}`, TTL `{purge_at}`. Attempts are deleted with the candidate (right to erasure). On completion the result is copied into `candidates.classmarker` / `classmarker_history` with `source: 'internal'`.
 
 ## Enums reference
 

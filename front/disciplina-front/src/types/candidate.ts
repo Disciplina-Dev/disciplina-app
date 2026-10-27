@@ -32,6 +32,12 @@ export enum SchoolLevel {
 }
 
 /** Libellés français des niveaux d'études (affichage UI). */
+export const NATIONALITY_LABELS: Record<number, string> = {
+    1: 'Française',
+    2: 'Pays européen',
+    3: 'Autre',
+};
+
 export const SCHOOL_LEVEL_LABELS: Record<SchoolLevel, string> = {
     [SchoolLevel.CAP_BEP_WITH_1Y_EXP]: 'CAP/BEP + 1 an exp.',
     [SchoolLevel.PREMIERE_TERMINALE]: '1ère / Terminale',
@@ -166,10 +172,14 @@ export interface Identity {
     date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
     department_of_birth?: string;         // Département de naissance
+    born_in_france?: boolean;             // Né en France (exigé par Filiz)
+    nationality?: 1 | 2 | 3;              // 1 : française, 2 : pays européen, 3 : autre (exigé par Filiz)
+    residence_permit?: boolean;           // Titre de séjour autorisant à travailler (nationalité « autre »)
     age?: number;                         // Âge actuel (calculé ou fourni)
     address?: string;                     // Adresse (numéro et rue)
     postal_code?: string;                 // Code postal
     city?: string;                        // Ville
+    country?: string;                     // Pays de résidence
     sex?: string;                         // Sexe (FILLE / GARCON)
     email: string;                        // Adresse email (requis, unique)
     phone: string;                        // Téléphone (requis)

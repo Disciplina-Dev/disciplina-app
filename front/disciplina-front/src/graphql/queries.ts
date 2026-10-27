@@ -965,11 +965,15 @@ export const GET_CANDIDATE_FULL = gql`
         dateOfBirth
         placeOfBirth
         departmentOfBirth
+        bornInFrance
+        nationality
+        residencePermit
         age
         sex
         address
         postalCode
         city
+        country
         drivingLicenseB
         hasVehicle
         transportMeans
@@ -1337,6 +1341,7 @@ export const MATCH_OFFER = gql`
         comment
         cvWebview
         hasCv
+        isRupture
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1354,6 +1359,7 @@ export const MATCH_OFFER = gql`
         email
         phone
         hasCv
+        isRupture
       }
       interviewSlots
       interviewLocation
@@ -1407,6 +1413,7 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         identityDescription
         cvWebview
         hasCv
+        isRupture
       }
     }
   }
@@ -2158,6 +2165,18 @@ export const GET_IMMERSING_CANDIDATES_MAP = gql`
           }
         }
       }
+    }
+  }
+`
+
+export const GET_SECTORS = gql`
+  query GetSectors {
+    sectors {
+      id
+      code
+      label
+      level
+      parentId
     }
   }
 `

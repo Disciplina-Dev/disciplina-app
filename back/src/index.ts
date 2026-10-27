@@ -37,12 +37,15 @@ import { router as externalRouter } from './rest/external/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
+import { router as questionnaireRouter } from './rest/questionnaire/route';
+import { router as questionnairePublicRouter } from './rest/questionnaire/public.route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
 import { startSaNotificationScheduler } from './scheduler/saNotificationScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
 import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
+import { startFilizSyncScheduler } from './scheduler/filizSyncScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
 import { buildMcpOAuthRouter } from './mcp/oauth/router';
@@ -173,6 +176,8 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
+    app.use('/api/questionnaires', questionnaireRouter);
+    app.use('/api/q', questionnairePublicRouter);
     // OAuth MCP (claude.ai web) : endpoints .well-known/authorize/token/register/
     // revoke à la racine de l'issuer — avant mcpRouter et errorHandler.
     app.use(buildMcpOAuthRouter());
@@ -195,7 +200,10 @@ export async function createApp(): Promise<express.Express> {
     // drop. Best-effort : en cas d'échec les tables sont conservées et le
     // retry repart au prochain boot ; ne doit jamais bloquer le démarrage.
     try {
-        const legacy = await migrateLegacyKpiTables({ all: (sql, params) => query(sql as never, params) }, { dropAfter: true });
+        const legacy = await migrateLegacyKpiTables(
+            { all: (sql, params) => query(sql as never, params) },
+            { dropAfter: true },
+        );
         if (legacy.commercial || legacy.rh || legacy.dropped.length > 0) {
             logger.info(
                 { commercial: legacy.commercial, rh: legacy.rh, dropped: legacy.dropped },
@@ -293,6 +301,7 @@ export async function startServer(): Promise<http.Server> {
     startUnavailableExpiryScheduler();
     startAbSignatureRelanceScheduler();
     startExpiredAccessScheduler();
+    startFilizSyncScheduler();
     return server;
 }
 

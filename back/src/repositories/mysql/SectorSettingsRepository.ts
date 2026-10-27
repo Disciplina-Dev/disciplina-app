@@ -5,20 +5,21 @@ export interface SectorSettingRow {
     location: string;
 }
 
+// Lieu de RDV porté par `sectors.location` (région ou secteur, jamais les communes) ;
+// `sector` reste le libellé historique exposé par l'API.
 export class SectorSettingsRepository {
-    /** Tous les lieux de RDV par secteur, ordonnés par secteur. */
+    /** Tous les lieux de RDV par secteur, ordonnés par libellé. */
     async findAll(): Promise<SectorSettingRow[]> {
         return query<SectorSettingRow[]>(
-            'SELECT sector, location FROM sector_settings ORDER BY sector',
+            "SELECT label AS sector, location FROM sectors WHERE level IN ('region', 'sector') ORDER BY label",
         );
     }
 
-    /** Crée/écrase le lieu d'un secteur (upsert sur la clé primaire `sector`). */
+    /** Écrase le lieu d'un secteur existant (identifié par son libellé). */
     async upsert(sector: string, location: string): Promise<void> {
-        await query(
-            'INSERT INTO sector_settings (sector, location) VALUES (?, ?) ' +
-                'ON DUPLICATE KEY UPDATE location = VALUES(location)',
-            [sector, location],
-        );
+        await query("UPDATE sectors SET location = ? WHERE level IN ('region', 'sector') AND label = ?", [
+            location,
+            sector,
+        ]);
     }
 }

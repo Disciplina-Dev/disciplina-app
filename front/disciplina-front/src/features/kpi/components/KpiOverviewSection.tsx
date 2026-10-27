@@ -1,16 +1,14 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { IconChevronRight, IconGlobe, IconJob } from '@/components/ui/icons'
 
 import {
   fetchKpiCombined,
   fetchKpiLive,
-  kpiSitesForRegion,
   type KpiMetricColumn,
   type KpiSiteOverview,
 } from '@/api/kpi'
-import { useRegionStore } from '@/store/regionStore'
-import { SITE_LABELS } from '../config'
+import { useSectors } from '@/hooks/useSectors'
 
 /** Compteurs mis en avant sur chaque carte commercial. */
 const ANNUAL_CARD_METRICS: { key: KpiMetricColumn; label: string }[] = [
@@ -32,6 +30,7 @@ interface SectorGridProps {
 
 /** Grille par secteur : cartes commerciaux cliquables vers la page profil. */
 function KpiSectorGrid({ sites, cardMetrics }: SectorGridProps) {
+  const { labelOf } = useSectors()
   return (
     <div className="grid gap-4 lg:grid-cols-3">
       {sites.map((site) => (
@@ -40,7 +39,7 @@ function KpiSectorGrid({ sites, cardMetrics }: SectorGridProps) {
           className="rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]"
         >
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-[14px] font-bold text-[var(--ds-text)]">{SITE_LABELS[site.site]}</h3>
+            <h3 className="text-[14px] font-bold text-[var(--ds-text)]">{labelOf(site.site)}</h3>
             <span className="text-[12px] text-[var(--ds-text-subtle)]">
               {site.totals.count_oui.toLocaleString('fr-FR')} Oui ·{' '}
               {site.totals.total_appels.toLocaleString('fr-FR')} appels
@@ -146,8 +145,7 @@ export function KpiLiveSection() {
  * commerciaux regroupés par secteur, chaque carte renvoie vers la page profil.
  */
 export default function KpiOverviewSection({ year }: { year: number }) {
-  const region = useRegionStore((s) => s.region)
-  const tenantSites = useMemo(() => kpiSitesForRegion(region), [region])
+  const { kpiSites: tenantSites } = useSectors()
   const [sites, setSites] = useState<KpiSiteOverview[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 

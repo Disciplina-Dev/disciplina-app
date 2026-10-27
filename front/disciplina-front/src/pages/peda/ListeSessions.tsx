@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCalendar, IconLoader, IconPlus, IconSearch, IconTraining, IconUsers } from '@/components/ui/icons'
-import Button from '@/components/ui/Button'
-import SessionFormModal from '@/components/peda/SessionFormModal'
+import { IconCalendar, IconLoader, IconSearch, IconTraining, IconUsers } from '@/components/ui/icons'
 import { fetchSessions } from '@/api/sessions'
 import type { Session } from '@/types/session'
 
@@ -17,24 +15,11 @@ export default function ListeSessions() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [showCreateModal, setShowCreateModal] = useState(false)
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350)
     return () => clearTimeout(t)
   }, [search])
-
-  async function reload(q: string) {
-    setLoading(true)
-    try {
-      setSessions(await fetchSessions(q || undefined))
-      setError(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Chargement impossible')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   useEffect(() => {
     let alive = true
@@ -65,14 +50,6 @@ export default function ListeSessions() {
             {loading ? 'Chargement…' : `${sessions.length} session${sessions.length > 1 ? 's' : ''}`}
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="md"
-          leftIcon={<IconPlus width={16} height={16} />}
-          onClick={() => setShowCreateModal(true)}
-        >
-          Nouvelle session
-        </Button>
       </div>
 
       <div className="mb-6">
@@ -154,22 +131,12 @@ export default function ListeSessions() {
             <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--ds-border)] bg-[var(--ds-surface)] py-12 text-[var(--ds-text-subtle)]">
               <IconTraining width={48} height={48} className="mb-4 text-[var(--ds-text-subtle)]" />
               <p className="text-lg font-medium text-[var(--ds-text)]">Aucune session trouvée</p>
-              <p className="text-sm">Créez la première session avec le bouton « Nouvelle session ».</p>
+              <p className="text-sm">Les sessions correspondent aux classes Filiz : lancez la synchronisation Filiz.</p>
             </div>
           )}
         </div>
       )}
 
-      {showCreateModal && (
-        <SessionFormModal
-          onClose={() => setShowCreateModal(false)}
-          onSaved={(created) => {
-            setShowCreateModal(false)
-            reload(debouncedSearch)
-            navigate(`/peda/sessions/${created.id}`)
-          }}
-        />
-      )}
     </div>
   )
 }

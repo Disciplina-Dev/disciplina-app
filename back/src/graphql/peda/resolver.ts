@@ -6,11 +6,16 @@ import {
     CreateAlternantInput,
     UpdateAlternantInput,
 } from '../../services/AlternantService';
-import { AlternantSequence, AlternantSequenceContacts, AlternantSequenceStatus } from '../../types/alternant.types';
+import {
+    AlternantArchiveReason,
+    AlternantSequence,
+    AlternantSequenceContacts,
+    AlternantSequenceStatus,
+} from '../../types/alternant.types';
 import { alternantToGql, sequenceToGql } from '../../services/mappers/alternant.mapper';
 import { ruptureToGql } from '../../services/mappers/rupture.mapper';
 import { sessionToGql } from '../../services/mappers/session.mapper';
-import { CreateSessionInput, SessionService, UpdateSessionInput } from '../../services/SessionService';
+import { SessionService } from '../../services/SessionService';
 import { RuptureService } from '../../services/RuptureService';
 import { SaCalendarService } from '../../services/SaCalendarService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
@@ -87,7 +92,7 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const session = await sessionService.findById(sessionId);
             if (!session) throw new Error('Session introuvable');
-            const members = await alternantService.findBySessionId(sessionId);
+            const members = await sessionService.findAlternants(sessionId);
             return members.map(alternantToGql);
         },
         ruptures: async (_: unknown, { year, month }: { year: number; month: number }, context: any) => {
@@ -103,6 +108,11 @@ export const resolvers = {
         },
     },
     Mutation: {
+        renameSession: async (_: unknown, { id, nom }: { id: string; nom: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const renamed = await sessionService.rename(id, nom);
+            return renamed ? sessionToGql(renamed, await sessionService.countAlternants(id)) : null;
+        },
         createAlternant: async (_: unknown, { input }: { input: CreateAlternantInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const created = await alternantService.create(input);
@@ -158,10 +168,14 @@ export const resolvers = {
             const updated = await alternantService.unlinkAlternant(id, otherId);
             return updated ? alternantToGql(updated) : null;
         },
-        archiveAlternant: async (_: unknown, { id }: { id: string }, context: any) => {
+        archiveAlternant: async (
+            _: unknown,
+            { id, reason }: { id: string; reason?: AlternantArchiveReason },
+            context: any,
+        ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const sequences = await alternantService.findSequences(id);
-            const updated = await alternantService.archive(id);
+            const updated = await alternantService.archive(id, reason ?? 'rupture');
             await saCalendarService.removeSequencesForAllPedas(sequences);
             return updated ? alternantToGql(updated) : null;
         },
@@ -181,11 +195,7 @@ export const resolvers = {
             await saCalendarService.syncSequencesForAllPedas([created._id]);
             return sequenceToGql(created);
         },
-        rescheduleSequence: async (
-            _: unknown,
-            { id, prevueLe }: { id: string; prevueLe: string },
-            context: any,
-        ) => {
+        rescheduleSequence: async (_: unknown, { id, prevueLe }: { id: string; prevueLe: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const updated = await alternantService.rescheduleSequence(id, prevueLe);
             if (updated) await saCalendarService.syncSequencesForAllPedas([updated._id]);
@@ -224,41 +234,6 @@ export const resolvers = {
             if (deleted && sequence) await saCalendarService.removeSequencesForAllPedas([sequence]);
             return deleted;
         },
-        createSession: async (_: unknown, { input }: { input: CreateSessionInput }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
-            const created = await sessionService.create(input);
-            return sessionToGql(created, 0);
-        },
-        updateSession: async (_: unknown, { id, input }: { id: string; input: UpdateSessionInput }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
-            const updated = await sessionService.update(id, input);
-            if (!updated) return null;
-            return sessionToGql(updated, await sessionService.countAlternants(id));
-        },
-        deleteSession: async (_: unknown, { id }: { id: string }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
-            return sessionService.delete(id);
-        },
-        assignAlternantToSession: async (
-            _: unknown,
-            { sessionId, alternantId }: { sessionId: string; alternantId: string },
-            context: any,
-        ) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
-            const updated = await sessionService.assignAlternant(sessionId, alternantId);
-            if (!updated) return null;
-            return sessionToGql(updated, await sessionService.countAlternants(sessionId));
-        },
-        removeAlternantFromSession: async (
-            _: unknown,
-            { sessionId, alternantId }: { sessionId: string; alternantId: string },
-            context: any,
-        ) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
-            const updated = await sessionService.unassignAlternant(sessionId, alternantId);
-            if (!updated) return null;
-            return sessionToGql(updated, await sessionService.countAlternants(sessionId));
-        },
         declareRupture: async (_: unknown, { input }: { input: DeclareRuptureInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const created = await ruptureService.declare(input);
@@ -266,11 +241,7 @@ export const resolvers = {
             await reconcileAlternantArchive(created.alternant_id);
             return ruptureToGql(created, alternant);
         },
-        updateRupture: async (
-            _: unknown,
-            { id, input }: { id: string; input: UpdateRuptureInput },
-            context: any,
-        ) => {
+        updateRupture: async (_: unknown, { id, input }: { id: string; input: UpdateRuptureInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const updated = await ruptureService.update(id, input);
             if (!updated) return null;

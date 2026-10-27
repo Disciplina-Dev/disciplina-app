@@ -199,6 +199,9 @@ function parseEventInput(body: unknown, res: Response): CalendarEventInput | nul
             return null;
         }
     }
+    // Nom/prénom de l'invité : optionnels (créneaux historiques sans ces champs), simples libellés de recherche.
+    const attendeeFirstName = typeof b.attendeeFirstName === 'string' ? b.attendeeFirstName.trim() || undefined : undefined;
+    const attendeeLastName = typeof b.attendeeLastName === 'string' ? b.attendeeLastName.trim() || undefined : undefined;
     return {
         summary,
         start,
@@ -208,6 +211,8 @@ function parseEventInput(body: unknown, res: Response): CalendarEventInput | nul
         colorId: typeof b.colorId === 'string' ? b.colorId : undefined,
         meetingLink,
         attendeeEmail,
+        attendeeFirstName,
+        attendeeLastName,
         isInterview: Boolean(b.isInterview),
     };
 }

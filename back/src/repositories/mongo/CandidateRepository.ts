@@ -401,6 +401,14 @@ export class CandidateRepository {
             .lean();
     }
 
+    /** Statut global (en direct) des candidats demandés — voir `OfferService.find` (#1010). */
+    async findStatusesByIds(ids: string[]): Promise<Array<{ _id: string; status?: CandidateStatus }>> {
+        return getModels()
+            .Candidate.find({ _id: { $in: ids } })
+            .select({ status: 1, _id: 1 })
+            .lean();
+    }
+
     /** Documents candidats (uniquement le consentement) pour les ids demandés. */
     async findConsentmentsByIds(
         ids: string[],

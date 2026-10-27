@@ -6,6 +6,7 @@ import { CandidateAvatarModel } from '../../../db/mongo/schemas/candidate.schema
 import { TitleProfessionalType, CandidateStatus } from '../../../types/candidate.types';
 import { JobRole, Permission } from '../../../types/user.types';
 import { logger } from '../../../external/logger';
+import { GoogleDriveService } from '../../../external/google/drive.service';
 
 const BASE = `http://localhost:${env.API_PORT}/api/candidates`;
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64)]);
@@ -42,6 +43,11 @@ describe('Candidate avatar routes — photo_processing consent (warn-only grace 
 
     it('POST /:id/avatar still stores the photo when consent is missing (warn mode)', async () => {
         const warnSpy = vi.spyOn(logger, 'warn');
+        // L'archivage Drive (best-effort) appellerait le vrai Google si l'utilisateur seedé a un token.
+        vi.spyOn(GoogleDriveService, 'fromTokens').mockReturnValue({
+            createFolder: vi.fn().mockResolvedValue({ id: 'folder-test', webViewLink: 'https://drive.test/f' }),
+            uploadFile: vi.fn().mockResolvedValue({ webViewLink: 'https://drive.test/p' }),
+        } as any);
         const suffix = Date.now();
         const id = await seedCandidate(suffix, false);
         const { cookieHeader, csrfHeader } = mintAuthCookies({

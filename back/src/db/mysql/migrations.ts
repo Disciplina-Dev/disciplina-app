@@ -1,6 +1,7 @@
 import { query as queryDefault } from './connection';
 import { logger } from '../../external/logger';
 import { TENANT_TIMEZONE } from '../../config/tenant';
+import { migrateSectors } from './sectorsMigration';
 
 type QueryFn = <T>(sql: string, params?: unknown[]) => Promise<T>;
 
@@ -36,6 +37,10 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     { table: 'todos', column: 'deleted', definition: 'TINYINT(1) NOT NULL DEFAULT 0' },
     { table: 'companies', column: 'ab_id', definition: 'VARCHAR(36) DEFAULT NULL' },
     { table: 'companies_blacklist', column: 'relance_channel', definition: "ENUM('PHONE', 'MAIL') DEFAULT NULL" },
+    // Référentiel des secteurs : FK vers sectors ajoutée par migrateSectors (index + contrainte).
+    { table: 'companies', column: 'sector_id', definition: 'INT DEFAULT NULL' },
+    { table: 'company_conflict', column: 'sector_id', definition: 'INT DEFAULT NULL' },
+    { table: 'companies_blacklist', column: 'sector_id', definition: 'INT DEFAULT NULL' },
     // Quarantaine : liste (JSON) des commerciaux candidats pour les conflits
     // multiple_commercials_same_siren, pour ne proposer que ceux-ci en résolution.
     { table: 'company_conflict', column: 'candidate_user_ids', definition: 'TEXT DEFAULT NULL' },
@@ -142,7 +147,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             phone VARCHAR(50) DEFAULT NULL,
             email VARCHAR(255) DEFAULT NULL,
             address VARCHAR(255) NOT NULL,
-            sector VARCHAR(255) NOT NULL DEFAULT 'Nord-Est',
+            sector VARCHAR(255) DEFAULT NULL,
             main_activity VARCHAR(255) DEFAULT NULL,
             siret CHAR(14) UNIQUE NOT NULL,
             idcc CHAR(4) DEFAULT NULL,
@@ -398,6 +403,62 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             INDEX idx_mcp_audit_date (created_at)
         )`,
     },
+    {
+        // Référentiel hiérarchique région > secteur > commune (seedé par migrateSectors).
+        // `code` n'est unique que par niveau : la commune ANNECY et le secteur ANNECY coexistent.
+        table: 'sectors',
+        ddl: `CREATE TABLE IF NOT EXISTS sectors (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            code VARCHAR(64) NOT NULL,
+            label VARCHAR(255) NOT NULL,
+            level ENUM('region', 'sector', 'commune') NOT NULL,
+            parent_id INT DEFAULT NULL,
+            location VARCHAR(255) NOT NULL DEFAULT '',
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_sectors_level_code (level, code),
+            KEY idx_sectors_parent_id (parent_id),
+            CONSTRAINT fk_sectors_parent_id FOREIGN KEY (parent_id) REFERENCES sectors(id) ON DELETE RESTRICT ON UPDATE CASCADE
+        )`,
+    },
+    {
+        table: 'user_sectors',
+        ddl: `CREATE TABLE IF NOT EXISTS user_sectors (
+            user_id INT NOT NULL,
+            sector_id INT NOT NULL,
+            PRIMARY KEY (user_id, sector_id),
+            KEY idx_user_sectors_sector_id (sector_id),
+            CONSTRAINT fk_user_sectors_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT fk_user_sectors_sector_id FOREIGN KEY (sector_id) REFERENCES sectors(id) ON DELETE RESTRICT ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Dossiers Filiz créés depuis Disciplina. start_step : étape choisie à la création
+        // (immuable) ; step : étape courante côté Filiz (même valeur à la création).
+        table: 'filiz_folders',
+        ddl: `CREATE TABLE IF NOT EXISTS filiz_folders (
+            folder_id VARCHAR(64) NOT NULL PRIMARY KEY,
+            candidate_id VARCHAR(64) NOT NULL,
+            class_id VARCHAR(64) NOT NULL,
+            start_step TINYINT UNSIGNED NOT NULL,
+            step TINYINT UNSIGNED NOT NULL,
+            company_siret CHAR(14) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_filiz_folders_candidate (candidate_id),
+            INDEX idx_filiz_folders_class (class_id)
+        )`,
+    },
+    {
+        table: 'company_sectors',
+        ddl: `CREATE TABLE IF NOT EXISTS company_sectors (
+            company_id INT NOT NULL,
+            sector_id INT NOT NULL,
+            PRIMARY KEY (company_id, sector_id),
+            KEY idx_company_sectors_sector_id (sector_id),
+            CONSTRAINT fk_company_sectors_company_id FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            CONSTRAINT fk_company_sectors_sector_id FOREIGN KEY (sector_id) REFERENCES sectors(id) ON DELETE RESTRICT ON UPDATE CASCADE
+        )`,
+    },
 ];
 
 /** Lieux par défaut (modifiables ensuite par l'admin via l'interface). */
@@ -542,6 +603,11 @@ export async function runMysqlMigrations(
         }
         await dbQuery("DELETE FROM sector_settings WHERE sector = 'Annemasse'");
     }
+
+    // Référentiel hiérarchique des secteurs : seed, FK sector_id, backfill depuis
+    // les libellés (companies.sector, users.sectors). Après le seed de sector_settings
+    // dont il reprend les lieux de RDV.
+    await migrateSectors(dbQuery, timezone === TENANT_TIMEZONE.annemasse ? 'annemasse' : 'reunion');
 
     // Marqueur « fait passer les entretiens » (2026-07-09) : la liste « Entretien
     // fait par » de l'AB déborde le rôle RH. On ajoute la colonne et on coche la

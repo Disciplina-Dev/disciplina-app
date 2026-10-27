@@ -3,6 +3,11 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import PublicBooking from "@/pages/booking/PublicBooking";
+import PublicTest from "@/pages/test/PublicTest";
+import Questionnaires from "@/pages/rh/questionnaires/Questionnaires";
+import QuestionnaireEditor from "@/pages/rh/questionnaires/QuestionnaireEditor";
+import QuestionnaireResults from "@/pages/rh/questionnaires/QuestionnaireResults";
+import QuestionnaireAttemptDetail from "@/pages/rh/questionnaires/QuestionnaireAttemptDetail";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
 import ExternalAuthenticate from "@/pages/external/ExternalAuthenticate";
 import ExternalCvUpload from "@/pages/external/ExternalCvUpload";
@@ -166,6 +171,10 @@ export const router = createBrowserRouter([
       { path: "candidats/:id/questionnaire", element: <QuestionnaireAB />, handle: { crumb: "Questionnaire" } },
       { path: "matching", element: <NeedsAnalysisList />, handle: { crumb: "Matching" } },
       { path: "external-access", element: <ExternalAccesPage />, handle: { crumb: "Accès externes" } },
+      { path: "questionnaires", element: <Questionnaires />, handle: { crumb: "Questionnaires" } },
+      { path: "questionnaires/resultats", element: <QuestionnaireResults />, handle: { crumb: "Résultats des tests" } },
+      { path: "questionnaires/resultats/:attemptId", element: <QuestionnaireAttemptDetail />, handle: { crumb: "Détail du passage" } },
+      { path: "questionnaires/:id", element: <QuestionnaireEditor />, handle: { crumb: "Éditeur" } },
       { path: "calendrier", element: <Calendrier />, handle: { crumb: "Calendrier" } },
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
@@ -235,6 +244,11 @@ export const router = createBrowserRouter([
       {
         path: "/booking/:slug",
         element: <PublicBooking />,
+      },
+      {
+        // Questionnaire interne (remplace ClassMarker) : lien / QR code candidat.
+        path: "/test/:token",
+        element: <PublicTest />,
       },
       {
         path: "/external/authenticate",

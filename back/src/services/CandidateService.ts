@@ -25,6 +25,7 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
+import { QuestionnaireRepository } from '../repositories/mongo/QuestionnaireRepository';
 import { encryptSsn, MASKED_SSN } from '../external/crypto/ssn-cipher';
 
 function encryptIdentitySsn(identity?: Candidate['identity']): void {
@@ -355,7 +356,10 @@ export class CandidateService {
     }
 
     async delete(id: string): Promise<boolean> {
-        return this.repository.delete(id);
+        const deleted = await this.repository.delete(id);
+        // Droit à l'effacement : les passages de questionnaire partent avec le candidat.
+        if (deleted) await new QuestionnaireRepository().deleteAttemptsByCandidate(id);
+        return deleted;
     }
 
     async matchOffers(id: string): Promise<Offer[]> {

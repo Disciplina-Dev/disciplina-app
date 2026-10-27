@@ -127,9 +127,9 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 
 - **Étapes** : réglages de disponibilité (`GET/PUT /api/booking/settings`) ; parcours public `/booking/:slug` → choisir créneau → réserver ; calendrier interne.
 - **Chaîne** : `GET /api/booking/public/:slug`, `/slots`, `POST /book` → `booking/service.ts`. Calendrier : `GET /api/calendar/users|events`, `POST /events`, `PATCH /events/:id`, `/events/:id/attendance`, `DELETE /events/:id` → `external/google/calendar.service.ts`.
-- **Résultat attendu** : créneaux libres corrects ; réservation crée l'event Google Calendar.
+- **Résultat attendu** : créneaux libres corrects ; réservation crée l'event Google Calendar. Recherche dans le calendrier RH par email **ou** nom/prénom de l'invité (champs optionnels à la création, absents des créneaux historiques → recherche email seule).
 - **External** : ⚠️ Google Calendar.
-- **Test vitest** : aucun (gap).
+- **Test vitest** : `rest/calendar/__tests__/events.test.ts` (authz secteur), `rest/calendar/__tests__/attendee.test.ts` (création + nom/prénom, rétro-compatibilité).
 - **Statut** : _à remplir_
 
 ### 3.10 E-signature AB
@@ -157,6 +157,15 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Résultat attendu** : (1) webhook signé accepté, JSON invalide → 400 ; (2) score + PDF rattachés au candidat.
 - **External** : ⚠️ ClassMarker, Drive.
 - **Test vitest** : `rest/middleware/__tests__/webhookSignature.test.ts` (garde classmarker).
+- **Statut** : _à remplir_
+
+### 3.12 bis Questionnaires internes (remplacement ClassMarker, #968)
+
+- **Étapes** : (1) RH importe un JSON (`/rh/questionnaires` → « Importer JSON », exemples dans `Classmarker/questions/jsons/`) ou crée par blocs, puis « Tester » ; (2) active le questionnaire ; (3) depuis la fiche candidat, génère le lien + QR ; (4) le candidat passe le test sur `/test/:token` (QCM, vrai/faux, réponse libre) ; (5) le RH suit la progression en direct, puis télécharge le PDF (fiche, Résultats ou détail du passage).
+- **Chaîne** : `POST /api/questionnaires` (validation `questionnaireValidation`) → `POST /:id/invitations` → `GET/POST /api/q/:token[/start|/answer]` (`QuestionnaireAttemptService`, correction `questionnaireScoring`) → `TestResultService.saveTestResult` (fiche `classmarker` + SSE + PDF Drive best-effort) ; `GET /api/questionnaires/attempts/:id/pdf` (PDF sans Drive).
+- **Résultat attendu** : (1) import invalide → 400 avec la liste des erreurs ; (4) bonne réponse jamais envoyée avant validation, pas de retour arrière, lien lié au 1er appareil ; réponse libre juste malgré casse/espaces/ponctuation, fausse si accent manquant ; (5) score sur la fiche en direct, PDF téléchargeable même sans compte Google ; questionnaire verrouillé après le 1er vrai passage.
+- **External** : ⚠️ Drive (optionnel : dépôt du PDF seulement).
+- **Test vitest** : `rest/questionnaire/__tests__/questionnaire.test.ts`.
 - **Statut** : _à remplir_
 
 ### 3.13 KPI commercial & RH
@@ -216,7 +225,7 @@ Source : `back/src/external/*`, `back/src/config/env.ts`. Rappel : au démarrage
 | **Ollama** (qwen2.5, docker) | 3.4 | Enrichissement sourcing indisponible. |
 | **DDG + scraper** | 3.4 | Idem sourcing. |
 | **Filiz** | Mapper candidat, `/api/filiz/*` | Diplômes/classes indisponibles. |
-| **ClassMarker** | 3.12 | Liens/résultats de test indisponibles. |
+| **ClassMarker** | 3.12 | Liens/résultats de test indisponibles. Les questionnaires internes (3.12 bis) n'en dépendent pas. |
 | **Yousign** | 3.10 (secours) | Chemin secondaire ; DocuSeal reste le chemin actif. |
 | **DocuSeal** | 3.10 (actif) | Signature AB bloquée. |
 
@@ -246,6 +255,7 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.10 E-signature | `needsAnalysis`, `webhookSignature` | — |
 | 3.11 Email/relance | (pattern documenté) | **oui** |
 | 3.12 Classmarker | `webhookSignature` (garde) | flux PDF/Drive |
+| 3.12 bis Questionnaires internes | `questionnaire` (import, parcours complet, expiration, réponse libre, PDF, effacement) | dépôt Drive, SSE fiche |
 | 3.13 KPI | — | **oui** |
 | 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification`, `saNotification`, `rupture`, `alternant`, `session` | flux `run` complet (drafts) |
 | 3.17 MCP péda | `mcp/peda`, `mcp/pedaMasking` | — |

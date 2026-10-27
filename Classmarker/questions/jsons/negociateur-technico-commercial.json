@@ -1,0 +1,415 @@
+{
+  "title": "Partie 2 - Test de pré-sélection Négociateur Technico-commercial",
+  "description": "20 questions, 0,5 point chacune (10 points).",
+  "tp_types": [
+    "NTC"
+  ],
+  "duration_minutes": 20,
+  "pass_threshold": 50,
+  "immediate_feedback": false,
+  "allow_skip": false,
+  "shuffle_choices": false,
+  "questions": [
+    {
+      "type": "text",
+      "text": "Conjugaison :\nComplétez la phrase avec le verbe « envoyer » correctement conjugué (écrivez uniquement le verbe) :\n« J'ai ........ le devis hier. »",
+      "points": 0.5,
+      "accepted_answers": [
+        "envoyé"
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Intrus :\nQuel terme est l'intrus ?\nHypothèse – Affirmation – Opinion",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Affirmation",
+          "correct": true
+        },
+        {
+          "text": "Opinion",
+          "correct": false
+        },
+        {
+          "text": "Hypothèse",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Reformulation / précision :\nQuelle reformulation est la plus professionnelle de la phrase :\n« Votre demande a bien été prise en compte. »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "C'est bon, j'ai vu votre message.",
+          "correct": false
+        },
+        {
+          "text": "Nous accusons réception de votre demande et revenons vers vous rapidement.",
+          "correct": true
+        },
+        {
+          "text": "On vous répond bientôt normalement.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Synonyme :\nTrouvez le synonyme de « fidéliser ».",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Conserver",
+          "correct": true
+        },
+        {
+          "text": "Attirer",
+          "correct": false
+        },
+        {
+          "text": "Remplacer",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Suite logique :\nComplétez la suite suivante :\n5 – 8 – 16 – 19 – 38 – 41 – …",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "43",
+          "correct": false
+        },
+        {
+          "text": "82",
+          "correct": true
+        },
+        {
+          "text": "79",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nUne remise de 10 % est appliquée sur un produit vendu 500 €.\nQuelle formule permet de calculer le nouveau prix ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "500 − (500 × 0,10)",
+          "correct": true
+        },
+        {
+          "text": "500 ÷ 0,10",
+          "correct": false
+        },
+        {
+          "text": "500 + (500 × 0,10)",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nComment calculer la marge sur un produit ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Prix de vente − Prix d'achat",
+          "correct": true
+        },
+        {
+          "text": "Prix d'achat − Prix de vente",
+          "correct": false
+        },
+        {
+          "text": "Prix d'achat × Prix de vente",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nDans un mail professionnel, quelle formule de politesse est la plus adaptée ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Sincèrement vôtre",
+          "correct": false
+        },
+        {
+          "text": "Dans l'attente de votre réponse, merci par avance.",
+          "correct": false
+        },
+        {
+          "text": "Veuillez agréer, Madame, Monsieur, l'expression de mes salutations distinguées.",
+          "correct": true
+        },
+        {
+          "text": "Cordialement à vous.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQue signifie « pièce jointe » dans un mail ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Fichier",
+          "correct": true
+        },
+        {
+          "text": "Signature mail",
+          "correct": false
+        },
+        {
+          "text": "Outils",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQuel type de logiciel est le PLUS adapté pour analyser l'évolution d'un chiffre d'affaires dans le temps ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Outlook",
+          "correct": false
+        },
+        {
+          "text": "PowerPoint",
+          "correct": false
+        },
+        {
+          "text": "Excel",
+          "correct": true
+        },
+        {
+          "text": "Word",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nParmi ces trois propositions, laquelle est un moteur de recherche ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Google",
+          "correct": true
+        },
+        {
+          "text": "Gmail",
+          "correct": false
+        },
+        {
+          "text": "ChatGPT",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Gestion de client :\n« Un client hésite entre deux produits. Quelle est la meilleure attitude ? »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "J'insiste pour qu'il choisisse le produit le plus cher.",
+          "correct": false
+        },
+        {
+          "text": "J'écoute ses besoins et lui propose la solution la plus adaptée.",
+          "correct": true
+        },
+        {
+          "text": "Je ne dis rien et j'attends qu'il se décide seul.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Techniques de vente :\nUn client potentiel vous dit : « Votre produit est trop cher. » Quelle est votre première réaction ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Je mets en avant la valeur ajoutée et les bénéfices du produit.",
+          "correct": true
+        },
+        {
+          "text": "Je baisse immédiatement le prix sans discuter.",
+          "correct": false
+        },
+        {
+          "text": "Je lui dis qu'il n'a pas le budget nécessaire.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Adaptabilité :\n« Vous devez préparer une présentation technique pour un client non spécialiste. Que devez-vous privilégier ? »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Un vocabulaire très technique pour montrer mon expertise.",
+          "correct": false
+        },
+        {
+          "text": "Des détails techniques sans lien avec ses besoins.",
+          "correct": false
+        },
+        {
+          "text": "Un discours clair et adapté à son niveau de compréhension.",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Communication professionnelle :\nUne communication professionnelle efficace est avant tout :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Identique quel que soit le contexte ou le destinataire",
+          "correct": false
+        },
+        {
+          "text": "Détaillée, même lorsque l'information principale est simple",
+          "correct": false
+        },
+        {
+          "text": "Claire et adaptée à l'interlocuteur",
+          "correct": true
+        },
+        {
+          "text": "Standardisée",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Communication professionnelle :\nLors d'un échange professionnel, quelle formulation limite le plus les risques de malentendu ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Reformuler avec ses propres mots",
+          "correct": true
+        },
+        {
+          "text": "Répéter mot pour mot ce qui a été dit",
+          "correct": false
+        },
+        {
+          "text": "Donner immédiatement son avis",
+          "correct": false
+        },
+        {
+          "text": "Poser une question fermée",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Raisonnement et analyse :\nFace à deux sources contradictoires, que faut-il faire en priorité ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Choisir la plus récente",
+          "correct": false
+        },
+        {
+          "text": "Choisir la plus détaillée",
+          "correct": false
+        },
+        {
+          "text": "Vérifier la fiabilité des sources",
+          "correct": true
+        },
+        {
+          "text": "Demander l'avis d'un collègue",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Raisonnement et analyse :\nUne information est exacte mais incomplète. Quelle est la meilleure posture ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "L'utiliser telle quelle",
+          "correct": false
+        },
+        {
+          "text": "La rejeter",
+          "correct": false
+        },
+        {
+          "text": "Rechercher des éléments complémentaires",
+          "correct": true
+        },
+        {
+          "text": "La reformuler",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Motivation et projection :\nQuel est l'indicateur le plus fiable de motivation sur une formation longue ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Le discours enthousiaste à l'oral",
+          "correct": false
+        },
+        {
+          "text": "La régularité de l'investissement dans le temps",
+          "correct": true
+        },
+        {
+          "text": "Le niveau scolaire initial",
+          "correct": false
+        },
+        {
+          "text": "La rapidité d'exécution",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Motivation et projection :\nUne projection réaliste dans son parcours professionnel nécessite :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "De suivre uniquement les opportunités",
+          "correct": false
+        },
+        {
+          "text": "Une analyse de ses forces et faiblesses",
+          "correct": true
+        },
+        {
+          "text": "D'ignorer les obstacles potentiels",
+          "correct": false
+        },
+        {
+          "text": "De copier exactement le parcours d'un collègue",
+          "correct": false
+        }
+      ]
+    }
+  ]
+}

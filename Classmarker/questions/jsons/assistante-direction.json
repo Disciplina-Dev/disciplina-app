@@ -1,0 +1,395 @@
+{
+  "title": "Partie 2 - Test de pré-sélection Assistante de Direction",
+  "description": "20 questions, 0,5 point chacune (10 points).",
+  "tp_types": [
+    "AD"
+  ],
+  "duration_minutes": 20,
+  "pass_threshold": 50,
+  "immediate_feedback": false,
+  "allow_skip": false,
+  "shuffle_choices": false,
+  "questions": [
+    {
+      "type": "single",
+      "text": "Vocabulaire :\nQuel mot signifie « planifier de manière organisée » ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Rédiger",
+          "correct": false
+        },
+        {
+          "text": "Structurer",
+          "correct": true
+        },
+        {
+          "text": "Enregistrer",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Homonymes :\nChoisir le mot correspondant :\nMerci de patienter ______ instants, je finalise l'envoi du document.",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "quelque",
+          "correct": false
+        },
+        {
+          "text": "quelques",
+          "correct": true
+        },
+        {
+          "text": "quel que",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Homonymes :\nChoisir le mot adapté :\n« ______ les participants ont validé leur présence. »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Tout",
+          "correct": false
+        },
+        {
+          "text": "Tous",
+          "correct": true
+        },
+        {
+          "text": "Toutous",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Intrus :\nQuel terme est l'intrus ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Méthodologie",
+          "correct": false
+        },
+        {
+          "text": "Organisation",
+          "correct": false
+        },
+        {
+          "text": "Mobilisation",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "text": "Conjugaison :\nComplétez la phrase avec le verbe « recevoir » correctement conjugué (écrivez uniquement le verbe) :\n« Les informations qu'il a ........... sont confidentielles. »",
+      "points": 0.5,
+      "accepted_answers": [
+        "reçues"
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calculer :\n5 vendeurs vendent chacun 12 articles par jour pendant 5 jours. Combien d'articles seront vendus au total ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "300",
+          "correct": true
+        },
+        {
+          "text": "250",
+          "correct": false
+        },
+        {
+          "text": "355",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calculer :\nUn client a passé une commande de 100 unités à 15 € chacune, avec 10 % de remise. Quel montant est à facturer ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "1 500 €",
+          "correct": false
+        },
+        {
+          "text": "900 €",
+          "correct": false
+        },
+        {
+          "text": "1 350 €",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Suite logique :\nComplétez la suite logique suivante : 2 - 4 - 8 - 16 - ...",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "34",
+          "correct": false
+        },
+        {
+          "text": "36",
+          "correct": false
+        },
+        {
+          "text": "32",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQuel format est utilisé pour un document texte Word ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": ".xls",
+          "correct": false
+        },
+        {
+          "text": ".pptx",
+          "correct": false
+        },
+        {
+          "text": ".docx",
+          "correct": true
+        },
+        {
+          "text": ".pdf",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nPour imprimer uniquement la page 2 d'un document Word, que faut-il faire ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Imprimer toutes les pages",
+          "correct": false
+        },
+        {
+          "text": "Sélectionner la page 2 dans les options d'impression",
+          "correct": true
+        },
+        {
+          "text": "Copier-coller la page 2 dans un nouveau document",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQuel service permet de stocker des fichiers en ligne et de les partager facilement ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Word",
+          "correct": false
+        },
+        {
+          "text": "Excel",
+          "correct": false
+        },
+        {
+          "text": "Google Drive",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQue signifie « pièce jointe » dans un e-mail ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Signature mail",
+          "correct": false
+        },
+        {
+          "text": "Document joint au message",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nParmi ces trois propositions, laquelle est un moteur de recherche ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Google",
+          "correct": true
+        },
+        {
+          "text": "Gmail",
+          "correct": false
+        },
+        {
+          "text": "ChatGPT",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique — Excel (version française) :\nQuelle formule permet de calculer la moyenne des valeurs de B1 à B10 ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "=AVERAGE(B1:B10)",
+          "correct": false
+        },
+        {
+          "text": "=MOYENNE(B1:B10)",
+          "correct": true
+        },
+        {
+          "text": "=MEDIA(B1:B10)",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Confidentialité et professionnalisme :\n« Vous trouvez un document confidentiel sur le bureau d'un collègue. Que faites-vous ? »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Le lire pour savoir de quoi il s'agit",
+          "correct": false
+        },
+        {
+          "text": "Ne pas le consulter et le remettre en sécurité ou informer le responsable",
+          "correct": true
+        },
+        {
+          "text": "Le laisser sur le bureau",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Organisation :\n« Votre directeur vous demande de planifier une réunion. Quelle est la meilleure approche pour fixer la date et l'heure ? »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Vérifier les disponibilités de tous, proposer plusieurs créneaux et confirmer la date.",
+          "correct": true
+        },
+        {
+          "text": "Choisir la première date disponible pour vous.",
+          "correct": false
+        },
+        {
+          "text": "Fixer la réunion au lendemain, sans consulter personne.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Gestion de priorité :\nUne directrice vous transmet quatre tâches à réaliser :\n1. Finaliser un compte rendu urgent\n2. Réserver une salle pour un rendez-vous prévu dans 3 jours\n3. Traiter un mail client en demande d'information\n4. Mettre à jour un tableau interne non urgent\nDans quel ordre les traitez-vous ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "1 → 3 → 2 → 4",
+          "correct": true
+        },
+        {
+          "text": "3 → 1 → 2 → 4",
+          "correct": false
+        },
+        {
+          "text": "2 → 3 → 1 → 4",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Le rôle principal d'une assistante de direction est de :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Donner des ordres à toute l'entreprise",
+          "correct": false
+        },
+        {
+          "text": "Soutenir l'organisation et le fonctionnement de la direction",
+          "correct": true
+        },
+        {
+          "text": "Travailler uniquement seule",
+          "correct": false
+        },
+        {
+          "text": "Remplacer le directeur",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Dans son travail, une assistante de direction doit surtout être :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Discrète et organisée",
+          "correct": true
+        },
+        {
+          "text": "Autoritaire",
+          "correct": false
+        },
+        {
+          "text": "Créative artistique",
+          "correct": false
+        },
+        {
+          "text": "Commerciale",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Lorsqu'une information est incertaine, l'assistante de direction doit :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "La transmettre quand même",
+          "correct": false
+        },
+        {
+          "text": "L'inventer",
+          "correct": false
+        },
+        {
+          "text": "Vérifier avant de communiquer",
+          "correct": true
+        },
+        {
+          "text": "La publier sur les réseaux",
+          "correct": false
+        }
+      ]
+    }
+  ]
+}

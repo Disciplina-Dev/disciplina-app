@@ -7,11 +7,13 @@ import { MASKED_SSN } from '../external/crypto/ssn-cipher';
 // - consentement `ai_processing` obligatoire, strict (pas de période de grâce « warn ») ;
 // - photo retirée sans `photo_processing` ;
 // - jamais renvoyés : données de santé/handicap (Art. 9), contact d'urgence (tiers),
-//   questions/réponses des tests ClassMarker ; n° de sécu toujours masqué.
+//   questions/réponses des tests ClassMarker ; n° de sécu toujours masqué ;
+// - nationalité, né en France et titre de séjour (champs d'inscription Filiz) jamais exposés.
 
 function stripQuestions(result: ClassMarkerResult | undefined): ClassMarkerResult | undefined {
     if (!result) return result;
-    const { questions: _questions, ...rest } = result;
+    // tab_switch_count (questionnaire interne) : indice de comportement, jamais transmis à un LLM.
+    const { questions: _questions, tab_switch_count: _tabs, ...rest } = result;
     return rest;
 }
 
@@ -23,7 +25,13 @@ export function exposeCandidate(candidate: Candidate | null): Candidate | null {
     const out: Candidate = { ...rest };
 
     if (rest.identity) {
-        const { psh_referral_request: _psh, ...identity } = rest.identity;
+        const {
+            psh_referral_request: _psh,
+            nationality: _nationality,
+            born_in_france: _bornInFrance,
+            residence_permit: _residencePermit,
+            ...identity
+        } = rest.identity;
         out.identity = identity as Candidate['identity'];
         if (identity.social_security_number) out.identity.social_security_number = MASKED_SSN as never;
     }
