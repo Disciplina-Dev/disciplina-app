@@ -734,6 +734,9 @@ function DirectoryActivationCell({
 function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const { items, pageInfo, loading, error, refetch } = useNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
+  // Incrémenté par « Actualiser » pour forcer le rechargement des immersions
+  // même si la liste renvoyée est identique.
+  const [refreshTick, setRefreshTick] = useState(0);
   // Candidats en immersion par analyse de besoin (Oui/Non + noms).
   // Source 1 : offres liées (statut IMMERSING côté matching).
   // Source 2 : fiches candidats en immersion rattachées via immersionCompanyId.
@@ -822,7 +825,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
     };
     void loadImmersions();
     return () => { cancelled = true; };
-  }, [items]);
+  }, [items, refreshTick]);
 
 
   const [selectedTps, setSelectedTps] = useState<Set<string>>(new Set());
@@ -935,6 +938,17 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
       [analysisId]: { ...current, expanded: true, loading: !current.loaded, error: null },
     }));
     if (!current.loaded) void loadHistory(analysisId);
+  };
+
+  /**
+   * Recharge la liste des entreprises et les immersions sans fermer la modale
+   * ni recharger la page. L'historique mis en cache est purgé : il sera relu
+   * à la prochaine ouverture de la ligne.
+   */
+  const refresh = () => {
+    setHistoryByAnalysis({});
+    setRefreshTick((k) => k + 1);
+    refetch();
   };
 
   const rows = useMemo(() => {
@@ -1086,14 +1100,27 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
               {hasActiveFilters && items.length > 0 ? ` sur ${items.length}` : ''}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
-            title="Fermer"
-          >
-            <IconClose width={18} height={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={loading}
+              title="Actualiser la liste des entreprises"
+              aria-label="Actualiser la liste des entreprises"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-xs font-semibold text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <IconRefresh width={14} height={14} className={loading ? 'animate-spin' : ''} />
+              Actualiser
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
+              title="Fermer"
+            >
+              <IconClose width={18} height={18} />
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2 border-b border-[var(--ds-border)] px-5 py-3">
