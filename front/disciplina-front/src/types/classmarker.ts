@@ -14,4 +14,7 @@ export interface ClassMarkerResult {
   points_available?: number;
   duration?: string | null;
   pdf_link?: string | null;
+  // Absent sur les anciens résultats ClassMarker ; 'internal' pour les questionnaires internes.
+  source?: 'classmarker' | 'internal';
+  attempt_id?: string;
 }

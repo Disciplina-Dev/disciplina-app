@@ -1,5 +1,11 @@
-import { IconCalendar, IconCheckCircle, IconClipboardCheck, IconClock, IconErrorCircle, IconFile, IconLoader } from '@/components/ui/icons'
+import { useState } from 'react';
+import { IconCalendar, IconCheckCircle, IconClipboardCheck, IconClock, IconDownload, IconErrorCircle, IconFile, IconLoader } from '@/components/ui/icons'
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
+import { fetchAttemptPdf } from '@/api/questionnaire';
+import { downloadBlob } from '@/pages/rh/questionnaires/labels';
+import { Permission, UserRole, useCurrentUser } from '@/store/authStore';
+import { toast } from '@/store/toastStore';
+import type { ClassMarkerResult } from '@/types/classmarker';
 
 interface CandidateTestScoreProps {
   candidateId: string;
@@ -20,6 +26,24 @@ function formatDate(value: number | string | null | undefined): string | null {
 
 export default function CandidateTestScore({ candidateId }: CandidateTestScoreProps) {
   const { result, history, loading } = useClassMarkerResult(candidateId);
+  const user = useCurrentUser();
+  const [downloading, setDownloading] = useState<string | null>(null);
+  // PDF généré à la volée (sans Drive) : questionnaires internes, réservé au recrutement comme la route.
+  const canDownload =
+    user?.role === UserRole.RH || user?.permission === Permission.RESPONSABLE || user?.permission === Permission.ADMIN;
+  const downloadable = (r: ClassMarkerResult | null | undefined): r is ClassMarkerResult & { attempt_id: string } =>
+    canDownload && r?.source === 'internal' && !!r.attempt_id;
+  const download = async (attemptId: string) => {
+    setDownloading(attemptId);
+    try {
+      const { blob, fileName } = await fetchAttemptPdf(attemptId);
+      downloadBlob(blob, fileName);
+    } catch (err) {
+      toast.errorMessage('Téléchargement du PDF impossible', err instanceof Error ? err.message : undefined);
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   const hasResult = result && typeof result.percentage === 'number';
   const purple = 'var(--color-purple)';
@@ -52,7 +76,7 @@ export default function CandidateTestScore({ candidateId }: CandidateTestScorePr
       {hasResult && (
         <div className="flex flex-col gap-3">
           {result?.test_name && (
-            <p className="text-sm font-medium text-[var(--ds-text)]">{result.test_name}</p>
+            <p className="text-sm font-medium text-[var(--ds-text)]">{result.test_name}{result.source !== 'internal' && <span className="font-normal text-[var(--ds-text-subtle)]"> · ClassMarker</span>}</p>
           )}
 
           <div className="flex flex-col gap-1.5">
@@ -103,6 +127,19 @@ export default function CandidateTestScore({ candidateId }: CandidateTestScorePr
             )}
           </div>
 
+          {downloadable(result) && (
+            <button
+              type="button"
+              onClick={() => download(result.attempt_id)}
+              disabled={downloading === result.attempt_id}
+              className="inline-flex w-fit items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors hover:opacity-80 disabled:opacity-60"
+              style={{ backgroundColor: 'var(--color-purple-light)', color: purple }}
+            >
+              {downloading === result.attempt_id ? <IconLoader width={13} height={13} className="animate-spin" /> : <IconDownload width={13} height={13} />}
+              Télécharger le PDF des résultats
+            </button>
+          )}
+
           {result?.pdf_link && (
             <a
               href={result.pdf_link}
@@ -112,7 +149,7 @@ export default function CandidateTestScore({ candidateId }: CandidateTestScorePr
               style={{ backgroundColor: 'var(--color-purple-light)', color: purple }}
             >
               <IconFile width={13} height={13} />
-              Voir le PDF des résultats
+              {result.source === 'internal' ? 'Voir le PDF sur Drive' : 'Voir le PDF des résultats'}
             </a>
           )}
         </div>
@@ -131,6 +168,7 @@ export default function CandidateTestScore({ candidateId }: CandidateTestScorePr
               <div className="flex min-w-0 flex-col">
                 <span className="truncate font-medium text-[var(--ds-text-muted)]">
                   {t.test_name || 'Test'}
+                  {t.source !== 'internal' && <span className="font-normal text-[var(--ds-text-subtle)]"> · ClassMarker</span>}
                 </span>
                 {formatDate(t.completed_at) && (
                   <span className="text-[var(--ds-text-subtle)]">{formatDate(t.completed_at)}</span>
@@ -147,7 +185,20 @@ export default function CandidateTestScore({ candidateId }: CandidateTestScorePr
                     {(t.percentage ?? 0).toFixed(1)}%
                   </span>
                 )}
-                {t.pdf_link && (
+                {downloadable(t) && (
+                  <button
+                    type="button"
+                    onClick={() => download(t.attempt_id)}
+                    disabled={downloading === t.attempt_id}
+                    className="inline-flex items-center gap-1 font-medium hover:opacity-80 disabled:opacity-60"
+                    style={{ color: purple }}
+                    title="Télécharger le PDF"
+                  >
+                    {downloading === t.attempt_id ? <IconLoader width={12} height={12} className="animate-spin" /> : <IconDownload width={12} height={12} />}
+                    PDF
+                  </button>
+                )}
+                {t.pdf_link && !downloadable(t) && (
                   <a
                     href={t.pdf_link}
                     target="_blank"

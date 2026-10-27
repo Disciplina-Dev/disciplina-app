@@ -13,7 +13,7 @@ import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/gra
 import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_CANDIDATE_SENT_COMPANIES, GET_COMPANY_OPTIONS, MATCH_OFFER, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
 import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
 import { apiFetch, apiJson } from '@/api/httpClient'
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, NATIONALITY_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
@@ -30,7 +30,10 @@ import {
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
+import QuestionnaireLinksModal from '@/components/rh/QuestionnaireLinksModal'
+import CandidateQuestionnaireStatus from '@/components/rh/CandidateQuestionnaireStatus'
 import FilizFolderModal from '@/components/rh/FilizFolderModal'
+import { DEPARTEMENTS } from '@/lib/departements'
 import ConfirmDeleteModal from '@/components/rh/ConfirmDeleteModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
 import PdfViewer from '@/components/rh/PdfViewer'
@@ -38,6 +41,9 @@ import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
 import { useRegionStore } from '@/store/regionStore'
+
+// Création de dossier Filiz coupée en prod tant que le flux n'est pas validé (build avec VITE_FILIZ_FOLDER_CREATION=true pour réactiver).
+const FILIZ_FOLDER_CREATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_FILIZ_FOLDER_CREATION === 'true'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -293,7 +299,7 @@ export default function FicheCandidat() {
   const { deleteCandidate } = useDeleteCandidate()
   // Verdict du test : la moyenne est à 50%. L'AB n'est possible que si le candidat
   // a réussi au moins un test (>= 50%).
-  const { result: testResult } = useClassMarkerResult(id)
+  const { result: testResult, progress: testProgress } = useClassMarkerResult(id)
   const testPassed =
     !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
 
@@ -318,6 +324,7 @@ export default function FicheCandidat() {
   const [mailMode, setMailMode] = useState<'regular' | 'cv-import' | null>(null)
   const [cvChoiceOpen, setCvChoiceOpen] = useState<'top' | 'bottom' | null>(null)
   const [showClassMarker, setShowClassMarker] = useState(false)
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false)
   const [showFilizModal, setShowFilizModal] = useState(false)
   const [capturingPhoto, setCapturingPhoto] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
@@ -1132,10 +1139,10 @@ export default function FicheCandidat() {
           )}
           {formData.filiz_folder_id ? (
             <Button variant="secondary" size="sm" leftIcon={<IconExternalLink width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
-              onClick={() => window.open(`https://app.filiz.io/folders/${formData.filiz_folder_id}`, '_blank')}>
+              onClick={() => window.open(`${import.meta.env.VITE_FILIZ_APP_URL ?? 'https://app.filiz.io'}/folders/${formData.filiz_folder_id}`, '_blank', 'noopener,noreferrer')}>
               Dossier Filiz
             </Button>
-          ) : (
+          ) : FILIZ_FOLDER_CREATION_ENABLED && (
             <Button variant="secondary" size="sm" leftIcon={<IconFolderPlus width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={() => setShowFilizModal(true)}>
               Créer dossier Filiz
@@ -1164,8 +1171,8 @@ export default function FicheCandidat() {
             Envoyer un mail
           </Button>
           <Button variant="secondary" size="sm" leftIcon={<IconQrCode width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
-            onClick={() => setShowClassMarker(true)}>
-            Liens de test
+            onClick={() => setShowQuestionnaire(true)}>
+            Envoyer un test
           </Button>
         </div>
 
@@ -1260,6 +1267,12 @@ export default function FicheCandidat() {
                     onChange={e => updateIdentity('postal_code', e.target.value)} />
                 ) : <p className={valueCls}>{formData.identity.postal_code || '—'}</p>}
               </Field>
+              <Field label="Pays de résidence">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.identity.country ?? ''} placeholder="France"
+                    onChange={e => updateIdentity('country', e.target.value)} />
+                ) : <p className={valueCls}>{formData.identity.country || '—'}</p>}
+              </Field>
               <Field label="Permis B">
                 {isEditing ? (
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
@@ -1313,11 +1326,49 @@ export default function FicheCandidat() {
                 </Field>
                 <Field label="Département de naissance">
                   {isEditing ? (
-                    <input className={inputCls} value={formData.identity.department_of_birth ?? ''}
-                      onChange={e => updateIdentity('department_of_birth', e.target.value)} />
+                    <select className={selectCls} value={formData.identity.department_of_birth ?? ''}
+                      onChange={e => updateIdentity('department_of_birth', e.target.value)}>
+                      <option value="">Non renseigné</option>
+                      {DEPARTEMENTS.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                    </select>
                   ) : <p className={valueCls}>{formData.identity.department_of_birth || '—'}</p>}
                 </Field>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Nationalité">
+                  {isEditing ? (
+                    <select className={selectCls} value={formData.identity.nationality ?? ''}
+                      onChange={e => updateIdentity('nationality', e.target.value ? Number(e.target.value) : undefined)}>
+                      <option value="">Non renseignée</option>
+                      <option value={1}>Française</option>
+                      <option value={2}>Pays européen</option>
+                      <option value={3}>Autre</option>
+                    </select>
+                  ) : <p className={valueCls}>{NATIONALITY_LABELS[formData.identity.nationality ?? 0] ?? '—'}</p>}
+                </Field>
+                <Field label="Né en France">
+                  {isEditing ? (
+                    <select className={selectCls}
+                      value={formData.identity.born_in_france == null ? '' : String(formData.identity.born_in_france)}
+                      onChange={e => updateIdentity('born_in_france', e.target.value === '' ? undefined : e.target.value === 'true')}>
+                      <option value="">Non renseigné</option>
+                      <option value="true">Oui</option>
+                      <option value="false">Non</option>
+                    </select>
+                  ) : <p className={valueCls}>{formData.identity.born_in_france == null ? '—' : formData.identity.born_in_france ? 'Oui' : 'Non'}</p>}
+                </Field>
+              </div>
+              {formData.identity.nationality === 3 && (
+                <Field label="Titre de séjour autorisant à travailler">
+                  {isEditing ? (
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" className="rounded" checked={!!formData.identity.residence_permit}
+                        onChange={e => updateIdentity('residence_permit', e.target.checked)} />
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
+                    </label>
+                  ) : <p className={valueCls}>{formData.identity.residence_permit ? 'Oui' : 'Non'}</p>}
+                </Field>
+              )}
               <Field label="Sexe">
                 {isEditing ? (
                   <select className={selectCls} value={formData.identity.sex ?? ''}
@@ -1943,6 +1994,7 @@ export default function FicheCandidat() {
           {id && <div className="md:col-span-2"><CandidateHistory candidateId={id} /></div>}
 
           {/* Résultat ClassMarker */}
+          {id && <CandidateQuestionnaireStatus candidateId={id} live={testProgress} />}
           {id && <div className="md:col-span-2"><CandidateTestScore candidateId={id} /></div>}
 
           {/* Dossier Drive */}
@@ -2117,6 +2169,17 @@ export default function FicheCandidat() {
         />
       )}
 
+      {showQuestionnaire && formData._id && (
+        <QuestionnaireLinksModal
+          open={showQuestionnaire}
+          onClose={() => setShowQuestionnaire(false)}
+          candidateId={formData._id}
+          candidateName={formData.identity?.full_name ?? `${first} ${last}`}
+          live={testProgress}
+          onOpenLegacy={() => { setShowQuestionnaire(false); setShowClassMarker(true) }}
+        />
+      )}
+
       {showClassMarker && (
         <ClassMarkerLinksModal
           open={showClassMarker}
@@ -2128,12 +2191,12 @@ export default function FicheCandidat() {
         />
       )}
 
-      <FilizFolderModal
+      {FILIZ_FOLDER_CREATION_ENABLED && <FilizFolderModal
         open={showFilizModal}
         onClose={() => setShowFilizModal(false)}
         candidateId={formData._id}
         onSuccess={(filizFolderId) => setFormData(prev => prev ? { ...prev, filiz_folder_id: filizFolderId } : prev)}
-      />
+      />}
       <ConfirmDeleteModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}

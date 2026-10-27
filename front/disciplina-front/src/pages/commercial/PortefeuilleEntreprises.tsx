@@ -19,8 +19,8 @@ import { toCompany } from '@/types/companyMapper'
 import { formatErrorMessage } from '@/utils/companyErrors'
 import type { Entreprise } from '@/types/entreprise'
 import { STATUS_VALUES } from '@/types/entreprise'
-import { ALL_COMPANY_SECTEURS, companySecteursForRegion } from '@/constants/secteurs'
-import { useRegionStore } from '@/store/regionStore'
+import { ALL_COMPANY_SECTEURS } from '@/constants/secteurs'
+import { useSectors } from '@/hooks/useSectors'
 import Tabs from '@/components/ui/Tabs'
 
 const PAGE_SIZE = 20
@@ -143,7 +143,7 @@ export default function PortefeuilleEntreprises() {
   const pageInfo = isFlatMode ? flat.pageInfo : grouped.pageInfo
   const isEmpty = isFlatMode ? companies.length === 0 : sirenGroups.length === 0
 
-  const secteurs = companySecteursForRegion(useRegionStore((s) => s.region))
+  const { companySectors: secteurs } = useSectors()
 
   const handleCreate = async (data: Partial<Entreprise>) => {
     const company = toCompany(data)

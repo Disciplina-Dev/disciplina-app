@@ -13,19 +13,13 @@ import {
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
 import { normalizeTpCode, TitleProfessionalType } from '../../types/candidate.types';
-import { ZONE_TO_COMMUNES, Zone } from './abToOffer';
+import { Zone } from './abToOffer';
+import { COMMUNE_TO_ZONE } from '../../utils/zone';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
 
 // Domaine (unions de string) et document Mongo (enums) partagent des valeurs identiques :
 // les casts `as unknown as` traversent la frontière sans conversion de valeur.
-
-const COMMUNE_TO_ZONE = new Map<string, Zone>();
-for (const [zone, communes] of Object.entries(ZONE_TO_COMMUNES)) {
-    for (const commune of communes) {
-        COMMUNE_TO_ZONE.set(commune, zone as Zone);
-    }
-}
 
 export function zoneFromCommunes(communes: string[] | undefined, fallback: Zone): Zone {
     const first = communes?.[0];

@@ -1,3 +1,5 @@
+import { NationalityCode } from '../../types/candidate.types';
+
 export interface FilizToken {
     access_token: string;
     expires_in: number;
@@ -70,7 +72,9 @@ interface FilizClassStudyConfig {
     degreeDuration: string;
     generalEducationDuration: string;
     remainsAtNilCharge: boolean;
+    subjectValidation?: boolean;
     apprenticeshipContractConfig: FilizApprenticeshipContractConfig;
+    professionalizationContractConfig?: { generalEducationDuration: string };
 }
 
 export interface FilizClass {
@@ -83,6 +87,26 @@ export interface FilizClass {
     headTeacher: FilizPersonInfos;
     referentTeacher: FilizPersonInfos;
     realizationAddress: FilizRealizationAddress;
+}
+
+// Réponse de GET /api/folder?folderId= — seuls les champs utilisés par la sync sont typés.
+export interface FilizFolder {
+    folderId: string;
+    step: number;
+    creationDate?: string;
+    updateDate?: string;
+    degreeId?: string;
+    classId?: string;
+    studentId?: string;
+    companyId?: string;
+}
+
+// Réponse de GET /api/user?userId=.
+export interface FilizUser {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    mailAddress?: string;
 }
 
 export interface FilizAddress {
@@ -104,18 +128,28 @@ export interface FilizPersonInfos {
     mailAddress: string;
 }
 
-export interface FilizStudentInfos {
-    firstName: string;
-    lastName: string;
-    mailAddress: string;
+// Identité complète exigée aux étapes 3 et 4.
+export interface FilizStudentInfos extends FilizPersonInfos {
     address: FilizAddress;
     birthDate: string;
+    bornInFrance: boolean;
     cityOfBirth: string;
     departmentOfBirth: string;
-    nationality: number;
+    nationality: NationalityCode;
+    residencePermit?: boolean;
     phoneNumber: FilizPhoneNumber;
     sexe: number;
 }
+
+export interface FilizCompanyInfos {
+    siretNumber: string;
+    sirenNumber?: string;
+    legalName?: string;
+}
+
+// Étape de démarrage : 1 = l'étudiant et l'entreprise complètent dans Filiz, 3 = identité fournie,
+// 4 = identité + entreprise (SIRET) fournies.
+export type FilizStartStep = 1 | 3 | 4;
 
 export interface FilizFolderContractInfos {
     followUpModality: number;
@@ -129,7 +163,8 @@ export interface FilizFolderContractInfos {
 }
 
 export interface FilizCreateFolderPayload {
-    studentInfos: FilizStudentInfos;
+    studentInfos: FilizPersonInfos | FilizStudentInfos;
+    companyInfos?: FilizCompanyInfos;
     contactCompanyInfos?: FilizPersonInfos;
     fileManagerInfos: FilizPersonInfos;
     referentTeacherInfos?: FilizPersonInfos;
@@ -137,8 +172,11 @@ export interface FilizCreateFolderPayload {
     config: {
         folder: {
             type: string;
+            contractType?: 'APPRENTICESHIP';
             classId: string;
-            step: number;
+            step: FilizStartStep;
+            missionTitle?: string;
+            missionDescription?: string;
             contractInformations: FilizFolderContractInfos;
         };
     };

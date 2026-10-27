@@ -1,9 +1,9 @@
+import { useSectors } from '@/hooks/useSectors'
 import { useEffect, useState, type FormEvent } from 'react'
 import { IconClose } from '@/components/ui/icons'
 
-import { saveKpi, kpiSitesForRegion, type KpiMetrics, type KpiSelectableUser, type KpiSite } from '@/api/kpi'
-import { useRegionStore } from '@/store/regionStore'
-import { KPI_METRICS, MONTH_FULL_LABELS, SITE_LABELS, emptyMetrics } from '../config'
+import { saveKpi, type KpiMetrics, type KpiSelectableUser, type KpiSite } from '@/api/kpi'
+import { KPI_METRICS, MONTH_FULL_LABELS, emptyMetrics } from '../config'
 
 export interface KpiEntryDraft {
   userId: number
@@ -36,10 +36,8 @@ export default function KpiEntryModal({ year, site, users, draft, onClose, onSav
   const [error, setError] = useState<string | null>(null)
   // Sites proposés selon le tenant (le site courant reste sélectionnable
   // même s'il n'appartient pas au référentiel du tenant).
-  const region = useRegionStore((s) => s.region)
-  const siteOptions = kpiSitesForRegion(region).includes(entrySite)
-    ? kpiSitesForRegion(region)
-    : [entrySite, ...kpiSitesForRegion(region)]
+  const { kpiSites, labelOf } = useSectors()
+  const siteOptions = kpiSites.includes(entrySite) ? kpiSites : [entrySite, ...kpiSites]
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -147,7 +145,7 @@ export default function KpiEntryModal({ year, site, users, draft, onClose, onSav
                 className="w-full rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] text-[var(--ds-text)] outline-none transition-colors focus:border-blue disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
               >
                 {siteOptions.map((s) => (
-                  <option key={s} value={s}>{SITE_LABELS[s]}</option>
+                  <option key={s} value={s}>{labelOf(s)}</option>
                 ))}
               </select>
             </label>

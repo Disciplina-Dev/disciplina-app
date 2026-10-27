@@ -5,12 +5,7 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
 import { Alternant } from '../types/alternant.types';
 import { UserRowJoined } from '../types/db-rows.types';
-import {
-    DeclareRuptureInput,
-    RUPTURE_MOTIFS,
-    Rupture,
-    UpdateRuptureInput,
-} from '../types/rupture.types';
+import { DeclareRuptureInput, RUPTURE_MOTIFS, Rupture, UpdateRuptureInput } from '../types/rupture.types';
 import { logger } from '../external/logger';
 
 function requireValidDate(iso: string | undefined, field: string): Date {
@@ -61,11 +56,14 @@ export class RuptureService {
         if (quits) {
             const now = new Date();
             await this.sequences.setArchivedByAlternantId(alternantId, now);
-            await this.alternants.setArchived(alternantId, now);
+            await this.alternants.setArchived(alternantId, now, 'rupture');
             logger.info({ alternantId }, 'Alternant archivé (rupture « quitte la formation »)');
         } else {
             const current = await this.alternants.findById(alternantId);
-            if (current?.archived_at != null) {
+            // Ne désarchive pas une fin de formation : seule une archive de
+            // rupture (ou une archive historique sans raison) suit les ruptures.
+            const fromRupture = current?.archive_reason == null || current.archive_reason === 'rupture';
+            if (current?.archived_at != null && fromRupture) {
                 await this.sequences.setArchivedByAlternantId(alternantId, null);
                 await this.alternants.setArchived(alternantId, null);
                 logger.info({ alternantId }, 'Alternant désarchivé (plus aucune rupture « quitte »)');
@@ -163,7 +161,8 @@ export class RuptureService {
         const existing = await this.ruptures.findById(id);
         if (!existing) return null;
         const patch: Record<string, unknown> = {};
-        if (input.dateRupture !== undefined) patch.date_rupture = requireValidDate(input.dateRupture, 'La date de la rupture');
+        if (input.dateRupture !== undefined)
+            patch.date_rupture = requireValidDate(input.dateRupture, 'La date de la rupture');
         if (input.motif !== undefined) patch.motif = requireMotif(input.motif);
         if (input.entreprise !== undefined) patch.entreprise = input.entreprise?.trim() || null;
         if (input.detail !== undefined) patch.detail = input.detail?.trim() || null;

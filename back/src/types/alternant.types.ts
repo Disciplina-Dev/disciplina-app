@@ -4,12 +4,31 @@
  * se fait au resolver (cf. `services/mappers/alternant.mapper.ts`).
  */
 
+/** Raison d'archivage d'un alternant : rupture « quitte » ou fin normale de formation. */
+export type AlternantArchiveReason = 'rupture' | 'fin_formation';
+
 export interface AlternantCompany {
     name?: string | null;
     address?: string | null;
     mentor_name?: string | null;
     start_date: Date | string;
     end_date?: Date | string | null;
+}
+
+/** Miroir du folder Filiz, écrit uniquement par la sync / la création de folder (jamais par la péda). */
+export interface AlternantFiliz {
+    folder_id: string;
+    class_id: string;
+    degree_id?: string | null;
+    student_id?: string | null;
+    /** Étape courante du folder chez Filiz. */
+    step: number;
+    /** Étape choisie à la création du folder — absente pour un folder créé directement chez Filiz. */
+    start_step?: number | null;
+    company_siret?: string | null;
+    /** `updateDate` côté Filiz. */
+    updated_at?: Date | string | null;
+    synced_at: Date | string;
 }
 
 export interface Alternant {
@@ -27,8 +46,13 @@ export interface Alternant {
     /** `null` = le jeune n'a plus d'entreprise (cf. `removeCompany`). */
     company: AlternantCompany | null;
     linked_alternant_ids: string[];
+    /** `null` = actif ; date posée = archivé (rupture « quitte » ou fin de formation). */
+    /** Absent = alternant saisi à la main, sans folder Filiz. */
+    filiz?: AlternantFiliz | null;
     /** `null` = actif ; date posée = archivé (rupture « quitte la formation »). */
     archived_at?: Date | string | null;
+    /** Raison de l'archivage — `null` sur les archives antérieures = rupture. */
+    archive_reason?: AlternantArchiveReason | null;
     created_at: Date | string;
     updated_at: Date | string;
 }

@@ -1127,11 +1127,13 @@ export function useFilizClasses(degreeId: string | null) {
 
   useEffect(() => {
     if (!degreeId) { setClasses([]); return }
+    let stale = false
     setFetching(true)
     apiJson<{ classes?: typeof classes }>(`/api/filiz/classes?degreeId=${encodeURIComponent(degreeId)}`)
-      .then(data => { setClasses(data.classes ?? []); setError(null) })
-      .catch(err => setError(err.message))
-      .finally(() => setFetching(false))
+      .then(data => { if (!stale) { setClasses(data.classes ?? []); setError(null) } })
+      .catch(err => { if (!stale) setError(err.message) })
+      .finally(() => { if (!stale) setFetching(false) })
+    return () => { stale = true }
   }, [degreeId])
 
   return { classes, fetching, error }

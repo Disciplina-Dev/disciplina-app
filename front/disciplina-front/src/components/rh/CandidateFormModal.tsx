@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IconAlert, IconClose, IconPlus, IconTrash, IconUser } from '@/components/ui/icons'
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
@@ -6,12 +6,13 @@ import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
+import { DEPARTEMENTS } from '@/lib/departements';
 import { candidateGraphqlClient, graphqlClient } from '@/graphql/client';
 import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS, ADD_CANDIDATE_HISTORY_ENTRY } from '@/graphql/queries';
 import { apiFetch, apiJson } from '@/api/httpClient';
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
-import { communeSectionsForRegion } from '@/features/matching/constants/regions';
+import { useSectors } from '@/hooks/useSectors';
 import { useRegionStore } from '@/store/regionStore';
 import { computeAge } from '@/utils/age';
 import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS, TP_TYPE_LABELS } from '@/data/candidateTemplates';
@@ -93,6 +94,7 @@ function ABSelectField({ id, label, value, onChange, children }: { id: string; l
 type ABForm = {
   // identité
   dateOfBirth: string; placeOfBirth: string; departmentOfBirth: string; age: string;
+  bornInFrance: string; nationality: string; residencePermit: string; country: string;
   sex: string;
   fullName: string; socialSecurityNumber: string; email: string; phone: string;
   address: string; postalCode: string; city: string;
@@ -194,6 +196,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
+    bornInFrance: '', nationality: '', residencePermit: '', country: '',
     sex: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', hasVehicle: '', transportMeans: '', pshReferralRequest: '',
@@ -251,6 +254,10 @@ function candidateToForm(c: Candidate): ABForm {
     dateOfBirth: c.identity.date_of_birth ? c.identity.date_of_birth.slice(0, 10) : '',
     placeOfBirth: c.identity.place_of_birth ?? '',
     departmentOfBirth: c.identity.department_of_birth ?? '',
+    bornInFrance: bs(c.identity.born_in_france),
+    nationality: c.identity.nationality != null ? String(c.identity.nationality) : '',
+    residencePermit: bs(c.identity.residence_permit),
+    country: c.identity.country ?? '',
     age: c.identity.age != null ? String(c.identity.age) : '',
     address: c.identity.address ?? '',
     postalCode: c.identity.postal_code ?? '',
@@ -372,6 +379,10 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       departmentOfBirth: f.departmentOfBirth || undefined,
+      bornInFrance: pb(f.bornInFrance),
+      nationality: f.nationality ? parseInt(f.nationality) : undefined,
+      residencePermit: f.nationality === '3' ? pb(f.residencePermit) : undefined,
+      country: f.country || undefined,
       age: f.age ? parseInt(f.age) : undefined,
       address: f.address || undefined,
       postalCode: f.postalCode || undefined,
@@ -518,7 +529,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — la
   // section Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) est masquée.
   const isAnnemasse = region === 'annemasse';
-  const communeSections = useMemo(() => communeSectionsForRegion(region), [region]);
+  const { communeSections } = useSectors();
   // Clé de brouillon : par candidat en édition, unique en création.
   const draftKey = candidate ? editDraftKey(candidate._id) : CREATE_DRAFT_KEY;
   const [form, setForm] = useState<ABForm>(() => {
@@ -1183,7 +1194,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             }} />
             {/* <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} /> */}
             <AddressAutocomplete id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={v => set('placeOfBirth', v)} apiEndpoint="/api/sourcing/completion" />
-            <AddressAutocomplete id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)} apiEndpoint="/api/sourcing/departement" />
+            <ABSelectField id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)}>
+              <option value="">Non renseigné</option>
+              {DEPARTEMENTS.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+            </ABSelectField>
             <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]" />
             <div className="col-span-2">
               <AddressAutocomplete id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={v => set('address', v)} apiEndpoint="/api/sourcing/completion" />
@@ -1195,6 +1209,25 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               if (city) set('city', city);
             }} />
             <InputField id="cn-city" label="Ville" value={form.city} onChange={e => set('city', e.target.value)} />
+            <InputField id="cn-country" label="Pays de résidence" placeholder="France" value={form.country} onChange={e => set('country', e.target.value)} />
+            <ABSelectField id="cn-nationality" label="Nationalité" value={form.nationality} onChange={v => set('nationality', v)}>
+              <option value="">Non renseignée</option>
+              <option value="1">Française</option>
+              <option value="2">Pays européen</option>
+              <option value="3">Autre</option>
+            </ABSelectField>
+            <ABSelectField id="cn-born-fr" label="Né en France" value={form.bornInFrance} onChange={v => set('bornInFrance', v)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Oui</option>
+              <option value="false">Non</option>
+            </ABSelectField>
+            {form.nationality === '3' && (
+              <ABSelectField id="cn-permit" label="Titre de séjour autorisant à travailler" value={form.residencePermit} onChange={v => set('residencePermit', v)}>
+                <option value="">Non renseigné</option>
+                <option value="true">Oui</option>
+                <option value="false">Non</option>
+              </ABSelectField>
+            )}
           </div>
           <ABTextarea label="Description (contexte du candidat pour le matching)" value={form.description} onChange={v => set('description', v)} rows={4} />
 

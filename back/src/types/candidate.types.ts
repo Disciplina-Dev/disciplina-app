@@ -90,17 +90,24 @@ export interface EncryptedSsn {
     tag: string;
 }
 
+// 1 : française, 2 : pays européen, 3 : autre (codes Filiz).
+export type NationalityCode = 1 | 2 | 3;
+
 export interface Identity {
     full_name: string;
     social_security_number?: EncryptedSsn;
     date_of_birth?: Date;
     place_of_birth?: string;
     department_of_birth?: string;
+    born_in_france?: boolean;
+    nationality?: NationalityCode; // exigé par Filiz (étapes 3 et 4)
+    residence_permit?: boolean; // titre de séjour autorisant à travailler, requis si nationalité « autre »
     age?: number;
     sex?: string;
     address?: string;
     postal_code?: string;
     city?: string;
+    country?: string;
     email: string;
     phone: string;
     driving_license_b?: boolean;
@@ -224,6 +231,11 @@ export interface ClassMarkerResult {
     duration?: string;
     pdf_link?: string;
     questions?: ClassMarkerQuestion[];
+    // Questionnaires internes (#968) : champs facultatifs, absents des anciens résultats ClassMarker.
+    source?: 'classmarker' | 'internal';
+    questionnaire_id?: string;
+    attempt_id?: string;
+    tab_switch_count?: number;
 }
 
 /**

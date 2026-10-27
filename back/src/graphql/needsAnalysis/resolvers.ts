@@ -1,9 +1,11 @@
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
+import { GraphQLError } from 'graphql';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { UserService } from '../../services/UserService';
 import { ANNEMASSE_DRIVE_SECTOR, regionFromSector, sectorFromRegion } from '../../utils/sector';
 import { getRegion } from '../../db/tenant';
+import { sectorService } from '../../services/SectorService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
@@ -175,6 +177,12 @@ export const resolvers = {
         updateAbDriveConfig: async (_: unknown, { input }: { input: any }, context: any) => {
             authGuard(context.user, Permission.RESPONSABLE);
             const sectorFolders: Record<string, string> = {};
+            const folders: { sector: string }[] = input.sectorFolders ?? [];
+            const known = await Promise.all(folders.map((f) => sectorService.findByLabel(f.sector)));
+            const unknown = folders.find((__, i) => !known[i]);
+            if (unknown) {
+                throw new GraphQLError(`Unknown sector: ${unknown.sector}`, { extensions: { code: 'BAD_USER_INPUT' } });
+            }
             for (const f of input.sectorFolders ?? []) {
                 const folderId = (f.folderId ?? '').trim();
                 if (folderId) sectorFolders[abFolderKey(f.sector, f.kind as AbFolderKind)] = folderId;
