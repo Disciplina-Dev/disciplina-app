@@ -2,9 +2,9 @@ import { FilizReferenceRepository } from '../repositories/mongo/FilizReferenceRe
 import { FilizClassRef, FilizDegreeRef } from '../types/filizReference.types';
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { FilizService } from '../external/filiz/filiz.service';
-import { toClassRef } from './FilizSyncService';
+import { FilizSyncService, toClassRef } from './FilizSyncService';
 import { env } from '../config/env';
-import { Session } from '../types/session.types';
+import { CreateSessionInput, Session } from '../types/session.types';
 
 // Une classe Filiz tient lieu de session : le diplôme devient la filière, les dates viennent de Filiz.
 function classToSession(c: FilizClassRef, degrees: Map<string, FilizDegreeRef>): Session {
@@ -15,15 +15,29 @@ function classToSession(c: FilizClassRef, degrees: Map<string, FilizDegreeRef>):
         jour_cours: null,
         date_debut: c.start_date ?? c.synced_at,
         date_fin: c.end_date ?? c.synced_at,
+        head_teacher: c.head_teacher ?? null,
+        referent_teacher: c.referent_teacher ?? null,
+        realization_address: c.realization_address ?? null,
         created_at: c.synced_at,
         updated_at: c.synced_at,
     };
+}
+
+// Filiz attend des dates MM/DD/YYYY ; le front envoie des dates ISO (YYYY-MM-DD).
+function toFilizDate(iso: string): string {
+    const [y, m, d] = iso.slice(0, 10).split('-');
+    return `${m}/${d}/${y}`;
+}
+
+function isIsoDate(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}/.test(value) && !Number.isNaN(Date.parse(value));
 }
 
 export class SessionService {
     private alternants = new AlternantRepository();
     private filizReference = new FilizReferenceRepository();
     private filizService = new FilizService();
+    private filizSync = new FilizSyncService();
 
     private async degreesById(): Promise<Map<string, FilizDegreeRef>> {
         return new Map((await this.filizReference.findDegrees()).map((d) => [d._id, d]));
@@ -67,5 +81,61 @@ export class SessionService {
 
         await this.filizReference.upsertClasses([toClassRef({ ...current, degreeId: local.degree_id, className })]);
         return this.findById(id);
+    }
+
+    async findDegrees(): Promise<{ id: string; title: string }[]> {
+        return (await this.filizReference.findDegrees()).map((d) => ({ id: d._id, title: d.title }));
+    }
+
+    /**
+     * Crée la promotion côté Filiz (POST /api/class), puis la relit pour alimenter le miroir local.
+     * Les champs non envoyés (contrat, montants, enseignant, adresse) sont hérités de la formation par Filiz.
+     */
+    async create(input: CreateSessionInput): Promise<Session> {
+        if (!env.FILIZ_CLASS_UPDATE_ENABLED) throw new Error('Modification des promotions Filiz désactivée');
+        const className = input.nom.trim();
+        if (!className) throw new Error('Le nom de la session est obligatoire');
+        if (!isIsoDate(input.dateDebut)) throw new Error('La date de début est obligatoire');
+        if (!isIsoDate(input.dateFin)) throw new Error('La date de fin est obligatoire');
+        if (input.dateFin < input.dateDebut) throw new Error('La date de fin doit être postérieure à la date de début');
+        if (!(await this.degreesById()).has(input.degreeId)) throw new Error('Formation introuvable');
+
+        const generalEducationDuration = input.generalEducationDuration?.trim();
+        const body: Record<string, unknown> = {
+            degreeId: input.degreeId,
+            className,
+            startDate: toFilizDate(input.dateDebut),
+            endDate: toFilizDate(input.dateFin),
+            classStudyConfig: {
+                subjectValidation: input.subjectValidation,
+                ...(generalEducationDuration && { professionalizationContractConfig: { generalEducationDuration } }),
+            },
+        };
+        if (input.headTeacher) body.headTeacher = input.headTeacher;
+        if (input.referentTeacher) body.referentTeacher = input.referentTeacher;
+        const address = Object.fromEntries(
+            Object.entries(input.realizationAddress ?? {}).filter(([, v]) => typeof v === 'string' && v.trim()),
+        );
+        if (Object.keys(address).length > 0) body.realizationAddress = address;
+
+        const classId = await this.filizService.createClass(body);
+        if (!classId) throw new Error('Filiz a refusé la création de la promotion');
+
+        const created = await this.filizService.getClass(classId);
+        if (!created) throw new Error('Promotion créée mais introuvable côté Filiz');
+        await this.filizReference.upsertClasses([toClassRef({ ...created, classId, degreeId: input.degreeId })]);
+        const session = await this.findById(classId);
+        if (!session) throw new Error('Promotion créée mais introuvable en base');
+        return session;
+    }
+
+    /** Rafraîchit formations + promotions depuis Filiz (sans les dossiers alternants). */
+    async syncReference(): Promise<{ degrees: number; classes: number }> {
+        const result = await this.filizSync.syncReference();
+        // syncReference avale ses erreurs et renvoie 0/0 : on ne le présente pas comme un succès.
+        if (result.degrees === 0) {
+            throw new Error('Synchronisation Filiz impossible (Filiz injoignable ou aucune formation)');
+        }
+        return result;
     }
 }

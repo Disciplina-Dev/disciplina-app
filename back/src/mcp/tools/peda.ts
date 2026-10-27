@@ -357,8 +357,13 @@ function matches(a: { first_name: string; last_name: string }, needle: string): 
     return a.first_name.toLowerCase().includes(n) || a.last_name.toLowerCase().includes(n);
 }
 
-/** Le décompte d'alternants d'une session est servi par `session_stats` (masqué). */
+/** Le décompte d'alternants est servi par `session_stats` (masqué) ; les enseignants (données perso) ne sont pas exposés au LLM. */
 function omitCount(session: object): object {
-    const { alternantCount: _count, ...rest } = session as Record<string, unknown>;
+    const {
+        alternantCount: _count,
+        headTeacher: _head,
+        referentTeacher: _referent,
+        ...rest
+    } = session as Record<string, unknown>;
     return rest;
 }

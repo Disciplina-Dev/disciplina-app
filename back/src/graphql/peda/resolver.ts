@@ -16,6 +16,8 @@ import { alternantToGql, sequenceToGql } from '../../services/mappers/alternant.
 import { ruptureToGql } from '../../services/mappers/rupture.mapper';
 import { sessionToGql } from '../../services/mappers/session.mapper';
 import { SessionService } from '../../services/SessionService';
+import { consumeFilizQuota, FILIZ_CREATE_LIMIT, FILIZ_SYNC_LIMIT } from './filizRateLimit';
+import { CreateSessionInput } from '../../types/session.types';
 import { RuptureService } from '../../services/RuptureService';
 import { SaCalendarService } from '../../services/SaCalendarService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
@@ -24,6 +26,7 @@ const alternantService = new AlternantService();
 const sessionService = new SessionService();
 const ruptureService = new RuptureService();
 const saCalendarService = new SaCalendarService();
+let referenceSyncInProgress = false;
 
 /** Re-synchronise l'agenda Google des Pedas avec les SA actives d'un alternant. */
 async function syncAlternantSequences(alternantId: string): Promise<void> {
@@ -88,6 +91,10 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             return sessionWithCount(id);
         },
+        sessionDegrees: async (_: unknown, __: unknown, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            return sessionService.findDegrees();
+        },
         sessionAlternants: async (_: unknown, { sessionId }: { sessionId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const session = await sessionService.findById(sessionId);
@@ -112,6 +119,23 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const renamed = await sessionService.rename(id, nom);
             return renamed ? sessionToGql(renamed, await sessionService.countAlternants(id)) : null;
+        },
+        createSession: async (_: unknown, { input }: { input: CreateSessionInput }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            consumeFilizQuota('create-class', FILIZ_CREATE_LIMIT, context.user.id);
+            const created = await sessionService.create(input);
+            return sessionToGql(created, 0);
+        },
+        syncSessionReference: async (_: unknown, __: unknown, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            if (referenceSyncInProgress) throw new Error('Synchronisation déjà en cours');
+            consumeFilizQuota('sync-reference', FILIZ_SYNC_LIMIT);
+            referenceSyncInProgress = true;
+            try {
+                return await sessionService.syncReference();
+            } finally {
+                referenceSyncInProgress = false;
+            }
         },
         createAlternant: async (_: unknown, { input }: { input: CreateAlternantInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
