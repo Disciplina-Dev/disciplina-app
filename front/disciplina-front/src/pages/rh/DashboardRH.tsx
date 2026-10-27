@@ -830,6 +830,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const [selectedZone, setSelectedZone] = useState<SecteurKey | null>(null);
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
   const [nameQuery, setNameQuery] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [minDate, setMinDate] = useState('');
   const [maxDate, setMaxDate] = useState('');
   const [historyByAnalysis, setHistoryByAnalysis] = useState<Record<string, DirectoryHistoryState>>({});
@@ -856,6 +857,13 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
       return next;
     });
   const hasActiveFilters = nameQuery.trim() !== '' || selectedTps.size > 0 || selectedStatuses.size > 0 || selectedZone !== null || selectedActivities.size > 0 || minDate !== '' || maxDate !== '';
+  // Nombre de groupes de filtres actifs (hors recherche), affiché dans la pastille du bouton « Filtres ».
+  const activeFilterCount =
+    (selectedTps.size > 0 ? 1 : 0) +
+    (selectedStatuses.size > 0 ? 1 : 0) +
+    (selectedZone !== null ? 1 : 0) +
+    (selectedActivities.size > 0 ? 1 : 0) +
+    (minDate !== '' || maxDate !== '' ? 1 : 0);
   const resetFilters = () => {
     setNameQuery('');
     setSelectedTps(new Set());
@@ -1089,100 +1097,123 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="space-y-2 border-b border-[var(--ds-border)] px-5 py-3">
-          <div className="relative w-full max-w-sm">
-            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--ds-text-subtle)]">
-              <IconSearch width={16} height={16} />
-            </span>
-            <input
-              type="search"
-              value={nameQuery}
-              onChange={(e) => setNameQuery(e.target.value)}
-              placeholder="Rechercher une entreprise par nom…"
-              aria-label="Rechercher une entreprise par nom"
-              className="w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2 pl-9 pr-3 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] outline-none transition-colors focus:border-[var(--ds-accent)]"
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">TP :</span>
-            <ChipGroup
-              label="Filtrer par TP"
-              tone="accent"
-              selected={[...selectedTps]}
-              onToggle={toggleTp}
-              options={TP_ORDER.map((tp) => ({ value: tp, label: tp }))}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Statut :</span>
-            <ChipGroup
-              label="Filtrer par statut"
-              tone="accent"
-              selected={[...selectedStatuses]}
-              onToggle={toggleStatus}
-              options={DIRECTORY_STATUSES.map((s) => ({ value: s, label: DIRECTORY_STATUS_LABELS[s] }))}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Zone :</span>
-            <ChipGroup
-              label="Filtrer par zone"
-              tone="accent"
-              allLabel="Toutes"
-              selected={selectedZone ? [selectedZone] : []}
-              onSelectAll={() => setSelectedZone(null)}
-              onToggle={(zone) => setSelectedZone((prev) => (prev === zone ? null : zone))}
-              options={SECTEUR_KEYS.map((zone) => ({ value: zone, label: SECTEUR_LABELS[zone] }))}
-            />
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Secteur d'activité :</span>
-            <ChipGroup
-              label="Filtrer par secteur d'activité"
-              tone="accent"
-              selected={[...selectedActivities]}
-              onToggle={toggleActivity}
-              options={DIRECTORY_ACTIVITY_SECTORS.map((sector) => ({ value: sector, label: formatEnumLabel(sector) }))}
-            />
-          </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Activée entre :</span>
-            <input
-              type="date"
-              value={minDate}
-              max={maxDate || undefined}
-              onChange={(e) => setMinDate(e.target.value)}
-              className="rounded-md border border-[var(--ds-border)] px-2 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
-              aria-label="Date d'activation minimale"
-            />
-            <span className="text-xs text-[var(--ds-text-subtle)]">et</span>
-            <input
-              type="date"
-              value={maxDate}
-              min={minDate || undefined}
-              onChange={(e) => setMaxDate(e.target.value)}
-              className="rounded-md border border-[var(--ds-border)] px-2 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
-              aria-label="Date d'activation maximale"
-            />
+            <div className="relative w-full max-w-sm">
+              <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--ds-text-subtle)]">
+                <IconSearch width={16} height={16} />
+              </span>
+              <input
+                type="search"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+                placeholder="Rechercher une entreprise par nom…"
+                aria-label="Rechercher une entreprise par nom"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2 pl-9 pr-3 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] outline-none transition-colors focus:border-[var(--ds-accent)]"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setFiltersOpen((prev) => !prev)}
+              aria-expanded={filtersOpen}
+              aria-controls="company-directory-filters"
+              title={filtersOpen ? 'Masquer les filtres' : 'Afficher les filtres'}
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--ds-border)] px-3 py-1.5 text-xs font-semibold text-[var(--ds-text-muted)] transition hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]"
+            >
+              <IconChevronDown width={14} height={14} className={filtersOpen ? 'rotate-180' : ''} />
+              Filtres
+              {activeFilterCount > 0 && (
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--color-blue)] px-1.5 text-[11px] font-bold text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
             {hasActiveFilters && (
               <button
                 type="button"
                 onClick={resetFilters}
-                className="ml-auto rounded-full border border-[var(--ds-border)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] transition hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]"
+                className="rounded-full border border-[var(--ds-border)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] transition hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]"
               >
                 Réinitialiser
               </button>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Pastille :</span>
-            {INDICATOR_ORDER.map((color) => (
-              <span key={color} className="inline-flex items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
-                <span className={`inline-block h-2.5 w-2.5 rounded-full border ${INDICATOR_DOT[color]}`} />
-                {INDICATOR_LABELS[color]}
-              </span>
-            ))}
-            <span className="text-[11px] text-[var(--ds-text-subtle)]">— cliquez sur la pastille d’une entreprise pour changer sa couleur.</span>
-          </div>
+
+          {filtersOpen && (
+            <div id="company-directory-filters" className="space-y-2 pt-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">TP :</span>
+                <ChipGroup
+                  label="Filtrer par TP"
+                  tone="accent"
+                  selected={[...selectedTps]}
+                  onToggle={toggleTp}
+                  options={TP_ORDER.map((tp) => ({ value: tp, label: tp }))}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Statut :</span>
+                <ChipGroup
+                  label="Filtrer par statut"
+                  tone="accent"
+                  selected={[...selectedStatuses]}
+                  onToggle={toggleStatus}
+                  options={DIRECTORY_STATUSES.map((s) => ({ value: s, label: DIRECTORY_STATUS_LABELS[s] }))}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Zone :</span>
+                <ChipGroup
+                  label="Filtrer par zone"
+                  tone="accent"
+                  allLabel="Toutes"
+                  selected={selectedZone ? [selectedZone] : []}
+                  onSelectAll={() => setSelectedZone(null)}
+                  onToggle={(zone) => setSelectedZone((prev) => (prev === zone ? null : zone))}
+                  options={SECTEUR_KEYS.map((zone) => ({ value: zone, label: SECTEUR_LABELS[zone] }))}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Secteur d'activité :</span>
+                <ChipGroup
+                  label="Filtrer par secteur d'activité"
+                  tone="accent"
+                  selected={[...selectedActivities]}
+                  onToggle={toggleActivity}
+                  options={DIRECTORY_ACTIVITY_SECTORS.map((sector) => ({ value: sector, label: formatEnumLabel(sector) }))}
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Activée entre :</span>
+                <input
+                  type="date"
+                  value={minDate}
+                  max={maxDate || undefined}
+                  onChange={(e) => setMinDate(e.target.value)}
+                  className="rounded-md border border-[var(--ds-border)] px-2 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
+                  aria-label="Date d'activation minimale"
+                />
+                <span className="text-xs text-[var(--ds-text-subtle)]">et</span>
+                <input
+                  type="date"
+                  value={maxDate}
+                  min={minDate || undefined}
+                  onChange={(e) => setMaxDate(e.target.value)}
+                  className="rounded-md border border-[var(--ds-border)] px-2 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
+                  aria-label="Date d'activation maximale"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Pastille :</span>
+                {INDICATOR_ORDER.map((color) => (
+                  <span key={color} className="inline-flex items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
+                    <span className={`inline-block h-2.5 w-2.5 rounded-full border ${INDICATOR_DOT[color]}`} />
+                    {INDICATOR_LABELS[color]}
+                  </span>
+                ))}
+                <span className="text-[11px] text-[var(--ds-text-subtle)]">— cliquez sur la pastille d’une entreprise pour changer sa couleur.</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
