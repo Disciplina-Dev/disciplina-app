@@ -231,6 +231,11 @@ export interface ClassMarkerResult {
     duration?: string;
     pdf_link?: string;
     questions?: ClassMarkerQuestion[];
+    // Questionnaires internes (#968) : champs facultatifs, absents des anciens résultats ClassMarker.
+    source?: 'classmarker' | 'internal';
+    questionnaire_id?: string;
+    attempt_id?: string;
+    tab_switch_count?: number;
 }
 
 /**

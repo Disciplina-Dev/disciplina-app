@@ -7,6 +7,11 @@ export const typeDefs = gql`
         not_done
     }
 
+    enum AlternantArchiveReason {
+        rupture
+        fin_formation
+    }
+
     type AlternantCompany {
         name: String
         address: String
@@ -30,6 +35,7 @@ export const typeDefs = gql`
         filizInProgress: Boolean!
         archived: Boolean!
         archivedAt: String
+        archiveReason: AlternantArchiveReason
         createdAt: String
         updatedAt: String
     }
@@ -164,7 +170,7 @@ export const typeDefs = gql`
         removeAlternantCompany(id: ID!): Alternant
         linkAlternant(id: ID!, otherId: ID!): Alternant
         unlinkAlternant(id: ID!, otherId: ID!): Alternant
-        archiveAlternant(id: ID!): Alternant
+        archiveAlternant(id: ID!, reason: AlternantArchiveReason = rupture): Alternant
         unarchiveAlternant(id: ID!): Alternant
         createSequence(alternantId: ID!, prevueLe: String!): AlternantSequence!
         rescheduleSequence(id: ID!, prevueLe: String!): AlternantSequence

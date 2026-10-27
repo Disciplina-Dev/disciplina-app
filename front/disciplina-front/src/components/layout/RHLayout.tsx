@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { IconBellActive, IconCalendar, IconDashboard, IconFolderSettings, IconLink, IconLogout, IconMail, IconMapPin, IconRepeat, IconSettings, IconTaskList, IconUser, IconUsers } from '@/components/ui/icons'
+import { IconBellActive, IconCalendar, IconClipboardCheck, IconDashboard, IconFolderSettings, IconLink, IconLogout, IconMail, IconMapPin, IconRepeat, IconSettings, IconTaskList, IconUser, IconUsers } from '@/components/ui/icons'
 import { useAuthStore, useCurrentUser, Permission } from '@/store/authStore'
 import NotificationBell from '@/components/notifications/NotificationBell'
 import RouteBreadcrumb from '@/components/ui/RouteBreadcrumb'
@@ -63,6 +63,7 @@ export default function RHLayout() {
           <NavItem to="/rh/candidats" icon={<IconUsers width={18} height={18} />} label="Candidats" />
           <NavItem to="/rh/matching" icon={<IconRepeat width={18} height={18} />} label="Matching" />
           <NavItem to="/rh/external-access" icon={<IconLink width={18} height={18} />} label="Accès externes" />
+          <NavItem to="/rh/questionnaires" icon={<IconClipboardCheck width={18} height={18} />} label="Questionnaires" />
           <NavItem to="/rh/calendrier" icon={<IconCalendar width={18} height={18} />} label="Calendrier" />
           <NavItem to="/rh/relance" icon={<IconBellActive width={18} height={18} />} label="Relance" />
           <NavItem to="/rh/todos" icon={<IconTaskList width={18} height={18} />} label="Mes tâches" />

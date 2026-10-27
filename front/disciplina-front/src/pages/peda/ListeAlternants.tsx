@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCompany, IconLoader, IconMail, IconPhone, IconPlus, IconSearch, IconTraining, IconUser } from '@/components/ui/icons'
+import {
+  IconCompany,
+  IconLoader,
+  IconMail,
+  IconPhone,
+  IconPlus,
+  IconSearch,
+  IconTraining,
+  IconUser,
+} from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import Tabs from '@/components/ui/Tabs'
 import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
@@ -17,7 +26,7 @@ export default function ListeAlternants() {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [tab, setTab] = useState<ArchiveTab>('actifs')
+  const [tab, setTab] = useState<AlternantTab>('actifs')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350)
@@ -70,8 +79,8 @@ export default function ListeAlternants() {
         </Button>
       </div>
 
-      <Tabs<ArchiveTab>
-        label="Filtrer les alternants par statut d'archive"
+      <Tabs<AlternantTab>
+        label="Filtrer les alternants par statut"
         value={tab}
         onChange={setTab}
         options={[
@@ -142,7 +151,7 @@ export default function ListeAlternants() {
                   )}
                   {a.archived ? (
                     <span className="inline-flex items-center rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-[var(--ds-text-subtle)] ring-1 ring-inset ring-[var(--ds-border)]">
-                      Archivé
+                      {a.archiveReason === 'fin_formation' ? 'Fin de formation' : 'Archivé'}
                     </span>
                   ) : (
                     !a.company && (
@@ -189,7 +198,7 @@ export default function ListeAlternants() {
               <IconUser width={48} height={48} className="mb-4 text-[var(--ds-text-subtle)]" />
               <p className="text-lg font-medium text-[var(--ds-text)]">Aucun alternant trouvé</p>
               <p className="text-sm">
-                {tab === 'archives'
+                {tab === 'ruptures'
                   ? 'Les alternants ayant quitté la formation apparaîtront ici.'
                   : tab === 'enCours'
                     ? 'Les alternants dont le dossier Filiz reste à compléter apparaîtront ici.'

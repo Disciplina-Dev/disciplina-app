@@ -5,6 +5,7 @@ import {
   IconArrowLeft,
   IconCalendar,
   IconCheck,
+  IconCheckCircle,
   IconClose,
   IconCompany,
   IconEdit,
@@ -26,6 +27,7 @@ import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
 import AlternantCompanyModal from '@/components/peda/AlternantCompanyModal'
 import RuptureModal from '@/components/peda/RuptureModal'
 import {
+  archiveAlternant,
   changeAlternantCompany,
   completeSequence,
   createSequence,
@@ -127,7 +129,7 @@ export default function FicheAlternant() {
   const [showEdit, setShowEdit] = useState(false)
   const [showCompany, setShowCompany] = useState(false)
   const [showRupture, setShowRupture] = useState(false)
-  const [confirmAction, setConfirmAction] = useState<'delete' | 'removeCompany' | null>(null)
+  const [confirmAction, setConfirmAction] = useState<'delete' | 'removeCompany' | 'finFormation' | null>(null)
   const [confirmDeleteRuptureId, setConfirmDeleteRuptureId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
@@ -234,6 +236,25 @@ export default function FicheAlternant() {
       setConfirmAction(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Opération impossible')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleFinishFormation() {
+    if (!id) return
+    setActionLoading(true)
+    try {
+      const updated = await archiveAlternant(id, 'fin_formation')
+      if (updated) {
+        // L'archivage archive aussi les SA côté backend : on recharge les deux.
+        const [fresh, freshSeqs] = await Promise.all([fetchAlternant(id), fetchSequences(id)])
+        setAlternant(fresh ?? updated)
+        setSequences(freshSeqs)
+      }
+      setConfirmAction(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Archivage impossible')
     } finally {
       setActionLoading(false)
     }
@@ -457,7 +478,7 @@ export default function FicheAlternant() {
               )}
               {alternant.archived && (
                 <span className="inline-flex items-center rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-xs font-bold uppercase tracking-wider text-[var(--ds-text-subtle)] ring-1 ring-inset ring-[var(--ds-border)]">
-                  Archivé — a quitté la formation
+                  {alternant.archiveReason === 'fin_formation' ? 'Archivé — fin de formation' : 'Archivé — a quitté la formation'}
                 </span>
               )}
             </div>
@@ -475,8 +496,9 @@ export default function FicheAlternant() {
       {alternant.archived && (
         <div className="mb-4 flex items-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] px-4 py-3 text-sm text-[var(--ds-text-muted)]">
           <IconAlert width={16} height={16} className="shrink-0" />
-          Cet alternant a quitté la formation : sa fiche et ses SA sont archivées et n'apparaissent plus dans le tableau
-          de bord ni dans les groupes de sessions.
+          {alternant.archiveReason === 'fin_formation'
+            ? "Cet alternant a terminé sa formation : sa fiche et ses SA sont archivées et n'apparaissent plus dans le tableau de bord ni dans les groupes de sessions."
+            : "Cet alternant a quitté la formation : sa fiche et ses SA sont archivées et n'apparaissent plus dans le tableau de bord ni dans les groupes de sessions."}
         </div>
       )}
 
@@ -692,6 +714,31 @@ export default function FicheAlternant() {
                   Plus d’entreprise
                 </Button>
               )}
+              {!alternant.archived &&
+                (confirmAction === 'finFormation' ? (
+                  <div className="rounded-xl border border-teal-700/30 bg-teal-700/5 p-3">
+                    <p className="text-[13px] text-[var(--ds-text-muted)]">
+                      Marquer {alternant.fullName} comme ayant terminé sa formation ? Sa fiche et ses SA seront archivées dans l'onglet « Fin de formation ».
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <Button size="sm" onClick={handleFinishFormation} isLoading={actionLoading}>
+                        Confirmer
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmAction(null)}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<IconCheckCircle width={14} height={14} />}
+                    onClick={() => setConfirmAction('finFormation')}
+                  >
+                    Fin de formation
+                  </Button>
+                ))}
               <Button
                 variant="secondary"
                 size="sm"

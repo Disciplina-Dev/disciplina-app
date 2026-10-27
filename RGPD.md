@@ -210,6 +210,7 @@ Aucune trace d'un registre des activités de traitement. Obligatoire pour toute 
 | Gestion candidats | Accompagnement alternance | Contrat + consentement | Nom, email, tel, N° SS, CV, photo | Entreprises partenaires | 3 ans après dernier contact | Google Drive, Ollama | Google (USA) |
 | Matching offres | Mise en relation | Contrat + consentement | Nom, compétences, CV | Entreprises via portail | 1 an après offre | DocuSeal | DocuSeal (USA) |
 | Tests ClassMarker | Évaluation | Contrat | Nom, résultats | Interne | 2 ans | ClassMarker | ClassMarker (USA) |
+| Questionnaires internes (#968, remplace ClassMarker) | Évaluation du positionnement | Mesures précontractuelles | Réponses, score, durée, nb de changements d'onglet (nom/email lus depuis la fiche, non ressaisis) | Interne (RH) ; PDF sur le Drive du candidat si Google connecté | Avec la fiche candidat (supprimé avec elle) ; invitation jamais commencée purgée à expiration | Aucun (Google Drive pour le PDF) | Aucun hors Drive |
 | Monitoring Sentry | Détection d'erreurs | Intérêt légitime | Logs, replay UI | Sentry | 30 jours | Sentry.io | Sentry (Allemagne) |
 | Envoi d'emails | Communication | Contrat | Email, contenu | Google Gmail | 1 an | Google | Google (USA) |
 | Signature électronique | Analyse de besoin | Contrat | Nom, signature | DocuSeal | 5 ans | DocuSeal | DocuSeal (USA) |

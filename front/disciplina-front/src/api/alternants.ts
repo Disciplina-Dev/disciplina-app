@@ -1,7 +1,14 @@
 import { gql } from 'urql'
 import { pedaGraphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { CHECK_CANDIDATE_EMAIL, GET_CANDIDATE_BY_ID } from '@/graphql/queries'
-import type { Alternant, AlternantSequence, CreateAlternantInput, SequenceContacts, SequenceStatus } from '@/types/alternant'
+import type {
+  Alternant,
+  AlternantArchiveReason,
+  AlternantSequence,
+  CreateAlternantInput,
+  SequenceContacts,
+  SequenceStatus,
+} from '@/types/alternant'
 
 const ALTERNANT_FIELDS = gql`
   fragment AlternantFields on Alternant {
@@ -25,6 +32,7 @@ const ALTERNANT_FIELDS = gql`
     filizInProgress
     archived
     archivedAt
+    archiveReason
     createdAt
     updatedAt
   }
@@ -150,8 +158,8 @@ const UNLINK_ALTERNANT = gql`
 `
 
 const ARCHIVE_ALTERNANT = gql`
-  mutation ArchiveAlternant($id: ID!) {
-    archiveAlternant(id: $id) {
+  mutation ArchiveAlternant($id: ID!, $reason: AlternantArchiveReason!) {
+    archiveAlternant(id: $id, reason: $reason) {
       ...AlternantFields
     }
   }
@@ -309,8 +317,11 @@ export async function unlinkAlternant(id: string, otherId: string): Promise<Alte
   return unwrap<{ unlinkAlternant: Alternant | null }>(res).unlinkAlternant
 }
 
-export async function archiveAlternant(id: string): Promise<Alternant | null> {
-  const res = await pedaGraphqlClient.mutation(ARCHIVE_ALTERNANT, { id })
+export async function archiveAlternant(
+  id: string,
+  reason: AlternantArchiveReason = 'rupture',
+): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(ARCHIVE_ALTERNANT, { id, reason })
   return unwrap<{ archiveAlternant: Alternant | null }>(res).archiveAlternant
 }
 

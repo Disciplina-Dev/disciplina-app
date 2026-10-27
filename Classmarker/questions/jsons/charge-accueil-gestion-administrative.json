@@ -1,0 +1,472 @@
+{
+  "title": "Partie 2 - Test de pré-sélection Chargé d'Accueil et de Gestion Administrative",
+  "description": "20 questions, 0,5 point chacune (10 points).",
+  "tp_types": [],
+  "duration_minutes": 20,
+  "pass_threshold": 50,
+  "immediate_feedback": false,
+  "allow_skip": false,
+  "shuffle_choices": false,
+  "questions": [
+    {
+      "type": "single",
+      "text": "Complétez : « Nous ___ reçu votre courrier hier. »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "avons",
+          "correct": true
+        },
+        {
+          "text": "a",
+          "correct": false
+        },
+        {
+          "text": "avont",
+          "correct": false
+        },
+        {
+          "text": "sommes",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Complétez : « Je vous ___ de bien vouloir me rappeler. »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "prie",
+          "correct": true
+        },
+        {
+          "text": "pries",
+          "correct": false
+        },
+        {
+          "text": "prit",
+          "correct": false
+        },
+        {
+          "text": "pris",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Quel mot est correctement orthographié ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Rendez-vous",
+          "correct": true
+        },
+        {
+          "text": "Rendé-vous",
+          "correct": false
+        },
+        {
+          "text": "Rendez-vou",
+          "correct": false
+        },
+        {
+          "text": "Rendez vous",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Complétez : « Veuillez trouver ___ la facture demandée. »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "ci-joint",
+          "correct": true
+        },
+        {
+          "text": "ci joins",
+          "correct": false
+        },
+        {
+          "text": "si-joint",
+          "correct": false
+        },
+        {
+          "text": "si joins",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Complétez : « Les factures ___ par le comptable chaque mois. »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "sont vérifiés",
+          "correct": false
+        },
+        {
+          "text": "sont vérifier",
+          "correct": false
+        },
+        {
+          "text": "son vérifiées",
+          "correct": false
+        },
+        {
+          "text": "sont vérifiées",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Quelle phrase contient une faute ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Nous vous avons envoyé le document ce matin.",
+          "correct": false
+        },
+        {
+          "text": "Je vous est envoyé le document ce matin.",
+          "correct": true
+        },
+        {
+          "text": "Elle vous a envoyé le document ce matin.",
+          "correct": false
+        },
+        {
+          "text": "Je vous ai envoyé le document ce matin.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Dans un mail professionnel, l'objet sert à :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Indiquer la date d'envoi",
+          "correct": false
+        },
+        {
+          "text": "Mettre la signature",
+          "correct": false
+        },
+        {
+          "text": "Résumer en quelques mots le sujet du message",
+          "correct": true
+        },
+        {
+          "text": "Saluer le destinataire",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Un article coûte 40 € HT. Avec une TVA à 20 %, quel est son prix TTC ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "42 €",
+          "correct": false
+        },
+        {
+          "text": "60 €",
+          "correct": false
+        },
+        {
+          "text": "48 €",
+          "correct": true
+        },
+        {
+          "text": "44 €",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Une réunion commence à 9 h 45 et dure 1 h 30. À quelle heure se termine-t-elle ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "10 h 15",
+          "correct": false
+        },
+        {
+          "text": "10 h 75",
+          "correct": false
+        },
+        {
+          "text": "11 h 15",
+          "correct": true
+        },
+        {
+          "text": "11 h 45",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Vous avez reçu 120 appels en 4 jours. Quelle est la moyenne par jour ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "480",
+          "correct": false
+        },
+        {
+          "text": "40",
+          "correct": false
+        },
+        {
+          "text": "30",
+          "correct": true
+        },
+        {
+          "text": "24",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Un colis pèse 2,5 kg. Combien cela fait-il en grammes ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "250 g",
+          "correct": false
+        },
+        {
+          "text": "25 g",
+          "correct": false
+        },
+        {
+          "text": "2 500 g",
+          "correct": true
+        },
+        {
+          "text": "25 000 g",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Une facture de 1 200 € doit être payée en 4 fois sans frais. Quel est le montant de chaque échéance ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "350 €",
+          "correct": false
+        },
+        {
+          "text": "400 €",
+          "correct": false
+        },
+        {
+          "text": "300 €",
+          "correct": true
+        },
+        {
+          "text": "250 €",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Quel logiciel est le plus adapté pour rédiger un courrier ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Un traitement de texte (Word, Google Docs)",
+          "correct": true
+        },
+        {
+          "text": "Un navigateur internet",
+          "correct": false
+        },
+        {
+          "text": "Une messagerie instantanée",
+          "correct": false
+        },
+        {
+          "text": "Un tableur (Excel)",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Quel logiciel est le plus adapté pour calculer automatiquement le total d'une liste de dépenses ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Un tableur (Excel, Google Sheets)",
+          "correct": true
+        },
+        {
+          "text": "Un lecteur PDF",
+          "correct": false
+        },
+        {
+          "text": "Un traitement de texte",
+          "correct": false
+        },
+        {
+          "text": "Un logiciel de présentation",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Dans Excel, quelle formule additionne les cellules A1 à A5 ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "=TOTAL(A1-A5)",
+          "correct": false
+        },
+        {
+          "text": "=SOMME(A1:A5)",
+          "correct": true
+        },
+        {
+          "text": "SOMME A1+A5",
+          "correct": false
+        },
+        {
+          "text": "=AJOUT(A1;A5)",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Quel raccourci clavier permet de copier un élément ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Ctrl + C",
+          "correct": true
+        },
+        {
+          "text": "Ctrl + Z",
+          "correct": false
+        },
+        {
+          "text": "Ctrl + X",
+          "correct": false
+        },
+        {
+          "text": "Ctrl + V",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Quel format de fichier est le plus adapté pour envoyer un document qui ne doit pas être modifié ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "TXT",
+          "correct": false
+        },
+        {
+          "text": "XLSX",
+          "correct": false
+        },
+        {
+          "text": "PDF",
+          "correct": true
+        },
+        {
+          "text": "DOCX",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Un visiteur arrive pendant que vous êtes au téléphone. Que faites-vous ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Je lui demande de revenir plus tard",
+          "correct": false
+        },
+        {
+          "text": "Je lui fais un signe pour lui montrer que je l'ai vu, puis je termine l'appel rapidement",
+          "correct": true
+        },
+        {
+          "text": "Je raccroche immédiatement",
+          "correct": false
+        },
+        {
+          "text": "Je l'ignore jusqu'à la fin de l'appel",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Un client est mécontent et parle fort. Quelle attitude adoptez-vous ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Je l'ignore",
+          "correct": false
+        },
+        {
+          "text": "Je hausse le ton à mon tour",
+          "correct": false
+        },
+        {
+          "text": "Je lui demande de partir",
+          "correct": false
+        },
+        {
+          "text": "Je reste calme, je l'écoute et je cherche une solution",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Votre interlocuteur demande une personne absente. Que faites-vous ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Je raccroche",
+          "correct": false
+        },
+        {
+          "text": "Je dis de rappeler plus tard sans rien noter",
+          "correct": false
+        },
+        {
+          "text": "Je prends un message complet (nom, numéro, objet) et je le transmets",
+          "correct": true
+        },
+        {
+          "text": "Je donne le numéro personnel de la personne",
+          "correct": false
+        }
+      ]
+    }
+  ]
+}

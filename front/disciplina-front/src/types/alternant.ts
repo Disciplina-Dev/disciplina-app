@@ -1,3 +1,6 @@
+/** Raison de l'archivage d'un alternant. */
+export type AlternantArchiveReason = 'rupture' | 'fin_formation'
+
 export interface AlternantCompany {
   name: string | null
   address: string | null
@@ -25,6 +28,8 @@ export interface Alternant {
   /** `true` = archivé suite à une rupture « quitte la formation ». */
   archived: boolean
   archivedAt: string | null
+  /** Raison de l'archivage — `null` si actif. */
+  archiveReason: AlternantArchiveReason | null
   createdAt: string | null
   updatedAt: string | null
 }

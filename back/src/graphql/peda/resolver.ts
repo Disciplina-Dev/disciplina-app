@@ -6,7 +6,12 @@ import {
     CreateAlternantInput,
     UpdateAlternantInput,
 } from '../../services/AlternantService';
-import { AlternantSequence, AlternantSequenceContacts, AlternantSequenceStatus } from '../../types/alternant.types';
+import {
+    AlternantArchiveReason,
+    AlternantSequence,
+    AlternantSequenceContacts,
+    AlternantSequenceStatus,
+} from '../../types/alternant.types';
 import { alternantToGql, sequenceToGql } from '../../services/mappers/alternant.mapper';
 import { ruptureToGql } from '../../services/mappers/rupture.mapper';
 import { sessionToGql } from '../../services/mappers/session.mapper';
@@ -163,10 +168,14 @@ export const resolvers = {
             const updated = await alternantService.unlinkAlternant(id, otherId);
             return updated ? alternantToGql(updated) : null;
         },
-        archiveAlternant: async (_: unknown, { id }: { id: string }, context: any) => {
+        archiveAlternant: async (
+            _: unknown,
+            { id, reason }: { id: string; reason?: AlternantArchiveReason },
+            context: any,
+        ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const sequences = await alternantService.findSequences(id);
-            const updated = await alternantService.archive(id);
+            const updated = await alternantService.archive(id, reason ?? 'rupture');
             await saCalendarService.removeSequencesForAllPedas(sequences);
             return updated ? alternantToGql(updated) : null;
         },
@@ -186,11 +195,7 @@ export const resolvers = {
             await saCalendarService.syncSequencesForAllPedas([created._id]);
             return sequenceToGql(created);
         },
-        rescheduleSequence: async (
-            _: unknown,
-            { id, prevueLe }: { id: string; prevueLe: string },
-            context: any,
-        ) => {
+        rescheduleSequence: async (_: unknown, { id, prevueLe }: { id: string; prevueLe: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const updated = await alternantService.rescheduleSequence(id, prevueLe);
             if (updated) await saCalendarService.syncSequencesForAllPedas([updated._id]);
@@ -236,11 +241,7 @@ export const resolvers = {
             await reconcileAlternantArchive(created.alternant_id);
             return ruptureToGql(created, alternant);
         },
-        updateRupture: async (
-            _: unknown,
-            { id, input }: { id: string; input: UpdateRuptureInput },
-            context: any,
-        ) => {
+        updateRupture: async (_: unknown, { id, input }: { id: string; input: UpdateRuptureInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const updated = await ruptureService.update(id, input);
             if (!updated) return null;

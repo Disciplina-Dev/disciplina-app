@@ -114,7 +114,12 @@ describe('GraphQL peda ruptures', () => {
         expect(badMotif.errors).toBeDefined();
 
         const badDate = await gqlFetch(auth, DECLARE, {
-            input: { alternantId: alternant.id, dateRupture: 'pas-une-date', motif: MOTIF_COMMUN_ACCORD, poursuitFormation: false },
+            input: {
+                alternantId: alternant.id,
+                dateRupture: 'pas-une-date',
+                motif: MOTIF_COMMUN_ACCORD,
+                poursuitFormation: false,
+            },
         });
         expect(badDate.errors).toBeDefined();
 
@@ -181,6 +186,37 @@ describe('GraphQL peda ruptures', () => {
         const auth = pedaAuth();
         const res = await gqlFetch(auth, `query { ruptures(year: 2026, month: 13) { id } }`);
         expect(res.errors).toBeDefined();
+    });
+
+    it('keeps a fin de formation archive when a non-quitting rupture is deleted', async () => {
+        const auth = pedaAuth();
+        const alternant = (await gqlFetch(auth, CREATE, { input: createInput(`${Date.now()}e`) })).data.createAlternant;
+
+        const finished = await gqlFetch(
+            auth,
+            `mutation($id: ID!) { archiveAlternant(id: $id, reason: fin_formation) { archived archiveReason } }`,
+            { id: alternant.id },
+        );
+        expect(finished.errors).toBeUndefined();
+        expect(finished.data.archiveAlternant.archiveReason).toBe('fin_formation');
+
+        const rupture = (
+            await gqlFetch(auth, DECLARE, {
+                input: {
+                    alternantId: alternant.id,
+                    dateRupture: '2026-10-07',
+                    motif: MOTIF_45_JOURS,
+                    poursuitFormation: true,
+                },
+            })
+        ).data.declareRupture;
+        await gqlFetch(auth, `mutation($id: ID!) { deleteRupture(id: $id) }`, { id: rupture.id });
+
+        const after = await gqlFetch(auth, `query($id: ID!) { alternant(id: $id) { archived archiveReason } }`, {
+            id: alternant.id,
+        });
+        expect(after.data.alternant.archived).toBe(true);
+        expect(after.data.alternant.archiveReason).toBe('fin_formation');
     });
 
     it('archives the alternant and its SAs on a "quitte la formation" rupture', async () => {
