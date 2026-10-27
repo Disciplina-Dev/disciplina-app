@@ -16,7 +16,7 @@ import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
 import { fetchAlternants } from '@/api/alternants'
 import type { Alternant } from '@/types/alternant'
 
-type ArchiveTab = 'enCours' | 'actifs' | 'archives'
+type AlternantTab = 'enCours' | 'actifs' | 'archives'
 
 export default function ListeAlternants() {
   const navigate = useNavigate()
@@ -198,8 +198,8 @@ export default function ListeAlternants() {
               <IconUser width={48} height={48} className="mb-4 text-[var(--ds-text-subtle)]" />
               <p className="text-lg font-medium text-[var(--ds-text)]">Aucun alternant trouvé</p>
               <p className="text-sm">
-                {tab === 'ruptures'
-                  ? 'Les alternants ayant quitté la formation apparaîtront ici.'
+                {tab === 'archives'
+                  ? 'Les alternants ayant quitté la formation ou terminé leur cursus apparaîtront ici.'
                   : tab === 'enCours'
                     ? 'Les alternants dont le dossier Filiz reste à compléter apparaîtront ici.'
                     : 'Créez le premier alternant avec le bouton « Nouvel alternant ».'}
