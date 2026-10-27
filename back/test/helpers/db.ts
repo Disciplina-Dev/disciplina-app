@@ -5,12 +5,15 @@ import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
 import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
 import { AlternantModel } from '../../src/db/mongo/schemas/alternant.schema';
 import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-sequence.schema';
+import { QuestionnaireAttemptModel, QuestionnaireModel } from '../../src/db/mongo/schemas/questionnaire.schema';
 
 const CLEARED_TABLES = [
     'mcp_audit_log',
+    'filiz_folders',
     'external_access',
     'external_link',
     'company_history',
+    'company_sectors',
     'companies',
     'companies_blacklist',
     'match_link',
@@ -19,6 +22,7 @@ const CLEARED_TABLES = [
     // Mongo `kpis`, vidés via dropMongo().
     'todos',
     'todo_groups',
+    'user_sectors',
     'users',
     'refresh_tokens',
 ];
@@ -64,4 +68,6 @@ export async function dropMongo(): Promise<void> {
     // Buckets KPI (ex-tables MySQL commercial_kpi / rh_kpi) : vidés comme elles
     // l'étaient pour isoler chaque test.
     await KpiModel.deleteMany({});
+    await QuestionnaireModel.deleteMany({});
+    await QuestionnaireAttemptModel.deleteMany({});
 }

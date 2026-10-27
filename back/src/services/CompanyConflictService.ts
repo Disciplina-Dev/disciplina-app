@@ -1,5 +1,6 @@
 import { getConnection } from '../db/mysql/connection';
 import { buildInsert } from '../db/mysql/queryBuilder';
+import { syncCompanySectors } from '../repositories/mysql/sectorId';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { CompanyConflictRepository } from '../repositories/mysql/CompanyConflictRepository';
 import { CompaniesRow, CompanyConflictRow } from '../types/db-rows.types';
@@ -122,6 +123,7 @@ export class CompanyConflictService {
             );
             const [result] = await conn.execute(sql, values);
             const insertedId = (result as any).insertId;
+            await syncCompanySectors(conn, insertedId, data.sector);
             await conn.execute('DELETE FROM company_conflict WHERE id = ?', [id]);
 
             await conn.commit();

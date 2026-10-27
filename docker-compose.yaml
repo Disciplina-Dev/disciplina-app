@@ -162,19 +162,6 @@ services:
       - frontend-net
     ports:
       - "5173:5173"
-  dozzle:
-    image: amir20/dozzle:latest
-    restart: always
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./dozzle-data:/data
-    environment:
-      - DOZZLE_AUTH_PROVIDER=simple
-    networks:
-      - backend-net
-      - frontend-net
-    ports:
-      - "9999:8080"
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command: ["--config", "/etc/otel/config.yaml"]

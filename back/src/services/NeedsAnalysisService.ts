@@ -7,6 +7,7 @@ import {
     NeedsAnalysisWriteInput,
     NeedsAnalysisStatus,
     CompanyIndicator,
+    CompanyRegion,
 } from '../types/needsAnalysisNoSql.types';
 import { toNeedsAnalysis, toNeedsAnalysisDocument, NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { buildOffers, mergeOfferIdentity } from './mappers/offer.mapper';
@@ -24,7 +25,7 @@ import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
 import { JobRole, Permission } from '../types/user.types';
 import { getRegion } from '../db/tenant';
-import { isSector } from '../utils/sector';
+import { isSector, sectorFromRegion } from '../utils/sector';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { sendSystemEmail } from '../external/google/system-mail';
 import { withNoReply } from '../external/google/no-reply';
@@ -48,13 +49,6 @@ function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
     );
 }
 
-// Région de l'AB (NORD/OUEST/SUD) → libellé du secteur des users (Nord-Est/Ouest/Sud).
-const REGION_TO_USER_SECTOR: Record<string, string> = {
-    NORD: 'Nord-Est',
-    OUEST: 'Ouest',
-    SUD: 'Sud',
-};
-
 /** Vrai si l'utilisateur est rattaché au secteur de l'AB (ou n'a pas de secteur défini). */
 function userBelongsToSector(user: { sectors?: string | string[] | null }, region: string | undefined): boolean {
     if (!region) return true;
@@ -64,7 +58,7 @@ function userBelongsToSector(user: { sectors?: string | string[] | null }, regio
     // Tenant Annemasse : dossier Drive et notifications uniques — tout secteur
     // connu du tenant (les 6 opérationnels comme les 3 historiques) appartient.
     if (getRegion() === 'annemasse') return list.some((s) => isSector(s));
-    const sector = REGION_TO_USER_SECTOR[region];
+    const sector = sectorFromRegion(region as CompanyRegion);
     if (!sector) return true;
     return list.includes(sector);
 }

@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
 import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconMail, IconMapPin, IconPlus, IconRepeat, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
@@ -10,7 +11,7 @@ import { apiFetch } from '@/api/httpClient'
 import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
-import { userSecteursForRegion, normalizeUserSecteurForRegion } from '@/constants/secteurs'
+import { normalizeUserSecteurForRegion } from '@/constants/secteurs'
 import { useRegionStore } from '@/store/regionStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
@@ -44,6 +45,25 @@ const HOURS = Array.from({ length: 24 }, (_, h) => h)
 /** Nom candidat déduit du titre de l'entretien (retire un préfixe « Entretien »). */
 function candidateNameFromSummary(summary: string): string {
   return (summary ?? '').replace(/^\s*entretien\s*[-:–—]?\s*/i, '').trim()
+}
+
+/** Nom complet de l'invité (« Prénom Nom »), vide si aucun des deux champs n'est renseigné. */
+function attendeeFullName(e: { attendeeFirstName?: string; attendeeLastName?: string }): string {
+  return [e.attendeeFirstName, e.attendeeLastName].filter(Boolean).join(' ')
+}
+
+/** Minuscule + accents retirés : « Zoé » et « zoe » se correspondent. */
+function foldQuery(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+/** Correspondance recherche : email, prénom, nom ou nom complet de l'invité.
+ * Les créneaux sans nom (antérieurs à l'ajout des champs) restent trouvables par email. */
+function matchesAttendeeQuery(e: CalendarEvent, query: string): boolean {
+  const q = foldQuery(query)
+  if (!q) return false
+  const values = [e.attendeeEmail, e.attendeeFirstName, e.attendeeLastName, attendeeFullName(e)]
+  return values.some((value) => foldQuery(value ?? '').includes(q))
 }
 
 /** Lundi = 0 … Dimanche = 6 */
@@ -165,8 +185,8 @@ export default function Calendrier() {
   const [createFromEvent, setCreateFromEvent] = useState<CalendarEvent | null>(null)
   const navigate = useNavigate()
 
-  // Recherche par email invité : highlight + quick-select.
-  const [emailQuery, setEmailQuery] = useState('')
+  // Recherche par invité (email, nom, prénom) : highlight + quick-select.
+  const [attendeeQuery, setAttendeeQuery] = useState('')
   const [showMatches, setShowMatches] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   type SearchScope = 'week' | 'month' | 'year'
@@ -300,7 +320,7 @@ export default function Calendrier() {
     return { min: start, max: end }
   }, [cursor, searchScope])
 
-  const normalizedQuery = emailQuery.trim().toLowerCase()
+  const normalizedQuery = attendeeQuery.trim().toLowerCase()
 
   // Recherche étendue : fetch sur la portée configurée (week/month/year) dès qu'une requête est saisie.
   useEffect(() => {
@@ -336,7 +356,7 @@ export default function Calendrier() {
     if (!normalizedQuery) return []
     const source = searchFetched ? searchEvents : events
     return [...source]
-      .filter((e) => (e.attendeeEmail ?? '').toLowerCase().includes(normalizedQuery))
+      .filter((e) => matchesAttendeeQuery(e, normalizedQuery))
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
   }, [events, searchEvents, searchFetched, normalizedQuery])
   // Highlight only entries currently visible in the calendar grid.
@@ -436,21 +456,21 @@ export default function Calendrier() {
               </button>
             </div>
           )}
-          {/* Recherche par email invité */}
+          {/* Recherche par invité : email, nom ou prénom */}
           <div ref={searchRef} className="relative w-full max-w-sm self-start">
             <div className="flex items-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-2 focus-within:border-purple">
               <IconSearch width={16} height={16} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
               <input
-                value={emailQuery}
-                onChange={(e) => { setEmailQuery(e.target.value); setShowMatches(true) }}
+                value={attendeeQuery}
+                onChange={(e) => { setAttendeeQuery(e.target.value); setShowMatches(true) }}
                 onFocus={() => { if (normalizedQuery) setShowMatches(true) }}
-                placeholder="Rechercher par email invité…"
+                placeholder="Rechercher par nom ou email invité…"
                 className="w-full bg-transparent text-[13px] outline-none placeholder:text-[var(--ds-text-subtle)]"
-                aria-label="Rechercher par email"
+                aria-label="Rechercher un invité par nom ou email"
               />
-              {emailQuery && (
+              {attendeeQuery && (
                 <button
-                  onClick={() => { setEmailQuery(''); setShowMatches(false) }}
+                  onClick={() => { setAttendeeQuery(''); setShowMatches(false) }}
                   className="rounded p-0.5 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
                   aria-label="Effacer la recherche"
                 >
@@ -506,6 +526,8 @@ export default function Calendrier() {
                     const start = new Date(e.start)
                     const owner = users.find((u) => u.id === e.ownerId)
                     const ownerLabel = owner ? `${owner.firstName} ${owner.lastName}`.trim() : `Agenda #${e.ownerId}`
+                    // Nom et/ou email de l'invité : les créneaux historiques n'ont qu'un email.
+                    const attendeeLabel = [attendeeFullName(e) || undefined, e.attendeeEmail].filter(Boolean).join(' · ')
                     return (
                       <button
                         key={`${e.ownerId}-${e.id}`}
@@ -514,7 +536,7 @@ export default function Calendrier() {
                       >
                         <span className="truncate text-[13px] font-semibold text-[var(--ds-text)]">{e.summary}</span>
                         <span className="truncate text-[12px] text-[var(--ds-text-subtle)]">
-                          {e.attendeeEmail} • {start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} {formatTime(e.start)} – {formatTime(e.end)}
+                          {attendeeLabel}{attendeeLabel ? ' • ' : ''}{start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} {formatTime(e.start)} – {formatTime(e.end)}
                         </span>
                         <span className="text-[11px] text-[var(--ds-text-subtle)]">{ownerLabel}</span>
                       </button>
@@ -554,7 +576,8 @@ export default function Calendrier() {
       {createFromEvent && (
         <CandidateQuickCreateModal
           prefill={{
-            fullName: candidateNameFromSummary(createFromEvent.summary),
+            // Nom saisi sur le créneau s'il existe, sinon déduit du titre (créneaux historiques).
+            fullName: attendeeFullName(createFromEvent) || candidateNameFromSummary(createFromEvent.summary),
             email: createFromEvent.attendeeEmail ?? '',
           }}
           onClose={() => setCreateFromEvent(null)}
@@ -829,7 +852,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
   const [loaded, setLoaded] = useState(false)
   const [custom, setCustom] = useState(false)
   const selfSectors = useAuthStore((s) => s.user?.sectors)
-  const region = useRegionStore((s) => s.region)
+  const { userSectors } = useSectors()
 
   useEffect(() => {
     let cancelled = false
@@ -841,7 +864,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
         setLoaded(true)
         // Défaut : lieu du secteur de l'utilisateur, sinon premier secteur du tenant ; rien si non configuré.
         if (autoDefault && !value.trim()) {
-          const validSectors = userSecteursForRegion(region)
+          const validSectors = userSectors
           const sector = selfSectors?.find((s) => validSectors.includes(s)) ?? validSectors[0]
           const match = withLocation.find((s) => s.sector === sector)
           if (match) onChange(match.location)
@@ -1096,7 +1119,7 @@ function AgendasPanel({ users, visible, onToggle, onToggleGroup }: {
   users: CalendarUser[]; visible: Set<number>; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
 }) {
   const region = useRegionStore((s) => s.region)
-  const sectors = userSecteursForRegion(region)
+  const { userSectors: sectors } = useSectors()
   const withoutSector = users.filter((u) => u.sectors.length === 0)
   return (
     <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-3">
@@ -1190,8 +1213,11 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
           <p className="font-semibold capitalize text-[var(--ds-text)]">{dateLabel}</p>
           <p>{timeLabel}</p>
           {event.location && <p className="flex items-center gap-2"><IconMapPin width={14} height={14} className="text-[var(--ds-text-subtle)]" /> {event.location}</p>}
-          {event.attendeeEmail && (
-            <p className="flex items-center gap-2"><IconMail width={14} height={14} className="text-[var(--ds-text-subtle)]" /> {event.attendeeEmail}</p>
+          {(event.attendeeEmail || attendeeFullName(event)) && (
+            <p className="flex items-center gap-2">
+              <IconMail width={14} height={14} className="text-[var(--ds-text-subtle)]" />
+              {[attendeeFullName(event) || undefined, event.attendeeEmail].filter(Boolean).join(' · ')}
+            </p>
           )}
           {event.description && (
             <div className="pt-1 text-[var(--ds-text-subtle)] [&_a]:font-semibold [&_a]:text-purple [&_a]:underline [&_a:hover]:text-purple-dark"
@@ -1274,6 +1300,9 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
   const [endTime, setEndTime] = useState(toTimeInput(initEnd))
   const [location, setLocation] = useState(event?.location ?? '')
   const [attendeeEmail, setAttendeeEmail] = useState(event?.attendeeEmail ?? '')
+  // Nom / prénom de l'invité : optionnels, servent à la recherche par nom dans le calendrier.
+  const [attendeeFirstName, setAttendeeFirstName] = useState(event?.attendeeFirstName ?? '')
+  const [attendeeLastName, setAttendeeLastName] = useState(event?.attendeeLastName ?? '')
   const [meetingLink, setMeetingLink] = useState(event?.meetingLink ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
   // Type de créneau : pilote le flag "entretien" (compté KPI RH).
@@ -1360,6 +1389,8 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
       end: localToISO(date, endTime),
       location: location.trim() || undefined,
       attendeeEmail: email || undefined,
+      attendeeFirstName: attendeeFirstName.trim() || undefined,
+      attendeeLastName: attendeeLastName.trim() || undefined,
       meetingLink: link || undefined,
       description: description.trim() || undefined,
       isInterview,
@@ -1426,6 +1457,14 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
           </div>
 
           <LocationPicker value={location} onChange={setLocation} autoDefault={!isEdit} />
+
+          {/* Nom / prénom de l'invité : optionnels, utilisés par la recherche du calendrier. */}
+          <div className="flex gap-2">
+            <input type="text" value={attendeeFirstName} onChange={(e) => setAttendeeFirstName(e.target.value)} placeholder="Prénom de l'invité (optionnel)"
+              className="w-1/2 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="text" value={attendeeLastName} onChange={(e) => setAttendeeLastName(e.target.value)} placeholder="Nom de l'invité (optionnel)"
+              className="w-1/2 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+          </div>
 
           <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
             <IconMail width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />

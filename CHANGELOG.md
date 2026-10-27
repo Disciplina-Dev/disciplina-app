@@ -30,6 +30,18 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- Questionnaires internes (#968), remplaçants de ClassMarker : éditeur par blocs (QCM 1 ou plusieurs réponses, vrai/faux, réponse libre corrigée automatiquement), import/export JSON, mode « Tester », verrouillage après le 1er passage + duplication en v2 ; lien unique + QR depuis la fiche candidat, page candidat `/test/:token` (une question par page, chrono serveur, pas de retour arrière, lien lié au 1er appareil), suivi en direct sur la fiche ; résultats filtrables (export CSV, détail réponse par réponse) et téléchargement direct du PDF des résultats, sans compte Google. Questionnaires ClassMarker repris dans `Classmarker/questions/jsons/`.
+
+### Changed
+
+- Résultats de test (#968) : la logique du webhook ClassMarker est extraite dans `TestResultService` ; les résultats internes sont écrits au même format (`candidate.classmarker` / `classmarker_history`, `source: 'internal'`), donc fiche, gate, PDF et MCP sont inchangés. ClassMarker reste branché pendant la transition.
+
+### Security
+
+- Questionnaires internes (#968) : jeton de lien de 256 bits stocké haché, bonnes réponses jamais envoyées au navigateur avant validation, route publique limitée en débit ; RGPD : passages supprimés avec le candidat, invitation jamais commencée purgée à expiration, `tab_switch_count` jamais transmis au MCP.
+
 ## [1.5.0] - 2026-10-21
 
 ### Added

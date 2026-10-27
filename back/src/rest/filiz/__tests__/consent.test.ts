@@ -21,6 +21,9 @@ async function seedCandidate(suffix: number, dataSharing: boolean): Promise<stri
             full_name: `Candidat Filiz Consentement ${suffix}`,
             email: `cand-filiz-consent-${suffix}@test.local`,
             phone: '0692000004',
+            date_of_birth: new Date('2000-05-12T00:00:00Z'),
+            place_of_birth: 'Saint-Denis',
+            sex: 'F',
         } as any,
         consentments: {
             data_processing: true,

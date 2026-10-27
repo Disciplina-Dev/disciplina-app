@@ -180,6 +180,7 @@ export const typeDefs = gql`
         comment: String
         cvWebview: String
         hasCv: Boolean
+        isRupture: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -203,6 +204,7 @@ export const typeDefs = gql`
         comment: String
         cvWebview: String
         hasCv: Boolean
+        isRupture: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion

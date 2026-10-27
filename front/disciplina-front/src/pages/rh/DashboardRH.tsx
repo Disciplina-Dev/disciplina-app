@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -23,8 +24,7 @@ import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
-import { SECTEUR_LABELS, SECTEUR_KEYS, userSecteursForRegion, type SecteurKey } from '@/constants/secteurs';
-import { useRegionStore } from '@/store/regionStore';
+import { SECTEUR_LABELS, SECTEUR_KEYS, type SecteurKey } from '@/constants/secteurs';
 import { Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
 import { getTrialPeriodStatus } from '@/utils/trialPeriod';
 import ChipGroup from '@/components/ui/ChipGroup'
@@ -184,6 +184,11 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 const DIRECTORY_PAGE_SIZE = 500;
 
 const CONTRACTED_PAGE_SIZE = 500;
+
+/** Minuscule + accents retirés : « Éco » et « eco » se correspondent. */
+function foldSearch(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
 
 function TrialStatusBadge({ trialEndDate }: { trialEndDate?: string }) {
   const status = getTrialPeriodStatus(trialEndDate);
@@ -824,6 +829,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [selectedZone, setSelectedZone] = useState<SecteurKey | null>(null);
   const [selectedActivities, setSelectedActivities] = useState<Set<string>>(new Set());
+  const [nameQuery, setNameQuery] = useState('');
   const [minDate, setMinDate] = useState('');
   const [maxDate, setMaxDate] = useState('');
   const [historyByAnalysis, setHistoryByAnalysis] = useState<Record<string, DirectoryHistoryState>>({});
@@ -849,8 +855,9 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
       else next.add(s);
       return next;
     });
-  const hasActiveFilters = selectedTps.size > 0 || selectedStatuses.size > 0 || selectedZone !== null || selectedActivities.size > 0 || minDate !== '' || maxDate !== '';
+  const hasActiveFilters = nameQuery.trim() !== '' || selectedTps.size > 0 || selectedStatuses.size > 0 || selectedZone !== null || selectedActivities.size > 0 || minDate !== '' || maxDate !== '';
   const resetFilters = () => {
+    setNameQuery('');
     setSelectedTps(new Set());
     setSelectedStatuses(new Set());
     setSelectedZone(null);
@@ -926,8 +933,10 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
     const order = new Map(TP_ORDER.map((tp, i) => [tp, i]));
     const minTime = minDate ? new Date(`${minDate}T00:00:00`).getTime() : null;
     const maxTime = maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null;
+    const needle = foldSearch(nameQuery.trim());
     return [...items]
       .filter((a) => {
+        if (needle && !foldSearch(a.companyInfos?.name ?? '').includes(needle)) return false;
         if (selectedTps.size > 0) {
           const tps = analysisTps(a);
           if (!tps.some((t) => selectedTps.has(t))) return false;
@@ -955,7 +964,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
         const dy = activationDateOf(y.analysis) ? new Date(activationDateOf(y.analysis) as string).getTime() : Number.MAX_SAFE_INTEGER;
         return dx - dy;
       });
-  }, [items, selectedTps, selectedStatuses, selectedZone, selectedActivities, minDate, maxDate]);
+  }, [items, nameQuery, selectedTps, selectedStatuses, selectedZone, selectedActivities, minDate, maxDate]);
 
   const renderHistoryCell = (analysis: NeedsAnalysis) => {
     const state = historyByAnalysis[analysis.id] ?? freshHistoryState();
@@ -1080,6 +1089,19 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="space-y-2 border-b border-[var(--ds-border)] px-5 py-3">
+          <div className="relative w-full max-w-sm">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[var(--ds-text-subtle)]">
+              <IconSearch width={16} height={16} />
+            </span>
+            <input
+              type="search"
+              value={nameQuery}
+              onChange={(e) => setNameQuery(e.target.value)}
+              placeholder="Rechercher une entreprise par nom…"
+              aria-label="Rechercher une entreprise par nom"
+              className="w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2 pl-9 pr-3 text-sm text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] outline-none transition-colors focus:border-[var(--ds-accent)]"
+            />
+          </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">TP :</span>
             <ChipGroup
@@ -1180,7 +1202,11 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
             </div>
           ) : rows.length === 0 ? (
             <p className="py-12 text-center text-sm text-[var(--ds-text-subtle)]">
-              {hasActiveFilters ? 'Aucune entreprise ne correspond aux filtres.' : 'Aucune entreprise.'}
+              {nameQuery.trim()
+                ? 'Aucune entreprise ne correspond à cette recherche.'
+                : hasActiveFilters
+                  ? 'Aucune entreprise ne correspond aux filtres.'
+                  : 'Aucune entreprise.'}
             </p>
           ) : (
             <>
@@ -1301,8 +1327,7 @@ export default function DashboardRH() {
   const canViewAll = currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE;
   // Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
   // Réunion : Nord-Est/Ouest/Sud ; Annemasse : les 6 secteurs opérationnels.
-  const region = useRegionStore((s) => s.region);
-  const canonSectors = useMemo(() => userSecteursForRegion(region), [region]);
+  const { userSectors: canonSectors } = useSectors();
 
   // Filtre secteur global : null = tous ; sinon les secteurs cochés cumulés.
   // Pilote à la fois les indicateurs candidats, les diagrammes et les KPI RH.

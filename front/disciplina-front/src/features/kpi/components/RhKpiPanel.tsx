@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { IconAlert, IconCalendarPlus, IconClose, IconExternalLink, IconJob, IconLoader, IconRefresh, IconRepeat, IconSchedule, IconSignature, IconUnlink, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
@@ -6,7 +7,7 @@ import {
   fetchRhKpiReport, fetchRhKpiYears, emptyRhMetrics, sumMetrics, upcoming,
   type RhKpiColumn, type RhKpiMetrics, type RhKpiReport,
 } from '@/api/rhKpi'
-import { userSecteursForRegion, normalizeUserSecteurForRegion } from '@/constants/secteurs'
+import { normalizeUserSecteurForRegion } from '@/constants/secteurs'
 import { useRegionStore } from '@/store/regionStore'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import ChipGroup from '@/components/ui/ChipGroup'
@@ -46,11 +47,6 @@ const MONTHS = [
   'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
 ]
 
-// Secteurs canoniques toujours proposés (même sans données), selon le tenant :
-// Nord-Est/Ouest/Sud (Réunion) ou les 6 secteurs opérationnels (Annemasse).
-const canonSectorsForRegion = (region: 'reunion' | 'annemasse' | null | undefined) =>
-  userSecteursForRegion(region)
-
 type Granularity = 'week' | 'month' | 'year'
 
 /** Numéro de semaine ISO 8601 d'une date (1-53). */
@@ -86,7 +82,7 @@ export default function RhKpiPanel({
   const now = useMemo(() => new Date(), [])
   const region = useRegionStore((s) => s.region)
   // Secteurs canoniques du tenant + tout secteur présent dans les données.
-  const canonSectors = useMemo(() => canonSectorsForRegion(region), [region])
+  const { userSectors: canonSectors } = useSectors()
   const [year, setYear] = useState(now.getFullYear())
   const [years, setYears] = useState<number[]>([now.getFullYear()])
   const [gran, setGran] = useState<Granularity>('month')

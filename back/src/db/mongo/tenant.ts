@@ -12,10 +12,12 @@ import { CommercialSignatureModel } from './schemas/commercialSignature.schema';
 import { CandidateHistoryModel } from './schemas/candidateHistory.schema';
 import { AlternantModel } from './schemas/alternant.schema';
 import { AlternantSequenceModel } from './schemas/alternant-sequence.schema';
+import { FilizClassModel, FilizDegreeModel } from './schemas/filizReference.schema';
 import { RuptureModel } from './schemas/rupture.schema';
 import { SessionModel } from './schemas/session.schema';
 import { AbDriveConfigModel } from './schemas/abDriveConfig.schema';
 import { DriveFolderConfigModel } from './schemas/driveFolderConfig.schema';
+import { QuestionnaireAttemptModel, QuestionnaireModel } from './schemas/questionnaire.schema';
 import { getAnnemasseConnection } from './connection';
 
 function tenantConnection(region: Region): Connection {
@@ -45,10 +47,14 @@ export function getModels() {
         CandidateHistory: modelOn(region, CandidateHistoryModel),
         Alternant: modelOn(region, AlternantModel),
         AlternantSequence: modelOn(region, AlternantSequenceModel),
+        FilizDegree: modelOn(region, FilizDegreeModel),
+        FilizClass: modelOn(region, FilizClassModel),
         Rupture: modelOn(region, RuptureModel),
         Session: modelOn(region, SessionModel),
         AbDriveConfig: modelOn(region, AbDriveConfigModel),
         DriveFolderConfig: modelOn(region, DriveFolderConfigModel),
+        Questionnaire: modelOn(region, QuestionnaireModel),
+        QuestionnaireAttempt: modelOn(region, QuestionnaireAttemptModel),
     };
 }
 

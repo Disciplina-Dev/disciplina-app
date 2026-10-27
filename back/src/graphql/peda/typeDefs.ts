@@ -7,6 +7,11 @@ export const typeDefs = gql`
         not_done
     }
 
+    enum AlternantArchiveReason {
+        rupture
+        fin_formation
+    }
+
     type AlternantCompany {
         name: String
         address: String
@@ -27,8 +32,10 @@ export const typeDefs = gql`
         candidateId: String
         company: AlternantCompany
         linkedAlternantIds: [String!]!
+        filizInProgress: Boolean!
         archived: Boolean!
         archivedAt: String
+        archiveReason: AlternantArchiveReason
         createdAt: String
         updatedAt: String
     }
@@ -97,22 +104,6 @@ export const typeDefs = gql`
         candidateId: String
     }
 
-    input CreateSessionInput {
-        nom: String!
-        filiere: String
-        jourCours: String
-        dateDebut: String!
-        dateFin: String!
-    }
-
-    input UpdateSessionInput {
-        nom: String
-        filiere: String
-        jourCours: String
-        dateDebut: String
-        dateFin: String
-    }
-
     input AlternantSequenceContactsInput {
         mentor: Boolean
         alternant: Boolean
@@ -179,7 +170,7 @@ export const typeDefs = gql`
         removeAlternantCompany(id: ID!): Alternant
         linkAlternant(id: ID!, otherId: ID!): Alternant
         unlinkAlternant(id: ID!, otherId: ID!): Alternant
-        archiveAlternant(id: ID!): Alternant
+        archiveAlternant(id: ID!, reason: AlternantArchiveReason = rupture): Alternant
         unarchiveAlternant(id: ID!): Alternant
         createSequence(alternantId: ID!, prevueLe: String!): AlternantSequence!
         rescheduleSequence(id: ID!, prevueLe: String!): AlternantSequence
@@ -187,13 +178,9 @@ export const typeDefs = gql`
         completeSequence(id: ID!, realiseeLe: String!): AlternantSequence
         markSequence(id: ID!, status: AlternantSequenceStatus!): AlternantSequence
         deleteSequence(id: ID!): Boolean!
-        createSession(input: CreateSessionInput!): Session!
-        updateSession(id: ID!, input: UpdateSessionInput!): Session
-        deleteSession(id: ID!): Boolean!
-        assignAlternantToSession(sessionId: ID!, alternantId: ID!): Session
-        removeAlternantFromSession(sessionId: ID!, alternantId: ID!): Session
         declareRupture(input: DeclareRuptureInput!): Rupture!
         updateRupture(id: ID!, input: UpdateRuptureInput!): Rupture
         deleteRupture(id: ID!): Boolean!
+        renameSession(id: ID!, nom: String!): Session
     }
 `;

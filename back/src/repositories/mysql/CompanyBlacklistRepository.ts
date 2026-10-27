@@ -1,17 +1,24 @@
 import { query, getConnection } from '../../db/mysql/connection';
+import { sectorLabelSql, withSectorId } from './sectorId';
 import { buildInsert } from '../../db/mysql/queryBuilder';
 import { CompaniesBlacklistRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
 
+const BLACKLIST_COLUMNS = `companies_blacklist.*, ${sectorLabelSql('companies_blacklist')} AS sector`;
+
 export class CompanyBlacklistRepository {
     async findBySiren(siren: string): Promise<CompaniesBlacklistRow[]> {
-        return query<CompaniesBlacklistRow[]>('SELECT * FROM companies_blacklist WHERE siret LIKE ?', [`${siren}%`]);
+        return query<CompaniesBlacklistRow[]>(
+            `SELECT ${BLACKLIST_COLUMNS} FROM companies_blacklist WHERE siret LIKE ?`,
+            [`${siren}%`],
+        );
     }
 
     async findBySiret(siret: string): Promise<CompaniesBlacklistRow | null> {
-        const results = await query<CompaniesBlacklistRow[]>('SELECT * FROM companies_blacklist WHERE siret = ?', [
-            siret,
-        ]);
+        const results = await query<CompaniesBlacklistRow[]>(
+            `SELECT ${BLACKLIST_COLUMNS} FROM companies_blacklist WHERE siret = ?`,
+            [siret],
+        );
         return results.length > 0 ? results[0] : null;
     }
 
@@ -23,7 +30,7 @@ export class CompanyBlacklistRepository {
         if (search?.trim()) {
             const pattern = `%${search.trim().toLowerCase()}%`;
             return query<CompaniesBlacklistRow[]>(
-                'SELECT * FROM companies_blacklist WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ? ORDER BY id',
+                `SELECT ${BLACKLIST_COLUMNS} FROM companies_blacklist WHERE LOWER(name) LIKE ? OR LOWER(siret) LIKE ? ORDER BY id`,
                 [pattern, pattern],
             );
         }
@@ -40,13 +47,16 @@ export class CompanyBlacklistRepository {
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
         const limit = Math.max(1, Math.floor(Number(first)) + 1);
         return query<CompaniesBlacklistRow[]>(
-            `SELECT * FROM companies_blacklist ${where} ORDER BY id LIMIT ${limit}`,
+            `SELECT ${BLACKLIST_COLUMNS} FROM companies_blacklist ${where} ORDER BY id LIMIT ${limit}`,
             params,
         );
     }
 
     async findById(id: number): Promise<CompaniesBlacklistRow | null> {
-        const results = await query<CompaniesBlacklistRow[]>('SELECT * FROM companies_blacklist WHERE id = ?', [id]);
+        const results = await query<CompaniesBlacklistRow[]>(
+            `SELECT ${BLACKLIST_COLUMNS} FROM companies_blacklist WHERE id = ?`,
+            [id],
+        );
         return results.length > 0 ? results[0] : null;
     }
 
@@ -63,7 +73,7 @@ export class CompanyBlacklistRepository {
     async create(data: Partial<CompaniesBlacklistRow>): Promise<number> {
         const conn = await getConnection();
         try {
-            const { sql, values } = buildInsert('companies_blacklist', data);
+            const { sql, values } = buildInsert('companies_blacklist', await withSectorId(data));
             const result = await conn.execute(sql, values);
             return (result[0] as any).insertId;
         } finally {

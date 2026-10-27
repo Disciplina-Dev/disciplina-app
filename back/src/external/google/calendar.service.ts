@@ -19,6 +19,10 @@ export interface CalendarEvent {
     meetingLink?: string;
     /** Email de l'invité (pour confirmation / relance). */
     attendeeEmail?: string;
+    /** Prénom de l'invité (saisie libre, sert à la recherche). Absent sur les créneaux antérieurs à l'ajout du champ. */
+    attendeeFirstName?: string;
+    /** Nom de l'invité (saisie libre, sert à la recherche). Absent sur les créneaux antérieurs à l'ajout du champ. */
+    attendeeLastName?: string;
     /** Présence de l'invité : 'arrived' (venu), 'noshow' (pas venu), 'postponed' (reporté) ou 'declined' (décliné). */
     attendance?: Attendance;
     /** Marqué comme entretien (compté dans les KPI RH). */
@@ -47,6 +51,10 @@ export interface CalendarEventInput {
     meetingLink?: string;
     /** Email de l'invité (pour confirmation / relance). */
     attendeeEmail?: string;
+    /** Prénom de l'invité (optionnel, saisie libre). */
+    attendeeFirstName?: string;
+    /** Nom de l'invité (optionnel, saisie libre). */
+    attendeeLastName?: string;
     /** Marqué comme entretien (compté dans les KPI RH). */
     isInterview?: boolean;
     /** Invités (réservation publique). */
@@ -69,6 +77,10 @@ export interface BusyInterval {
 const MEETING_LINK_KEY = 'meetingLink';
 /** Clé extendedProperties.private pour l'email de l'invité. */
 const ATTENDEE_EMAIL_KEY = 'attendeeEmail';
+/** Clé extendedProperties.private pour le prénom de l'invité. */
+const ATTENDEE_FIRST_NAME_KEY = 'attendeeFirstName';
+/** Clé extendedProperties.private pour le nom de l'invité. */
+const ATTENDEE_LAST_NAME_KEY = 'attendeeLastName';
 /** Clé extendedProperties.private pour le statut de présence. */
 const ATTENDANCE_KEY = 'attendance';
 /** Clé extendedProperties.private marquant un entretien (KPI). */
@@ -166,6 +178,8 @@ function toRequestBody(input: CalendarEventInput): calendar_v3.Schema$Event {
             private: {
                 [MEETING_LINK_KEY]: input.meetingLink ?? '',
                 [ATTENDEE_EMAIL_KEY]: input.attendeeEmail ?? '',
+                [ATTENDEE_FIRST_NAME_KEY]: input.attendeeFirstName ?? '',
+                [ATTENDEE_LAST_NAME_KEY]: input.attendeeLastName ?? '',
                 [IS_INTERVIEW_KEY]: input.isInterview ? '1' : '',
                 [SA_SEQUENCE_ID_KEY]: input.saSequenceId ?? '',
                 [SA_ALTERNANT_ID_KEY]: input.saAlternantId ?? '',
@@ -195,6 +209,8 @@ function toCalendarEvent(e: calendar_v3.Schema$Event): CalendarEvent {
         hangoutLink: e.hangoutLink ?? undefined,
         meetingLink: e.extendedProperties?.private?.[MEETING_LINK_KEY] || undefined,
         attendeeEmail: e.extendedProperties?.private?.[ATTENDEE_EMAIL_KEY] || undefined,
+        attendeeFirstName: e.extendedProperties?.private?.[ATTENDEE_FIRST_NAME_KEY] || undefined,
+        attendeeLastName: e.extendedProperties?.private?.[ATTENDEE_LAST_NAME_KEY] || undefined,
         attendance: parseAttendance(e.extendedProperties?.private?.[ATTENDANCE_KEY]),
         isInterview: e.extendedProperties?.private?.[IS_INTERVIEW_KEY] === '1',
         saSequenceId: e.extendedProperties?.private?.[SA_SEQUENCE_ID_KEY] || undefined,
