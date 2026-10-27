@@ -40,6 +40,58 @@ export const typeDefs = gql`
         updatedAt: String
     }
 
+    type SessionPerson {
+        firstName: String!
+        lastName: String!
+        mailAddress: String!
+    }
+
+    type SessionDegree {
+        id: ID!
+        title: String!
+    }
+
+    type SessionSyncResult {
+        degrees: Int!
+        classes: Int!
+    }
+
+    input SessionPersonInput {
+        firstName: String!
+        lastName: String!
+        mailAddress: String!
+    }
+
+    input SessionAddressInput {
+        street: String
+        complement: String
+        city: String
+        postcode: String
+        country: String
+    }
+
+    input CreateSessionInput {
+        degreeId: ID!
+        nom: String!
+        dateDebut: String!
+        dateFin: String!
+        subjectValidation: Boolean!
+        generalEducationDuration: String
+        headTeacher: SessionPersonInput
+        referentTeacher: SessionPersonInput
+        realizationAddress: SessionAddressInput
+    }
+
+    type SessionAddress {
+        housenumber: String!
+        street: String!
+        complement: String!
+        city: String!
+        postcode: String!
+        country: String!
+        formatted: String!
+    }
+
     type Session {
         id: ID!
         nom: String!
@@ -47,6 +99,9 @@ export const typeDefs = gql`
         jourCours: String
         dateDebut: String!
         dateFin: String!
+        headTeacher: SessionPerson
+        referentTeacher: SessionPerson
+        realizationAddress: SessionAddress
         alternantCount: Int!
         createdAt: String
         updatedAt: String
@@ -157,6 +212,7 @@ export const typeDefs = gql`
         alternantByEmail(email: String!): AlternantEmailCheck!
         sessions(search: String): [Session!]!
         session(id: ID!): Session
+        sessionDegrees: [SessionDegree!]!
         sessionAlternants(sessionId: ID!): [Alternant!]!
         ruptures(year: Int!, month: Int!): [Rupture!]!
         alternantRuptures(alternantId: ID!): [Rupture!]!
@@ -182,5 +238,7 @@ export const typeDefs = gql`
         updateRupture(id: ID!, input: UpdateRuptureInput!): Rupture
         deleteRupture(id: ID!): Boolean!
         renameSession(id: ID!, nom: String!): Session
+        createSession(input: CreateSessionInput!): Session!
+        syncSessionReference: SessionSyncResult!
     }
 `;

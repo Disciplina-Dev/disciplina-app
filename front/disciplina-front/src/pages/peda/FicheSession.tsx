@@ -13,10 +13,26 @@ import Card, { CardHeader } from '@/components/ui/Card'
 import InputField from '@/components/ui/InputField'
 import { fetchSession, fetchSessionAlternants, renameSession } from '@/api/sessions'
 import type { Alternant } from '@/types/alternant'
-import type { Session } from '@/types/session'
+import type { Session, SessionPerson } from '@/types/session'
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR')
+}
+
+function PersonValue({ person }: { person: SessionPerson | null }) {
+  if (!person) return <dd className="font-semibold text-[var(--ds-text)]">-</dd>
+  return (
+    <dd>
+      <span className="font-semibold text-[var(--ds-text)]">
+        {person.firstName} {person.lastName}
+      </span>
+      {person.mailAddress && (
+        <a href={`mailto:${person.mailAddress}`} className="block text-[var(--ds-text-muted)] hover:underline">
+          {person.mailAddress}
+        </a>
+      )}
+    </dd>
+  )
 }
 
 export default function FicheSession() {
@@ -164,6 +180,18 @@ export default function FicheSession() {
               <div>
                 <dt className="text-[12px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Jour de cours</dt>
                 <dd className="font-semibold text-[var(--ds-text)]">{session.jourCours ?? '-'}</dd>
+              </div>
+              <div>
+                <dt className="text-[12px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Responsable pédagogique</dt>
+                <PersonValue person={session.headTeacher} />
+              </div>
+              <div>
+                <dt className="text-[12px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Professeur référent</dt>
+                <PersonValue person={session.referentTeacher} />
+              </div>
+              <div>
+                <dt className="text-[12px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Lieu de formation</dt>
+                <dd className="font-semibold text-[var(--ds-text)]">{session.realizationAddress?.formatted || '-'}</dd>
               </div>
               <div className="flex items-center gap-2 text-[var(--ds-text-muted)]">
                 <IconCalendar width={16} height={16} className="shrink-0 text-[var(--ds-text-subtle)]" />

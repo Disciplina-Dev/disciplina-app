@@ -1,8 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { IconCalendar, IconLoader, IconSearch, IconTraining, IconUsers } from '@/components/ui/icons'
-import { fetchSessions } from '@/api/sessions'
+import {
+  IconCalendar,
+  IconPlus,
+  IconRefresh,
+  IconLoader,
+  IconSearch,
+  IconTraining,
+  IconUsers,
+} from '@/components/ui/icons'
+import { fetchSessions, syncSessionReference } from '@/api/sessions'
+import SessionFormModal from '@/components/peda/SessionFormModal'
+import Button from '@/components/ui/Button'
 import type { Session } from '@/types/session'
+
+// Aligné sur FILIZ_SYNC_LIMIT côté back : évite d'envoyer un clic qui sera refusé.
+const SYNC_COOLDOWN_S = 60
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('fr-FR')
@@ -15,6 +28,35 @@ export default function ListeSessions() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMessage, setSyncMessage] = useState<string | null>(null)
+  const [reloadKey, setReloadKey] = useState(0)
+  const [cooldown, setCooldown] = useState(0)
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [cooldown])
+
+  async function handleSync() {
+    setSyncing(true)
+    setSyncMessage(null)
+    setError(null)
+    try {
+      const { degrees, classes } = await syncSessionReference()
+      setSyncMessage(
+        `${degrees} formation${degrees > 1 ? 's' : ''} et ${classes} promotion${classes > 1 ? 's' : ''} synchronisée${classes > 1 ? 's' : ''}.`,
+      )
+      setReloadKey((k) => k + 1)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Synchronisation impossible')
+    } finally {
+      setCooldown(SYNC_COOLDOWN_S)
+      setSyncing(false)
+    }
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 350)
@@ -39,7 +81,7 @@ export default function ListeSessions() {
     return () => {
       alive = false
     }
-  }, [debouncedSearch])
+  }, [debouncedSearch, reloadKey])
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
@@ -49,6 +91,25 @@ export default function ListeSessions() {
           <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">
             {loading ? 'Chargement…' : `${sessions.length} session${sessions.length > 1 ? 's' : ''}`}
           </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            leftIcon={<IconRefresh width={16} height={16} />}
+            onClick={handleSync}
+            isLoading={syncing}
+          disabled={cooldown > 0}
+            loadingLabel="Synchronisation"
+          >
+            {cooldown > 0 ? `Synchroniser avec Filiz (${cooldown} s)` : 'Synchroniser avec Filiz'}
+          </Button>
+          <Button
+            variant="primary"
+            leftIcon={<IconPlus width={16} height={16} />}
+            onClick={() => setShowForm(true)}
+          >
+            Nouvelle promotion
+          </Button>
         </div>
       </div>
 
@@ -70,6 +131,12 @@ export default function ListeSessions() {
           />
         </div>
       </div>
+
+      {syncMessage && (
+        <div className="mb-6 rounded-xl border border-teal-700/30 bg-teal-700/10 px-4 py-3 text-sm text-teal-800">
+          {syncMessage}
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 rounded-xl border border-[var(--ds-danger)]/30 bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)]">
@@ -107,13 +174,18 @@ export default function ListeSessions() {
                   )}
                   <span className="inline-flex items-center gap-1 rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-xs font-bold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]">
                     <IconUsers width={12} height={12} />
-                    {s.alternantCount} alternant{s.alternantCount > 1 ? 's' : ''}
+                    {s.alternantCount} alternant
+                    {s.alternantCount > 1 ? 's' : ''}
                   </span>
                 </div>
                 <div className="mt-2 space-y-2">
                   {s.jourCours && (
                     <div className="flex items-center gap-2 text-sm text-[var(--ds-text-muted)]">
-                      <IconCalendar width={16} height={16} className="shrink-0 text-[var(--ds-text-subtle)]" />
+                      <IconCalendar
+                        width={16}
+                        height={16}
+                        className="shrink-0 text-[var(--ds-text-subtle)]"
+                      />
                       <span className="truncate">Cours : {s.jourCours}</span>
                     </div>
                   )}
@@ -131,12 +203,20 @@ export default function ListeSessions() {
             <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-[var(--ds-border)] bg-[var(--ds-surface)] py-12 text-[var(--ds-text-subtle)]">
               <IconTraining width={48} height={48} className="mb-4 text-[var(--ds-text-subtle)]" />
               <p className="text-lg font-medium text-[var(--ds-text)]">Aucune session trouvée</p>
-              <p className="text-sm">Les sessions correspondent aux classes Filiz : lancez la synchronisation Filiz.</p>
+              <p className="text-sm">
+                Les sessions correspondent aux classes Filiz : lancez la synchronisation Filiz.
+              </p>
             </div>
           )}
         </div>
       )}
 
+      {showForm && (
+        <SessionFormModal
+          onClose={() => setShowForm(false)}
+          onSaved={(created) => navigate(`/peda/sessions/${created.id}`)}
+        />
+      )}
     </div>
   )
 }

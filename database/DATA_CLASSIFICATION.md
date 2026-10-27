@@ -85,6 +85,7 @@ lien ») ou révocation (`LOCKED`). Seules les lignes historiques déjà marqué
 | `peda_config` | S0 | clé = `user_id` | `PedaConfigRepository` | Suit `users` (CASCADE) |
 | `peda_draft_history` | S2 | `recipient` (email) | `PedaDraftHistoryRepository` | 12 mois (déduplication d'envois) |
 | `todos` | S1 | `title`, `description` (texte libre) | `TodoRepository` | Suit `users` (CASCADE) |
+| Mongo `filiz_classes` | S2 | `head_teacher`, `referent_teacher` (nom, prénom, email enseignants) | `FilizReferenceRepository` | Miroir Filiz (ré-upsert à chaque sync) ; non exposé au MCP |
 
 ---
 

@@ -1,11 +1,11 @@
 import { FilizService } from '../external/filiz/filiz.service';
-import { FilizClass, FilizDegree, FilizFolder } from '../external/filiz/type';
+import { FilizClass, FilizDegree, FilizFolder, FilizPersonInfos } from '../external/filiz/type';
 import { logger } from '../external/logger';
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 import { FilizReferenceRepository } from '../repositories/mongo/FilizReferenceRepository';
 import { Alternant, AlternantFiliz } from '../types/alternant.types';
-import { FilizClassRef, FilizDegreeRef } from '../types/filizReference.types';
+import { FilizAddressRef, FilizClassRef, FilizDegreeRef, FilizPersonRef } from '../types/filizReference.types';
 
 export interface FilizSyncResult {
     total: number;
@@ -27,6 +27,23 @@ export function toDegreeRef(degree: FilizDegree): FilizDegreeRef {
     };
 }
 
+function toPersonRef(p?: FilizPersonInfos | null): FilizPersonRef | null {
+    return p ? { first_name: p.firstName ?? '', last_name: p.lastName ?? '', mail_address: p.mailAddress ?? '' } : null;
+}
+
+function toAddressRef(a?: FilizClass['realizationAddress'] | null): FilizAddressRef | null {
+    if (!a) return null;
+    return {
+        housenumber: a.housenumber ?? '',
+        street: a.street ?? '',
+        complement: a.complement ?? '',
+        city: a.city ?? '',
+        postcode: a.postcode ?? '',
+        country: a.country ?? '',
+        formatted: a.formatted ?? '',
+    };
+}
+
 export function toClassRef(cls: FilizClass): FilizClassRef {
     return {
         _id: cls.classId,
@@ -36,6 +53,9 @@ export function toClassRef(cls: FilizClass): FilizClassRef {
         end_date: cls.endDate ?? null,
         apprenticeship_contract: cls.classStudyConfig?.contractType?.apprenticeshipContract ?? false,
         professionalization_contract: cls.classStudyConfig?.contractType?.professionalizationContract ?? false,
+        head_teacher: toPersonRef(cls.headTeacher),
+        referent_teacher: toPersonRef(cls.referentTeacher),
+        realization_address: toAddressRef(cls.realizationAddress),
         synced_at: new Date(),
     };
 }
