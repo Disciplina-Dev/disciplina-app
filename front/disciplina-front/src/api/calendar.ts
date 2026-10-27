@@ -17,6 +17,10 @@ export interface CalendarEvent {
   meetingLink?: string;
   /** Email de l'invité (confirmation / relance). */
   attendeeEmail?: string;
+  /** Prénom de l'invité (saisie libre, utilisé par la recherche). Absent des créneaux historiques. */
+  attendeeFirstName?: string;
+  /** Nom de l'invité (saisie libre, utilisé par la recherche). Absent des créneaux historiques. */
+  attendeeLastName?: string;
   /** Présence : 'arrived' (venu), 'noshow' (pas venu), 'postponed' (reporté), 'declined' (décliné). */
   attendance?: Attendance;
   /** Marqué comme entretien (compté dans les KPI RH). */
@@ -36,6 +40,10 @@ export interface CalendarEventInput {
   meetingLink?: string;
   /** Email de l'invité : si fourni, un mail de confirmation est envoyé à la création. */
   attendeeEmail?: string;
+  /** Prénom de l'invité (optionnel, saisie libre — sert à la recherche). */
+  attendeeFirstName?: string;
+  /** Nom de l'invité (optionnel, saisie libre — sert à la recherche). */
+  attendeeLastName?: string;
   /** Marqué comme entretien (compté dans les KPI RH). */
   isInterview?: boolean;
 }
