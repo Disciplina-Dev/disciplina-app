@@ -15,6 +15,7 @@ import {
 import { alternantToGql, sequenceToGql } from '../../services/mappers/alternant.mapper';
 import { ruptureToGql } from '../../services/mappers/rupture.mapper';
 import { sessionToGql } from '../../services/mappers/session.mapper';
+import { CandidateEmployerService } from '../../services/CandidateEmployerService';
 import { SessionService } from '../../services/SessionService';
 import { consumeFilizQuota, FILIZ_CREATE_LIMIT, FILIZ_SYNC_LIMIT } from './filizRateLimit';
 import { CreateSessionInput } from '../../types/session.types';
@@ -23,6 +24,7 @@ import { SaCalendarService } from '../../services/SaCalendarService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
 
 const alternantService = new AlternantService();
+const candidateEmployerService = new CandidateEmployerService();
 const sessionService = new SessionService();
 const ruptureService = new RuptureService();
 const saCalendarService = new SaCalendarService();
@@ -81,6 +83,11 @@ export const resolvers = {
             return existing
                 ? { exists: true, id: existing._id, fullName: `${existing.first_name} ${existing.last_name}`.trim() }
                 : { exists: false, id: null, fullName: null };
+        },
+        candidateEmployer: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const employer = await candidateEmployerService.findByCandidateId(candidateId);
+            return employer ? { ...employer, startDate: employer.startDate?.toISOString() ?? null } : null;
         },
         sessions: async (_: unknown, { search }: { search?: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);

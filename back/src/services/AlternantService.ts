@@ -59,13 +59,7 @@ export interface CreateAlternantInput {
     email?: string | null;
     phone?: string | null;
     candidateId?: string | null;
-    company: {
-        name?: string | null;
-        address?: string | null;
-        mentorName?: string | null;
-        startDate: string;
-        endDate?: string | null;
-    };
+    company: CompanyInput;
     linkedAlternantIds?: string[];
 }
 
@@ -84,6 +78,10 @@ export interface CompanyInput {
     name?: string | null;
     address?: string | null;
     mentorName?: string | null;
+    siret?: string | null;
+    opco?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
     startDate: string;
     endDate?: string | null;
 }
@@ -93,6 +91,10 @@ function toCompanySnake(input: CompanyInput): AlternantCompany {
         name: input.name?.trim() || null,
         address: input.address?.trim() || null,
         mentor_name: input.mentorName?.trim() || null,
+        siret: input.siret?.trim() || null,
+        opco: input.opco?.trim() || null,
+        contact_email: input.contactEmail?.trim() || null,
+        contact_phone: input.contactPhone?.trim() || null,
         start_date: new Date(input.startDate),
         end_date: input.endDate ? new Date(input.endDate) : null,
     };

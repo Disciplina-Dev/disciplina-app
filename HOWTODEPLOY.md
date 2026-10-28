@@ -209,6 +209,19 @@ removed is written to `scripts/backups/` (it contains personal data). The script
 does not touch DocuSeal, Drive or `companies_blacklist`, so a later Digiforma
 import can re-create deleted companies.
 
+### Candidate contract offer backfill (manual, one-off)
+
+Contracts concluded from an offer used to leave only `status: CONTRACT` on the candidate.
+`back/scripts/backfill-candidate-contract-offer.ts` sets `contract_offer_id` / `contract_company_*`
+on candidates in contract with no linked offer, from the offer where they appear as `CONTRACT`
+(ambiguous cases are skipped and listed). Idempotent; dry run first.
+
+```bash
+./scripts/backup-db.sh                                                          # 1. full backup
+cd back && npx ts-node scripts/backfill-candidate-contract-offer.ts --dry-run   # 2. read the report
+npx ts-node scripts/backfill-candidate-contract-offer.ts                        # 3. apply
+```
+
 ### Sectors referential audit (manual, before dropping the legacy columns)
 
 `scripts/audit_sectors.py` is a **read-only** check of the sectors migration (#992). The

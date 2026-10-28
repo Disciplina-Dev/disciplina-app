@@ -16,8 +16,25 @@ export const typeDefs = gql`
         name: String
         address: String
         mentorName: String
+        siret: String
+        opco: String
+        contactEmail: String
+        contactPhone: String
         startDate: String
         endDate: String
+    }
+
+    type CandidateEmployer {
+        name: String
+        siret: String
+        opco: String
+        address: String
+        mentorName: String
+        contactName: String
+        contactEmail: String
+        contactPhone: String
+        startDate: String
+        sessionId: String
     }
 
     type Alternant {
@@ -133,6 +150,10 @@ export const typeDefs = gql`
         name: String
         address: String
         mentorName: String
+        siret: String
+        opco: String
+        contactEmail: String
+        contactPhone: String
         startDate: String!
         endDate: String
     }
@@ -210,6 +231,7 @@ export const typeDefs = gql`
         alternant(id: ID!): Alternant
         alternantSequences(alternantId: ID!): [AlternantSequence!]!
         alternantByEmail(email: String!): AlternantEmailCheck!
+        candidateEmployer(candidateId: ID!): CandidateEmployer
         sessions(search: String): [Session!]!
         session(id: ID!): Session
         sessionDegrees: [SessionDegree!]!
