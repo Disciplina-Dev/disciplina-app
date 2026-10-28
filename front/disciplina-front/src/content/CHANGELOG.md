@@ -34,6 +34,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 ### Added
 
 - Questionnaires internes (#968), remplaçants de ClassMarker : éditeur par blocs (QCM 1 ou plusieurs réponses, vrai/faux, réponse libre corrigée automatiquement), import/export JSON, mode « Tester », verrouillage après le 1er passage + duplication en v2 ; lien unique + QR depuis la fiche candidat, page candidat `/test/:token` (une question par page, chrono serveur, pas de retour arrière, lien lié au 1er appareil), suivi en direct sur la fiche ; résultats filtrables (export CSV, détail réponse par réponse) et téléchargement direct du PDF des résultats, sans compte Google. Questionnaires ClassMarker repris dans `Classmarker/questions/jsons/`.
+- Tableau de bord RH (#1036) : le KPI « En immersion » est cliquable et ouvre la liste complète des candidats en immersion (candidat, entreprise d'accueil, début, fin, n° de convention, échéance), comme « En contrat ».
 
 ### Changed
 

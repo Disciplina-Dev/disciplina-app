@@ -417,6 +417,11 @@ const CANDIDATE_FIELDS = gql`
     tpTypes
     trainingSite
     trainingSites
+    immersionCompanyId
+    immersionCompanyName
+    immersionStartDate
+    immersionEndDate
+    immersionConventionNumber
     contractOfferId
     contractCompanyId
     contractCompanyName
