@@ -108,7 +108,7 @@ export default function ListeSessions() {
             leftIcon={<IconPlus width={16} height={16} />}
             onClick={() => setShowForm(true)}
           >
-            Nouvelle promotion
+            Nouvelle session
           </Button>
         </div>
       </div>
