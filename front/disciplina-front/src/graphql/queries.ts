@@ -1822,17 +1822,28 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
   }
 `
 
-export const GET_OFFERS_IMMERSION_MAP = gql`
-  query GetOffersImmersionMap {
-    offers {
+export const GET_OFFERS_DIRECTORY = gql`
+  query GetOffersDirectory {
+    offers(includeClosed: true) {
       id
       needsAnalysisId
-      proposedCandidate {
+      title
+      jobRole
+      status
+      localisation
+      desiredTp {
+        tpType
+      }
+      salerInfo {
+        id
+        email
+      }
+      matchedCandidate {
         id
         fullName
         status
       }
-      matchedCandidate {
+      proposedCandidate {
         id
         fullName
         status

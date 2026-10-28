@@ -17,15 +17,16 @@ import {
 } from 'recharts';
 import { IconAlert, IconBell, IconChevronDown, IconClose, IconCompany, IconJob, IconLoader, IconRefresh, IconSearch, IconSignature, IconUsers } from '@/components/ui/icons'
 import { useCurrentUser, Permission } from '@/store/authStore';
-import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useNeedsAnalysesPage, useUpdateNeedsAnalysisIndicator, useUpdateNeedsAnalysisTracking, useUpdateNeedsAnalysisActivationDate, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
-import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY, GET_OFFERS_IMMERSION_MAP, GET_IMMERSING_CANDIDATES_MAP } from '@/graphql/queries';
+import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, useAllNeedsAnalysesPage, useUpdateNeedsAnalysisIndicator, useUpdateNeedsAnalysisTracking, useUpdateNeedsAnalysisActivationDate, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { OFFERS_BY_NEEDS_ANALYSIS, GET_OFFER_HISTORY, GET_OFFERS_DIRECTORY, GET_IMMERSING_CANDIDATES_MAP } from '@/graphql/queries';
 import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import type { NeedsAnalysis } from '@/types/needsAnalysis';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
 import { SECTEUR_LABELS, SECTEUR_KEYS, type SecteurKey } from '@/constants/secteurs';
-import { Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
+import { Sector, OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums';
+import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS, JOB_STATUS_ORDER } from '@/constants/jobStatus';
 import { getTrialPeriodStatus } from '@/utils/trialPeriod';
 import ChipGroup from '@/components/ui/ChipGroup'
 
@@ -505,11 +506,6 @@ function ImmersingCandidatesModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function primaryTp(analysis: NeedsAnalysis): string | null {
-  const tps = analysisTps(analysis);
-  return tps.length > 0 ? tps[0] : null;
-}
-
 function analysisTps(analysis: NeedsAnalysis): string[] {
   return [...new Set((analysis.positions ?? []).flatMap((p) => (p.desiredTp ?? []).map((t) => t.tpType).filter(Boolean) as string[]))].sort();
 }
@@ -558,14 +554,14 @@ interface DirectoryHistoryState {
   textOpen: boolean;
 }
 
-function freshHistoryState(): DirectoryHistoryState {
+function freshHistoryState(initialOfferId?: string | null): DirectoryHistoryState {
   return {
     expanded: false,
     loaded: false,
     loading: false,
     error: null,
     offers: [],
-    selectedOfferId: null,
+    selectedOfferId: initialOfferId ?? null,
     latestByOffer: {},
     textOpen: false,
   };
@@ -629,6 +625,64 @@ function formatLocalisationCell(analysis: NeedsAnalysis): string {
 
 function commercialLabel(analysis: NeedsAnalysis): string {
   return analysis.salerInfo?.email?.trim() || '—';
+}
+
+interface DirectoryOfferCandidate {
+  id?: string | null;
+  fullName?: string | null;
+  status?: string | null;
+}
+
+/** Offre d'une AB, telle que consommée par l'annuaire entreprises. */
+interface DirectoryOffer {
+  id: string;
+  needsAnalysisId?: string | null;
+  title?: string | null;
+  jobRole?: string | null;
+  status?: string | null;
+  localisation?: string[] | null;
+  desiredTp?: { tpType?: string | null }[] | null;
+  salerInfo?: { id?: number | null; email?: string | null } | null;
+  matchedCandidate?: DirectoryOfferCandidate[] | null;
+  proposedCandidate?: DirectoryOfferCandidate[] | null;
+}
+
+interface DirectoryImmersingCandidate {
+  id: string;
+  immersionCompanyId?: number | null;
+  immersionCompanyName?: string | null;
+  identity?: { fullName?: string | null } | null;
+}
+
+/**
+ * Ligne de l'annuaire : une ligne par offre de l'AB. Les AB sans offre gardent une
+ * ligne unique (offre nulle) pour ne jamais disparaître de l'annuaire.
+ */
+interface DirectoryRow {
+  analysis: NeedsAnalysis;
+  offer: DirectoryOffer | null;
+  tps: string[];
+}
+
+function directoryRowKey(row: DirectoryRow): string {
+  return row.offer ? `${row.analysis.id}:${row.offer.id}` : row.analysis.id;
+}
+
+function offerTps(offer: DirectoryOffer): string[] {
+  return [...new Set((offer.desiredTp ?? []).map((tp) => tp.tpType).filter(Boolean) as string[])].sort();
+}
+
+function offerLabel(offer: DirectoryOffer | null): string {
+  if (!offer) return '—';
+  return offer.title?.trim() || offer.jobRole?.trim() || 'Offre';
+}
+
+function offerLocalisationLabel(offer: DirectoryOffer): string {
+  return (offer.localisation ?? []).filter(Boolean).map((l) => formatEnumLabel(l)).join(', ');
+}
+
+function offerStatus(offer: DirectoryOffer): OfferStatus {
+  return (offer.status ?? OfferStatus.NOT_MATCHED) as OfferStatus;
 }
 
 type IndicatorColor = 'WHITE' | 'YELLOW' | 'GREEN' | 'ORANGE' | 'RED';
@@ -905,99 +959,111 @@ function DirectoryActivationCell({
 
 function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
-  const { items, pageInfo, loading, error, refetch } = useNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
-  // Incrémenté par « Actualiser » pour forcer le rechargement des immersions
-  // même si la liste renvoyée est identique.
+  // Annuaire complet : toutes les AB sont chargées page après page, car la recherche
+  // et les filtres s'appliquent côté client. L'ancien plafond de 500 lignes (triées
+  // par création décroissante) masquait les entreprises dont l'AB est ancienne —
+  // typiquement celles qui ont déjà des offres « Matché » / « CV envoyé » / « En contrat ».
+  const { items, loading, error, complete, truncated, refetch } = useAllNeedsAnalysesPage(DIRECTORY_PAGE_SIZE);
+  // Incrémenté par « Actualiser » pour forcer le rechargement des offres et des
+  // immersions même si la liste des AB renvoyée est identique.
   const [refreshTick, setRefreshTick] = useState(0);
-  // Candidats en immersion par analyse de besoin (Oui/Non + noms).
-  // Source 1 : offres liées (statut IMMERSING côté matching).
-  // Source 2 : fiches candidats en immersion rattachées via immersionCompanyId.
-  const [immersionByAnalysis, setImmersionByAnalysis] = useState<Record<string, string[]>>({});
+  const [directoryOffers, setDirectoryOffers] = useState<DirectoryOffer[]>([]);
+  const [immersingCandidates, setImmersingCandidates] = useState<DirectoryImmersingCandidate[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    const loadImmersions = async () => {
+    const loadSideData = async () => {
       try {
         const [offersResult, candidatesResult] = await Promise.all([
-          offerGraphqlClient.query(GET_OFFERS_IMMERSION_MAP, {}).toPromise(),
+          offerGraphqlClient.query(GET_OFFERS_DIRECTORY, {}).toPromise(),
           candidateGraphqlClient.query(GET_IMMERSING_CANDIDATES_MAP, { first: 500 }).toPromise(),
         ]);
         if (cancelled) return;
-        const byAnalysis = new Map<string, Map<string, string>>();
-        const addName = (analysisId: string | null | undefined, id: string | null | undefined, fullName: string | null | undefined) => {
-          if (!analysisId || !fullName) return;
-          const names = byAnalysis.get(analysisId) ?? new Map<string, string>();
-          if (id) {
-            if (!names.has(id)) names.set(id, fullName);
-          } else if (![...names.values()].includes(fullName)) {
-            names.set(fullName, fullName);
-          }
-          byAnalysis.set(analysisId, names);
-        };
-        const offers = (offersResult.data?.offers ?? []) as {
-          needsAnalysisId?: string | null;
-          proposedCandidate?: { id?: string | null; fullName?: string | null; status?: string | null }[] | null;
-          matchedCandidate?: { id?: string | null; fullName?: string | null; status?: string | null }[] | null;
-        }[];
-        for (const offer of offers) {
-          const all = [...(offer.proposedCandidate ?? []), ...(offer.matchedCandidate ?? [])];
-          for (const c of all) {
-            if (c.status === 'IMMERSING') addName(offer.needsAnalysisId, c.id, c.fullName);
-          }
-        }
-        // Index des AB par identifiant d'entreprise MySQL pour le rattachement direct.
-        const analysisIdsByCompanyId = new Map<number, string[]>();
-        const analysisIdsByCompanyName = new Map<string, string[]>();
-        for (const item of items) {
-          const companyId = item.companyInfos?.id;
-          if (companyId != null) {
-            const list = analysisIdsByCompanyId.get(companyId) ?? [];
-            list.push(item.id);
-            analysisIdsByCompanyId.set(companyId, list);
-          }
-          const name = item.companyInfos?.name?.trim().toLowerCase();
-          if (name) {
-            const list = analysisIdsByCompanyName.get(name) ?? [];
-            list.push(item.id);
-            analysisIdsByCompanyName.set(name, list);
-          }
-        }
-        const edges = (candidatesResult.data?.candidatesPage?.edges ?? []) as {
-          node: {
-            id: string;
-            immersionCompanyId?: number | null;
-            immersionCompanyName?: string | null;
-            identity?: { fullName?: string | null } | null;
-          };
-        }[];
-        for (const { node } of edges) {
-          const fullName = node.identity?.fullName ?? null;
-          if (!fullName) continue;
-          if (node.immersionCompanyId != null) {
-            for (const analysisId of analysisIdsByCompanyId.get(node.immersionCompanyId) ?? []) {
-              addName(analysisId, node.id, fullName);
-            }
-          }
-          // Repli sur le nom (snapshot) quand l'ID est absent.
-          if (node.immersionCompanyName?.trim()) {
-            const key = node.immersionCompanyName.trim().toLowerCase();
-            for (const analysisId of analysisIdsByCompanyName.get(key) ?? []) {
-              addName(analysisId, node.id, fullName);
-            }
-          }
-        }
-        const merged: Record<string, string[]> = {};
-        for (const [analysisId, names] of byAnalysis) {
-          merged[analysisId] = [...names.values()].sort((a, b) => a.localeCompare(b, 'fr'));
-        }
-        setImmersionByAnalysis(merged);
+        setDirectoryOffers((offersResult.data?.offers ?? []) as DirectoryOffer[]);
+        const edges = (candidatesResult.data?.candidatesPage?.edges ?? []) as { node: DirectoryImmersingCandidate }[];
+        setImmersingCandidates(edges.map(({ node }) => node));
       } catch {
-        if (!cancelled) setImmersionByAnalysis({});
+        if (!cancelled) {
+          setDirectoryOffers([]);
+          setImmersingCandidates([]);
+        }
       }
     };
-    void loadImmersions();
+    void loadSideData();
     return () => { cancelled = true; };
-  }, [items, refreshTick]);
+  }, [refreshTick]);
+
+  /**
+   * Index dérivés, recalculés à chaque page d'AB chargée (aucun appel réseau par ligne) :
+   * - offres regroupées par AB (une ligne d'annuaire par offre),
+   * - candidats en immersion par entreprise.
+   */
+  const directoryIndex = useMemo(() => {
+    const offersByAnalysis = new Map<string, DirectoryOffer[]>();
+    const immersionNamesByAnalysis = new Map<string, Map<string, string>>();
+    const addImmersionName = (analysisId: string | null | undefined, id: string | null | undefined, fullName: string | null | undefined) => {
+      if (!analysisId || !fullName) return;
+      const names = immersionNamesByAnalysis.get(analysisId) ?? new Map<string, string>();
+      if (id) {
+        if (!names.has(id)) names.set(id, fullName);
+      } else if (![...names.values()].includes(fullName)) {
+        names.set(fullName, fullName);
+      }
+      immersionNamesByAnalysis.set(analysisId, names);
+    };
+
+    // Source 1 : offres liées (statut IMMERSING côté matching).
+    for (const offer of directoryOffers) {
+      if (!offer.needsAnalysisId) continue;
+      const list = offersByAnalysis.get(offer.needsAnalysisId) ?? [];
+      list.push(offer);
+      offersByAnalysis.set(offer.needsAnalysisId, list);
+      for (const candidate of [...(offer.proposedCandidate ?? []), ...(offer.matchedCandidate ?? [])]) {
+        if (candidate.status === 'IMMERSING') addImmersionName(offer.needsAnalysisId, candidate.id, candidate.fullName);
+      }
+    }
+
+    // Source 2 : fiches candidats en immersion rattachées via immersionCompanyId.
+    // Index des AB par identifiant d'entreprise MySQL pour le rattachement direct.
+    const analysisIdsByCompanyId = new Map<number, string[]>();
+    const analysisIdsByCompanyName = new Map<string, string[]>();
+    for (const item of items) {
+      const companyId = item.companyInfos?.id;
+      if (companyId != null) {
+        const list = analysisIdsByCompanyId.get(companyId) ?? [];
+        list.push(item.id);
+        analysisIdsByCompanyId.set(companyId, list);
+      }
+      const name = item.companyInfos?.name?.trim().toLowerCase();
+      if (name) {
+        const list = analysisIdsByCompanyName.get(name) ?? [];
+        list.push(item.id);
+        analysisIdsByCompanyName.set(name, list);
+      }
+    }
+    for (const node of immersingCandidates) {
+      const fullName = node.identity?.fullName ?? null;
+      if (!fullName) continue;
+      if (node.immersionCompanyId != null) {
+        for (const analysisId of analysisIdsByCompanyId.get(node.immersionCompanyId) ?? []) {
+          addImmersionName(analysisId, node.id, fullName);
+        }
+      }
+      // Repli sur le nom (snapshot) quand l'ID est absent.
+      if (node.immersionCompanyName?.trim()) {
+        const key = node.immersionCompanyName.trim().toLowerCase();
+        for (const analysisId of analysisIdsByCompanyName.get(key) ?? []) {
+          addImmersionName(analysisId, node.id, fullName);
+        }
+      }
+    }
+
+    const immersionByAnalysis: Record<string, string[]> = {};
+    for (const [analysisId, names] of immersionNamesByAnalysis) {
+      immersionByAnalysis[analysisId] = [...names.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+    }
+    return { offersByAnalysis, immersionByAnalysis };
+  }, [directoryOffers, immersingCandidates, items]);
 
 
   const [selectedTps, setSelectedTps] = useState<Set<string>>(new Set());
@@ -1008,7 +1074,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [minDate, setMinDate] = useState('');
   const [maxDate, setMaxDate] = useState('');
-  const [historyByAnalysis, setHistoryByAnalysis] = useState<Record<string, DirectoryHistoryState>>({});
+  const [historyByRow, setHistoryByRow] = useState<Record<string, DirectoryHistoryState>>({});
 
   const toggleTp = (tp: string) =>
     setSelectedTps((prev) => {
@@ -1049,7 +1115,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
     setMaxDate('');
   };
 
-  const loadHistory = async (analysisId: string) => {
+  const loadHistory = async (analysisId: string, rowKey: string, preferredOfferId?: string | null) => {
     try {
       const offersResult = await offerGraphqlClient
         .query(OFFERS_BY_NEEDS_ANALYSIS, { needsAnalysisId: analysisId })
@@ -1072,25 +1138,28 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
           latestByOffer[offer.id] = entries.find((e) => e.ownerEmail || e.firstName || e.lastName) ?? null;
         }),
       );
-      setHistoryByAnalysis((prev) => ({
+      const initialOfferId = preferredOfferId && offers.some((offer) => offer.id === preferredOfferId)
+        ? preferredOfferId
+        : (offers[0]?.id ?? null);
+      setHistoryByRow((prev) => ({
         ...prev,
-        [analysisId]: {
-          ...(prev[analysisId] ?? freshHistoryState()),
+        [rowKey]: {
+          ...(prev[rowKey] ?? freshHistoryState(initialOfferId)),
           expanded: true,
           loaded: true,
           loading: false,
           error: null,
           offers,
-          selectedOfferId: offers[0]?.id ?? null,
+          selectedOfferId: initialOfferId,
           latestByOffer,
           textOpen: false,
         },
       }));
     } catch (err) {
-      setHistoryByAnalysis((prev) => ({
+      setHistoryByRow((prev) => ({
         ...prev,
-        [analysisId]: {
-          ...(prev[analysisId] ?? freshHistoryState()),
+        [rowKey]: {
+          ...(prev[rowKey] ?? freshHistoryState(preferredOfferId)),
           expanded: true,
           loading: false,
           error: err instanceof Error ? err.message : 'Erreur de chargement',
@@ -1099,17 +1168,17 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const toggleHistory = (analysisId: string) => {
-    const current = historyByAnalysis[analysisId] ?? freshHistoryState();
+  const toggleHistory = (analysisId: string, rowKey: string, preferredOfferId?: string | null) => {
+    const current = historyByRow[rowKey] ?? freshHistoryState(preferredOfferId);
     if (current.expanded) {
-      setHistoryByAnalysis((prev) => ({ ...prev, [analysisId]: { ...current, expanded: false } }));
+      setHistoryByRow((prev) => ({ ...prev, [rowKey]: { ...current, expanded: false } }));
       return;
     }
-    setHistoryByAnalysis((prev) => ({
+    setHistoryByRow((prev) => ({
       ...prev,
-      [analysisId]: { ...current, expanded: true, loading: !current.loaded, error: null },
+      [rowKey]: { ...current, expanded: true, loading: !current.loaded, error: null },
     }));
-    if (!current.loaded) void loadHistory(analysisId);
+    if (!current.loaded) void loadHistory(analysisId, rowKey, preferredOfferId);
   };
 
   /**
@@ -1118,56 +1187,87 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
    * à la prochaine ouverture de la ligne.
    */
   const refresh = () => {
-    setHistoryByAnalysis({});
+    setHistoryByRow({});
     setRefreshTick((k) => k + 1);
     refetch();
   };
 
-  const rows = useMemo(() => {
+  const rows = useMemo<DirectoryRow[]>(() => {
     const order = new Map(TP_ORDER.map((tp, i) => [tp, i]));
+    const statusOrder = new Map(JOB_STATUS_ORDER.map((status, i) => [status, i]));
     const minTime = minDate ? new Date(`${minDate}T00:00:00`).getTime() : null;
     const maxTime = maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null;
     const needle = foldSearch(nameQuery.trim());
-    return [...items]
-      .filter((a) => {
-        if (needle && !foldSearch(a.companyInfos?.name ?? '').includes(needle)) return false;
-        if (selectedTps.size > 0) {
-          const tps = analysisTps(a);
-          if (!tps.some((t) => selectedTps.has(t))) return false;
-        }
-        if (selectedStatuses.size > 0 && !selectedStatuses.has(effectiveAbStatus(a))) return false;
-        if (selectedZone !== null && a.companyInfos?.sector !== selectedZone) return false;
-        if (selectedActivities.size > 0) {
-          const activities = a.companyInfos?.activities ?? [];
-          if (!activities.some((act) => selectedActivities.has(act))) return false;
-        }
-        if (minTime != null || maxTime != null) {
-          const activated = activationDateOf(a) ? new Date(activationDateOf(a) as string).getTime() : Number.NaN;
-          if (Number.isNaN(activated)) return false;
-          if (minTime != null && activated < minTime) return false;
-          if (maxTime != null && activated > maxTime) return false;
-        }
-        return true;
-      })
-      .map((a) => ({ analysis: a, tp: primaryTp(a) }))
-      .sort((x, y) => {
-        const ox = x.tp != null ? (order.get(x.tp) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
-        const oy = y.tp != null ? (order.get(y.tp) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
-        if (ox !== oy) return ox - oy;
-        const dx = activationDateOf(x.analysis) ? new Date(activationDateOf(x.analysis) as string).getTime() : Number.MAX_SAFE_INTEGER;
-        const dy = activationDateOf(y.analysis) ? new Date(activationDateOf(y.analysis) as string).getTime() : Number.MAX_SAFE_INTEGER;
-        return dx - dy;
-      });
-  }, [items, nameQuery, selectedTps, selectedStatuses, selectedZone, selectedActivities, minDate, maxDate]);
 
-  const renderHistoryCell = (analysis: NeedsAnalysis) => {
-    const state = historyByAnalysis[analysis.id] ?? freshHistoryState();
+    // Filtres au niveau entreprise (nom, statut, zone, secteur, date d'activation).
+    const matchesCompany = (a: NeedsAnalysis): boolean => {
+      if (needle && !foldSearch(a.companyInfos?.name ?? '').includes(needle)) return false;
+      if (selectedStatuses.size > 0 && !selectedStatuses.has(effectiveAbStatus(a))) return false;
+      if (selectedZone !== null && a.companyInfos?.sector !== selectedZone) return false;
+      if (selectedActivities.size > 0) {
+        const activities = a.companyInfos?.activities ?? [];
+        if (!activities.some((act) => selectedActivities.has(act))) return false;
+      }
+      if (minTime != null || maxTime != null) {
+        const activated = activationDateOf(a) ? new Date(activationDateOf(a) as string).getTime() : Number.NaN;
+        if (Number.isNaN(activated)) return false;
+        if (minTime != null && activated < minTime) return false;
+        if (maxTime != null && activated > maxTime) return false;
+      }
+      return true;
+    };
+
+    const entries: DirectoryRow[] = [];
+    for (const analysis of items) {
+      if (!matchesCompany(analysis)) continue;
+      const analysisLevelTps = analysisTps(analysis);
+      const companyOffers = [...(directoryIndex.offersByAnalysis.get(analysis.id) ?? [])].sort((a, b) => {
+        const oa = statusOrder.get(offerStatus(a)) ?? JOB_STATUS_ORDER.length;
+        const ob = statusOrder.get(offerStatus(b)) ?? JOB_STATUS_ORDER.length;
+        if (oa !== ob) return oa - ob;
+        return offerLabel(a).localeCompare(offerLabel(b), 'fr');
+      });
+      // Une ligne par offre ; une AB sans offre garde une ligne de repli.
+      const candidates: DirectoryRow[] = companyOffers.length === 0
+        ? [{ analysis, offer: null, tps: analysisLevelTps }]
+        : companyOffers.map((offer) => {
+            const tps = offerTps(offer);
+            return { analysis, offer, tps: tps.length > 0 ? tps : analysisLevelTps };
+          });
+      for (const row of candidates) {
+        // Le filtre TP s'applique à la ligne (TP de l'offre), pas à l'entreprise entière.
+        if (selectedTps.size > 0 && !row.tps.some((t) => selectedTps.has(t))) continue;
+        entries.push(row);
+      }
+    }
+
+    return entries.sort((x, y) => {
+      const ox = x.tps.length > 0 ? (order.get(x.tps[0]) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      const oy = y.tps.length > 0 ? (order.get(y.tps[0]) ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
+      if (ox !== oy) return ox - oy;
+      const dx = activationDateOf(x.analysis) ? new Date(activationDateOf(x.analysis) as string).getTime() : Number.MAX_SAFE_INTEGER;
+      const dy = activationDateOf(y.analysis) ? new Date(activationDateOf(y.analysis) as string).getTime() : Number.MAX_SAFE_INTEGER;
+      return dx - dy;
+    });
+  }, [items, directoryIndex, nameQuery, selectedTps, selectedStatuses, selectedZone, selectedActivities, minDate, maxDate]);
+
+  /** Nombre d'entreprises distinctes affichées (une entreprise peut avoir plusieurs offres). */
+  const companyCount = useMemo(() => new Set(rows.map((row) => row.analysis.id)).size, [rows]);
+
+  /** Nombre de lignes adossées à une offre (une ligne = une offre). */
+  const offerRowCount = useMemo(() => rows.filter((row) => row.offer !== null).length, [rows]);
+
+  const renderHistoryCell = (row: DirectoryRow) => {
+    const analysis = row.analysis;
+    const rowKey = directoryRowKey(row);
+    const preferredOfferId = row.offer?.id ?? null;
+    const state = historyByRow[rowKey] ?? freshHistoryState(preferredOfferId);
 
     if (!state.expanded) {
       return (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id); }}
+          onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id, rowKey, preferredOfferId); }}
           className="inline-flex items-center gap-1 rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-1 text-xs font-semibold text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)]"
         >
           Historique <IconChevronDown width={12} height={12} />
@@ -1181,7 +1281,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
       <div className="min-w-52 max-w-72 space-y-1.5">
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id); }}
+          onClick={(e) => { e.stopPropagation(); toggleHistory(analysis.id, rowKey, preferredOfferId); }}
           className="inline-flex items-center gap-1 text-xs font-semibold text-blue hover:underline"
         >
           Masquer <IconChevronDown width={12} height={12} className="rotate-180" />
@@ -1195,7 +1295,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
             <p className="text-xs text-[var(--ds-danger)]">Erreur de chargement.</p>
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); void loadHistory(analysis.id); }}
+              onClick={(e) => { e.stopPropagation(); void loadHistory(analysis.id, rowKey, preferredOfferId); }}
               className="text-xs font-semibold text-blue hover:underline"
             >
               Réessayer
@@ -1212,9 +1312,9 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                 onChange={(e) => {
                   e.stopPropagation();
                   const selectedOfferId = e.target.value;
-                  setHistoryByAnalysis((prev) => ({
+                  setHistoryByRow((prev) => ({
                     ...prev,
-                    [analysis.id]: { ...(prev[analysis.id] ?? freshHistoryState()), selectedOfferId, textOpen: false },
+                    [rowKey]: { ...(prev[rowKey] ?? freshHistoryState(selectedOfferId)), selectedOfferId, textOpen: false },
                   }));
                 }}
                 className="w-full rounded-md border border-[var(--ds-border)] px-1.5 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue"
@@ -1240,9 +1340,9 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setHistoryByAnalysis((prev) => ({
+                      setHistoryByRow((prev) => ({
                         ...prev,
-                        [analysis.id]: { ...(prev[analysis.id] ?? freshHistoryState()), textOpen: !state.textOpen },
+                        [rowKey]: { ...(prev[rowKey] ?? freshHistoryState(state.selectedOfferId)), textOpen: !state.textOpen },
                       }));
                     }}
                     className="text-xs font-semibold text-blue hover:underline"
@@ -1268,7 +1368,8 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
           <div>
             <h2 className="text-base font-bold text-[var(--ds-text)]">Entreprises</h2>
             <p className="text-xs text-[var(--ds-text-subtle)]">
-              Triées par TP puis par date d'activation · {rows.length} entreprise{rows.length > 1 ? 's' : ''}
+              Triées par TP puis par date d'activation · {companyCount} entreprise{companyCount > 1 ? 's' : ''}
+              {offerRowCount > 0 ? ` · ${offerRowCount} offre${offerRowCount > 1 ? 's' : ''}` : ''}
               {hasActiveFilters && items.length > 0 ? ` sur ${items.length}` : ''}
             </p>
           </div>
@@ -1420,7 +1521,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
             <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
               <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des entreprises…
             </div>
-          ) : error ? (
+          ) : error && rows.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-[var(--ds-danger)]">
               <p className="font-medium">Erreur de chargement des entreprises</p>
               <button
@@ -1445,6 +1546,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                   <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
                     <tr>
                       <th className="px-4 py-2.5 font-semibold">Entreprise</th>
+                      <th className="px-4 py-2.5 font-semibold">Offre</th>
                       <th className="px-4 py-2.5 font-semibold">TP</th>
                       <th className="px-4 py-2.5 font-semibold">Localisation</th>
                       <th className="px-4 py-2.5 font-semibold">Commercial</th>
@@ -1457,11 +1559,16 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--ds-border)]">
-                    {rows.map(({ analysis, tp }) => {
-                      const immersingNames = immersionByAnalysis[analysis.id] ?? [];
+                    {rows.map((row) => {
+                      const { analysis, offer } = row;
+                      const immersingNames = directoryIndex.immersionByAnalysis[analysis.id] ?? [];
+                      const offerLocalisation = offer ? offerLocalisationLabel(offer) : '';
+                      const localisation = offerLocalisation || formatLocalisationCell(analysis);
+                      const commercial = offer?.salerInfo?.email?.trim() || commercialLabel(analysis);
+                      const status = offer ? offerStatus(offer) : null;
                       return (
                       <tr
-                        key={analysis.id}
+                        key={directoryRowKey(row)}
                         onClick={() => navigate(`/rh/matching?needsAnalysis=${analysis.id}`)}
                         className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
                         title="Ouvrir le matching"
@@ -1478,12 +1585,22 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                             <span>{analysis.companyInfos?.name ?? '—'}</span>
                           </span>
                         </td>
-                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{tp ?? '—'}</td>
-                        <td className="max-w-48 px-4 py-2.5 text-[var(--ds-text-muted)]" title={formatLocalisationCell(analysis)}>
-                          <span className="line-clamp-2">{formatLocalisationCell(analysis)}</span>
+                        <td className="max-w-56 px-4 py-2.5" title={offerLabel(offer)}>
+                          <span className="flex items-center gap-2">
+                            <span className="truncate text-[var(--ds-text-muted)]">{offerLabel(offer)}</span>
+                            {status && (
+                              <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${JOB_STATUS_BADGE_CLASS[status]}`}>
+                                {JOB_STATUS_LABELS[status]}
+                              </span>
+                            )}
+                          </span>
                         </td>
-                        <td className="max-w-48 truncate px-4 py-2.5 text-[var(--ds-text-muted)]" title={commercialLabel(analysis)}>
-                          {commercialLabel(analysis)}
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{row.tps.join(' · ') || '—'}</td>
+                        <td className="max-w-48 px-4 py-2.5 text-[var(--ds-text-muted)]" title={localisation}>
+                          <span className="line-clamp-2">{localisation}</span>
+                        </td>
+                        <td className="max-w-48 truncate px-4 py-2.5 text-[var(--ds-text-muted)]" title={commercial}>
+                          {commercial}
                         </td>
                         <td className="px-4 py-2.5">
                           {immersingNames.length > 0 ? (
@@ -1531,7 +1648,7 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                           <AbActiveBadge status={analysis.abStatus} />
                         </td>
                         <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
-                          {renderHistoryCell(analysis)}
+                          {renderHistoryCell(row)}
                         </td>
                       </tr>
                       );
@@ -1539,9 +1656,27 @@ function CompanyDirectoryModal({ onClose }: { onClose: () => void }) {
                   </tbody>
                 </table>
               </div>
-              {pageInfo?.hasNextPage && (
-                <p className="mt-3 text-xs text-[var(--ds-text-subtle)]">
-                  Liste limitée aux {DIRECTORY_PAGE_SIZE} premières analyses — affinez la recherche depuis la page Matching.
+              {error && rows.length > 0 && (
+                <p className="mt-3 flex items-center gap-2 text-xs text-[var(--ds-danger)]">
+                  Chargement interrompu — annuaire partiel ({items.length} analyses de besoin).
+                  <button
+                    type="button"
+                    onClick={() => refetch()}
+                    className="font-semibold text-blue hover:underline"
+                  >
+                    Réessayer
+                  </button>
+                </p>
+              )}
+              {!complete && !error && (
+                <p className="mt-3 flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)]">
+                  <IconLoader width={12} height={12} className="animate-spin" />
+                  Chargement du reste de l'annuaire… ({items.length} analyses de besoin déjà chargées)
+                </p>
+              )}
+              {truncated && (
+                <p className="mt-3 text-xs text-[var(--ds-warning)]">
+                  Annuaire partiel : {items.length} analyses de besoin chargées (limite technique atteinte).
                 </p>
               )}
             </>

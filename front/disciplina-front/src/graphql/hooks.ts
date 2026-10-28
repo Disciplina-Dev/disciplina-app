@@ -79,7 +79,7 @@ export interface CandidateServerFilters {
   /** Filtrer par le RH qui a mené l'entretien (nom complet). */
   interviewedBy?: string
 }
-import { candidateGraphqlClient, offerGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
+import { candidateGraphqlClient, offerGraphqlClient, needsAnalysisGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
 export function useCompanies() {
   const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
@@ -934,6 +934,83 @@ export function useNeedsAnalysesPage(first?: number, after?: string, filter?: Of
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
   }
+}
+
+/**
+ * Annuaire entreprises RH : charge toutes les analyses de besoin, page après page.
+ *
+ * L'annuaire filtre et recherche côté client, il lui faut donc l'intégralité des AB.
+ * Une première page s'affiche immédiatement, les suivantes s'ajoutent en arrière-plan.
+ * `maxPages` n'est qu'un garde-fou anti-boucle (curseur qui ne progresserait pas).
+ */
+export function useAllNeedsAnalysesPage(pageSize = 500, maxPages = 40) {
+  const [items, setItems] = useState<NeedsAnalysis[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [complete, setComplete] = useState(false)
+  const [truncated, setTruncated] = useState(false)
+  const [reloadTick, setReloadTick] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      const loaded: NeedsAnalysis[] = []
+      let after: string | undefined
+      for (let page = 0; page < maxPages; page++) {
+        const result = await needsAnalysisGraphqlClient
+          .query(GET_NEEDS_ANALYSES_PAGE, { first: pageSize, after }, { requestPolicy: 'network-only' })
+          .toPromise()
+        if (cancelled) return
+        if (result.error) {
+          setError(result.error.message)
+          setLoading(false)
+          return
+        }
+        const payload = result.data?.needsAnalysesPage as
+          | { edges?: { node: NeedsAnalysis }[]; pageInfo?: PageInfo }
+          | undefined
+        const edges = payload?.edges ?? []
+        loaded.push(...edges.map((edge) => edge.node))
+        setItems([...loaded])
+        const info = payload?.pageInfo
+        if (!info?.hasNextPage || !info.endCursor) {
+          setComplete(true)
+          setLoading(false)
+          return
+        }
+        after = info.endCursor
+      }
+      if (cancelled) return
+      // Sécurité : on s'arrête après `maxPages` pages pour ne pas boucler à l'infini.
+      setTruncated(true)
+      setComplete(true)
+      setLoading(false)
+    }
+
+    load().catch((err: unknown) => {
+      if (cancelled) return
+      setError(err instanceof Error ? err.message : 'Erreur de chargement')
+      setLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [pageSize, maxPages, reloadTick])
+
+  // La remise à zéro se fait ici (gestionnaire d'événement) et non dans l'effet,
+  // pour ne pas déclencher de rendu en cascade depuis le corps de l'effet.
+  const refetch = () => {
+    setItems([])
+    setError(null)
+    setLoading(true)
+    setComplete(false)
+    setTruncated(false)
+    setReloadTick((tick) => tick + 1)
+  }
+
+  return { items, loading, error, complete, truncated, refetch }
 }
 
 export function useNeedsAnalysesByCompany(companyID: number | null) {

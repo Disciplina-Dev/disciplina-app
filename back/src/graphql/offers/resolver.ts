@@ -15,9 +15,9 @@ const matchMailService = new MatchMailService();
 
 export const resolvers = {
     Query: {
-        offers: async (_: unknown, __: unknown, context: any) => {
+        offers: async (_: unknown, { includeClosed }: { includeClosed?: boolean | null }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            return await offerService.findAll();
+            return await offerService.findAll(Boolean(includeClosed));
         },
         matchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
