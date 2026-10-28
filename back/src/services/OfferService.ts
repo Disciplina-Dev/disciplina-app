@@ -563,6 +563,13 @@ export class OfferService {
         );
         if (!offer) return null;
 
+        if (status === MatchedCandidateStatus.CONTRACT) {
+            await this.candidateService.update(candidateId, {
+                status: CandidateStatus.CONTRACT,
+                ...this.contractLink(offerId, offer),
+            });
+        }
+
         const entry = this.candidateHistoryService.buildMatchedStatusHistoryEntry(
             status as MatchedCandidateStatus,
             offer.company_infos?.name,
@@ -586,6 +593,15 @@ export class OfferService {
         const synced = await this.syncDerivedStatus(offerId, offer);
         await this.stampActivationIfReactivated(captured?.needsAnalysisId, captured?.before ?? null);
         return toGql(synced);
+    }
+
+    // Rattache le contrat du candidat à l'offre, pour remonter ensuite à l'entreprise (alternants, Filiz).
+    private contractLink(offerId: string, offer: Offer): Partial<Candidate> {
+        return {
+            contract_offer_id: offerId,
+            contract_company_id: offer.company_infos?.id,
+            contract_company_name: offer.company_infos?.name,
+        };
     }
 
     // Le candidat a répondu au mail de proposition : on prévient les RH.
@@ -782,6 +798,7 @@ export class OfferService {
 
         await this.candidateService.update(candidateId, {
             status: INTERVIEW_CONCLUSION_TO_CANDIDATE_STATUS[conclusion],
+            ...(conclusion === InterviewConclusion.CONTRACT ? this.contractLink(offerId, offer) : {}),
         });
 
         const description = this.buildInterviewConclusionHistoryEntry(
@@ -850,6 +867,7 @@ export class OfferService {
 
         await this.candidateService.update(candidateId, {
             status: IMMERSION_CONCLUSION_TO_CANDIDATE_STATUS[conclusion],
+            ...(conclusion === ImmersionConclusion.CONTRACT ? this.contractLink(offerId, offer) : {}),
         });
 
         const description = this.buildImmersionConclusionHistoryEntry(

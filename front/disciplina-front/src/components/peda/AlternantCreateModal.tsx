@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { IconAlert, IconCheck, IconClose, IconLink, IconSearch, IconUnlink, IconUser } from '@/components/ui/icons'
+import { IconAlert, IconCheck, IconClose, IconLink, IconPlus, IconRefresh, IconSearch, IconUnlink, IconUser } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
-import { createAlternant, checkAlternantEmail, fetchAlternants, lookupCandidateByEmail, updateAlternant } from '@/api/alternants'
-import { fetchSessions } from '@/api/sessions'
+import { createAlternant, checkAlternantEmail, fetchAlternants, fetchCandidateEmployer, lookupCandidateByEmail, updateAlternant } from '@/api/alternants'
+import { fetchSessions, syncSessionReference } from '@/api/sessions'
+import SessionFormModal from '@/components/peda/SessionFormModal'
 import type { Alternant } from '@/types/alternant'
 import type { Session } from '@/types/session'
+
+// Aligné sur FILIZ_SYNC_LIMIT côté back : évite d'envoyer un clic qui sera refusé.
+const SYNC_COOLDOWN_S = 60
 
 interface AlternantCreateModalProps {
   /** Mode édition (bouton Modifier de la fiche) : seule l'identité est éditable. */
@@ -35,6 +39,10 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
   const [companyName, setCompanyName] = useState(initial?.company?.name ?? '')
   const [companyAddress, setCompanyAddress] = useState(initial?.company?.address ?? '')
   const [mentorName, setMentorName] = useState(initial?.company?.mentorName ?? '')
+  const [siret, setSiret] = useState(initial?.company?.siret ?? '')
+  const [opco, setOpco] = useState(initial?.company?.opco ?? '')
+  const [contactEmail, setContactEmail] = useState(initial?.company?.contactEmail ?? '')
+  const [contactPhone, setContactPhone] = useState(initial?.company?.contactPhone ?? '')
   const [startDate, setStartDate] = useState(
     initial?.company?.startDate ? initial.company.startDate.slice(0, 10) : '',
   )
@@ -51,6 +59,17 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [emailDup, setEmailDup] = useState<{ fullName: string } | null>(null)
+
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [cooldown, setCooldown] = useState(0)
+  const [showSessionForm, setShowSessionForm] = useState(false)
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [cooldown])
 
   // Contrôle de doublon en direct sur l'email (alternants existants).
   useEffect(() => {
@@ -94,6 +113,38 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
     }).catch(() => {})
   }, [isEdit, initial?.sessionId, initial?.session])
 
+  async function handleSyncSessions() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const { classes } = await syncSessionReference()
+      const rows = await fetchSessions()
+      setSessions(rows)
+      // Le libellé libre déjà saisi correspond peut-être à une promotion Filiz tout juste synchronisée.
+      const typed = session.trim().toLowerCase()
+      const match = !sessionId && typed ? rows.find((s) => s.nom.trim().toLowerCase() === typed) : undefined
+      if (match) {
+        setSessionId(match.id)
+        setSession(match.nom)
+      }
+      setSyncMsg(
+        `${classes} session${classes > 1 ? 's' : ''} synchronisée${classes > 1 ? 's' : ''}${match ? ` — « ${match.nom} » trouvée.` : '.'}`,
+      )
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Synchronisation impossible')
+    } finally {
+      setCooldown(SYNC_COOLDOWN_S)
+      setSyncing(false)
+    }
+  }
+
+  function handleSessionCreated(created: Session) {
+    setSessions((prev) => [...prev.filter((s) => s.id !== created.id), created])
+    setSessionId(created.id)
+    setSession(created.nom)
+    setSyncMsg(null)
+  }
+
   const filteredAlternants = useMemo(() => {
     const q = linkSearch.trim().toLowerCase()
     return allAlternants
@@ -123,7 +174,33 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
       setEmail(hit.email)
       setPhone(hit.phone)
       setCandidateId(hit.candidateId)
-      setLookupMsg(`Identité récupérée depuis la fiche candidat (${hit.firstName} ${hit.lastName}).`)
+      let msg = `Identité récupérée depuis la fiche candidat (${hit.firstName} ${hit.lastName}).`
+      if (!isEdit) {
+        // L'entreprise est un bonus : un échec ne bloque pas la récupération de l'identité.
+        try {
+          const employer = await fetchCandidateEmployer(hit.candidateId)
+          if (employer) {
+            setCompanyName(employer.name ?? '')
+            setCompanyAddress(employer.address ?? '')
+            setMentorName(employer.mentorName ?? '')
+            setSiret(employer.siret ?? '')
+            setOpco(employer.opco ?? '')
+            setContactEmail(employer.contactEmail ?? '')
+            setContactPhone(employer.contactPhone ?? '')
+            if (employer.startDate) setStartDate(employer.startDate.slice(0, 10))
+            if (employer.sessionId && sessions.some((s) => s.id === employer.sessionId)) {
+              setSessionId(employer.sessionId)
+              setSession(sessions.find((s) => s.id === employer.sessionId)?.nom ?? '')
+            }
+            msg += ' Entreprise préremplie depuis le contrat.'
+          } else {
+            msg += ' Pas de contrat avec entreprise : saisie manuelle.'
+          }
+        } catch (e) {
+          msg += ` Entreprise non récupérée : ${e instanceof Error ? e.message : 'erreur inconnue'}.`
+        }
+      }
+      setLookupMsg(msg)
     } catch (e) {
       setLookupMsg(e instanceof Error ? e.message : 'Recherche impossible')
     } finally {
@@ -192,6 +269,10 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
           name: companyName.trim() || null,
           address: companyAddress.trim() || null,
           mentorName: mentorName.trim() || null,
+          siret: siret.trim() || null,
+          opco: opco.trim() || null,
+          contactEmail: contactEmail.trim() || null,
+          contactPhone: contactPhone.trim() || null,
           startDate,
           endDate: endDate || null,
         },
@@ -306,9 +387,33 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
               </select>
               <p className="text-xs text-[var(--ds-text-subtle)]">
                 {sessions.length === 0
-                  ? 'Aucune session pour l’instant — saisissez un libellé ou créez une session depuis la page Sessions.'
-                  : 'Choisissez un groupe Sessions, ou gardez un libellé libre.'}
+                  ? 'Aucune session pour l’instant — synchronisez avec Filiz, créez-en une ou saisissez un libellé.'
+                  : 'Choisissez une session, ou gardez un libellé libre. Introuvable ? Synchronisez avec Filiz ou créez-la.'}
               </p>
+              {!isEdit && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<IconRefresh width={14} height={14} />}
+                    onClick={handleSyncSessions}
+                    isLoading={syncing}
+                    disabled={cooldown > 0}
+                    loadingLabel="Synchronisation"
+                  >
+                    {cooldown > 0 ? `Synchroniser avec Filiz (${cooldown} s)` : 'Synchroniser avec Filiz'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<IconPlus width={14} height={14} />}
+                    onClick={() => setShowSessionForm(true)}
+                  >
+                    Nouvelle session
+                  </Button>
+                </div>
+              )}
+              {syncMsg && <p className="text-[13px] text-[var(--ds-text-muted)]">{syncMsg}</p>}
             </div>
             {!sessionId && (
               <InputField
@@ -368,6 +473,23 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
                 onChange={(e) => setMentorName(e.target.value)}
                 placeholder="Nom du maître d’apprentissage"
               />
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <InputField id="alt-siret" label="SIRET" value={siret} onChange={(e) => setSiret(e.target.value)} />
+                <InputField id="alt-opco" label="OPCO" value={opco} onChange={(e) => setOpco(e.target.value)} />
+                <InputField
+                  id="alt-contact-email"
+                  label="Email du contact entreprise"
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                />
+                <InputField
+                  id="alt-contact-phone"
+                  label="Téléphone du contact entreprise"
+                  value={contactPhone}
+                  onChange={(e) => setContactPhone(e.target.value)}
+                />
+              </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <InputField
                   id="alt-start-date"
@@ -471,6 +593,9 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
           </Button>
         </div>
       </div>
+      {showSessionForm && (
+        <SessionFormModal onClose={() => setShowSessionForm(false)} onSaved={handleSessionCreated} />
+      )}
     </div>
   )
 }

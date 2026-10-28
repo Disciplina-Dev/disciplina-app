@@ -16,6 +16,10 @@ export function alternantToGql(a: Alternant): object {
                   name: a.company.name ?? null,
                   address: a.company.address ?? null,
                   mentorName: a.company.mentor_name ?? null,
+                  siret: a.company.siret ?? null,
+                  opco: a.company.opco ?? null,
+                  contactEmail: a.company.contact_email ?? null,
+                  contactPhone: a.company.contact_phone ?? null,
                   startDate: a.company.start_date ? new Date(a.company.start_date).toISOString() : null,
                   endDate: a.company.end_date ? new Date(a.company.end_date).toISOString() : null,
               }

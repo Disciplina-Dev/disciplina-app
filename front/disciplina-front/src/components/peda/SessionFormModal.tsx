@@ -128,7 +128,7 @@ export default function SessionFormModal({ onClose, onSaved }: SessionFormModalP
         <div className="flex items-center justify-between border-b border-[var(--ds-border)] px-6 py-4">
           <h2 className="flex items-center gap-2 text-lg font-bold text-[var(--ds-text)]">
             <IconTraining width={20} height={20} className="text-teal-700" />
-            Nouvelle promotion
+            Nouvelle session
           </h2>
           <button
             onClick={onClose}

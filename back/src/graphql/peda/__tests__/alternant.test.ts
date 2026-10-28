@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { env } from '../../../config/env';
 import { AlternantModel } from '../../../db/mongo/schemas/alternant.schema';
+import { getModels } from '../../../db/mongo/tenant';
+import pool from '../../../db/mysql/connection';
+import { FilizService } from '../../../external/filiz/filiz.service';
+import { CandidateService } from '../../../services/CandidateService';
+import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/peda`;
 
@@ -50,6 +55,40 @@ function createInput(suffix: string | number, overrides: Record<string, unknown>
 }
 
 describe('GraphQL peda alternants', () => {
+    it('links the alternant to a Filiz class chosen as session and takes its name', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const classId = `class-alt-${suffix}`;
+        await getModels().FilizClass.create({
+            _id: classId,
+            degree_id: `deg-alt-${suffix}`,
+            name: `BTS SIO ${suffix} Groupe B`,
+            start_date: '2026-09-01',
+            end_date: '2027-06-30',
+            apprenticeship_contract: true,
+            professionalization_contract: false,
+            synced_at: new Date(),
+        });
+        try {
+            const created = await gqlFetch(auth, CREATE, {
+                input: createInput(suffix, { session: 'ignoré', sessionId: classId }),
+            });
+            expect(created.errors).toBeUndefined();
+            expect(created.data.createAlternant.session).toBe(`BTS SIO ${suffix} Groupe B`);
+            const stored = await AlternantModel.findById(created.data.createAlternant.id).lean();
+            expect(stored?.session_id).toBe(classId);
+        } finally {
+            await getModels().FilizClass.deleteOne({ _id: classId });
+        }
+    });
+
+    it('rejects an unknown session id', async () => {
+        const created = await gqlFetch(pedaAuth(), CREATE, {
+            input: createInput(Date.now(), { sessionId: 'inconnue' }),
+        });
+        expect(created.errors?.[0].message).toContain('Session introuvable');
+    });
+
     it('creates an alternant and auto-generates the SA schedule (J+15, 10 weeks, +4 months)', async () => {
         const auth = pedaAuth();
         const suffix = Date.now();
@@ -416,5 +455,99 @@ describe('GraphQL peda alternants', () => {
         const forbidden = await gqlFetch(commercial, `{ alternants { id } }`);
         expect(forbidden.errors).toBeDefined();
         expect(String(forbidden.errors[0].message)).toMatch(/Forbidden/);
+    });
+});
+
+describe('GraphQL peda createAlternant — Filiz folder', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    async function seed(suffix: number) {
+        const classId = `class-fz-${suffix}`;
+        await getModels().FilizClass.create({
+            _id: classId,
+            degree_id: `deg-fz-${suffix}`,
+            name: `Classe ${suffix}`,
+            start_date: '2026-09-01',
+            end_date: '2027-06-30',
+            apprenticeship_contract: true,
+            professionalization_contract: false,
+            synced_at: new Date(),
+        });
+        const candidateId = `cand-fz-${suffix}`;
+        await new CandidateService().create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: 'Jean DUPONT',
+                email: `${candidateId}@test.local`,
+                phone: '0692000004',
+                date_of_birth: new Date('2000-05-12'),
+            } as any,
+            consentments: {
+                data_processing: true,
+                data_sharing: true,
+                ai_processing: false,
+                photo_processing: false,
+                consent_date: new Date(),
+                consent_version: '1',
+            },
+        } as any);
+        const [row] = (await pool.execute(
+            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+            [`peda-fz-${suffix}@test.local`, 'Pé', 'Da', 'password', 1, 1],
+        )) as any;
+        const auth = mintAuthCookies({
+            id: row.insertId,
+            email: `peda-fz-${suffix}@test.local`,
+            role: 'PEDA',
+            permission: 'EMPLOYEE',
+        });
+        return { classId, candidateId, auth };
+    }
+
+    it('creates the Filiz folder and links it to the new alternant without duplicating it', async () => {
+        const suffix = Date.now();
+        const { classId, candidateId, auth } = await seed(suffix);
+        const spy = vi.spyOn(FilizService.prototype, 'createFolder').mockResolvedValue(`folder-${suffix}`);
+        try {
+            const created = await gqlFetch(auth, CREATE, {
+                input: createInput(suffix, { sessionId: classId, candidateId }),
+            });
+            expect(created.errors).toBeUndefined();
+            expect(spy).toHaveBeenCalledTimes(1);
+            expect(spy.mock.calls[0][0].config.folder.classId).toBe(classId);
+            const rows = await AlternantModel.find({ candidate_id: candidateId }).lean();
+            expect(rows).toHaveLength(1);
+            expect(rows[0].filiz?.folder_id).toBe(`folder-${suffix}`);
+            expect(rows[0].filiz?.class_id).toBe(classId);
+        } finally {
+            await getModels().FilizClass.deleteOne({ _id: classId });
+        }
+    });
+
+    it('still creates the alternant when Filiz fails', async () => {
+        const suffix = Date.now() + 1;
+        const { classId, candidateId, auth } = await seed(suffix);
+        vi.spyOn(FilizService.prototype, 'createFolder').mockRejectedValue(new Error('filiz down'));
+        try {
+            const created = await gqlFetch(auth, CREATE, {
+                input: createInput(suffix, { sessionId: classId, candidateId }),
+            });
+            expect(created.errors).toBeUndefined();
+            expect(created.data.createAlternant.id).toBeTruthy();
+        } finally {
+            await getModels().FilizClass.deleteOne({ _id: classId });
+        }
+    });
+
+    it('does not call Filiz without a linked candidate', async () => {
+        const spy = vi.spyOn(FilizService.prototype, 'createFolder');
+        const created = await gqlFetch(pedaAuth(), CREATE, { input: createInput(Date.now() + 2) });
+        expect(created.errors).toBeUndefined();
+        expect(spy).not.toHaveBeenCalled();
     });
 });
