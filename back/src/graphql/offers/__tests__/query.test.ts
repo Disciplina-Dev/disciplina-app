@@ -102,6 +102,38 @@ describe('GraphQL job queries', () => {
         expect(second.localisation).toEqual(['SAINT_PAUL', 'LE_PORT']);
     });
 
+    it('excludes contracted jobs by default and includes them with includeClosed', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+
+        const open = await seedOffer({ _id: `job-open-${suffix}`, status: OfferStatus.CV_SEND });
+        const closed = await seedOffer({ _id: `job-closed-${suffix}`, status: OfferStatus.CONTRACT });
+
+        const fetchOfferIds = async (query: string): Promise<string[]> => {
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query }),
+            });
+            const json = await res.json();
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            return json.data.offers.map((offer: { id: string }) => offer.id);
+        };
+
+        const defaultIds = await fetchOfferIds('{ offers { id } }');
+        expect(defaultIds).toContain(open._id);
+        expect(defaultIds).not.toContain(closed._id);
+
+        const allIds = await fetchOfferIds('{ offers(includeClosed: true) { id } }');
+        expect(allIds).toContain(open._id);
+        expect(allIds).toContain(closed._id);
+    });
+
     it('returns a job by id', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
