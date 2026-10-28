@@ -185,6 +185,8 @@ const DIRECTORY_PAGE_SIZE = 500;
 
 const CONTRACTED_PAGE_SIZE = 500;
 
+const IMMERSING_PAGE_SIZE = 500;
+
 /** Minuscule + accents retirés : « Éco » et « eco » se correspondent. */
 function foldSearch(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -323,6 +325,176 @@ function ContractedCandidatesModal({ onClose }: { onClose: () => void }) {
               {totalCount > CONTRACTED_PAGE_SIZE && (
                 <p className="mt-3 text-xs text-[var(--ds-text-subtle)]">
                   Liste limitée aux {CONTRACTED_PAGE_SIZE} premiers candidats — affinez la recherche depuis la page Candidats.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Jours calendaires restant avant `iso` (négatif = date passée, null = absente/invalide). */
+function daysUntil(iso?: string): number | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  return Math.round((date.getTime() - today.getTime()) / 86_400_000);
+}
+
+function ImmersionStatusBadge({ immersionEndDate }: { immersionEndDate?: string }) {
+  const days = daysUntil(immersionEndDate);
+  if (days === null) {
+    return <span className="text-xs text-[var(--ds-text-subtle)]">—</span>;
+  }
+  if (days < 0) {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]">
+        Terminée
+      </span>
+    );
+  }
+  if (days <= 7) {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-warning-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-warning)] ring-1 ring-inset ring-amber-200">
+        {days === 0 ? "Se termine aujourd'hui" : `Se termine dans ${days} j`}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
+      En cours
+    </span>
+  );
+}
+
+/**
+ * Liste des candidats en immersion et de leur entreprise d'accueil.
+ * Triée par fin d'immersion croissante (sans date en dernier).
+ */
+function ImmersingCandidatesModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const { candidates, totalCount, loading, error, refetch } = useCandidatesPage(
+    IMMERSING_PAGE_SIZE,
+    undefined,
+    undefined,
+    { status: CandidateStatus.IMMERSING },
+  );
+
+  const rows = useMemo(() => {
+    const timeOf = (iso?: string) => {
+      if (!iso) return Number.MAX_SAFE_INTEGER;
+      const t = new Date(iso).getTime();
+      return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+    };
+    return [...candidates].sort((a, b) => {
+      const diff = timeOf(a.immersion_end_date) - timeOf(b.immersion_end_date);
+      if (diff !== 0) return diff;
+      const startDiff = timeOf(a.immersion_start_date) - timeOf(b.immersion_start_date);
+      if (startDiff !== 0) return startDiff;
+      return (a.identity.full_name ?? '').localeCompare(b.identity.full_name ?? '', 'fr');
+    });
+  }, [candidates]);
+
+  const endingSoonCount = useMemo(
+    () => candidates.filter((c) => {
+      const days = daysUntil(c.immersion_end_date);
+      return days !== null && days >= 0 && days <= 7;
+    }).length,
+    [candidates],
+  );
+  const finishedCount = useMemo(
+    () => candidates.filter((c) => {
+      const days = daysUntil(c.immersion_end_date);
+      return days !== null && days < 0;
+    }).length,
+    [candidates],
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Candidats en immersion">
+      <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
+      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-5 py-4">
+          <div>
+            <h2 className="text-base font-bold text-[var(--ds-text)]">Candidats en immersion</h2>
+            <p className="text-xs text-[var(--ds-text-subtle)]">
+              {rows.length} candidat{rows.length > 1 ? 's' : ''} en immersion
+              {endingSoonCount > 0 ? ` · ${endingSoonCount} se terminant sous 7 jours` : ''}
+              {finishedCount > 0 ? ` · ${finishedCount} terminée${finishedCount > 1 ? 's' : ''}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
+            title="Fermer"
+          >
+            <IconClose width={18} height={18} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {loading && rows.length === 0 ? (
+            <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+              <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des candidats…
+            </div>
+          ) : error ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-[var(--ds-danger)]">
+              <p className="font-medium">Erreur de chargement des candidats</p>
+              <button
+                onClick={() => refetch()}
+                className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
+              >
+                <IconRefresh width={16} height={16} /> Réessayer
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="py-12 text-center text-sm text-[var(--ds-text-subtle)]">
+              Aucun candidat en immersion.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">Candidat</th>
+                      <th className="px-4 py-2.5 font-semibold">Entreprise</th>
+                      <th className="px-4 py-2.5 font-semibold">Début</th>
+                      <th className="px-4 py-2.5 font-semibold">Fin</th>
+                      <th className="px-4 py-2.5 font-semibold">Convention</th>
+                      <th className="px-4 py-2.5 font-semibold">Statut immersion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--ds-border)]">
+                    {rows.map((candidate) => (
+                      <tr
+                        key={candidate._id}
+                        onClick={() => navigate(`/rh/candidats/${candidate._id}`)}
+                        className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
+                        title="Ouvrir la fiche candidat"
+                      >
+                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{candidate.identity.full_name}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.immersion_company_name ?? '—'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.immersion_start_date)}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.immersion_end_date)}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.immersion_convention_number ?? '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <ImmersionStatusBadge immersionEndDate={candidate.immersion_end_date} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalCount > IMMERSING_PAGE_SIZE && (
+                <p className="mt-3 text-xs text-[var(--ds-text-subtle)]">
+                  Liste limitée aux {IMMERSING_PAGE_SIZE} premiers candidats — affinez la recherche depuis la page Candidats.
                 </p>
               )}
             </>
@@ -1400,6 +1572,7 @@ export default function DashboardRH() {
   const { stats, loading, error, refetch } = useCandidateStats(sectorArray);
   const [showCompanies, setShowCompanies] = useState(false);
   const [showContracted, setShowContracted] = useState(false);
+  const [showImmersing, setShowImmersing] = useState(false);
 
   const toggleSector = (s: string) =>
     setSelectedSectors((prev) => {
@@ -1538,7 +1711,7 @@ export default function DashboardRH() {
         <KpiCard icon={IconUsers} label="Total candidats" value={stats?.total ?? 0} accent={COLORS.blue} />
         <KpiCard icon={IconSignature} label="En contrat" value={contracted} accent={COLORS.success} onClick={() => setShowContracted(true)} />
         <KpiCard icon={IconSearch} label="En recherche" value={seeking} accent={COLORS.blue} />
-        <KpiCard icon={IconJob} label="En immersion" value={immersing} accent={COLORS.pink} />
+        <KpiCard icon={IconJob} label="En immersion" value={immersing} accent={COLORS.pink} onClick={() => setShowImmersing(true)} />
       </div>
 
       {/* Répartition par statut + par TP */}
@@ -1639,6 +1812,7 @@ export default function DashboardRH() {
 
       {showCompanies && <CompanyDirectoryModal onClose={() => setShowCompanies(false)} />}
       {showContracted && <ContractedCandidatesModal onClose={() => setShowContracted(false)} />}
+      {showImmersing && <ImmersingCandidatesModal onClose={() => setShowImmersing(false)} />}
     </div>
   );
 }
