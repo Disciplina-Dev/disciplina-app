@@ -1,7 +1,7 @@
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { AlternantSequenceRepository } from '../repositories/mongo/AlternantSequenceRepository';
 import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
-import { SessionRepository } from '../repositories/mongo/SessionRepository';
+import { FilizReferenceRepository } from '../repositories/mongo/FilizReferenceRepository';
 import {
     Alternant,
     AlternantArchiveReason,
@@ -117,7 +117,7 @@ export class AlternantService {
     private alternants = new AlternantRepository();
     private sequences = new AlternantSequenceRepository();
     private ruptures = new RuptureRepository();
-    private sessions = new SessionRepository();
+    private filizReference = new FilizReferenceRepository();
 
     async findAll(search?: string, includeArchived = false): Promise<Alternant[]> {
         return this.alternants.findAll(search, includeArchived);
@@ -166,10 +166,10 @@ export class AlternantService {
         let sessionId: string | null = null;
         let session = input.session?.trim() ?? '';
         if (input.sessionId?.trim()) {
-            const linked = await this.sessions.findById(input.sessionId.trim());
+            const linked = await this.filizReference.findClassById(input.sessionId.trim());
             if (!linked) throw new Error('Session introuvable');
             sessionId = linked._id;
-            session = linked.nom;
+            session = linked.name;
         }
         session = requireNonBlank(session, 'La session');
         const startDate = requireValidDate(input.company?.startDate, "La date d'entrée en entreprise");
@@ -225,10 +225,10 @@ export class AlternantService {
             if (input.sessionId === null) {
                 patch.session_id = null;
             } else if (input.sessionId.trim()) {
-                const linked = await this.sessions.findById(input.sessionId.trim());
+                const linked = await this.filizReference.findClassById(input.sessionId.trim());
                 if (!linked) throw new Error('Session introuvable');
                 patch.session_id = linked._id;
-                patch.session = linked.nom;
+                patch.session = linked.name;
             }
         }
         if (input.session !== undefined && patch.session === undefined) {

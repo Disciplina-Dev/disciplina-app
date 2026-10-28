@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
-import { IconAlert, IconCheck, IconClose, IconLink, IconSearch, IconUnlink, IconUser } from '@/components/ui/icons'
+import { IconAlert, IconCheck, IconClose, IconLink, IconPlus, IconRefresh, IconSearch, IconUnlink, IconUser } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { createAlternant, checkAlternantEmail, fetchAlternants, fetchCandidateEmployer, lookupCandidateByEmail, updateAlternant } from '@/api/alternants'
-import { fetchSessions } from '@/api/sessions'
+import { fetchSessions, syncSessionReference } from '@/api/sessions'
+import SessionFormModal from '@/components/peda/SessionFormModal'
 import type { Alternant } from '@/types/alternant'
 import type { Session } from '@/types/session'
+
+// Aligné sur FILIZ_SYNC_LIMIT côté back : évite d'envoyer un clic qui sera refusé.
+const SYNC_COOLDOWN_S = 60
 
 interface AlternantCreateModalProps {
   /** Mode édition (bouton Modifier de la fiche) : seule l'identité est éditable. */
@@ -56,6 +60,17 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
   const [loading, setLoading] = useState(false)
   const [emailDup, setEmailDup] = useState<{ fullName: string } | null>(null)
 
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [cooldown, setCooldown] = useState(0)
+  const [showSessionForm, setShowSessionForm] = useState(false)
+
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const t = setTimeout(() => setCooldown((c) => c - 1), 1000)
+    return () => clearTimeout(t)
+  }, [cooldown])
+
   // Contrôle de doublon en direct sur l'email (alternants existants).
   useEffect(() => {
     const t = setTimeout(() => {
@@ -97,6 +112,38 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
       }
     }).catch(() => {})
   }, [isEdit, initial?.sessionId, initial?.session])
+
+  async function handleSyncSessions() {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const { classes } = await syncSessionReference()
+      const rows = await fetchSessions()
+      setSessions(rows)
+      // Le libellé libre déjà saisi correspond peut-être à une promotion Filiz tout juste synchronisée.
+      const typed = session.trim().toLowerCase()
+      const match = !sessionId && typed ? rows.find((s) => s.nom.trim().toLowerCase() === typed) : undefined
+      if (match) {
+        setSessionId(match.id)
+        setSession(match.nom)
+      }
+      setSyncMsg(
+        `${classes} session${classes > 1 ? 's' : ''} synchronisée${classes > 1 ? 's' : ''}${match ? ` — « ${match.nom} » trouvée.` : '.'}`,
+      )
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Synchronisation impossible')
+    } finally {
+      setCooldown(SYNC_COOLDOWN_S)
+      setSyncing(false)
+    }
+  }
+
+  function handleSessionCreated(created: Session) {
+    setSessions((prev) => [...prev.filter((s) => s.id !== created.id), created])
+    setSessionId(created.id)
+    setSession(created.nom)
+    setSyncMsg(null)
+  }
 
   const filteredAlternants = useMemo(() => {
     const q = linkSearch.trim().toLowerCase()
@@ -340,9 +387,33 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
               </select>
               <p className="text-xs text-[var(--ds-text-subtle)]">
                 {sessions.length === 0
-                  ? 'Aucune session pour l’instant — saisissez un libellé ou créez une session depuis la page Sessions.'
-                  : 'Choisissez un groupe Sessions, ou gardez un libellé libre.'}
+                  ? 'Aucune session pour l’instant — synchronisez avec Filiz, créez-en une ou saisissez un libellé.'
+                  : 'Choisissez une session, ou gardez un libellé libre. Introuvable ? Synchronisez avec Filiz ou créez-la.'}
               </p>
+              {!isEdit && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<IconRefresh width={14} height={14} />}
+                    onClick={handleSyncSessions}
+                    isLoading={syncing}
+                    disabled={cooldown > 0}
+                    loadingLabel="Synchronisation"
+                  >
+                    {cooldown > 0 ? `Synchroniser avec Filiz (${cooldown} s)` : 'Synchroniser avec Filiz'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    leftIcon={<IconPlus width={14} height={14} />}
+                    onClick={() => setShowSessionForm(true)}
+                  >
+                    Nouvelle session
+                  </Button>
+                </div>
+              )}
+              {syncMsg && <p className="text-[13px] text-[var(--ds-text-muted)]">{syncMsg}</p>}
             </div>
             {!sessionId && (
               <InputField
@@ -522,6 +593,9 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
           </Button>
         </div>
       </div>
+      {showSessionForm && (
+        <SessionFormModal onClose={() => setShowSessionForm(false)} onSaved={handleSessionCreated} />
+      )}
     </div>
   )
 }

@@ -22,13 +22,44 @@ import { CreateSessionInput } from '../../types/session.types';
 import { RuptureService } from '../../services/RuptureService';
 import { SaCalendarService } from '../../services/SaCalendarService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
+import { UserService } from '../../services/UserService';
+import { FilizFolderService } from '../../services/FilizFolderService';
+import { env } from '../../config/env';
+import { logger } from '../../external/logger';
 
 const alternantService = new AlternantService();
 const candidateEmployerService = new CandidateEmployerService();
 const sessionService = new SessionService();
 const ruptureService = new RuptureService();
+const filizFolderService = new FilizFolderService();
+const userService = new UserService();
 const saCalendarService = new SaCalendarService();
 let referenceSyncInProgress = false;
+
+/** Crée le dossier Filiz d'un alternant lié à un candidat et à une session ; un échec n'empêche pas la création. */
+async function createFilizFolderFor(
+    alternant: { candidate_id?: string | null; session_id?: string | null },
+    userId: number | undefined,
+): Promise<void> {
+    if (!env.FILIZ_FOLDER_CREATION_ENABLED || !alternant.candidate_id || !alternant.session_id) return;
+    try {
+        // Le JWT ne porte pas le nom : le gestionnaire du dossier est relu en base.
+        const manager = userId ? await userService.findById(userId) : null;
+        if (!manager) {
+            logger.warn({ candidateId: alternant.candidate_id }, 'filiz folder skipped: file manager not found');
+            return;
+        }
+        const result = await filizFolderService.create(alternant.candidate_id, alternant.session_id, {
+            firstName: manager.firstName,
+            lastName: manager.lastName,
+            mailAddress: manager.email,
+        });
+        if (!result.ok)
+            logger.warn({ candidateId: alternant.candidate_id, reason: result.error }, 'filiz folder skipped');
+    } catch (err) {
+        logger.error({ err, candidateId: alternant.candidate_id }, 'filiz folder creation failed');
+    }
+}
 
 /** Re-synchronise l'agenda Google des Pedas avec les SA actives d'un alternant. */
 async function syncAlternantSequences(alternantId: string): Promise<void> {
@@ -148,7 +179,8 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const created = await alternantService.create(input);
             await syncAlternantSequences(created._id);
-            return alternantToGql(created);
+            await createFilizFolderFor(created, context.user.id);
+            return alternantToGql((await alternantService.findById(created._id)) ?? created);
         },
         updateAlternant: async (
             _: unknown,
