@@ -75,6 +75,51 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidates[1].tpTypes).toEqual(['CC']);
     });
 
+    it('maps a legacy continuous immersion schedule to morning start / afternoon end', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CandidateRepository();
+
+        const candidate = await repo.create({
+            _id: `legacy-imm-schedule-${suffix}`,
+            candidate_id: `legacy-imm-schedule-${suffix}`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.IMMERSING,
+            identity: { full_name: `Legacy ${suffix}`, email: `legacy-${suffix}@test.local`, phone: '0100000021' },
+            immersion_schedule: [{ day: 'Lundi', start_hour: '08:00', end_hour: '17:00' }],
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: String!) {
+                    candidate(id: $id) {
+                        immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
+                    }
+                }`,
+                variables: { id: candidate._id },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.candidate.immersionSchedule).toEqual([
+            {
+                day: 'Lundi',
+                morningStartHour: '08:00',
+                morningEndHour: null,
+                afternoonStartHour: null,
+                afternoonEndHour: '17:00',
+            },
+        ]);
+    });
+
     it('paginates candidates with cursors via candidatesPage', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = `page-${Date.now()}`;

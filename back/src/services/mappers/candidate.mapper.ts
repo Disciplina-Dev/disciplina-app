@@ -64,15 +64,29 @@ export function candidateToGql(candidate: Candidate): any {
         immersionCompanyId: candidate.immersion_company_id ?? null,
         immersionCompanyName: candidate.immersion_company_name ?? null,
         immersionConventionNumber: (candidate as any).immersion_convention_number ?? null,
-        immersionSchedule: ((candidate as any).immersion_schedule ?? []).map((s: any) =>
-            typeof s === 'string'
-                ? { day: null, startHour: s, endHour: null }
-                : {
-                      day: s?.day ?? null,
-                      startHour: s?.start_hour ?? (s as any)?.startHour ?? null,
-                      endHour: s?.end_hour ?? (s as any)?.endHour ?? null,
-                  },
-        ),
+        // Legacy : un créneau continu (`start_hour`/`end_hour`) devient
+        // « matin début → après-midi fin » sans heure de coupure, ce qui reste
+        // un horaire continu côté affichage.
+        immersionSchedule: ((candidate as any).immersion_schedule ?? []).map((s: any) => {
+            if (typeof s === 'string') {
+                return {
+                    day: null,
+                    morningStartHour: s,
+                    morningEndHour: null,
+                    afternoonStartHour: null,
+                    afternoonEndHour: null,
+                };
+            }
+            const legacyStart = s?.start_hour ?? s?.startHour ?? null;
+            const legacyEnd = s?.end_hour ?? s?.endHour ?? null;
+            return {
+                day: s?.day ?? null,
+                morningStartHour: s?.morning_start_hour ?? s?.morningStartHour ?? legacyStart,
+                morningEndHour: s?.morning_end_hour ?? s?.morningEndHour ?? null,
+                afternoonStartHour: s?.afternoon_start_hour ?? s?.afternoonStartHour ?? null,
+                afternoonEndHour: s?.afternoon_end_hour ?? s?.afternoonEndHour ?? legacyEnd,
+            };
+        }),
         contractOfferId: candidate.contract_offer_id ?? null,
         contractCompanyId: candidate.contract_company_id ?? null,
         contractCompanyName: candidate.contract_company_name ?? null,
