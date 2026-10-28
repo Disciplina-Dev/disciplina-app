@@ -270,9 +270,17 @@ const candidateRelanceSchema = new Schema<CandidateRelanceEntry>(
     { _id: false },
 );
 
+// Créneau d'immersion : un jour peut porter deux plages facultatives (matin et
+// après-midi). Les champs legacy `start_hour`/`end_hour` restent déclarés pour
+// relire les fiches écrites avant le découpage ; l'API n'écrit plus que les
+// quatre nouveaux champs.
 const immersionScheduleSlotSchema = new Schema(
     {
         day: { type: String, default: null },
+        morning_start_hour: { type: String, default: null },
+        morning_end_hour: { type: String, default: null },
+        afternoon_start_hour: { type: String, default: null },
+        afternoon_end_hour: { type: String, default: null },
         start_hour: { type: String, default: null },
         end_hour: { type: String, default: null },
     },

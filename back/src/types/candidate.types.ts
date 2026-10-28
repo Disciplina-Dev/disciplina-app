@@ -285,6 +285,12 @@ export interface CandidateRelanceEntry {
 
 export interface ImmersionScheduleSlot {
     day?: string | null;
+    morning_start_hour?: string | null;
+    morning_end_hour?: string | null;
+    afternoon_start_hour?: string | null;
+    afternoon_end_hour?: string | null;
+    // Legacy : créneau continu unique (avant le découpage matin/après-midi), lu
+    // uniquement pour les fiches existantes — jamais réécrit par l'API.
     start_hour?: string | null;
     end_hour?: string | null;
 }

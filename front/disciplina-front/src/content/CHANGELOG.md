@@ -38,6 +38,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 ### Changed
 
 - Résultats de test (#968) : la logique du webhook ClassMarker est extraite dans `TestResultService` ; les résultats internes sont écrits au même format (`candidate.classmarker` / `classmarker_history`, `source: 'internal'`), donc fiche, gate, PDF et MCP sont inchangés. ClassMarker reste branché pendant la transition.
+- Horaires d'immersion (#1035) : chaque jour activé peut porter deux plages facultatives (matin et après-midi) pour deux shifts le même jour ; toutes les heures restent optionnelles, une fin de matinée ou un début d'après-midi absents ne bloquent pas l'enregistrement, et les créneaux continus existants sont relus sans migration.
 
 ### Security
 
