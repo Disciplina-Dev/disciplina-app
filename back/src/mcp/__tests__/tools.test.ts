@@ -279,7 +279,7 @@ describe('MCP tools (static admin key)', () => {
 
         const candidate = await callTool('get_candidate', { id });
         expect(candidate.identity).toEqual({
-            fullName: 'Candidat Redact',
+            label: 'Candidat R.',
             minor: true,
             city: 'Saint-Denis',
             postalCode: null,
@@ -289,6 +289,7 @@ describe('MCP tools (static admin key)', () => {
         });
         const json = JSON.stringify(candidate);
         for (const leaked of [
+            'Redact',
             '2012',
             'Lieunaissance',
             '974-secret',

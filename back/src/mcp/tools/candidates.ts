@@ -21,7 +21,7 @@ export function registerCandidateTools(server: McpServer): void {
     readTool(
         server,
         'get_candidate',
-        'Fiche candidat (liste blanche RGPD) par son id : nom, commune, indicateur mineur, TP visé, secteurs, parcours, mobilité, synthèse, immersion/contrat. Jamais d’email, téléphone, adresse, date de naissance, n° de sécu, santé, liens de documents ni résultats de tests.',
+        'Fiche candidat (liste blanche RGPD) par son id : « Prénom N. », commune, indicateur mineur, TP visé, secteurs, parcours, mobilité, synthèse, immersion/contrat. Jamais d’email, téléphone, adresse, date de naissance, n° de sécu, santé, liens de documents ni résultats de tests.',
         { id: z.string().describe('Id du candidat (ObjectId Mongo)') },
         CANDIDATE_SCOPE,
         async ({ id }) => toolResult(exposeCandidate(await candidates.findByIdReadOnly(id))),
@@ -30,7 +30,7 @@ export function registerCandidateTools(server: McpServer): void {
     readTool(
         server,
         'search_candidates',
-        'Liste / recherche les candidats (nom, email…) ; mêmes champs que get_candidate. Pagination cursor-based.',
+        'Liste / recherche les candidats (filtre par nom/email en entrée ; sortie « Prénom N. ») ; mêmes champs que get_candidate. Pagination cursor-based.',
         {
             search: z.string().optional().describe('Terme de recherche'),
             first: z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)'),

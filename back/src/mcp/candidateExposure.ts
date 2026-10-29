@@ -31,7 +31,7 @@ export interface CandidateDto {
     trainingSites: TrainingSite[];
     createdAt: Date | null;
     identity: {
-        fullName: string;
+        label: string;
         minor: boolean | null;
         city: string | null;
         postalCode: string | null;
@@ -92,6 +92,13 @@ const RECOMMENDATION_KEYS = [
     'stress_management_follow_up',
 ] as const;
 
+/** « Prénom N. » (comme les alternants) : premier mot + initiale du dernier ; jamais le nom complet. */
+export function candidateLabel(fullName: string | null | undefined): string {
+    const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return parts[0] ?? '';
+    return `${parts[0]} ${parts[parts.length - 1].charAt(0).toUpperCase()}.`;
+}
+
 export function toCandidateDto(c: Candidate): CandidateDto {
     const recommendations = c.synthesis?.pedagogical_recommendations;
     return {
@@ -102,7 +109,7 @@ export function toCandidateDto(c: Candidate): CandidateDto {
         trainingSites: c.training_sites ?? (c.training_site ? [c.training_site] : []),
         createdAt: c.created_at ?? null,
         identity: {
-            fullName: c.identity.full_name,
+            label: candidateLabel(c.identity.full_name),
             minor: isMinor(c.identity),
             city: c.identity.city ?? null,
             postalCode: c.identity.postal_code ?? null,
