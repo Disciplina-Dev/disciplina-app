@@ -1,4 +1,10 @@
-import type { Candidate, CandidateStatus, TitleProfessionalType, TrainingSite } from '../types/candidate.types';
+import type {
+    Candidate,
+    CandidateHistoryEntry,
+    CandidateStatus,
+    TitleProfessionalType,
+    TrainingSite,
+} from '../types/candidate.types';
 import { ConsentType, hasConsent } from '../services/consentGuard';
 import { CandidateRepository } from '../repositories/mongo/CandidateRepository';
 
@@ -175,6 +181,23 @@ export function exposeCandidate(candidate: Candidate | null): CandidateDto | nul
 
 export function exposeCandidates(candidates: Candidate[]): CandidateDto[] {
     return candidates.flatMap((c) => exposeCandidate(c) ?? []);
+}
+
+/** Suivi RH : type et date seulement. Jamais `description` (texte libre, potentiel Art. 9 / injection) ni `owner_email`. */
+export interface CandidateHistoryDto {
+    id: string;
+    candidateId: string;
+    type: string;
+    createdAt: string | null;
+}
+
+export function toCandidateHistoryDto(e: CandidateHistoryEntry): CandidateHistoryDto {
+    return {
+        id: e._id,
+        candidateId: e.candidate_id,
+        type: e.type,
+        createdAt: e.created_at ? new Date(e.created_at).toISOString() : null,
+    };
 }
 
 const candidateRepository = new CandidateRepository();

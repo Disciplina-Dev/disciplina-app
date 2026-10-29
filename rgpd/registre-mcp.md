@@ -20,6 +20,7 @@
 
 - Outils : `list_sessions`, `get_session`, `session_stats`, `list_sequences_overdue`, `list_sequences_upcoming`, `list_alternant_sequences`, `list_alternants`, `get_alternant`, `list_ruptures`, `rupture_stats`, `peda_kpi_overview`, `peda_draft_stats`, `get_alternant_filiz`, `list_filiz_alternants`, `filiz_folder_stats`. Accès : rôle PEDA ou RESPONSABLE+.
 - Consentement : un alternant n'est exposé que si `candidate_id` est lié à un candidat ayant `ai_processing=true` (règle stricte de `candidateExposure.ts`). Les alternants créés sans candidat lié sont **invisibles** du MCP.
+- Suivi RH (`list_candidate_history`) : type d’événement et date uniquement (ni description libre, ni email du collaborateur), paginé ≤ 50.
 - Recherche nominative : le nom/prénom (3 caractères min.) n'est qu'un filtre en entrée ; la sortie ne contient que « Prénom N. ».
 - Point ouvert : le libellé du consentement `ai_processing` (« résumé de profil via IA locale ») ne couvre pas explicitement le suivi pédagogique ni un LLM tiers — à faire valider par le DPO et à reformuler à la prochaine version du corpus légal.
 - `list_notifications` : titre/message/lien des notifications `peda` et `candidate` masqués (noms en texte libre, non filtrables par consentement).

@@ -4,6 +4,7 @@ import pool from '../../db/mysql/connection';
 import { truncateMysql } from '../../../test/helpers/db';
 import { CandidateService } from '../../services/CandidateService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { CandidateHistoryService } from '../../services/CandidateHistoryService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
 import { DAILY_CALL_LIMIT } from '../limits';
@@ -85,8 +86,8 @@ describe('MCP tools (static admin key)', () => {
         expect(candidate.jobInfo.availabilityDate).toBe('2026-01-02T03:04:05.000Z');
         expect(JSON.stringify(candidate)).not.toMatch(/social_security|ssn|chiffr|"iv"|test\.local|0692000003/i);
 
-        const list = await callTool<any[]>('search_candidates', { search: 'Candidat MCP' });
-        expect(list).toHaveLength(1);
+        const list = await callTool<{ items: any[] }>('search_candidates', { search: 'Candidat MCP' });
+        expect(list.items).toHaveLength(1);
         expect(JSON.stringify(list)).not.toMatch(/social_security|1850578006048|"iv"|test\.local|0692000003/i);
     });
 
@@ -224,8 +225,54 @@ describe('MCP tools (static admin key)', () => {
         expect(await callTool('get_candidate', { id })).toBeNull();
         expect(await callTool('get_candidate_by_email', { email: `${id}@test.local` })).toBeNull();
         expect(await callTool('list_candidate_history', { candidateId: id })).toBeNull();
-        const list = await callTool<any[]>('search_candidates', { search: 'Sans Consentement' });
-        expect(list).toHaveLength(0);
+        const list = await callTool<{ items: any[] }>('search_candidates', { search: 'Sans Consentement' });
+        expect(list.items).toHaveLength(0);
+    });
+
+    it('search_candidates renvoie au plus `first` fiches (avec et sans recherche) et pagine par curseur', async () => {
+        const run = Date.now();
+        const service = new CandidateService();
+        for (let i = 0; i < 5; i++) {
+            const id = `cand-pagi-${run}-${i}`;
+            await service.create({
+                _id: id,
+                candidate_id: id,
+                tp_types: [TitleProfessionalType.CC],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Pagicand${run} Num${i}`,
+                    email: `${id}@test.local`,
+                    phone: '0692000009',
+                } as any,
+                created_at: new Date(2026, 0, 1, 0, 0, i),
+                consentments: {
+                    data_processing: true,
+                    data_sharing: false,
+                    ai_processing: true,
+                    photo_processing: false,
+                    consent_date: new Date(),
+                    consent_version: '1',
+                },
+            } as any);
+        }
+
+        const searched = await callTool<{ items: any[]; pageInfo: any }>('search_candidates', {
+            search: `Pagicand${run}`,
+            first: 3,
+        });
+        expect(searched.items).toHaveLength(3);
+        expect(searched.pageInfo.hasNextPage).toBe(true);
+
+        const page1 = await callTool<{ items: any[]; pageInfo: any }>('search_candidates', { first: 3 });
+        expect(page1.items).toHaveLength(3);
+        expect(page1.pageInfo.hasNextPage).toBe(true);
+        const page2 = await callTool<{ items: any[]; pageInfo: any }>('search_candidates', {
+            first: 3,
+            after: page1.pageInfo.endCursor,
+        });
+        expect(page2.items.length).toBeLessThanOrEqual(3);
+        const ids = [...page1.items, ...page2.items].map((c) => c.id);
+        expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('expose une liste blanche : rien de sensible, de libre ni de lien ne sort', async () => {
@@ -319,6 +366,18 @@ describe('MCP tools (static admin key)', () => {
             '"written_test_score"',
         ]) {
             expect(json).not.toContain(leaked);
+        }
+
+        const history = new CandidateHistoryService();
+        await history.recordManual(id, 'situation-familiale-notee', 'rh.secret@test.local');
+        const timeline = await callTool('list_candidate_history', { candidateId: id });
+        expect(timeline.total).toBe(1);
+        expect(timeline.items).toEqual([
+            { id: expect.any(String), candidateId: id, type: 'RH', createdAt: expect.any(String) },
+        ]);
+        const rawTimeline = JSON.stringify(timeline);
+        for (const leaked of ['situation-familiale', 'rh.secret', 'description', 'owner_email']) {
+            expect(rawTimeline).not.toContain(leaked);
         }
     });
     it('pagine list_offers et list_needs_analysis', async () => {
