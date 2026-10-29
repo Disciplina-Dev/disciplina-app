@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Structure
 
 Polyrepo, no root package.json:
-- `back/` — Node.js + TypeScript, Express + 4 Apollo GraphQL servers + MCP server (`src/mcp/`, `POST /api/mcp`, 45 read-only tools incl. péda)
+- `back/` — Node.js + TypeScript, Express + 4 Apollo GraphQL servers + MCP server (`src/mcp/`, `POST /api/mcp`, 48 read-only tools incl. péda)
 - `front/disciplina-front/` — React 19 + Vite + TypeScript + Tailwind v4 + urql + Zustand + React Router v7
 - `database/` — MySQL (`database/mysql/`) and MongoDB (`database/mongodb/`) init scripts, seeds, migrations
 - `scripts/` — Python 3.12+ data import/seed scripts (`startup.py` is the Docker seed entrypoint)
