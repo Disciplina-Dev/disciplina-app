@@ -3,7 +3,7 @@
 > **Date** : octobre 2026
 > **Branche** : `915-chore-mcp-rgpd-audit`
 > **Contexte** : le backend expose un serveur MCP (Model Context Protocol) permettant à des clients LLM (claude.ai, Claude Desktop, Claude Code) de lire le CRM Disciplina.
-> **Périmètre** : `back/src/mcp/` (route, auth, RBAC, sérialisation, 45 outils dont 12 péda, OAuth 2.1), tables `mcp_oauth_*`, journalisation associée. Complète [`RGPD.md`](RGPD.md), qui **ne mentionne pas MCP**.
+> **Périmètre** : `back/src/mcp/` (route, auth, RBAC, sérialisation, 48 outils dont 12 péda, OAuth 2.1), tables `mcp_oauth_*`, journalisation associée. Complète [`RGPD.md`](RGPD.md), qui **ne mentionne pas MCP**.
 > **Mise à jour** : 9 octobre 2026 — correctifs M2 à M5, M7 à M12 appliqués en code (branche `915-chore-mcp-rgpd-audit`), voir le **Statut** de chaque faille. Suite backend complète exécutée sur la stack `docker-compose.test.yml` : 87 fichiers, 542 tests passés.
 > **Mise à jour #930** : ajout du périmètre péda (alternants, séquences d'accompagnement, ruptures) — voir [§ Périmètre péda](#périmètre-péda-930) et [`rgpd/registre-mcp.md`](rgpd/registre-mcp.md).
 > **Méthode** : lecture statique du code, des tests et des documents légaux. Aucun test d'intrusion. Les points marqués *(à confirmer)* n'ont pas été vérifiés à la source.
@@ -53,7 +53,7 @@ Salarié (compte CRM) ──OAuth / clé statique──► POST /api/mcp ──�
 
 Faits structurants :
 
-- 45 outils (dont 12 péda, `mcp/tools/peda.ts`), tous en lecture via `readTool` (`mcp/tool.ts:23`). Aucun n'écrit ni ne supprime.
+- 48 outils (dont 12 péda, `mcp/tools/peda.ts`), tous en lecture via `readTool` (`mcp/tool.ts:23`). Aucun n'écrit ni ne supprime.
 - Serveur sans état (pas de session ni SSE), corps limité à 1 Mo (`mcp/route.ts:29`).
 - Authentification : OAuth 2.1 (JWT) ou clé statique `MCP_API_KEY`.
 
@@ -121,7 +121,7 @@ const allowed = candidates.filter((c) => c.consentments?.ai_processing === true)
 
 **Gravité : haute** — Art. 5.1.c, 25
 
-> **Statut** : ✅ **Corrigé pour les candidats** (`83b08467`) — retirés : `psh_*`, `special_needs`, `emergency_contact`, `classmarker.questions`, photo sans `photo_processing`. `list_offer_history` sans noms ni `ownerEmail`. **Reste** : texte libre des historiques, outils entreprises. *Tests passés.*
+> **Statut** : ✅ **Corrigé pour les candidats** — liste blanche (DTO `CandidateDto`, `candidateExposure.ts`) : plus d'email/téléphone, adresse (commune seule), date/lieu de naissance (indicateur `minor`), `sex`, situation France Travail / Mission Locale, textes libres, liens Drive/CV/PDF/photo, ni résultats/scores de tests (`classmarker*`, `test_average`, `written_test_score`, `skills_assessment` : données d'évaluation, AI Act annexe III §4), clé `social_security_number` absente. Historique (`83b08467`) — retirés : `psh_*`, `special_needs`, `emergency_contact`, `classmarker.questions`, photo sans `photo_processing`. `list_offer_history` sans noms ni `ownerEmail`. **Reste** : texte libre des historiques, outils entreprises. *Tests passés.*
 
 ### Constat
 

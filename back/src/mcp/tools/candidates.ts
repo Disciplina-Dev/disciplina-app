@@ -21,7 +21,7 @@ export function registerCandidateTools(server: McpServer): void {
     readTool(
         server,
         'get_candidate',
-        'Récupère la fiche candidat complète par son id (MongoDB) : identité, coordonnées, TP visé, secteurs souhaités, mobilité, synthèse.',
+        'Fiche candidat (liste blanche RGPD) par son id : nom, commune, indicateur mineur, TP visé, secteurs, parcours, mobilité, synthèse, immersion/contrat. Jamais d’email, téléphone, adresse, date de naissance, n° de sécu, santé, liens de documents ni résultats de tests.',
         { id: z.string().describe('Id du candidat (ObjectId Mongo)') },
         CANDIDATE_SCOPE,
         async ({ id }) => toolResult(exposeCandidate(await candidates.findByIdReadOnly(id))),
@@ -30,7 +30,7 @@ export function registerCandidateTools(server: McpServer): void {
     readTool(
         server,
         'search_candidates',
-        'Liste / recherche les candidats (nom, email…). Pagination cursor-based.',
+        'Liste / recherche les candidats (nom, email…) ; mêmes champs que get_candidate. Pagination cursor-based.',
         {
             search: z.string().optional().describe('Terme de recherche'),
             first: z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)'),
@@ -44,7 +44,7 @@ export function registerCandidateTools(server: McpServer): void {
     readTool(
         server,
         'get_candidate_by_email',
-        'Récupère un candidat par son adresse email.',
+        'Récupère un candidat par son adresse email (l’email n’est pas renvoyé) ; mêmes champs que get_candidate.',
         { email: z.string().describe('Email du candidat') },
         CANDIDATE_SCOPE,
         async ({ email }) => toolResult(exposeCandidate(await candidates.findByEmail(email))),
