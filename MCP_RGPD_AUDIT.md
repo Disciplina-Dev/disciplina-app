@@ -381,7 +381,7 @@ Respecter la règle projet : tests de composants, mock limité à `src/external/
 
 ## Périmètre péda (#930)
 
-12 outils en lecture (`mcp/tools/peda.ts`), exposition filtrée par `mcp/pedaExposure.ts` (`PEDA_MIN_GROUP = 5`). Accès : PEDA ou RESPONSABLE+. Détail : [`rgpd/registre-mcp.md`](rgpd/registre-mcp.md).
+12 outils péda (`mcp/tools/peda.ts`) + 3 outils de suivi Filiz (`mcp/tools/filiz.ts`), tous en lecture, exposition filtrée par `mcp/pedaExposure.ts` (`PEDA_MIN_GROUP = 5`). Accès : PEDA ou RESPONSABLE+. Détail : [`rgpd/registre-mcp.md`](rgpd/registre-mcp.md).
 
 | Risque | État |
 |---|---|
@@ -391,6 +391,7 @@ Respecter la règle projet : tests de composants, mock limité à `src/external/
 | `list_ruptures` nominatif (« Prénom N. »), non masqué par k | ⚠️ accepté — réservé PEDA / RESPONSABLE+ |
 | Notifications `peda` / `candidate` en texte libre | ✅ masquées (`misc.ts`) |
 | Journal d'audit : sujets `alternantId` / `sessionId` | ✅ `auditStore.ts` (`SUBJECT_KEYS`) |
+| Suivi Filiz : miroir local seul, sans `folder_id` / `student_id` / `company_siret`, sans appel Filiz | ✅ `filiz.ts` + `toAlternantFilizDto` (test d'exclusion) |
 
 ---
 

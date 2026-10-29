@@ -159,6 +159,10 @@ export class AlternantService {
         return this.alternants.findBySessionId(sessionId, includeArchived);
     }
 
+    async findByFilizClassId(classId: string, includeArchived = false): Promise<Alternant[]> {
+        return this.alternants.findByFilizClassId(classId, includeArchived);
+    }
+
     async create(input: CreateAlternantInput): Promise<Alternant> {
         const firstName = requireNonBlank(input.firstName, 'Le prénom');
         const lastName = requireNonBlank(input.lastName, 'Le nom');

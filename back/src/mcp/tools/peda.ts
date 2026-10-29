@@ -24,7 +24,7 @@ import {
 
 // Espace pédagogique : réservé au rôle PEDA et aux responsables (le GraphQL peda, lui, est
 // ouvert à tout EMPLOYEE — constat M6, on ne reproduit pas cette ouverture côté MCP).
-const PEDA_SCOPE = mcpToolScope(Permission.RESPONSABLE, [JobRole.PEDA]);
+export const PEDA_SCOPE = mcpToolScope(Permission.RESPONSABLE, [JobRole.PEDA]);
 
 const alternants = new AlternantService();
 const sessions = new SessionService();
@@ -32,8 +32,8 @@ const ruptures = new RuptureService();
 const draftHistory = new PedaDraftHistoryRepository();
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const firstArg = z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)');
-const offsetArg = z.number().int().min(0).optional().describe('Décalage de pagination (défaut 0)');
+export const firstArg = z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)');
+export const offsetArg = z.number().int().min(0).optional().describe('Décalage de pagination (défaut 0)');
 const yearArg = z.number().int().min(2000).max(2100).describe('Année civile');
 
 function startOfToday(): Date {

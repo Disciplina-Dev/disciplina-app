@@ -6,6 +6,7 @@ import { registerOfferTools } from './tools/offers';
 import { registerKpiTools } from './tools/kpi';
 import { registerMiscTools } from './tools/misc';
 import { registerPedaTools } from './tools/peda';
+import { registerFilizTools } from './tools/filiz';
 
 /**
  * Builds a fresh read-only MCP server exposing the whole CRM (companies, needs
@@ -28,6 +29,7 @@ export function buildMcpServer(): McpServer {
     registerKpiTools(server);
     registerMiscTools(server);
     registerPedaTools(server);
+    registerFilizTools(server);
 
     return server;
 }

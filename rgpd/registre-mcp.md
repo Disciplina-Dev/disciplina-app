@@ -18,9 +18,10 @@
 
 ## Périmètre péda (alternants)
 
-- Outils : `list_sessions`, `get_session`, `session_stats`, `list_sequences_overdue`, `list_sequences_upcoming`, `list_alternant_sequences`, `list_alternants`, `get_alternant`, `list_ruptures`, `rupture_stats`, `peda_kpi_overview`, `peda_draft_stats`. Accès : rôle PEDA ou RESPONSABLE+.
+- Outils : `list_sessions`, `get_session`, `session_stats`, `list_sequences_overdue`, `list_sequences_upcoming`, `list_alternant_sequences`, `list_alternants`, `get_alternant`, `list_ruptures`, `rupture_stats`, `peda_kpi_overview`, `peda_draft_stats`, `get_alternant_filiz`, `list_filiz_alternants`, `filiz_folder_stats`. Accès : rôle PEDA ou RESPONSABLE+.
 - Consentement : un alternant n'est exposé que si `candidate_id` est lié à un candidat ayant `ai_processing=true` (règle stricte de `candidateExposure.ts`). Les alternants créés sans candidat lié sont **invisibles** du MCP.
 - Recherche nominative : le nom/prénom (3 caractères min.) n'est qu'un filtre en entrée ; la sortie ne contient que « Prénom N. ».
 - Point ouvert : le libellé du consentement `ai_processing` (« résumé de profil via IA locale ») ne couvre pas explicitement le suivi pédagogique ni un LLM tiers — à faire valider par le DPO et à reformuler à la prochaine version du corpus légal.
 - `list_notifications` : titre/message/lien des notifications `peda` et `candidate` masqués (noms en texte libre, non filtrables par consentement).
 - Agrégats (`session_stats`, `rupture_stats`, `peda_kpi_overview`) : alternants sans consentement `ai_processing` exclus des décomptes. `list_ruptures` reste nominatif (« Prénom N. »), non masqué par k, réservé PEDA / RESPONSABLE+.
+- Suivi Filiz (`get_alternant_filiz`, `list_filiz_alternants`, `filiz_folder_stats`) : lecture du miroir local `Alternant.filiz` uniquement (aucun appel Filiz). Exposé : « Prénom N. », session, étape, étape de départ, dossier en cours, dates de mise à jour. Jamais `folder_id`, `student_id`, `company_siret`, contact. Consentement `ai_processing` requis ; effectifs 1-4 masqués dans `filiz_folder_stats`.
