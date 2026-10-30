@@ -440,7 +440,7 @@ SA (séquences d'accompagnement).
 | `status` | string | required — `na` \| `present` \| `absent` \| `late` \| `left_early` |
 | `status_time` | string \| null | `HH:mm` pour `late` / `left_early` |
 | `signature_mode` | string | required — `qr` (alternant sur son téléphone) \| `manual` (saisie formateur) \| `handwritten` (alternant sur l'appareil du formateur) |
-| `signature_image` | string \| null | data-URL PNG du tracé de l'alternant — renseigné par `handwritten`, effacé par une signature `qr` ou un passage à `absent`/`na` ; conservé lors d'une simple correction de statut restant une présence |
+| `signature_image` | string \| null | data-URL PNG du tracé de l'alternant — renseigné par `qr` (tracé sur son téléphone) et par `handwritten` (tracé sur l'appareil du formateur) ; remplacé par toute nouvelle signature, effacé par un passage à `absent`/`na` ; conservé lors d'une simple correction de statut restant une présence |
 | `signed_at` | Date | required — dernière saisie |
 | `first_signed_at`, `first_signature_mode` | Date, string | required — première signature, jamais écrasée |
 | `ip`, `user_agent` | string \| null | contexte de la première signature |

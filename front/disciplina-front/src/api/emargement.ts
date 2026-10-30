@@ -179,7 +179,7 @@ export async function fetchPublicSigning(token: string): Promise<PublicSigning> 
   return body.seance
 }
 
-export async function signByQr(token: string, email: string): Promise<QrSignResult> {
-  const body = await publicCall<{ result: QrSignResult }>('POST', publicUrl('sign', token), { email })
+export async function signByQr(token: string, email: string, signature: string): Promise<QrSignResult> {
+  const body = await publicCall<{ result: QrSignResult }>('POST', publicUrl('sign', token), { email, signature })
   return body.result
 }

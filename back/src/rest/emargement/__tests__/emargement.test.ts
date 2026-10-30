@@ -18,6 +18,13 @@ const API = `http://localhost:${env.API_PORT}`;
 // `sendSystemEmail` aille jusqu'à l'envoi.
 const SYSTEM_EMAIL = 'dev@disciplina.re';
 
+/** PNG 1×1 en data-URL : suffit à satisfaire la validation de format côté serveur. */
+const SIGNATURE_PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+/** Second tracé distinct, pour vérifier qu'une signature en remplace bien une autre. */
+const FORMATEUR_SIGNATURE_PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
 async function seedSystemMailUser(): Promise<void> {
     await pool.execute(
         `INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, oauth_token, refresh_token)
@@ -435,8 +442,7 @@ describe('API émargement — côté formateur', () => {
             const view = await fetch(viewUrl).then((res) => res.json());
             const alternant = view.emargement.alternants[0];
 
-            const signature =
-                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+            const signature = SIGNATURE_PNG;
             const handwritten = await fetch(`${viewUrl}/attendance/sign`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -517,8 +523,7 @@ describe('API émargement — côté formateur', () => {
             const view = await fetch(viewUrl).then((res) => res.json());
             const alternant = view.emargement.alternants[0];
 
-            const signature =
-                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+            const signature = SIGNATURE_PNG;
             const signResponse = await fetch(`${viewUrl}/sign`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -583,14 +588,22 @@ describe('API émargement — signature alternant par QR', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
             });
-            expect(first.status).toBe(200);
-            const firstBody = await first.json();
+            expect(first.status).toBe(400);
+            expect((await first.json()).code).toBe('signature');
+
+            const signed = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, signature: SIGNATURE_PNG }),
+            });
+            expect(signed.status).toBe(200);
+            const firstBody = await signed.json();
             expect(firstBody.result).toMatchObject({ alreadySigned: false, half: 'morning' });
 
             const second = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, signature: SIGNATURE_PNG }),
             });
             expect(second.status).toBe(200);
             expect((await second.json()).result.alreadySigned).toBe(true);
@@ -602,8 +615,55 @@ describe('API émargement — signature alternant par QR', () => {
                     half: 'morning',
                 })
                 .lean();
-            expect(record).toMatchObject({ status: 'present', signature_mode: 'qr' });
+            // Le tracé est conservé : il vaut preuve de présence et alimentera les exports PDF.
+            expect(record).toMatchObject({
+                status: 'present',
+                signature_mode: 'qr',
+                signature_image: SIGNATURE_PNG,
+            });
             expect(record?.ip).toBeTruthy();
+        } finally {
+            await getModels().Seance.deleteOne({ _id: seance._id });
+            await getModels().Emargement.deleteMany({ seance_id: seance._id });
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('remplace une signature manuscrite du formateur par le tracé du QR', async () => {
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        const seance = await seedSeance({ session_id: classId });
+        try {
+            // Repli d'abord : le formateur a fait signer l'alternant sur son appareil.
+            const formateurUrl = `${API}/api/emargement/formateur/${encodeURIComponent(buildSeanceToken(seance, 'formateur'))}`;
+            const handwritten = await fetch(`${formateurUrl}/attendance/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    alternantId: alternants[0]._id,
+                    half: 'morning',
+                    signature: FORMATEUR_SIGNATURE_PNG,
+                }),
+            });
+            expect(handwritten.status).toBe(200);
+
+            // Puis l'alternant signe lui-même : son tracé remplace celui du formateur.
+            const url = `${API}/api/emargement/sign/${encodeURIComponent(buildSeanceToken(seance, 'qr'))}`;
+            const signed = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: alternants[0].email, signature: SIGNATURE_PNG }),
+            });
+            expect(signed.status).toBe(200);
+            expect((await signed.json()).result).toMatchObject({ alreadySigned: false, half: 'morning' });
+
+            const record = await getModels()
+                .Emargement.findOne({ seance_id: seance._id, alternant_id: alternants[0]._id, half: 'morning' })
+                .lean();
+            expect(record).toMatchObject({ signature_mode: 'qr', signature_image: SIGNATURE_PNG });
         } finally {
             await getModels().Seance.deleteOne({ _id: seance._id });
             await getModels().Emargement.deleteMany({ seance_id: seance._id });
@@ -630,7 +690,7 @@ describe('API émargement — signature alternant par QR', () => {
             const unknown = await fetch(openUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: 'inconnu@test.local' }),
+                body: JSON.stringify({ email: 'inconnu@test.local', signature: SIGNATURE_PNG }),
             });
             expect(unknown.status).toBe(404);
             expect((await unknown.json()).code).toBe('alternant');
@@ -641,7 +701,7 @@ describe('API émargement — signature alternant par QR', () => {
             const late = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: alternants[0].email }),
+                body: JSON.stringify({ email: alternants[0].email, signature: SIGNATURE_PNG }),
             });
             expect(late.status).toBe(409);
             expect((await late.json()).code).toBe('window');

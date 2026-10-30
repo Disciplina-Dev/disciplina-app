@@ -154,7 +154,7 @@ into the companies server.
 | PUT | `/api/emargement/formateur/:token/attendance` | Link token | Set one alternant status for a half-day (manual entry, allowed outside the signing window) |
 | POST | `/api/emargement/formateur/:token/attendance/sign` | Link token | Learner handwritten signature drawn on the formateur's device (PNG data-URL) → `signatureMode: 'handwritten'`; allowed while the sheet is editable |
 | POST | `/api/emargement/formateur/:token/sign` | Link token | Confirm and sign the sheet (drawn signature as PNG data-URL, 3 MB body cap) |
-| GET · POST | `/api/emargement/sign/:token` | QR token | Alternant page state (session + date) · sign in for the current half-day — rate-limited |
+| GET · POST | `/api/emargement/sign/:token` | QR token | Alternant page state (session + date) · sign in for the current half-day with a drawn signature (PNG data-URL, required) — rate-limited |
 
 ## Commands
 

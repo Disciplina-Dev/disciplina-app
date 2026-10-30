@@ -67,13 +67,16 @@ export class EmargementRepository {
             user_agent: input.userAgent,
             updated_at: now,
         };
-        // Le tracé manuscrit de l'alternant est une pièce de preuve : une simple
-        // correction de statut par le formateur ne doit pas l'effacer. Seule une
-        // nouvelle signature de l'alternant (QR) le remplace, ou un passage à
-        // `absent` / `na` — la signature ne prouve alors plus la présence.
-        if (input.signatureMode === 'handwritten') set.signature_image = input.signatureImage;
-        else if (input.signatureMode === 'qr') set.signature_image = null;
-        else if (!PRESENT_STATUSES.includes(input.status)) set.signature_image = null;
+        // Le tracé de l'alternant est une pièce de preuve : une simple correction de
+        // statut par le formateur ne doit pas l'effacer. Une nouvelle signature de
+        // l'alternant (`qr` sur son téléphone, `handwritten` sur l'appareil du
+        // formateur) le remplace, et un passage à `absent` / `na` l'efface — le
+        // tracé ne prouve alors plus la présence.
+        if (input.signatureMode === 'handwritten' || input.signatureMode === 'qr') {
+            set.signature_image = input.signatureImage;
+        } else if (!PRESENT_STATUSES.includes(input.status)) {
+            set.signature_image = null;
+        }
 
         const update = {
             $set: set,

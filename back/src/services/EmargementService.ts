@@ -636,6 +636,10 @@ export class EmargementService {
             throw httpError(400, 'email', 'Une adresse e-mail valide est requise');
         }
         const email = normalizeEmail(body.email);
+        // La confirmation de présence vaut signature : le tracé de l'alternant est
+        // conservé sur la feuille (et repris par les exports PDF), comme le repli
+        // `handwritten` tracé sur l'appareil du formateur.
+        const signature = requireSignatureImage(body.signature);
 
         const now = new Date();
         const half = this.openHalf(seance, now);
@@ -668,7 +672,7 @@ export class EmargementService {
             status: 'present',
             statusTime: null,
             signatureMode: 'qr',
-            signatureImage: null,
+            signatureImage: signature,
             signedAt: now,
             ip: meta.ip,
             userAgent: meta.userAgent,

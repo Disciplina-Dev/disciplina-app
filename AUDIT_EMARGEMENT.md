@@ -25,6 +25,9 @@ Aucun code modifié. Tous les constats sont référencés `fichier:ligne` et ont
 > de séance, fermeture à la fin du créneau, lien formateur valable J+7, signature manuscrite de
 > l'alternant tracée chez le formateur — cf. §6) : **14 satisfaites**, **18 partielles**,
 > **25 absentes**.
+>
+> **État au 2026-10-30 après le lot 3** (signature exigée à chaque passage, y compris par QR — cf. §6) :
+> mêmes totaux que le lot 2, 3.3 restant partiel faute de vérification d'identité.
 
 Légende :
 **✅ FAIT** = conforme à l'exigence ·
@@ -46,7 +49,7 @@ Légende :
 | UI Peda | `front/…/pages/peda/Emargements.tsx`, `EmargementSeance.tsx`, `components/peda/SeanceFormModal.tsx` |
 | UI publique | `front/…/pages/emargement/FormateurEmargement.tsx`, `PublicSigning.tsx`, `components/emargement/PublicShell.tsx` |
 | Client API / types | `front/…/api/emargement.ts`, `types/emargement.ts`, `utils/emargement.ts` |
-| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (12 cas) |
+| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (13 cas) |
 
 ---
 
@@ -126,8 +129,10 @@ Légende :
 - **3.3 ⚠️ PARTIEL** — Signature électronique simple eIDAS : horodatage serveur ✅, lien avec le
   document ✅ (`seance_id` + `alternant_id`), **vérification d'identité ❌** (simple connaissance d'un
   e-mail), pas d'artefact de consentement au-delà du clic. Depuis le lot 2, une **signature manuscrite
-  de l'apprenant** existe en repli (tracée sur l'appareil du formateur, mode `handwritten`), mais elle
-  reste une signature de proximité, non vérifiée à distance.
+  de l'apprenant** existe en repli (tracée sur l'appareil du formateur, mode `handwritten`) ; depuis le
+  lot 3, elle est **exigée à chaque signature QR** (tracée sur le téléphone de l'apprenant). Reste une
+  signature non vérifiée à distance : n'importe qui connaissant l'e-mail peut signer à la place d'un
+  autre (cf. 3.2).
 - **3.4 ❌ ABSENT** — Le formateur **ne s'authentifie pas** : il reçoit un lien de capacité par e-mail
   (`EmargementService.ts:662-668`), transmissible, sans login, sans MFA, sans rattachement à un
   compte (`formateur_name` / `formateur_email` saisis par le Peda).
@@ -237,7 +242,8 @@ Chantier séparé à ouvrir.
   `api/emargement.ts:109-114`), jetons HMAC non stockés. Mais jeton **dans l'URL** (fuite possible via
   logs / referrer) et aucun compte ni mot de passe côté formateur.
 - **12.3 ✅ FAIT** — Pas de géolocalisation, collecte limitée (nom, e-mail, statut, horodatage, IP, UA,
-  signature manuscrite de l'alternant uniquement en repli `handwritten`, déclarée dans `RGPD.md`).
+  signature manuscrite de l'alternant à chaque passage — `qr` ou repli `handwritten` —, déclarée dans
+  `RGPD.md`).
   ⚠️ Durée de conservation de l'IP/UA non documentée.
 - **12.4 ⚠️ PARTIEL** — Pied de page légal générique présent (`components/legal/PublicLegalFooter.tsx`)
   + une ligne « l'heure, l'adresse IP et l'appareil utilisés sont enregistrés »
@@ -383,3 +389,30 @@ exposée côté Peda, conservée sur correction de présence, effacée sur `abse
 Reste à faire pour clore §2 : rien — 2.1 à 2.4 sont conformes. Les manques voisins relèvent d'autres
 sections : identité du signataire (§3), audit des corrections (§4.2 / 8.3), signature par demi-journée
 (§5.1), remédiation Peda (§5.3), exports (§8).
+
+### Lot 3 — signature exigée à chaque passage (2026-10-30)
+
+Périmètre : faire de la confirmation de présence de l'apprenant une **vraie signature**, exploitable
+comme pièce du dossier et reprise par les futurs exports. Les exports PDF/CSV restent hors périmètre
+(point 8 du plan P1) ; seule la donnée est désormais disponible.
+
+| Exigence | Correctif |
+|---|---|
+| 3.3 Signature de l'apprenant | `signByQr` exige un tracé (`requireSignatureImage`, PNG/JPEG data-URL ≤ 2,5 Mo) en plus de l'e-mail : le tracé est stocké dans `emargements.signature_image` avec `signature_mode: 'qr'`, à côté de l'horodatage serveur, de l'IP et de l'appareil. Absent ou mal formé → 400 `signature`. La page `/emargement/sign/:token` (`PublicSigning.tsx`) ajoute un `SignaturePad` et bloque l'envoi tant que rien n'est tracé. |
+| 1.x / 8 Préparation des exports | Le tracé est déjà affiché sur la page formateur et sur la feuille Peda (lot 2) : les exports PDF/CSV n'auront qu'à lire `signature_image` pour le reproduire. |
+
+Décisions de conception :
+
+- **Un seul champ pour les deux canaux** : `signature_image` porte le tracé quel que soit le mode
+  (`qr` sur le téléphone de l'apprenant, `handwritten` sur l'appareil du formateur). `signature_mode`
+  conserve l'origine, donc la valeur probante, sans dupliquer le stockage.
+- **Remplacement, pas empilement** : une signature `qr` remplace un tracé `handwritten` antérieur (et
+  inversement) ; l'historique de la première signature reste porté par `first_signed_at` /
+  `first_signature_mode`. Une correction de statut restant une présence conserve le tracé ; un passage à
+  `absent` / `na` l'efface.
+- **Signature obligatoire mais non vérifiée** : l'identité reste prouvée par la connaissance de l'e-mail
+  (défaut **F**, §3.1 / 3.2). Le tracé renforce la preuve d'assiduité, il ne l'authentifie pas.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (13 cas) — signature QR sans tracé
+→ 400 `signature` ; tracé stocké et visible côté Peda ; signature idempotente ; un tracé `qr` remplace
+un tracé `handwritten`.
