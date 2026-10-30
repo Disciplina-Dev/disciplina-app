@@ -154,6 +154,42 @@ export const GET_COMPANY_STATS = gql`
   }
 `
 
+export const GET_COMPANY = gql`
+  query GetCompany($id: Int!) {
+    company(id: $id) {
+      company {
+        id
+        userID
+        legalReferent
+        name
+        phone
+        email
+        address
+        sector
+        mainActivity
+        siret
+        siren
+        idcc
+        ape
+        notes
+        conclusion
+        status
+        relanceDate
+        createdAt
+        relanceType
+        relanceTemplateId
+        relanceChannel
+      }
+      salePerson {
+        id
+        email
+        firstName
+        lastName
+      }
+    }
+  }
+`
+
 export const GET_COMPANY_BY_SIRET = gql`
   query GetCompanyBySiret($siret: String!) {
     companyBySiret(siret: $siret) {

@@ -50,6 +50,8 @@ import {
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
+import type { Entreprise, CompanyWithSalePerson } from '@/types/entreprise'
+import { toEntreprise } from '@/types/companyMapper'
 import { apiJson } from '@/api/httpClient'
 import type { PageInfo } from '@/types/pagination'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
@@ -81,45 +83,22 @@ export interface CandidateServerFilters {
 }
 import { candidateGraphqlClient, offerGraphqlClient, needsAnalysisGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
+/**
+ * Liste légère non paginée (première page) pour les sélecteurs simples, ex.
+ * « nouvelle analyse du besoin ». N'écrit plus dans le store du portefeuille :
+ * celui-ci est alimenté par `useInitializePortfolio` (paginé, filtré) et un jeu
+ * de résultats partiel ne doit jamais l'écraser.
+ */
 export function useCompanies() {
-  const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
-  const setLoading = usePortefeuilleStore((s) => s.setLoading)
-  const setError = usePortefeuilleStore((s) => s.setError)
-
   const [result] = useQuery({ query: GET_COMPANIES })
-  useEffect(() => {
-    setLoading(result.fetching)
-    if (result.error) {
-      setError(result.error.message)
-    } else if (result.data?.companies) {
-      const entreprises = result.data.companies.edges.map(({ node: c }: any) => ({
-        id: String(c.company.id),
-        nom_commercial: c.company.name,
-        proprietaire_contact: c.salePerson?.email || null,
-        commercial: c.salePerson ? `${c.salePerson.firstName ?? ''} ${c.salePerson.lastName ?? ''}`.trim() || null : null,
-        proprietaire_id: c.salePerson?.id || null,
-        representant_legal: c.company.legalReferent || null,
-        telephone: c.company.phone,
-        email: c.company.email,
-        adresse: c.company.address,
-        secteur: c.company.sector,
-        metier: c.company.mainActivity,
-        siret: c.company.siret,
-        idcc: c.company.idcc,
-        note: c.company.notes,
-        conclusion: c.company.conclusion,
-        status: (c.company.status as any) || 'À Réfléchir',
-        date_insertion: new Date().toISOString().split('T')[0],
-        date_relance: c.company.relanceDate ?? null,
-        type_relance: c.company.relanceType ?? null,
-        relance_template_id: c.company.relanceTemplateId ?? null,
-      }))
-      setCompanies(entreprises)
-      setError(null)
-    }
-  }, [result])
-
-  return result
+  const edges: { node: CompanyWithSalePerson }[] = result.data?.companies?.edges ?? []
+  const entreprises: Entreprise[] = edges.map(({ node }) => ({
+    ...toEntreprise(node.company, node.salePerson),
+    // Le propriétaire vient du commercial rattaché, comme dans le portefeuille.
+    proprietaire_contact: node.salePerson?.email || null,
+    proprietaire_id: node.salePerson?.id ?? null,
+  }))
+  return { ...result, entreprises }
 }
 
 export function useSalePersons() {

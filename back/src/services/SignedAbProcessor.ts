@@ -24,7 +24,7 @@ const docusealService = new DocuSealService();
 const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
 
-/** Slug front d'une fiche entreprise (`/commercial/portefeuille/<slug>`), miroir de toSlug côté front. */
+/** Slug front d'une fiche entreprise (`/commercial/portefeuille/<id>/<slug>`), miroir de toSlug côté front. */
 function companySlug(name: string): string {
     return name
         .toLowerCase()
@@ -254,7 +254,9 @@ async function processSignedAbOnce(submissionId: string): Promise<boolean> {
                                     message: `L'analyse du besoin pour ${companyName}${
                                         analysis.positions?.[0]?.title ? ` (${analysis.positions[0].title})` : ''
                                     } a été signée.`,
-                                    link: `/commercial/portefeuille/${companySlug(companyName)}`,
+                                    link: `/commercial/portefeuille/${
+                                        company?.id ?? analysis.companyInfos?.id
+                                    }/${companySlug(companyName)}`,
                                 }),
                             ),
                         );
