@@ -1,6 +1,7 @@
 import { IconArrowLeft, IconBell, IconCalendar, IconCheck, IconCompany, IconCopy, IconFile, IconForbidden, IconHash, IconJob, IconMail, IconMapPin, IconPhone, IconTaskList, IconTrash, IconUser, IconUserCheck } from '@/components/ui/icons'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation, useBlocker } from 'react-router-dom'
+import { useQuery } from 'urql'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
@@ -12,6 +13,7 @@ import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
+import { GET_COMPANIES, GET_COMPANY } from '@/graphql/queries'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import Button from '@/components/ui/Button'
@@ -123,7 +125,12 @@ function EditField({ icon, label, value, onChange, placeholder, type = 'text' }:
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function EntreprisePage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { id: idParam } = useParams<{ id: string }>()
+  // URL canonique : /commercial/portefeuille/<id>/<slug>. Un segment non
+  // numérique vient d'un ancien favori (`/portefeuille/<slug>`) : on résout
+  // l'entreprise par son nom quand il est unique, puis on redirige.
+  const companyId = idParam && /^\d+$/.test(idParam) ? Number(idParam) : null
+  const legacySlug = companyId == null ? idParam : undefined
   const navigate = useNavigate()
   const location = useLocation()
   const currentUser = useCurrentUser()
@@ -151,8 +158,48 @@ export default function EntreprisePage() {
   const { companySectors: secteurOptions } = useSectors()
 
   const stateEntreprise = location.state?.entreprise as Entreprise | undefined
-  const baseEntreprise: Entreprise | undefined =
-    stateEntreprise ?? companies.find((c) => toSlug(c.nom_commercial ?? '') === slug)
+  const storeEntreprise = companyId != null ? companies.find((c) => c.id === String(companyId)) : undefined
+
+  // Fiche complète chargée côté serveur : indispensable sur un lien profond ou
+  // un rafraîchissement, quand le portefeuille paginé n'est pas en mémoire.
+  const [companyResult] = useQuery({
+    query: GET_COMPANY,
+    variables: { id: companyId ?? 0 },
+    pause: companyId == null || !!stateEntreprise || !!storeEntreprise,
+    requestPolicy: 'network-only',
+  })
+  const fetchedEntreprise: Entreprise | undefined = companyResult.data?.company
+    ? {
+        ...toEntrepriseFromCompanyWithSalePerson(companyResult.data.company),
+        // Le propriétaire n'est exposé que via `salePerson` : sans ça, la fiche
+        // ouverte par lien direct serait en lecture seule pour son commercial.
+        proprietaire_id: companyResult.data.company.salePerson?.id ?? null,
+        proprietaire_contact: companyResult.data.company.salePerson?.email ?? null,
+      }
+    : undefined
+
+  const baseEntreprise: Entreprise | undefined = stateEntreprise ?? storeEntreprise ?? fetchedEntreprise
+
+  // Anciens favoris `/portefeuille/<slug>` : recherche serveur par nom, puis
+  // redirection vers l'URL portant l'id (uniquement si le nom est unique).
+  const [legacyResult] = useQuery({
+    query: GET_COMPANIES,
+    variables: { search: legacySlug?.replace(/-/g, ' ') ?? '', first: 20 },
+    pause: !legacySlug,
+    requestPolicy: 'network-only',
+  })
+  const legacyEdges: { node: CompanyWithSalePerson }[] = legacyResult.data?.companies?.edges ?? []
+  const legacyMatches: CompanyWithSalePerson[] = legacySlug
+    ? legacyEdges
+        .filter(({ node }) => toSlug(node.company.name ?? '') === legacySlug)
+        .map(({ node }) => node)
+    : []
+  const legacyMatchId = legacyMatches.length === 1 ? legacyMatches[0].company.id : null
+  useEffect(() => {
+    if (legacyMatchId != null && legacySlug) {
+      navigate(`/commercial/portefeuille/${legacyMatchId}/${legacySlug}`, { replace: true })
+    }
+  }, [legacyMatchId, legacySlug, navigate])
 
   const [draft, setDraft] = useState<Entreprise | null>(null)
 
@@ -182,13 +229,28 @@ export default function EntreprisePage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
-  if (!baseEntreprise || !draft) {
+  if (!baseEntreprise) {
+    if (companyResult.fetching || legacyResult.fetching || legacyMatchId != null) {
+      return (
+        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
+          <div className="w-8 h-8 border-4 border-blue border-t-transparent rounded-full animate-spin" />
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
         <div className="text-center">
           <p className="text-[var(--ds-text-subtle)] text-sm mb-3">Entreprise introuvable.</p>
           <Button size="sm" variant="secondary" onClick={() => navigate('/commercial/portefeuille')}>Retour au portefeuille</Button>
         </div>
+      </div>
+    )
+  }
+
+  if (!draft) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
+        <div className="w-8 h-8 border-4 border-blue border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -220,7 +282,7 @@ export default function EntreprisePage() {
     const ok = await persist()
     if (!ok) return
     bypassBlockRef.current = true
-    navigate(`/commercial/portefeuille/${toSlug(draft.nom_commercial ?? draft.id)}`, {
+    navigate(`/commercial/portefeuille/${draft.id}/${toSlug(draft.nom_commercial ?? '')}`, {
       replace: true,
       state: { entreprise: draft },
     })
@@ -259,7 +321,7 @@ export default function EntreprisePage() {
 
   const handleOpenLinkedCompany = (item: CompanyWithSalePerson) => {
     const entreprise = toEntrepriseFromCompanyWithSalePerson(item)
-    navigate(`/commercial/portefeuille/${toSlug(entreprise.nom_commercial ?? entreprise.id)}`, {
+    navigate(`/commercial/portefeuille/${entreprise.id}/${toSlug(entreprise.nom_commercial ?? '')}`, {
       state: { entreprise },
     })
   }

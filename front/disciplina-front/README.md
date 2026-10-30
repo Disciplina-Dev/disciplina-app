@@ -137,7 +137,7 @@ src/
 | `/commercial/analyses-besoin` | `ListeAB` | Needs analyses list |
 | `/commercial/analyses-besoin/nouvelle` | `CreateAB` | New needs analysis |
 | `/commercial/portefeuille` | `PortefeuilleEntreprises` | Company portfolio |
-| `/commercial/portefeuille/:slug` | `EntreprisePage` | Company detail |
+| `/commercial/portefeuille/:id/:slug?` | `EntreprisePage` | Company detail (legacy `/:slug` URLs still redirect) |
 | `/commercial/liste-noire` | `ListeNoire` | Blacklisted companies |
 | `/commercial/sourcing` | `Sourcing` | SIRET sourcing |
 | `/commercial/mail` | `MailTemplates` | Email templates |

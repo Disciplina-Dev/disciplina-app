@@ -44,7 +44,7 @@ src/
     needsAnalysis/      Needs-analysis GraphQL (MongoDB) — its own server
     candidate/          Candidates GraphQL (MongoDB)
     offers/             Offers GraphQL + matching logic (MongoDB)
-  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, 45 read-only tools per domain (kpi, candidates, companies, offers, needsAnalysis, misc, peda), `candidateExposure`/`pedaExposure` (RGPD filters), `auditStore`
+  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, 48 read-only tools per domain (kpi, candidates, companies, offers, needsAnalysis, misc, peda), `candidateExposure`/`pedaExposure` (RGPD filters), `auditStore`
   scheduler/            pedaDraftScheduler, immersionEndScheduler, saNotificationScheduler — started from index.ts
   repositories/
     mysql/              16 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,

@@ -506,6 +506,101 @@ describe('GraphQL company queries', () => {
     });
 });
 
+describe('company by id', () => {
+    beforeEach(async () => {
+        await truncateMysql();
+    });
+
+    it('returns the company and its sale person', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CompanyRepository();
+
+        const conn = await pool.getConnection();
+        let userID: number;
+        try {
+            const [result] = await conn.execute(
+                'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [`owner-${suffix}@test.local`, 'Owner', `${suffix}`, `password${suffix}`, 1, 1],
+            );
+            userID = (result as any).insertId;
+        } finally {
+            conn.release();
+        }
+
+        const siret = `${suffix}1212121212`.slice(0, 14);
+        const id = await repo.create({
+            user_id: userID,
+            name: `Single Corp ${suffix}`,
+            siret,
+            address: 'Place Alpha',
+            sector: 'IT',
+            conclusion: 'conclusion',
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: Int!) { company(id: $id) { company { id name siret userID } salePerson { id email firstName lastName } } }`,
+                variables: { id },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.company.company.id).toBe(id);
+        expect(json.data.company.company.name).toBe(`Single Corp ${suffix}`);
+        expect(json.data.company.company.siret).toBe(siret);
+        expect(json.data.company.company.userID).toBe(userID);
+        expect(json.data.company.salePerson.id).toBe(userID);
+        expect(json.data.company.salePerson.email).toBe(`owner-${suffix}@test.local`);
+    });
+
+    it('returns null for an unknown company id', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'COMMERCIAL', permission: 'ADMIN' });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: Int!) { company(id: $id) { company { id } } }`,
+                variables: { id: 99999 },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.company).toBeNull();
+    });
+
+    it('rejects unauthenticated requests', async () => {
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                query: `query($id: Int!) { company(id: $id) { company { id } } }`,
+                variables: { id: 1 },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeDefined();
+        expect(json.errors[0].message).toMatch(/unauthorized/i);
+    });
+});
+
 describe('companyStats', () => {
     beforeEach(async () => {
         await truncateMysql();

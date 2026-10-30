@@ -80,6 +80,42 @@ export function toAlternantDto(a: Alternant): AlternantDto {
     };
 }
 
+/** Progression du dossier Filiz. Jamais `folder_id`, `student_id` ni `company_siret` (identifiants externes). */
+export interface AlternantFilizDto {
+    id: string;
+    label: string;
+    session: string;
+    sessionId: string | null;
+    classId: string | null;
+    step: number;
+    startStep: number | null;
+    inProgress: boolean;
+    filizUpdatedAt: string | null;
+    syncedAt: string | null;
+}
+
+/** Même règle que `filizInProgress` (alternant.mapper) : dossier encore à son étape de départ. */
+export function isFilizInProgress(a: Alternant): boolean {
+    return !a.archived_at && a.filiz?.start_step != null && a.filiz.step === a.filiz.start_step;
+}
+
+/** `null` si l'alternant n'a pas de dossier Filiz. */
+export function toAlternantFilizDto(a: Alternant): AlternantFilizDto | null {
+    if (!a.filiz) return null;
+    return {
+        id: a._id,
+        label: alternantLabel(a),
+        session: a.session,
+        sessionId: a.session_id ?? null,
+        classId: a.filiz.class_id ?? null,
+        step: a.filiz.step,
+        startStep: a.filiz.start_step ?? null,
+        inProgress: isFilizInProgress(a),
+        filizUpdatedAt: iso(a.filiz.updated_at),
+        syncedAt: iso(a.filiz.synced_at),
+    };
+}
+
 export type RuptureCategory = 'periode_essai' | 'commun_accord' | 'obtention_diplome' | 'autre';
 
 // Les motifs « faute grave », « inaptitude » et « atteinte à la santé » (Art. 9 potentiel) sont

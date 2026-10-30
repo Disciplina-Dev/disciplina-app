@@ -20,6 +20,17 @@ const CLASS = {
     className: 'Promo test',
     startDate: '2024-09-01',
     classStudyConfig: { contractType: { apprenticeshipContract: true, professionalizationContract: false } },
+    headTeacher: { firstName: 'John', lastName: 'Smith', mailAddress: 'john@smith.fr' },
+    realizationAddress: {
+        housenumber: '12',
+        street: 'RUE DU PARADIS',
+        city: 'PARIS',
+        postcode: '75012',
+        country: 'FRANCE',
+        formatted: '12 RUE DU PARADIS, 75012 PARIS, FRANCE',
+        address_line1: 'x',
+        address_line2: 'y',
+    },
 } as any;
 
 const folder = (overrides: Partial<FilizFolder> = {}): FilizFolder => ({
@@ -112,6 +123,11 @@ describe('FilizSyncService.syncAll', () => {
         expect(second).toMatchObject({ degrees: 1, classes: 1 });
         const repo = new FilizReferenceRepository();
         expect((await repo.findClassesByDegree(DEGREE.degreeId)).map((c) => c.name)).toEqual(['Promo test']);
+        const [cls] = await repo.findClassesByDegree(DEGREE.degreeId);
+        expect(cls.head_teacher).toEqual({ first_name: 'John', last_name: 'Smith', mail_address: 'john@smith.fr' });
+        expect(cls.referent_teacher).toBeNull();
+        expect(cls.realization_address).toMatchObject({ city: 'PARIS', postcode: '75012' });
+        expect(cls.realization_address).not.toHaveProperty('address_line1');
         expect((await repo.findDegrees()).filter((d) => d._id === DEGREE.degreeId)).toHaveLength(1);
 
         mockFiliz([folder()]);

@@ -226,7 +226,7 @@ export default function RelanceCommercial() {
         </div>
         <div className="min-w-0 flex-1">
           <button
-            onClick={() => navigate(`/commercial/portefeuille/${toSlug(ent.nom_commercial ?? ent.id)}`, { state: { entreprise: ent } })}
+            onClick={() => navigate(`/commercial/portefeuille/${ent.id}/${toSlug(ent.nom_commercial ?? '')}`, { state: { entreprise: ent } })}
             className="font-semibold text-[var(--ds-text)] truncate hover:text-blue transition-colors text-left"
           >
             {ent.nom_commercial ?? 'Entreprise sans nom'}

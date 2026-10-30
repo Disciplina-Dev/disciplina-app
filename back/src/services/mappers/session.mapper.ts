@@ -1,4 +1,12 @@
-import { Session } from '../../types/session.types';
+import { Session, SessionAddress, SessionPerson } from '../../types/session.types';
+
+function personToGql(p?: SessionPerson | null): object | null {
+    return p ? { firstName: p.first_name, lastName: p.last_name, mailAddress: p.mail_address } : null;
+}
+
+function addressToGql(a?: SessionAddress | null): object | null {
+    return a ? { ...a } : null;
+}
 
 export function sessionToGql(s: Session, alternantCount?: number): object {
     return {
@@ -8,6 +16,9 @@ export function sessionToGql(s: Session, alternantCount?: number): object {
         jourCours: s.jour_cours ?? null,
         dateDebut: s.date_debut ? new Date(s.date_debut).toISOString() : null,
         dateFin: s.date_fin ? new Date(s.date_fin).toISOString() : null,
+        headTeacher: personToGql(s.head_teacher),
+        referentTeacher: personToGql(s.referent_teacher),
+        realizationAddress: addressToGql(s.realization_address),
         alternantCount: alternantCount ?? 0,
         createdAt: s.created_at ? new Date(s.created_at).toISOString() : null,
         updatedAt: s.updated_at ? new Date(s.updated_at).toISOString() : null,

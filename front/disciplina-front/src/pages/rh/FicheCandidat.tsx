@@ -4,6 +4,7 @@ import { IconAlert, IconArrowLeft, IconCamera, IconClipboardCheck, IconDownload,
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
+import ImmersionScheduleEditor from '@/features/candidats/components/ImmersionScheduleEditor'
 import CandidateSentCompaniesCallout from '@/features/candidats/components/CandidateSentCompaniesCallout'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
@@ -17,8 +18,9 @@ import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHO
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
-import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
+import type { Candidate, DiscoverySource, ImmersionScheduleSlot, PedagogicalRecommendations } from '@/types/candidate'
 import type { ScheduleSlot } from '@/types/needsAnalysis'
+import { offerSlotToImmersionSlot } from '@/utils/schedule'
 import { computeAge, isSenior } from '@/utils/age'
 import { gateThresholdForTps } from '@/utils/testGateThreshold'
 import {
@@ -229,65 +231,6 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
   )
 }
 
-const IMMERSION_DAYS = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
-
-// Éditeur compact des horaires d'immersion (jours activables + créneau début/fin).
-// Même forme que ScheduleSlot (day/startHour/endHour) : seuls les jours activés sont persistés.
-function ImmersionScheduleEditor({ value, onChange }: {
-  value: ScheduleSlot[]
-  onChange: (slots: ScheduleSlot[]) => void
-}) {
-  const slotFor = (day: string) => value.find((s) => s.day === day)
-  const setHour = (day: string, field: 'startHour' | 'endHour', hour: string) => {
-    onChange(value.map((s) => (s.day === day ? { ...s, [field]: hour } : s)))
-  }
-  const setEnabled = (day: string, on: boolean) => {
-    const others = value.filter((s) => s.day !== day)
-    onChange(on ? [...others, { day, startHour: '08:00', endHour: '17:00' }] : others)
-  }
-  return (
-    <div className="flex flex-col gap-1.5">
-      {IMMERSION_DAYS.map((day) => {
-        const slot = slotFor(day)
-        const enabled = !!slot
-        return (
-          <div key={day} className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setEnabled(day, !enabled)}
-              className={[
-                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors',
-                enabled ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]',
-              ].join(' ')}
-              aria-label={`${enabled ? 'Désactiver' : 'Activer'} ${day}`}
-            >
-              {enabled && <span className="text-[11px] font-bold text-white">✓</span>}
-            </button>
-            <span className={enabled ? 'w-20 text-sm font-medium text-[var(--ds-text)]' : 'w-20 text-sm text-[var(--ds-text-subtle)]'}>
-              {day}
-            </span>
-            <input
-              type="time"
-              disabled={!enabled}
-              value={slot?.startHour ?? ''}
-              onChange={(e) => setHour(day, 'startHour', e.target.value)}
-              className="w-28 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm text-[var(--ds-text)] outline-none focus:border-blue disabled:cursor-not-allowed disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
-            />
-            <span className="text-xs text-[var(--ds-text-subtle)]">→</span>
-            <input
-              type="time"
-              disabled={!enabled}
-              value={slot?.endHour ?? ''}
-              onChange={(e) => setHour(day, 'endHour', e.target.value)}
-              className="w-28 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm text-[var(--ds-text)] outline-none focus:border-blue disabled:cursor-not-allowed disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
-            />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function FicheCandidat() {
@@ -347,7 +290,7 @@ export default function FicheCandidat() {
   const [immersionEnd, setImmersionEnd] = useState('')
   const [immersionCompanyId, setImmersionCompanyId] = useState('')
   const [immersionConventionNumber, setImmersionConventionNumber] = useState('')
-  const [immersionSchedule, setImmersionSchedule] = useState<ScheduleSlot[]>([])
+  const [immersionSchedule, setImmersionSchedule] = useState<ImmersionScheduleSlot[]>([])
   const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([])
   const [companyQuery, setCompanyQuery] = useState('')
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
@@ -744,7 +687,9 @@ export default function FicheCandidat() {
                 setImmersionCompanyId(String(offer.companyInfos.id))
                 if (offer.companyInfos?.name) setCompanyQuery(offer.companyInfos.name)
               }
-              const schedule = (offer.schedule as ScheduleSlot[] | undefined)?.filter(s => s?.day) ?? []
+              const schedule = (offer.schedule as ScheduleSlot[] | undefined)
+                ?.filter(s => s?.day)
+                .map(offerSlotToImmersionSlot) ?? []
               if (schedule.length > 0) setImmersionSchedule(schedule)
             }
           }
