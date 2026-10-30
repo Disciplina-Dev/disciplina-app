@@ -38,6 +38,8 @@ export interface AlternantAttendance {
   lastName: string
   /** Présent uniquement côté Peda : la page formateur ne reçoit pas les e-mails. */
   email?: string | null
+  /** Financeur de la formation (OPCO, Région…) — affiché sur la feuille. */
+  financeur?: string | null
   attendance: {
     morning: AttendanceRecord | null
     afternoon: AttendanceRecord | null
@@ -54,6 +56,12 @@ export interface Seance {
   id: string
   sessionId: string
   sessionNom: string
+  /** Titre professionnel préparé (snapshot de la filière Filiz). */
+  degreeTitle: string | null
+  /** Module ou séquence traités pendant la séance. */
+  module: string | null
+  /** Lieu précis : salle, adresse ou lien visio. */
+  location: string | null
   /** Jour de la séance, `YYYY-MM-DD` (heure locale du tenant). */
   date: string
   startTime: string
@@ -90,6 +98,9 @@ export interface FormateurView {
   seance: {
     id: string
     sessionNom: string
+    degreeTitle: string | null
+    module: string | null
+    location: string | null
     date: string
     startTime: string
     endTime: string
@@ -115,6 +126,9 @@ export interface FormateurView {
 
 export interface PublicSigning {
   sessionNom: string
+  degreeTitle: string | null
+  module: string | null
+  location: string | null
   date: string
   startTime: string
   endTime: string
@@ -143,6 +157,10 @@ export interface CreateSeanceInput {
   morningEnd: string
   afternoonStart: string | null
   afternoonEnd: string | null
+  /** Module / séquence (facultatif). */
+  module?: string | null
+  /** Lieu précis : salle, adresse, lien visio (facultatif). */
+  location?: string | null
 }
 
 export interface SeanceLinks {

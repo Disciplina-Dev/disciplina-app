@@ -16,11 +16,12 @@ import { EmargementLinkError, fetchPublicSigning, signByQr } from '@/api/emargem
 import type { PublicSigning, QrSignResult } from '@/types/emargement'
 import {
   HALF_LABELS,
-  MODE_LABELS,
   WINDOW_LABELS,
   WINDOW_TONES,
   formatSeanceDate,
   formatTimestamp,
+  seancePlace,
+  seanceProgram,
 } from '@/utils/emargement'
 
 type Signed = QrSignResult
@@ -119,6 +120,7 @@ export default function PublicSigning() {
   }
 
   const openHalf = seance.openHalf
+  const program = seanceProgram(seance)
 
   return (
     <PublicShell width="narrow">
@@ -127,12 +129,11 @@ export default function PublicSigning() {
           <IconQrCode width={14} height={14} /> Émargement
         </p>
         <h1 className="mt-1 text-[22px] font-extrabold leading-tight text-[var(--ds-text)]">{seance.sessionNom}</h1>
+        {program && <p className="mt-0.5 text-[13px] font-semibold text-[var(--ds-text-muted)]">{program}</p>}
         <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
           {formatSeanceDate(seance.date)} · {seance.startTime}–{seance.endTime}
         </p>
-        <p className="text-[13px] text-[var(--ds-text-subtle)]">
-          {seance.site} · {MODE_LABELS[seance.mode]}
-        </p>
+        <p className="text-[13px] text-[var(--ds-text-subtle)]">{seancePlace(seance)}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Badge tone={WINDOW_TONES[seance.windows.morning.state]}>
             {HALF_LABELS.morning} · {WINDOW_LABELS[seance.windows.morning.state]}

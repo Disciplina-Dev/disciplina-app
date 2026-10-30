@@ -34,7 +34,7 @@ const CREATE = `
 
 const UPDATE = `
     mutation($id: ID!, $input: UpdateAlternantInput!) {
-        updateAlternant(id: $id, input: $input) { id session sessionId }
+        updateAlternant(id: $id, input: $input) { id session sessionId financeur }
     }
 `;
 
@@ -452,6 +452,26 @@ describe('GraphQL peda alternants', () => {
         } finally {
             await AlternantModel.deleteOne({ _id: a.id });
             await getModels().FilizClass.deleteOne({ _id: classId });
+        }
+    });
+
+    it('stores the financeur used on the attendance sheet, and clears it', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const a = (await gqlFetch(auth, CREATE, { input: createInput(suffix) })).data.createAlternant;
+        try {
+            const set = await gqlFetch(auth, UPDATE, { id: a.id, input: { financeur: 'Opco 2i' } });
+            expect(set.errors).toBeUndefined();
+            expect(set.data.updateAlternant.financeur).toBe('Opco 2i');
+
+            const cleared = await gqlFetch(auth, UPDATE, { id: a.id, input: { financeur: '  ' } });
+            expect(cleared.errors).toBeUndefined();
+            expect(cleared.data.updateAlternant.financeur).toBeNull();
+
+            const tooLong = await gqlFetch(auth, UPDATE, { id: a.id, input: { financeur: 'x'.repeat(81) } });
+            expect(String(tooLong.errors[0].message)).toMatch(/80 caractères/);
+        } finally {
+            await AlternantModel.deleteOne({ _id: a.id });
         }
     });
 

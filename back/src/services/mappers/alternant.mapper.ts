@@ -11,6 +11,7 @@ export function alternantToGql(a: Alternant): object {
         email: a.email ?? null,
         phone: a.phone ?? null,
         candidateId: a.candidate_id ?? null,
+        financeur: a.financeur ?? null,
         company: a.company
             ? {
                   name: a.company.name ?? null,

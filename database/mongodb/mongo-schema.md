@@ -361,6 +361,7 @@ Péda domain. Fields stay snake_case (converted at resolver). Exposed through MC
 | `session_id` | string \| null | indexed, links `filiz_classes` (promotion Filiz tenant lieu de session) |
 | `email`, `phone` | string \| null | never exposed via MCP |
 | `candidate_id` | string \| null | links `candidates`; drives `ai_processing` consent for MCP |
+| `financeur` | string \| null | financeur de la formation (OPCO, Région, France Travail…), libellé libre ; affiché sur la feuille d'émargement et les exports d'assiduité — never exposed via MCP |
 | `company` | object \| null | `name`, `address`, `mentor_name`, `start_date` (required), `end_date` |
 | `linked_alternant_ids` | string[] | |
 | `archived_at` | Date \| null | indexed |
@@ -397,6 +398,56 @@ SA (séquences d'accompagnement).
 | `detail` | string \| null | free text, never exposed via MCP |
 | `poursuit_formation` | boolean | required |
 | `created_at`, `updated_at` | Date | |
+
+## Collection: seances
+
+Émargement (#955). Une séance = une demi-journée ou journée de cours d'une promotion Filiz, avec ses fenêtres de signature.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `session_id` | string | required, indexed — `_id` de `filiz_classes` |
+| `session_nom` | string | required — snapshot du nom de la promotion à la création |
+| `degree_title` | string \| null | snapshot de `Session.filiere` (titre pro Filiz) à la création, recalculé si la séance change de session : la feuille reste lisible si la promo est renommée |
+| `module` | string \| null | module / séquence traités, libellé libre (≤ 120 car.) |
+| `location` | string \| null | lieu précis (salle, adresse, lien visio), libellé libre (≤ 120 car.) — complète `site` + `mode` |
+| `date` | string | required, `YYYY-MM-DD` (jour local du tenant), indexed |
+| `start_time`, `end_time` | string | required, `HH:mm` |
+| `site` | string | required — `Nord` \| `Ouest` \| `Sud` \| `Annemasse` |
+| `mode` | string | required — `salle` \| `distanciel` |
+| `formateur_name`, `formateur_email` | string | required |
+| `morning_start`, `morning_end` | string | required — fenêtre de signature du matin |
+| `afternoon_start`, `afternoon_end` | string \| null | fenêtre de signature de l'après-midi (`null` = séance sans après-midi) |
+| `timezone` | string | required — fuseau IANA du tenant au moment de la création |
+| `token_secret` | string | required — sel du lien formateur/QR ; rotation = révocation |
+| `invite_expires_at` | Date | required — fin du jour de la séance |
+| `signed_at` | Date \| null | signature de la feuille par le formateur (verrouille la feuille) |
+| `signed_by_name`, `signature_image`, `signed_ip`, `signed_user_agent` | string \| null | preuve de signature |
+| `created_by` | number \| null | `users.id` (MySQL) |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: emargements
+
+Émargement (#955). Une ligne par alternant et par demi-journée ; la saisie met à jour la ligne existante, les colonnes `first_*` gardent la preuve de la première signature.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `seance_id` | string | required, indexed |
+| `alternant_id` | string | required |
+| `first_name`, `last_name` | string | required — snapshot d'affichage |
+| `half` | string | required — `morning` \| `afternoon` |
+| `status` | string | required — `na` \| `present` \| `absent` \| `late` \| `left_early` |
+| `status_time` | string \| null | `HH:mm` pour `late` / `left_early` |
+| `signature_mode` | string | required — `qr` (alternant) \| `manual` (formateur) |
+| `signed_at` | Date | required — dernière saisie |
+| `first_signed_at`, `first_signature_mode` | Date, string | required — première signature, jamais écrasée |
+| `ip`, `user_agent` | string \| null | contexte de la première signature |
+| `created_at`, `updated_at` | Date | |
+
+### Unique index
+
+`{ seance_id, alternant_id, half }` — une seule ligne par alternant et par demi-journée.
 
 ## Collection: questionnaires
 

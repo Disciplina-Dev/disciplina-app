@@ -8,12 +8,18 @@ Aucun code modifié. Tous les constats sont référencés `fichier:ligne` et ont
 - **Date** : 2026-10-30
 - **Documents liés** : `CHANGELOG.md`, `E2E.md` (§ 3.14 bis), `RGPD.md`, `database/mongodb/mongo-schema.md`, `back/README.md`
 
+> **Nature du document.** Les sections 1 à 5 décrivent l'état au commit `006398a1` (audit lecture
+> seule). La section **6** journalise les lots corrigés depuis : elle fait foi sur l'état courant.
+
 > **Verdict.** Le socle « séance → formateur → QR → signature formateur » est en place et de bonne
 > facture technique (horodatage serveur, jetons HMAC, fenêtres contrôlées serveur, verrouillage après
 > signature). Mais c'est un **POC d'émargement**, pas encore un outil conforme : sur **57 exigences**,
 > **9 sont satisfaites**, **21 partielles**, **27 absentes**. Les manques bloquants sont l'**identité du
 > signataire** (§3), les **absences / justificatifs / notifications** (§6), les **exports** (§8), les
 > **tableaux de bord** (§7) et l'**archivage / réversibilité** (§11).
+>
+> **État au 2026-10-30 après le lot 1** (données affichées : organisme + logo, titre pro, module, lieu,
+> financeur — cf. §6) : **12 satisfaites**, **20 partielles**, **25 absentes**.
 
 Légende :
 **✅ FAIT** = conforme à l'exigence ·
@@ -43,7 +49,7 @@ Légende :
 
 | § | Exigence | État |
 |---|---|---|
-| 1 | Données obligatoires sur la feuille | ❌ 4/7 (groupe, date/horaires, noms, formateur) |
+| 1 | Données obligatoires sur la feuille | ⚠️ 6/7 (groupe, titre pro + module, site + lieu, date/horaires, noms, formateur, financeur) — sites non configurables |
 | 2 | Découpage des séances | ⚠️ 2.1 / 2.2 ✅ — 2.3 / 2.4 partiels |
 | 3 | Authentification & identité | ❌ identité = e-mail saisi, QR partagé, formateur sans compte |
 | 4 | Horodatage & intégrité | ⚠️ 4.1 / 4.2 ✅ à la signature — **aucune traçabilité des corrections** |
@@ -63,15 +69,19 @@ Légende :
 
 ### 3.1 §1 — Données obligatoires sur chaque émargement
 
+> **Mise à jour du 2026-10-30** (lot 1 « données affichées », branche `955-feat-emargement-section`) :
+> **1.1, 1.2 et 1.7 sont traités** et **1.3 partiellement** (lieu libre ajouté, sites toujours énumérés).
+> Les constats ci-dessous décrivent l'état au commit `006398a1` ; le détail des correctifs est en §6.
+
 | # | État | Constat | À faire |
 |---|---|---|---|
-| 1.1 | ❌ ABSENT | Aucun nom d'organisme ni logo. `components/emargement/PublicShell.tsx:1-23` est un cadre nu, sans en-tête ; `public/logo-disciplina.svg` existe mais n'est pas utilisé sur ces pages. | En-tête organisme + logo sur les pages publiques et sur le futur PDF. |
-| 1.2 | ⚠️ PARTIEL | Seul le **groupe** est présent (`session_nom` figé à la création, `emargement.types.ts:34`). Le titre pro existe côté Filiz (`SessionService.classToSession` → `filiere` = titre du diplôme, `SessionService.ts:14`) mais **n'est pas snapshoté sur la séance** ni exposé dans `SeanceDto`. Aucune notion de **module / séquence**. | Ajouter `degree_title` (snapshot) et une entité module/séquence (ou un champ libre) sur `Seance`. |
-| 1.3 | ⚠️ PARTIEL | `site` = énumération figée `['Nord','Ouest','Sud','Annemasse']` (`emargement.types.ts:8`) + `mode` `salle\|distanciel` (`:12`). Pas de **salle**, pas d'adresse/lieu libre. | Champ `room`/`location` libre + sites configurables. |
+| 1.1 | ✅ FAIT <br>(traité 2026-10-30) | ~~Aucun nom d'organisme ni logo.~~ `PublicShell.tsx` porte désormais un en-tête organisme : `Logo` (`variant="mark"`) + « Disciplina » + « Organisme de formation », réutilisé par la page formateur et la page QR. Reste à reprendre ce même bloc en tête des exports PDF (cf. §8). | En-tête organisme + logo sur les pages publiques et sur le futur PDF. |
+| 1.2 | ✅ FAIT <br>(traité 2026-10-30) | ~~Seul le groupe est présent.~~ `degree_title` est snapshoté sur la séance depuis `Session.filiere` à la création (et recalculé si la séance change de session) ; `module` (libellé libre, ≤ 120 car.) est saisissable sur la séance. Pas de référentiel module/séquence : le champ est libre, ce qui suffit à l'affichage mais ne permettra pas d'agréger par module. | Ajouter `degree_title` (snapshot) et une entité module/séquence (ou un champ libre) sur `Seance`. |
+| 1.3 | ⚠️ PARTIEL | `site` = énumération figée `['Nord','Ouest','Sud','Annemasse']` (`emargement.types.ts:8`) + `mode` `salle\|distanciel` (`:12`). **Ajouté le 2026-10-30** : `location` (libellé libre, salle / adresse / lien visio) affiché sur la feuille à la suite du site et de la modalité. Restent les **sites configurables** (aujourd'hui codés en dur). | Champ `room`/`location` libre ✅ + sites configurables. |
 | 1.4 | ✅ FAIT | `date`, `start_time`, `end_time` (`emargement.types.ts:36-39`). | — |
 | 1.5 | ✅ FAIT | Liste des inscrits lue à la volée (`sessions.findAlternants`, `EmargementService.ts:246`) + snapshot nom/prénom par ligne (`EmargementRepository.upsert`). | — |
 | 1.6 | ✅ FAIT | `formateur_name` (`emargement.types.ts:42`). Attention : texte libre, **non relié à un compte utilisateur** (cf. 3.4). | — |
-| 1.7 | ❌ ABSENT | **Aucun champ financeur/OPCO** sur l'alternant (`db/mongo/schemas/alternant.schema.ts` : ni `financeur`, ni `opco`). Le seul mapping OPCO du projet est dans `PdfService.ts:96-100`, pour les analyses de besoin. Et pas d'export (cf. §8). | Ajouter le financeur au dossier alternant (ou le dériver de Filiz) + le porter sur les exports. |
+| 1.7 | ✅ FAIT <br>(traité 2026-10-30) | ~~Aucun champ financeur/OPCO sur l'alternant.~~ `Alternant.financeur` (libellé libre, saisi sur la fiche alternant avec suggestions OPCO) est exposé dans `AlternantEmargementDto` et affiché sous le nom de l'alternant sur les feuilles Peda et formateur. Reste à le porter sur les exports (cf. §8). | Ajouter le financeur au dossier alternant ✅ + le porter sur les exports. |
 
 ### 3.2 §2 — Découpage des séances
 
@@ -275,6 +285,8 @@ Indépendamment du cahier des charges, ces points sont des bugs ou des dettes à
    `PdfService`.
 9. Tableaux de bord assiduité + heures prévues/réalisées + feuilles non validées (§7.1–7.3).
 10. En-tête organisme + logo, titre pro, module/séquence, salle/lieu, financeur (§1.1 / 1.2 / 1.3 / 1.7).
+    **Traité le 2026-10-30 pour l'affichage écran** — voir §6 ; reste la reprise de ces données dans les
+    exports PDF/CSV (point 8).
 
 ### P2 — durcissement
 
@@ -289,3 +301,34 @@ Indépendamment du cahier des charges, ces points sont des bugs ou des dettes à
 
 Hébergement UE / HDS (12.1), sauvegardes planifiées et rétention des dumps (11.3), politique de
 conservation contractuelle (11.1).
+
+---
+
+## 6. Journal des lots traités
+
+### Lot 1 — données affichées sur l'émargement (2026-10-30)
+
+Périmètre : rendre la feuille lisible sans changer le modèle de preuve. **Les exports PDF/CSV restent
+hors périmètre** (point 8 du plan P1).
+
+| Exigence | Correctif |
+|---|---|
+| 1.1 Organisme + logo | `components/emargement/PublicShell.tsx` porte un en-tête organisme (`Logo` `variant="mark"` + « Disciplina » + « Organisme de formation »), partagé par la page formateur et la page QR. Ce bloc est destiné à être réutilisé tel quel en tête des PDF. |
+| 1.2 Titre pro + module | `Seance.degree_title` : snapshot de `Session.filiere` à la création (`EmargementService.create`), **recalculé** si la séance change de session (`EmargementService.update`) pour que la feuille ne garde pas l'intitulé de la promo précédente. `Seance.module` : libellé libre ≤ 120 car. (`optionalLabel`), saisi dans `SeanceFormModal`. |
+| 1.3 Lieu | `Seance.location` : libellé libre ≤ 120 car. (salle, adresse, lien visio), affiché à la suite de `site` + `mode` via `seancePlace()`. **Les sites restent énumérés** (`SEANCE_SITES`). |
+| 1.7 Financeur | `Alternant.financeur` : libellé libre (≤ 80 car., `null` si vide), saisi en place sur la fiche alternant avec un `datalist` de suggestions (`FINANCEUR_SUGGESTIONS`). Volontairement **non couplé** à l'enum `Opco` des analyses de besoin, pour accepter « Région », « France Travail », etc. Exposé dans `AlternantEmargementDto` et affiché sous le nom de l'alternant (feuilles Peda et formateur). **Non exposé au MCP** (`toAlternantDto` inchangé). |
+
+Décisions de conception :
+
+- **Snapshot plutôt que jointure** pour `degree_title` : la feuille doit rester identique à ce qui a été
+  signé, même si la promo Filiz est renommée après coup.
+- **Champs libres plutôt que référentiels** pour `module`, `location` et `financeur` : aucun référentiel
+  module/séquence n'existe dans le code, et le financeur réel dépasse l'enum OPCO. Conséquence assumée :
+  pas d'agrégation possible par module tant qu'un référentiel n'est pas introduit (§7).
+- Aucune donnée nouvelle n'est exposée hors des feuilles : ni MCP, ni API publique supplémentaire.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (titre pro, module, lieu, financeur
+côté Peda et côté formateur) et `back/src/graphql/peda/__tests__/alternant.test.ts` (pose, effacement et
+longueur maximale du financeur).
+
+Reste à faire pour clore §1 : exports PDF/CSV portant ces cinq données (§8), sites configurables (§13.4).

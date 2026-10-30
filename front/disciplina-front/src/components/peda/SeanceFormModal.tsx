@@ -40,6 +40,8 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
   const [endTime, setEndTime] = useState(seance?.endTime ?? '17:00')
   const [site, setSite] = useState<SeanceSite>(seance?.site ?? 'Nord')
   const [mode, setMode] = useState<SeanceMode>(seance?.mode ?? 'salle')
+  const [moduleName, setModuleName] = useState(seance?.module ?? '')
+  const [location, setLocation] = useState(seance?.location ?? '')
   const [formateurName, setFormateurName] = useState(seance?.formateurName ?? '')
   const [formateurEmail, setFormateurEmail] = useState(seance?.formateurEmail ?? '')
   const [morningStart, setMorningStart] = useState(seance?.morningStart ?? '08:45')
@@ -96,6 +98,8 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
       morningEnd,
       afternoonStart: hasAfternoon ? afternoonStart : null,
       afternoonEnd: hasAfternoon ? afternoonEnd : null,
+      module: moduleName.trim() || null,
+      location: location.trim() || null,
     }
 
     setSaving(true)
@@ -187,6 +191,25 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                 tone="accent"
               />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <InputField
+              id="seance-module"
+              label="Module / séquence"
+              value={moduleName}
+              onChange={(event) => setModuleName(event.target.value)}
+              placeholder="Ex. Séquence 3 — Communication"
+              hint="Figure sur la feuille d’émargement."
+            />
+            <InputField
+              id="seance-lieu"
+              label="Lieu précis"
+              value={location}
+              onChange={(event) => setLocation(event.target.value)}
+              placeholder="Ex. Salle 204, Visio Teams"
+              hint="Complète le site et la modalité."
+            />
           </div>
 
           <fieldset className="space-y-3 rounded-[var(--radius-md)] border border-[var(--ds-border)] p-4">

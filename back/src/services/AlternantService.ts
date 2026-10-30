@@ -59,6 +59,8 @@ export interface CreateAlternantInput {
     email?: string | null;
     phone?: string | null;
     candidateId?: string | null;
+    /** Financeur (OPCO, Région…) — chaîne vide = non renseigné. */
+    financeur?: string | null;
     company: {
         name?: string | null;
         address?: string | null;
@@ -78,6 +80,8 @@ export interface UpdateAlternantInput {
     email?: string | null;
     phone?: string | null;
     candidateId?: string | null;
+    /** Financeur (OPCO, Région…) — chaîne vide = non renseigné. */
+    financeur?: string | null;
 }
 
 export interface CompanyInput {
@@ -101,6 +105,19 @@ function toCompanySnake(input: CompanyInput): AlternantCompany {
 function requireNonBlank(value: string | undefined, field: string): string {
     const trimmed = value?.trim() ?? '';
     if (!trimmed) throw new Error(`${field} est obligatoire`);
+    return trimmed;
+}
+
+/** Longueur maximale du financeur : c'est un libellé court affiché sur la feuille. */
+const FINANCEUR_MAX_LENGTH = 80;
+
+/** Financeur libre (« Opco 2i », « Région », « France Travail »…) : `null` si vide. */
+function optionalFinanceur(value: string | null | undefined): string | null {
+    const trimmed = value?.trim() ?? '';
+    if (!trimmed) return null;
+    if (trimmed.length > FINANCEUR_MAX_LENGTH) {
+        throw new Error(`Le financeur ne peut pas dépasser ${FINANCEUR_MAX_LENGTH} caractères`);
+    }
     return trimmed;
 }
 
@@ -198,6 +215,7 @@ export class AlternantService {
             email,
             phone: input.phone?.trim() || null,
             candidate_id: input.candidateId ?? null,
+            financeur: optionalFinanceur(input.financeur),
             company: toCompanySnake({ ...input.company, startDate: startDate.toISOString() }),
             linked_alternant_ids: linkedIds,
         });
@@ -244,6 +262,7 @@ export class AlternantService {
         }
         if (input.phone !== undefined) patch.phone = input.phone?.trim() || null;
         if (input.candidateId !== undefined) patch.candidate_id = input.candidateId ?? null;
+        if (input.financeur !== undefined) patch.financeur = optionalFinanceur(input.financeur);
         return this.alternants.update(id, patch);
     }
 

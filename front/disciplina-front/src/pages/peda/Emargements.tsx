@@ -19,7 +19,7 @@ import SegmentedControl from '@/components/ui/SegmentedControl'
 import SeanceFormModal from '@/components/peda/SeanceFormModal'
 import { fetchSeances } from '@/api/emargement'
 import type { Seance } from '@/types/emargement'
-import { MODE_LABELS, formatSeanceDate, windowsSummary } from '@/utils/emargement'
+import { formatSeanceDate, seancePlace, windowsSummary } from '@/utils/emargement'
 
 type Range = 'upcoming' | 'past' | 'all'
 
@@ -153,8 +153,11 @@ export default function Emargements() {
                     <h2 className="mt-1 truncate text-[17px] font-bold text-[var(--ds-text)] group-hover:text-[var(--ds-accent)]">
                       {seance.sessionNom}
                     </h2>
+                    {seance.module && (
+                      <p className="mt-0.5 truncate text-[12px] font-medium text-[var(--ds-text-muted)]">{seance.module}</p>
+                    )}
                     <p className="mt-0.5 text-[13px] text-[var(--ds-text-subtle)]">
-                      {seance.startTime} – {seance.endTime} · {seance.site} · {MODE_LABELS[seance.mode]}
+                      {seance.startTime} – {seance.endTime} · {seancePlace(seance)}
                     </p>
                   </div>
                   {seance.signed ? (

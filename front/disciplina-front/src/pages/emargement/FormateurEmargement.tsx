@@ -32,13 +32,14 @@ import type {
 } from '@/types/emargement'
 import {
   HALF_LABELS,
-  MODE_LABELS,
   STATUS_LABELS,
   STATUS_TONES,
   WINDOW_LABELS,
   WINDOW_TONES,
   formatSeanceDate,
   formatTimestamp,
+  seancePlace,
+  seanceProgram,
   signatureLabel,
 } from '@/utils/emargement'
 
@@ -295,6 +296,7 @@ export default function FormateurEmargement() {
   const { seance } = view
   const hasAfternoon = Boolean(view.windows.afternoon)
   const editable = view.canEdit
+  const program = seanceProgram(seance)
 
   return (
     <PublicShell>
@@ -303,9 +305,11 @@ export default function FormateurEmargement() {
           Feuille d’émargement
         </p>
         <h1 className="mt-1 text-[24px] font-extrabold leading-tight text-[var(--ds-text)]">{seance.sessionNom}</h1>
+        {program && (
+          <p className="mt-0.5 text-[14px] font-semibold text-[var(--ds-text-muted)]">{program}</p>
+        )}
         <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
-          {formatSeanceDate(seance.date)} · {seance.startTime}–{seance.endTime} · {seance.site} ·{' '}
-          {MODE_LABELS[seance.mode]}
+          {formatSeanceDate(seance.date)} · {seance.startTime}–{seance.endTime} · {seancePlace(seance)}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Badge tone="accent">Formateur : {seance.formateurName}</Badge>
@@ -355,6 +359,11 @@ export default function FormateurEmargement() {
                   <tr key={alternant.id} className="border-t border-[var(--ds-border)] align-top">
                     <td className="px-3 py-3 text-[14px] font-semibold text-[var(--ds-text)]">
                       {alternant.firstName} {alternant.lastName}
+                      {alternant.financeur && (
+                        <span className="mt-0.5 block text-[11px] font-normal text-[var(--ds-text-subtle)]">
+                          Financeur : {alternant.financeur}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-3">
                       <AttendanceCell

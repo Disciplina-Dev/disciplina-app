@@ -93,3 +93,15 @@ export function windowsSummary(seance: Pick<Seance, 'morningStart' | 'morningEnd
   if (!seance.afternoonStart || !seance.afternoonEnd) return `Matin ${morning}`
   return `Matin ${morning} · Après-midi ${seance.afternoonStart} – ${seance.afternoonEnd}`
 }
+
+/** « Titre professionnel · Module / séquence » : ce qui identifie la formation sur la feuille. */
+export function seanceProgram(seance: Pick<Seance, 'degreeTitle' | 'module'>): string | null {
+  const parts = [seance.degreeTitle, seance.module].filter((value): value is string => Boolean(value?.trim()))
+  return parts.length ? parts.join(' · ') : null
+}
+
+/** « Nord · En salle · Salle 204 » : site, modalité et lieu précis s'il est renseigné. */
+export function seancePlace(seance: Pick<Seance, 'site' | 'mode' | 'location'>): string {
+  const base = `${seance.site} · ${MODE_LABELS[seance.mode]}`
+  return seance.location ? `${base} · ${seance.location}` : base
+}

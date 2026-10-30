@@ -21,6 +21,7 @@ const ALTERNANT_FIELDS = gql`
     email
     phone
     candidateId
+    financeur
     company {
       name
       address
@@ -265,6 +266,7 @@ export async function updateAlternant(
     sessionId?: string | null
     email?: string | null
     phone?: string | null
+    financeur?: string | null
   },
 ): Promise<Alternant | null> {
   const res = await pedaGraphqlClient.mutation(UPDATE_ALTERNANT, { id, input })
