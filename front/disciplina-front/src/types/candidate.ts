@@ -293,6 +293,19 @@ export interface MatchedOfferCompanyInfos {
     name?: string;
 }
 
+/**
+ * Créneau d'immersion : un jour peut porter deux plages facultatives (matin et
+ * après-midi). Les champs sont tous optionnels — une seule plage, ou un
+ * horaire continu (matin début → après-midi fin, sans coupure) restent valides.
+ */
+export interface ImmersionScheduleSlot {
+    day?: string | null;
+    morningStartHour?: string | null;
+    morningEndHour?: string | null;
+    afternoonStartHour?: string | null;
+    afternoonEndHour?: string | null;
+}
+
 export interface MatchedOffer {
     id: string;
     needsAnalysisId?: string;
@@ -360,7 +373,7 @@ export interface Candidate {
     immersion_company_id?: number;
     immersion_company_name?: string;
     immersion_convention_number?: string;
-    immersion_schedule?: ScheduleSlot[];
+    immersion_schedule?: ImmersionScheduleSlot[];
     contract_offer_id?: string;
     contract_company_id?: number;
     contract_company_name?: string;

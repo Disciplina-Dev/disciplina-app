@@ -11,6 +11,10 @@ export interface AlternantCompany {
     name?: string | null;
     address?: string | null;
     mentor_name?: string | null;
+    siret?: string | null;
+    opco?: string | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
     start_date: Date | string;
     end_date?: Date | string | null;
 }

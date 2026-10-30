@@ -423,6 +423,81 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.immersionEndDate).toContain('2026-09-15');
         });
 
+        it('stores an immersion schedule split into morning and afternoon shifts', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-imm-schedule-${suffix}`,
+                candidate_id: `update-imm-schedule-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Imm Schedule ${suffix}`,
+                    email: `imm-schedule-${suffix}@test.local`,
+                    phone: '0100000031',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) {
+                            id
+                            immersionSchedule {
+                                day morningStartHour morningEndHour afternoonStartHour afternoonEndHour
+                            }
+                        }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            status: 'IMMERSING',
+                            immersionSchedule: [
+                                {
+                                    day: 'Lundi',
+                                    morningStartHour: '08:00',
+                                    morningEndHour: '12:00',
+                                    afternoonStartHour: '14:00',
+                                    afternoonEndHour: '17:00',
+                                },
+                                // Journée sans coupure : fin de matinée et début
+                                // d'après-midi absents, ce qui reste accepté.
+                                { day: 'Mardi', morningStartHour: '09:00', afternoonEndHour: '16:00' },
+                            ],
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.immersionSchedule).toEqual([
+                {
+                    day: 'Lundi',
+                    morningStartHour: '08:00',
+                    morningEndHour: '12:00',
+                    afternoonStartHour: '14:00',
+                    afternoonEndHour: '17:00',
+                },
+                {
+                    day: 'Mardi',
+                    morningStartHour: '09:00',
+                    morningEndHour: null,
+                    afternoonStartHour: null,
+                    afternoonEndHour: '16:00',
+                },
+            ]);
+        });
+
         it('stores contract offer/company/start date when moving to CONTRACT', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();

@@ -4,6 +4,7 @@ import pool from '../../db/mysql/connection';
 import { truncateMysql } from '../../../test/helpers/db';
 import { CandidateService } from '../../services/CandidateService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
+import { CandidateHistoryService } from '../../services/CandidateHistoryService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
 import { DAILY_CALL_LIMIT } from '../limits';
@@ -54,10 +55,10 @@ describe('MCP tools (static admin key)', () => {
                 'kpi_weekly_detail',
             ]),
         );
-        expect(names).toHaveLength(45);
+        expect(names).toHaveLength(48);
     });
 
-    it('masks the SSN and serializes dates as ISO strings on get_candidate', async () => {
+    it('ne renvoie ni n° de sécu (clé comprise) ni email/téléphone, et sérialise les dates en ISO', async () => {
         const id = `cand-mcp-${Date.now()}`;
         await new CandidateService().create({
             _id: id,
@@ -70,6 +71,7 @@ describe('MCP tools (static admin key)', () => {
                 phone: '0692000003',
                 social_security_number: '1850578006048',
             } as any,
+            job_info: { availability_date: new Date('2026-01-02T03:04:05.000Z') },
             consentments: {
                 data_processing: true,
                 data_sharing: false,
@@ -81,12 +83,12 @@ describe('MCP tools (static admin key)', () => {
         } as any);
 
         const candidate = await callTool('get_candidate', { id });
-        expect(candidate.identity.social_security_number).toBe('[chiffré]');
-        expect(candidate.consentments.consent_date).toBe('2026-01-02T03:04:05.000Z');
+        expect(candidate.jobInfo.availabilityDate).toBe('2026-01-02T03:04:05.000Z');
+        expect(JSON.stringify(candidate)).not.toMatch(/social_security|ssn|chiffr|"iv"|test\.local|0692000003/i);
 
-        const list = await callTool<any[]>('search_candidates', { search: 'Candidat MCP' });
-        expect(list.every((c) => c.identity?.social_security_number !== '1850578006048')).toBe(true);
-        expect(JSON.stringify(list)).not.toContain('"iv"');
+        const list = await callTool<{ items: any[] }>('search_candidates', { search: 'Candidat MCP' });
+        expect(list.items).toHaveLength(1);
+        expect(JSON.stringify(list)).not.toMatch(/social_security|1850578006048|"iv"|test\.local|0692000003/i);
     });
 
     it('applies first/after when search is set on search_companies', async () => {
@@ -223,11 +225,57 @@ describe('MCP tools (static admin key)', () => {
         expect(await callTool('get_candidate', { id })).toBeNull();
         expect(await callTool('get_candidate_by_email', { email: `${id}@test.local` })).toBeNull();
         expect(await callTool('list_candidate_history', { candidateId: id })).toBeNull();
-        const list = await callTool<any[]>('search_candidates', { search: 'Sans Consentement' });
-        expect(list).toHaveLength(0);
+        const list = await callTool<{ items: any[] }>('search_candidates', { search: 'Sans Consentement' });
+        expect(list.items).toHaveLength(0);
     });
 
-    it("retire santé, contact d'urgence, réponses de tests et photo sans consentement photo", async () => {
+    it('search_candidates renvoie au plus `first` fiches (avec et sans recherche) et pagine par curseur', async () => {
+        const run = Date.now();
+        const service = new CandidateService();
+        for (let i = 0; i < 5; i++) {
+            const id = `cand-pagi-${run}-${i}`;
+            await service.create({
+                _id: id,
+                candidate_id: id,
+                tp_types: [TitleProfessionalType.CC],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Pagicand${run} Num${i}`,
+                    email: `${id}@test.local`,
+                    phone: '0692000009',
+                } as any,
+                created_at: new Date(2026, 0, 1, 0, 0, i),
+                consentments: {
+                    data_processing: true,
+                    data_sharing: false,
+                    ai_processing: true,
+                    photo_processing: false,
+                    consent_date: new Date(),
+                    consent_version: '1',
+                },
+            } as any);
+        }
+
+        const searched = await callTool<{ items: any[]; pageInfo: any }>('search_candidates', {
+            search: `Pagicand${run}`,
+            first: 3,
+        });
+        expect(searched.items).toHaveLength(3);
+        expect(searched.pageInfo.hasNextPage).toBe(true);
+
+        const page1 = await callTool<{ items: any[]; pageInfo: any }>('search_candidates', { first: 3 });
+        expect(page1.items).toHaveLength(3);
+        expect(page1.pageInfo.hasNextPage).toBe(true);
+        const page2 = await callTool<{ items: any[]; pageInfo: any }>('search_candidates', {
+            first: 3,
+            after: page1.pageInfo.endCursor,
+        });
+        expect(page2.items.length).toBeLessThanOrEqual(3);
+        const ids = [...page1.items, ...page2.items].map((c) => c.id);
+        expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('expose une liste blanche : rien de sensible, de libre ni de lien ne sort', async () => {
         const id = `cand-redact-${Date.now()}`;
         await new CandidateService().create({
             _id: id,
@@ -238,28 +286,65 @@ describe('MCP tools (static admin key)', () => {
                 full_name: 'Candidat Redact',
                 email: `${id}@test.local`,
                 phone: '0692000005',
+                date_of_birth: new Date('2012-05-05'),
+                place_of_birth: 'Lieunaissance',
+                department_of_birth: '974-secret',
+                address: '12 rue du Secret',
+                city: 'Saint-Denis',
+                sex: 'F',
+                description: 'situation-familiale-secrete',
                 psh_referral_request: true,
                 nationality: 3,
                 born_in_france: false,
                 residence_permit: true,
             } as any,
+            education: { justification: 'justif-libre' },
+            support: {
+                france_travail_registered: true,
+                mission_locale_registered: true,
+                comments: 'commentaire-libre',
+            },
             emergency_contact: { full_name: 'Tiers Urgence', phone: '0692999999' },
             synthesis: { special_needs: 'amenagement', pedagogical_recommendations: { psh_specific_support: true } },
             classmarker: { percentage: 80, questions: [{ question: 'Q?', user_response: 'secret' }] },
+            test_average: 17,
+            written_test_score: 16,
+            skills_assessment: [{ competence: 'c-secrete', level: 'A' }],
+            cv_link: 'https://cv.test/cv.pdf',
+            pdf_link: 'https://pdf.test/p.pdf',
+            drive_folder_link: 'https://drive.test/f',
             photo_link: 'https://photo.test/p.png',
             consentments: {
                 data_processing: true,
                 data_sharing: false,
                 ai_processing: true,
-                photo_processing: false,
+                photo_processing: true,
                 consent_date: new Date(),
                 consent_version: '1',
             },
         } as any);
 
         const candidate = await callTool('get_candidate', { id });
+        expect(candidate.identity).toEqual({
+            label: 'Candidat R.',
+            minor: true,
+            city: 'Saint-Denis',
+            postalCode: null,
+            drivingLicenseB: null,
+            hasVehicle: null,
+            transportMeans: null,
+        });
         const json = JSON.stringify(candidate);
         for (const leaked of [
+            'Redact',
+            '2012',
+            'Lieunaissance',
+            '974-secret',
+            'rue du Secret',
+            'situation-familiale',
+            'justif-libre',
+            'commentaire-libre',
+            'france_travail',
             'psh_',
             'nationality',
             'born_in_france',
@@ -268,11 +353,32 @@ describe('MCP tools (static admin key)', () => {
             'emergency_contact',
             'Tiers Urgence',
             'user_response',
+            'classmarker',
+            'c-secrete',
+            'cv.test',
+            'pdf.test',
+            'drive.test',
             'photo.test',
+            '@test.local',
+            '0692000005',
+            '"sex"',
+            '"test_average"',
+            '"written_test_score"',
         ]) {
             expect(json).not.toContain(leaked);
         }
-        expect(candidate.classmarker.percentage).toBe(80);
+
+        const history = new CandidateHistoryService();
+        await history.recordManual(id, 'situation-familiale-notee', 'rh.secret@test.local');
+        const timeline = await callTool('list_candidate_history', { candidateId: id });
+        expect(timeline.total).toBe(1);
+        expect(timeline.items).toEqual([
+            { id: expect.any(String), candidateId: id, type: 'RH', createdAt: expect.any(String) },
+        ]);
+        const rawTimeline = JSON.stringify(timeline);
+        for (const leaked of ['situation-familiale', 'rh.secret', 'description', 'owner_email']) {
+            expect(rawTimeline).not.toContain(leaked);
+        }
     });
     it('pagine list_offers et list_needs_analysis', async () => {
         for (const tool of ['list_offers', 'list_needs_analysis']) {

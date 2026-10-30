@@ -154,6 +154,42 @@ export const GET_COMPANY_STATS = gql`
   }
 `
 
+export const GET_COMPANY = gql`
+  query GetCompany($id: Int!) {
+    company(id: $id) {
+      company {
+        id
+        userID
+        legalReferent
+        name
+        phone
+        email
+        address
+        sector
+        mainActivity
+        siret
+        siren
+        idcc
+        ape
+        notes
+        conclusion
+        status
+        relanceDate
+        createdAt
+        relanceType
+        relanceTemplateId
+        relanceChannel
+      }
+      salePerson {
+        id
+        email
+        firstName
+        lastName
+      }
+    }
+  }
+`
+
 export const GET_COMPANY_BY_SIRET = gql`
   query GetCompanyBySiret($siret: String!) {
     companyBySiret(siret: $siret) {
@@ -417,6 +453,11 @@ const CANDIDATE_FIELDS = gql`
     tpTypes
     trainingSite
     trainingSites
+    immersionCompanyId
+    immersionCompanyName
+    immersionStartDate
+    immersionEndDate
+    immersionConventionNumber
     contractOfferId
     contractCompanyId
     contractCompanyName
@@ -617,7 +658,7 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionCompanyId
       immersionCompanyName
       immersionConventionNumber
-      immersionSchedule { day startHour endHour }
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -758,7 +799,7 @@ export const UPDATE_CANDIDATE = gql`
       immersionCompanyId
       immersionCompanyName
       immersionConventionNumber
-      immersionSchedule { day startHour endHour }
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -945,7 +986,7 @@ export const GET_CANDIDATE_FULL = gql`
       immersionCompanyId
       immersionCompanyName
       immersionConventionNumber
-      immersionSchedule { day startHour endHour }
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -1091,7 +1132,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionCompanyId
       immersionCompanyName
       immersionConventionNumber
-      immersionSchedule { day startHour endHour }
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
@@ -1817,17 +1858,28 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
   }
 `
 
-export const GET_OFFERS_IMMERSION_MAP = gql`
-  query GetOffersImmersionMap {
-    offers {
+export const GET_OFFERS_DIRECTORY = gql`
+  query GetOffersDirectory {
+    offers(includeClosed: true) {
       id
       needsAnalysisId
-      proposedCandidate {
+      title
+      jobRole
+      status
+      localisation
+      desiredTp {
+        tpType
+      }
+      salerInfo {
+        id
+        email
+      }
+      matchedCandidate {
         id
         fullName
         status
       }
-      matchedCandidate {
+      proposedCandidate {
         id
         fullName
         status
@@ -2159,7 +2211,7 @@ export const GET_IMMERSING_CANDIDATES_MAP = gql`
           immersionCompanyId
           immersionCompanyName
           immersionConventionNumber
-          immersionSchedule { day startHour endHour }
+          immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
           identity {
             fullName
           }

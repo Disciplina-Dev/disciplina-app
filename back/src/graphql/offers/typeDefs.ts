@@ -377,7 +377,11 @@ export const typeDefs = gql`
     }
 
     type Query {
-        offers: [Offer!]!
+        """
+        Offres du matching. Le paramètre includeClosed ajoute les offres déjà
+        contractualisées (annuaire entreprises RH) ; par défaut elles sont exclues.
+        """
+        offers(includeClosed: Boolean): [Offer!]!
         matchOffer(id: String!): Offer!
         offerCompanyInfo(offerId: String!): OfferCompanyInfo!
         offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!

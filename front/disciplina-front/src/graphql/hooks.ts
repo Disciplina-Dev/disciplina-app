@@ -50,6 +50,8 @@ import {
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
+import type { Entreprise, CompanyWithSalePerson } from '@/types/entreprise'
+import { toEntreprise } from '@/types/companyMapper'
 import { apiJson } from '@/api/httpClient'
 import type { PageInfo } from '@/types/pagination'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
@@ -79,47 +81,24 @@ export interface CandidateServerFilters {
   /** Filtrer par le RH qui a mené l'entretien (nom complet). */
   interviewedBy?: string
 }
-import { candidateGraphqlClient, offerGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
+import { candidateGraphqlClient, offerGraphqlClient, needsAnalysisGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
+/**
+ * Liste légère non paginée (première page) pour les sélecteurs simples, ex.
+ * « nouvelle analyse du besoin ». N'écrit plus dans le store du portefeuille :
+ * celui-ci est alimenté par `useInitializePortfolio` (paginé, filtré) et un jeu
+ * de résultats partiel ne doit jamais l'écraser.
+ */
 export function useCompanies() {
-  const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
-  const setLoading = usePortefeuilleStore((s) => s.setLoading)
-  const setError = usePortefeuilleStore((s) => s.setError)
-
   const [result] = useQuery({ query: GET_COMPANIES })
-  useEffect(() => {
-    setLoading(result.fetching)
-    if (result.error) {
-      setError(result.error.message)
-    } else if (result.data?.companies) {
-      const entreprises = result.data.companies.edges.map(({ node: c }: any) => ({
-        id: String(c.company.id),
-        nom_commercial: c.company.name,
-        proprietaire_contact: c.salePerson?.email || null,
-        commercial: c.salePerson ? `${c.salePerson.firstName ?? ''} ${c.salePerson.lastName ?? ''}`.trim() || null : null,
-        proprietaire_id: c.salePerson?.id || null,
-        representant_legal: c.company.legalReferent || null,
-        telephone: c.company.phone,
-        email: c.company.email,
-        adresse: c.company.address,
-        secteur: c.company.sector,
-        metier: c.company.mainActivity,
-        siret: c.company.siret,
-        idcc: c.company.idcc,
-        note: c.company.notes,
-        conclusion: c.company.conclusion,
-        status: (c.company.status as any) || 'À Réfléchir',
-        date_insertion: new Date().toISOString().split('T')[0],
-        date_relance: c.company.relanceDate ?? null,
-        type_relance: c.company.relanceType ?? null,
-        relance_template_id: c.company.relanceTemplateId ?? null,
-      }))
-      setCompanies(entreprises)
-      setError(null)
-    }
-  }, [result])
-
-  return result
+  const edges: { node: CompanyWithSalePerson }[] = result.data?.companies?.edges ?? []
+  const entreprises: Entreprise[] = edges.map(({ node }) => ({
+    ...toEntreprise(node.company, node.salePerson),
+    // Le propriétaire vient du commercial rattaché, comme dans le portefeuille.
+    proprietaire_contact: node.salePerson?.email || null,
+    proprietaire_id: node.salePerson?.id ?? null,
+  }))
+  return { ...result, entreprises }
 }
 
 export function useSalePersons() {
@@ -934,6 +913,83 @@ export function useNeedsAnalysesPage(first?: number, after?: string, filter?: Of
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
   }
+}
+
+/**
+ * Annuaire entreprises RH : charge toutes les analyses de besoin, page après page.
+ *
+ * L'annuaire filtre et recherche côté client, il lui faut donc l'intégralité des AB.
+ * Une première page s'affiche immédiatement, les suivantes s'ajoutent en arrière-plan.
+ * `maxPages` n'est qu'un garde-fou anti-boucle (curseur qui ne progresserait pas).
+ */
+export function useAllNeedsAnalysesPage(pageSize = 500, maxPages = 40) {
+  const [items, setItems] = useState<NeedsAnalysis[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [complete, setComplete] = useState(false)
+  const [truncated, setTruncated] = useState(false)
+  const [reloadTick, setReloadTick] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      const loaded: NeedsAnalysis[] = []
+      let after: string | undefined
+      for (let page = 0; page < maxPages; page++) {
+        const result = await needsAnalysisGraphqlClient
+          .query(GET_NEEDS_ANALYSES_PAGE, { first: pageSize, after }, { requestPolicy: 'network-only' })
+          .toPromise()
+        if (cancelled) return
+        if (result.error) {
+          setError(result.error.message)
+          setLoading(false)
+          return
+        }
+        const payload = result.data?.needsAnalysesPage as
+          | { edges?: { node: NeedsAnalysis }[]; pageInfo?: PageInfo }
+          | undefined
+        const edges = payload?.edges ?? []
+        loaded.push(...edges.map((edge) => edge.node))
+        setItems([...loaded])
+        const info = payload?.pageInfo
+        if (!info?.hasNextPage || !info.endCursor) {
+          setComplete(true)
+          setLoading(false)
+          return
+        }
+        after = info.endCursor
+      }
+      if (cancelled) return
+      // Sécurité : on s'arrête après `maxPages` pages pour ne pas boucler à l'infini.
+      setTruncated(true)
+      setComplete(true)
+      setLoading(false)
+    }
+
+    load().catch((err: unknown) => {
+      if (cancelled) return
+      setError(err instanceof Error ? err.message : 'Erreur de chargement')
+      setLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [pageSize, maxPages, reloadTick])
+
+  // La remise à zéro se fait ici (gestionnaire d'événement) et non dans l'effet,
+  // pour ne pas déclencher de rendu en cascade depuis le corps de l'effet.
+  const refetch = () => {
+    setItems([])
+    setError(null)
+    setLoading(true)
+    setComplete(false)
+    setTruncated(false)
+    setReloadTick((tick) => tick + 1)
+  }
+
+  return { items, loading, error, complete, truncated, refetch }
 }
 
 export function useNeedsAnalysesByCompany(companyID: number | null) {
