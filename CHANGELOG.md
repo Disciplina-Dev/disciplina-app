@@ -33,10 +33,13 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 ### Added
 
 - Questionnaires internes (#968), remplaçants de ClassMarker : éditeur par blocs (QCM 1 ou plusieurs réponses, vrai/faux, réponse libre corrigée automatiquement), import/export JSON, mode « Tester », verrouillage après le 1er passage + duplication en v2 ; lien unique + QR depuis la fiche candidat, page candidat `/test/:token` (une question par page, chrono serveur, pas de retour arrière, lien lié au 1er appareil), suivi en direct sur la fiche ; résultats filtrables (export CSV, détail réponse par réponse) et téléchargement direct du PDF des résultats, sans compte Google. Questionnaires ClassMarker repris dans `Classmarker/questions/jsons/`.
+- Tableau de bord RH (#1036) : le KPI « En immersion » est cliquable et ouvre la liste complète des candidats en immersion (candidat, entreprise d'accueil, début, fin, n° de convention, échéance), comme « En contrat ».
 
 ### Changed
 
 - Résultats de test (#968) : la logique du webhook ClassMarker est extraite dans `TestResultService` ; les résultats internes sont écrits au même format (`candidate.classmarker` / `classmarker_history`, `source: 'internal'`), donc fiche, gate, PDF et MCP sont inchangés. ClassMarker reste branché pendant la transition.
+- Horaires d'immersion (#1035) : chaque jour activé peut porter deux plages facultatives (matin et après-midi) pour deux shifts le même jour ; toutes les heures restent optionnelles, une fin de matinée ou un début d'après-midi absents ne bloquent pas l'enregistrement, et les créneaux continus existants sont relus sans migration.
+- Annuaire entreprises du tableau de bord RH (#1043) : une ligne par offre — une entreprise portant plusieurs offres apparaît désormais plusieurs fois, avec une colonne « Offre » (statut) et l'historique propre à chaque offre. La liste charge maintenant toutes les analyses de besoins en arrière-plan, ce qui fait réapparaître les entreprises actives anciennes (offres « CV envoyé », « Matché », « En contrat ») qui sortaient de la fenêtre des 500 premières lignes.
 
 ### Security
 

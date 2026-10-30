@@ -144,6 +144,12 @@ describe('GraphQL setInterviewConclusion', () => {
         const candidateRepo = new CandidateRepository();
         const candidate = await candidateRepo.findById(candidateId);
         expect(candidate?.status).toBe(expectedStatus);
+        if (conclusion === 'CONTRACT') {
+            expect(candidate?.contract_offer_id).toBe(offerId);
+            expect(candidate?.contract_company_name).toBe(`Conclusion Corp ${suffix}`);
+        } else {
+            expect(candidate?.contract_offer_id).toBeUndefined();
+        }
 
         const historyRepo = new CandidateHistoryRepository();
         const history = await historyRepo.findByCandidateId(candidateId);

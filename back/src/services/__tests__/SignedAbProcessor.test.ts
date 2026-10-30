@@ -162,7 +162,7 @@ describe('POST /api/webhooks/docuseal — signature auto-injection', () => {
         expect(sudNotif).toBeDefined();
         expect(sudNotif?.category).toBe('company');
         expect(sudNotif?.message).toContain('Docuseal Sig Corp');
-        expect(sudNotif?.link).toMatch(/^\/commercial\/portefeuille\/docuseal-sig-corp-\d+$/);
+        expect(sudNotif?.link).toMatch(new RegExp(`^/commercial/portefeuille/${companyId}/docuseal-sig-corp-\\d+$`));
 
         const nordNotifs = await notificationRepo.findForUser(nordCommercialId);
         expect(nordNotifs.some((n) => n.type === 'ab_signed')).toBe(false);

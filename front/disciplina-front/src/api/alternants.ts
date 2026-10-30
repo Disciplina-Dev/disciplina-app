@@ -25,6 +25,10 @@ const ALTERNANT_FIELDS = gql`
       name
       address
       mentorName
+      siret
+      opco
+      contactEmail
+      contactPhone
       startDate
       endDate
     }
@@ -293,6 +297,10 @@ export interface CompanyForm {
   name?: string | null
   address?: string | null
   mentorName?: string | null
+  siret?: string | null
+  opco?: string | null
+  contactEmail?: string | null
+  contactPhone?: string | null
   startDate: string
   endDate?: string | null
 }
@@ -367,6 +375,33 @@ export interface CandidateAutofill {
   lastName: string
   email: string
   phone: string
+}
+
+export interface CandidateEmployer {
+  name: string | null
+  siret: string | null
+  opco: string | null
+  address: string | null
+  mentorName: string | null
+  contactName: string | null
+  contactEmail: string | null
+  contactPhone: string | null
+  startDate: string | null
+  sessionId: string | null
+}
+
+const GET_CANDIDATE_EMPLOYER = `
+  query CandidateEmployer($candidateId: ID!) {
+    candidateEmployer(candidateId: $candidateId) {
+      name siret opco address mentorName contactName contactEmail contactPhone startDate sessionId
+    }
+  }
+`
+
+/** Entreprise du contrat du candidat (même chaîne offre → besoin entreprise que le dossier Filiz). */
+export async function fetchCandidateEmployer(candidateId: string): Promise<CandidateEmployer | null> {
+  const res = await pedaGraphqlClient.query(GET_CANDIDATE_EMPLOYER, { candidateId }, { requestPolicy: 'network-only' })
+  return unwrap<{ candidateEmployer: CandidateEmployer | null }>(res).candidateEmployer
 }
 
 /** Auto-remplissage Identité depuis une fiche candidat (recherche par email). */

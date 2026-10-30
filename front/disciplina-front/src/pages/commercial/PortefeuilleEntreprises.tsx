@@ -191,7 +191,7 @@ export default function PortefeuilleEntreprises() {
       key={e.id}
       entreprise={e}
       currentUser={currentUser!}
-      onClick={() => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
+      onClick={() => navigate(`/commercial/portefeuille/${e.id}/${toSlug(e.nom_commercial ?? '')}`, { state: { entreprise: e } })}
       onClaim={() => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
       onDelete={handleDeleteRequest}
     />
@@ -365,7 +365,7 @@ export default function PortefeuilleEntreprises() {
                 key={group.siren}
                 group={group}
                 currentUser={currentUser!}
-                onOpen={(e) => navigate(`/commercial/portefeuille/${toSlug(e.nom_commercial ?? e.id)}`, { state: { entreprise: e } })}
+                onOpen={(e) => navigate(`/commercial/portefeuille/${e.id}/${toSlug(e.nom_commercial ?? '')}`, { state: { entreprise: e } })}
                 onClaim={(e) => handleClaim(e.id, Number(currentUser!.id), `${currentUser!.firstName ?? ''} ${currentUser!.lastName ?? ''}`.trim())}
                 onDelete={handleDeleteRequest}
               />

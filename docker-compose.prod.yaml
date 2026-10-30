@@ -50,9 +50,3 @@ services:
   startup-script:
     environment:
       NODE_ENV: production
-
-  # Dozzle monte le socket Docker : jamais exposé publiquement, boucle locale seule
-  # (exposition via Caddy + auth = action Mac mini, cf. REMEDIATION.md).
-  dozzle:
-    ports: !override
-      - "127.0.0.1:9999:8080"

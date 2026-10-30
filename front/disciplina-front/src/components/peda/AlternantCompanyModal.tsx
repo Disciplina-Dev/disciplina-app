@@ -3,11 +3,12 @@ import { IconClose, IconCompany } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import type { AlternantCompany } from '@/types/alternant'
+import type { CompanyForm } from '@/api/alternants'
 
 interface AlternantCompanyModalProps {
   initial?: AlternantCompany | null
   onClose: () => void
-  onSubmit: (company: { name?: string | null; address?: string | null; mentorName?: string | null; startDate: string; endDate?: string | null }) => Promise<void>
+  onSubmit: (company: CompanyForm) => Promise<void>
 }
 
 export default function AlternantCompanyModal({ initial, onClose, onSubmit }: AlternantCompanyModalProps) {
@@ -35,6 +36,10 @@ export default function AlternantCompanyModal({ initial, onClose, onSubmit }: Al
         name: name.trim() || null,
         address: address.trim() || null,
         mentorName: mentorName.trim() || null,
+        siret: initial?.siret ?? null,
+        opco: initial?.opco ?? null,
+        contactEmail: initial?.contactEmail ?? null,
+        contactPhone: initial?.contactPhone ?? null,
         startDate,
         endDate: endDate || null,
       })

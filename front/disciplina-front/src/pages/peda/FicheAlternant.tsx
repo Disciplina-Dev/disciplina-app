@@ -559,6 +559,11 @@ export default function FicheAlternant() {
                 <dd className="font-semibold text-[var(--ds-text)]">{alternant.company.name || '-'}</dd>
                 {alternant.company.address && <dd>{alternant.company.address}</dd>}
                 {alternant.company.mentorName && <dd>Maître d’apprentissage : {alternant.company.mentorName}</dd>}
+                {alternant.company.siret && <dd>SIRET : {alternant.company.siret}</dd>}
+                {alternant.company.opco && <dd>OPCO : {alternant.company.opco}</dd>}
+                {(alternant.company.contactEmail || alternant.company.contactPhone) && (
+                  <dd>Contact : {[alternant.company.contactEmail, alternant.company.contactPhone].filter(Boolean).join(' · ')}</dd>
+                )}
                 <dd className="flex items-center gap-2">
                   <IconCalendar width={14} height={14} className="shrink-0 text-[var(--ds-text-subtle)]" />
                   Du {formatDate(alternant.company.startDate)} au {formatDate(alternant.company.endDate)}

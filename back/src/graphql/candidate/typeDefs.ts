@@ -316,17 +316,21 @@ export const typeDefs = gql`
         answer: String
     }
 
-    "Créneau horaire d'immersion (jour + début/fin)."
+    "Créneau horaire d'immersion : jour + plages matin/après-midi facultatives (découpage possible en deux shifts)."
     type ImmersionScheduleSlot {
         day: String
-        startHour: String
-        endHour: String
+        morningStartHour: String
+        morningEndHour: String
+        afternoonStartHour: String
+        afternoonEndHour: String
     }
 
     input ImmersionScheduleSlotInput {
         day: String
-        startHour: String
-        endHour: String
+        morningStartHour: String
+        morningEndHour: String
+        afternoonStartHour: String
+        afternoonEndHour: String
     }
 
     type Candidate {

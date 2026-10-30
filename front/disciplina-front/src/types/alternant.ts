@@ -5,6 +5,10 @@ export interface AlternantCompany {
   name: string | null
   address: string | null
   mentorName: string | null
+  siret: string | null
+  opco: string | null
+  contactEmail: string | null
+  contactPhone: string | null
   startDate: string | null
   endDate: string | null
 }
@@ -72,6 +76,10 @@ export interface CreateAlternantInput {
     name?: string | null
     address?: string | null
     mentorName?: string | null
+    siret?: string | null
+    opco?: string | null
+    contactEmail?: string | null
+    contactPhone?: string | null
     startDate: string
     endDate?: string | null
   }

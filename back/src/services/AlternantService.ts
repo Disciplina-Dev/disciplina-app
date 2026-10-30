@@ -1,7 +1,7 @@
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { AlternantSequenceRepository } from '../repositories/mongo/AlternantSequenceRepository';
 import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
-import { SessionRepository } from '../repositories/mongo/SessionRepository';
+import { FilizReferenceRepository } from '../repositories/mongo/FilizReferenceRepository';
 import {
     Alternant,
     AlternantArchiveReason,
@@ -59,13 +59,7 @@ export interface CreateAlternantInput {
     email?: string | null;
     phone?: string | null;
     candidateId?: string | null;
-    company: {
-        name?: string | null;
-        address?: string | null;
-        mentorName?: string | null;
-        startDate: string;
-        endDate?: string | null;
-    };
+    company: CompanyInput;
     linkedAlternantIds?: string[];
 }
 
@@ -84,6 +78,10 @@ export interface CompanyInput {
     name?: string | null;
     address?: string | null;
     mentorName?: string | null;
+    siret?: string | null;
+    opco?: string | null;
+    contactEmail?: string | null;
+    contactPhone?: string | null;
     startDate: string;
     endDate?: string | null;
 }
@@ -93,6 +91,10 @@ function toCompanySnake(input: CompanyInput): AlternantCompany {
         name: input.name?.trim() || null,
         address: input.address?.trim() || null,
         mentor_name: input.mentorName?.trim() || null,
+        siret: input.siret?.trim() || null,
+        opco: input.opco?.trim() || null,
+        contact_email: input.contactEmail?.trim() || null,
+        contact_phone: input.contactPhone?.trim() || null,
         start_date: new Date(input.startDate),
         end_date: input.endDate ? new Date(input.endDate) : null,
     };
@@ -115,7 +117,7 @@ export class AlternantService {
     private alternants = new AlternantRepository();
     private sequences = new AlternantSequenceRepository();
     private ruptures = new RuptureRepository();
-    private sessions = new SessionRepository();
+    private filizReference = new FilizReferenceRepository();
 
     async findAll(search?: string, includeArchived = false): Promise<Alternant[]> {
         return this.alternants.findAll(search, includeArchived);
@@ -157,6 +159,10 @@ export class AlternantService {
         return this.alternants.findBySessionId(sessionId, includeArchived);
     }
 
+    async findByFilizClassId(classId: string, includeArchived = false): Promise<Alternant[]> {
+        return this.alternants.findByFilizClassId(classId, includeArchived);
+    }
+
     async create(input: CreateAlternantInput): Promise<Alternant> {
         const firstName = requireNonBlank(input.firstName, 'Le prénom');
         const lastName = requireNonBlank(input.lastName, 'Le nom');
@@ -164,10 +170,10 @@ export class AlternantService {
         let sessionId: string | null = null;
         let session = input.session?.trim() ?? '';
         if (input.sessionId?.trim()) {
-            const linked = await this.sessions.findById(input.sessionId.trim());
+            const linked = await this.filizReference.findClassById(input.sessionId.trim());
             if (!linked) throw new Error('Session introuvable');
             sessionId = linked._id;
-            session = linked.nom;
+            session = linked.name;
         }
         session = requireNonBlank(session, 'La session');
         const startDate = requireValidDate(input.company?.startDate, "La date d'entrée en entreprise");
@@ -223,10 +229,10 @@ export class AlternantService {
             if (input.sessionId === null) {
                 patch.session_id = null;
             } else if (input.sessionId.trim()) {
-                const linked = await this.sessions.findById(input.sessionId.trim());
+                const linked = await this.filizReference.findClassById(input.sessionId.trim());
                 if (!linked) throw new Error('Session introuvable');
                 patch.session_id = linked._id;
-                patch.session = linked.nom;
+                patch.session = linked.name;
             }
         }
         if (input.session !== undefined && patch.session === undefined) {

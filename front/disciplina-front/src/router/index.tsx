@@ -123,7 +123,7 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin/nouvelle", element: <CreateAB />, handle: { crumb: "Nouvelle analyse" } },
       { path: "portefeuille", element: <PortefeuilleEntreprises />, handle: { crumb: "Portefeuille" } },
       {
-        path: "portefeuille/:slug",
+        path: "portefeuille/:id/:slug?",
         element: <EntreprisePage />,
         handle: {
           crumb: ({ params }: { params: Record<string, string | undefined> }) =>

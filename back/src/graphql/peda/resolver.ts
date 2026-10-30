@@ -15,15 +15,51 @@ import {
 import { alternantToGql, sequenceToGql } from '../../services/mappers/alternant.mapper';
 import { ruptureToGql } from '../../services/mappers/rupture.mapper';
 import { sessionToGql } from '../../services/mappers/session.mapper';
+import { CandidateEmployerService } from '../../services/CandidateEmployerService';
 import { SessionService } from '../../services/SessionService';
+import { consumeFilizQuota, FILIZ_CREATE_LIMIT, FILIZ_SYNC_LIMIT } from './filizRateLimit';
+import { CreateSessionInput } from '../../types/session.types';
 import { RuptureService } from '../../services/RuptureService';
 import { SaCalendarService } from '../../services/SaCalendarService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
+import { UserService } from '../../services/UserService';
+import { FilizFolderService } from '../../services/FilizFolderService';
+import { env } from '../../config/env';
+import { logger } from '../../external/logger';
 
 const alternantService = new AlternantService();
+const candidateEmployerService = new CandidateEmployerService();
 const sessionService = new SessionService();
 const ruptureService = new RuptureService();
+const filizFolderService = new FilizFolderService();
+const userService = new UserService();
 const saCalendarService = new SaCalendarService();
+let referenceSyncInProgress = false;
+
+/** Crée le dossier Filiz d'un alternant lié à un candidat et à une session ; un échec n'empêche pas la création. */
+async function createFilizFolderFor(
+    alternant: { candidate_id?: string | null; session_id?: string | null },
+    userId: number | undefined,
+): Promise<void> {
+    if (!env.FILIZ_FOLDER_CREATION_ENABLED || !alternant.candidate_id || !alternant.session_id) return;
+    try {
+        // Le JWT ne porte pas le nom : le gestionnaire du dossier est relu en base.
+        const manager = userId ? await userService.findById(userId) : null;
+        if (!manager) {
+            logger.warn({ candidateId: alternant.candidate_id }, 'filiz folder skipped: file manager not found');
+            return;
+        }
+        const result = await filizFolderService.create(alternant.candidate_id, alternant.session_id, {
+            firstName: manager.firstName,
+            lastName: manager.lastName,
+            mailAddress: manager.email,
+        });
+        if (!result.ok)
+            logger.warn({ candidateId: alternant.candidate_id, reason: result.error }, 'filiz folder skipped');
+    } catch (err) {
+        logger.error({ err, candidateId: alternant.candidate_id }, 'filiz folder creation failed');
+    }
+}
 
 /** Re-synchronise l'agenda Google des Pedas avec les SA actives d'un alternant. */
 async function syncAlternantSequences(alternantId: string): Promise<void> {
@@ -79,6 +115,11 @@ export const resolvers = {
                 ? { exists: true, id: existing._id, fullName: `${existing.first_name} ${existing.last_name}`.trim() }
                 : { exists: false, id: null, fullName: null };
         },
+        candidateEmployer: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            const employer = await candidateEmployerService.findByCandidateId(candidateId);
+            return employer ? { ...employer, startDate: employer.startDate?.toISOString() ?? null } : null;
+        },
         sessions: async (_: unknown, { search }: { search?: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const sessions = await sessionService.findAll(search);
@@ -87,6 +128,10 @@ export const resolvers = {
         session: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             return sessionWithCount(id);
+        },
+        sessionDegrees: async (_: unknown, __: unknown, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            return sessionService.findDegrees();
         },
         sessionAlternants: async (_: unknown, { sessionId }: { sessionId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
@@ -113,11 +158,29 @@ export const resolvers = {
             const renamed = await sessionService.rename(id, nom);
             return renamed ? sessionToGql(renamed, await sessionService.countAlternants(id)) : null;
         },
+        createSession: async (_: unknown, { input }: { input: CreateSessionInput }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            consumeFilizQuota('create-class', FILIZ_CREATE_LIMIT, context.user.id);
+            const created = await sessionService.create(input);
+            return sessionToGql(created, 0);
+        },
+        syncSessionReference: async (_: unknown, __: unknown, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            if (referenceSyncInProgress) throw new Error('Synchronisation déjà en cours');
+            consumeFilizQuota('sync-reference', FILIZ_SYNC_LIMIT);
+            referenceSyncInProgress = true;
+            try {
+                return await sessionService.syncReference();
+            } finally {
+                referenceSyncInProgress = false;
+            }
+        },
         createAlternant: async (_: unknown, { input }: { input: CreateAlternantInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const created = await alternantService.create(input);
             await syncAlternantSequences(created._id);
-            return alternantToGql(created);
+            await createFilizFolderFor(created, context.user.id);
+            return alternantToGql((await alternantService.findById(created._id)) ?? created);
         },
         updateAlternant: async (
             _: unknown,

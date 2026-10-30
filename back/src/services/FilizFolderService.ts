@@ -8,8 +8,7 @@ import { CandidateService } from './CandidateService';
 import { assertConsent, ConsentType } from './consentGuard';
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { AlternantFiliz } from '../types/alternant.types';
-import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { NeedsAnalysisRepository } from '../repositories/mongo/NeedsAnalysisRepository';
+import { CandidateEmployerService } from './CandidateEmployerService';
 import {
     isAdult,
     mapCandidateToFilizBasics,
@@ -104,8 +103,7 @@ export function buildFilizFolderPayload(
 }
 
 export class FilizFolderService {
-    private offerRepository = new OfferRepository();
-    private needsAnalysisRepository = new NeedsAnalysisRepository();
+    private candidateEmployerService = new CandidateEmployerService();
     private alternantRepository = new AlternantRepository();
     private candidateService = new CandidateService();
     private filizService = new FilizService();
@@ -113,10 +111,7 @@ export class FilizFolderService {
     // Entreprise du contrat du candidat : offre → besoin entreprise. Vide tant qu'aucun contrat n'est enregistré.
     private async resolveEmployer(candidate: Candidate): Promise<FilizEmployer> {
         if (!candidate.contract_offer_id) return {};
-        const offer = await this.offerRepository.findById(candidate.contract_offer_id);
-        const needsAnalysis = offer?.needs_analysis_id
-            ? await this.needsAnalysisRepository.findById(offer.needs_analysis_id)
-            : null;
+        const { offer, needsAnalysis } = await this.candidateEmployerService.loadContractSources(candidate);
         return extractFilizEmployer(offer, needsAnalysis);
     }
 
