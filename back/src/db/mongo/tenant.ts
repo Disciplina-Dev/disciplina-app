@@ -15,6 +15,8 @@ import { AlternantSequenceModel } from './schemas/alternant-sequence.schema';
 import { FilizClassModel, FilizDegreeModel } from './schemas/filizReference.schema';
 import { RuptureModel } from './schemas/rupture.schema';
 import { SessionModel } from './schemas/session.schema';
+import { SeanceModel } from './schemas/seance.schema';
+import { EmargementModel } from './schemas/emargement.schema';
 import { AbDriveConfigModel } from './schemas/abDriveConfig.schema';
 import { DriveFolderConfigModel } from './schemas/driveFolderConfig.schema';
 import { QuestionnaireAttemptModel, QuestionnaireModel } from './schemas/questionnaire.schema';
@@ -51,6 +53,8 @@ export function getModels() {
         FilizClass: modelOn(region, FilizClassModel),
         Rupture: modelOn(region, RuptureModel),
         Session: modelOn(region, SessionModel),
+        Seance: modelOn(region, SeanceModel),
+        Emargement: modelOn(region, EmargementModel),
         AbDriveConfig: modelOn(region, AbDriveConfigModel),
         DriveFolderConfig: modelOn(region, DriveFolderConfigModel),
         Questionnaire: modelOn(region, QuestionnaireModel),

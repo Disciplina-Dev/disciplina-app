@@ -336,6 +336,10 @@ All values are non-negative integers; unknown keys are ignored at read time (met
 
 ## Collection: sessions
 
+Legacy : plus alimentée depuis que les sessions de la péda sont les promotions Filiz (`filiz_classes`, cf.
+`SessionService`) — `alternants.session_id` porte désormais un `_id` de `filiz_classes`. Conservée pour
+l'historique.
+
 | Field | Type | Notes |
 |-------|------|-------|
 | `_id` | string | |
@@ -354,7 +358,7 @@ Péda domain. Fields stay snake_case (converted at resolver). Exposed through MC
 | `_id` | string | |
 | `first_name`, `last_name` | string | required |
 | `session` | string | required (session name) |
-| `session_id` | string \| null | indexed, links `sessions` |
+| `session_id` | string \| null | indexed, links `filiz_classes` (promotion Filiz tenant lieu de session) |
 | `email`, `phone` | string \| null | never exposed via MCP |
 | `candidate_id` | string \| null | links `candidates`; drives `ai_processing` consent for MCP |
 | `company` | object \| null | `name`, `address`, `mentor_name`, `start_date` (required), `end_date` |

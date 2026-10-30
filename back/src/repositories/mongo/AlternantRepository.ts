@@ -62,6 +62,18 @@ export class AlternantRepository {
         return getModels().Alternant.find(filter).sort({ last_name: 1, first_name: 1 }).lean();
     }
 
+    /**
+     * Membres d'une session : le rattachement local (`session_id`) prime, sinon on retombe sur la
+     * classe Filiz d'origine (cas des alternants importés, dont `session_id` reste null).
+     */
+    async findBySessionOrFilizClassId(sessionId: string, includeArchived = false): Promise<Alternant[]> {
+        const filter: Record<string, unknown> = {
+            $or: [{ session_id: sessionId }, { session_id: null, 'filiz.class_id': sessionId }],
+        };
+        if (!includeArchived) filter.archived_at = null;
+        return getModels().Alternant.find(filter).sort({ last_name: 1, first_name: 1 }).lean();
+    }
+
     async findByFilizFolderId(folderId: string): Promise<Alternant | null> {
         return getModels().Alternant.findOne({ 'filiz.folder_id': folderId }).lean();
     }

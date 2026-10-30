@@ -5,6 +5,8 @@ This guide is for contributors writing the first tests in `back/`. It is **opini
 31 component tests for GraphQL candidates (`src/graphql/candidate/__tests__/` — `query.test.ts` ×17, `mutation.test.ts` ×9, `history.test.ts` ×5) are already in place as a reference; the repo holds 26 test files in total. Drop new test files next to the feature they cover. CI runs on every push via `.github/workflows/ci.yml` — requires Dockerised MySQL + MongoDB.
 
 > **Running the tests locally.** They expect MySQL on `localhost:3307` (`docker-compose.test.yml` publishes `3307:3306`) while `.env` sets `MYSQL_PORT=5001` for the dev stack. `env.ts` forces `MYSQL_HOST=localhost` when `NODE_ENV=test` but still reads `MYSQL_PORT`, so the port has to match the test stack — start it with `docker compose -f docker-compose.test.yml up -d` and make sure `MYSQL_PORT=3307` is what the test process sees. See `docs/AUDIT.md` §1.4 ter: one variable serves three incompatible targets (3306 inside compose, 3307 for tests, 5001 from the host), which is the usual cause of a failing `npm test`.
+>
+> **API port.** The test server listens on `env.API_PORT` (4000), the same port the dev stack publishes. If you keep `docker compose up` running, the bind fails in the background and every `fetch()` in the tests answers from the **dev backend container** — all suites fail on 404/HTML that look like routing bugs. `test/setup.ts` now probes the port and aborts with an explicit message; run `API_PORT=4310 npm test` (and any `npx vitest run …` command) while the dev stack is up.
 
 ---
 

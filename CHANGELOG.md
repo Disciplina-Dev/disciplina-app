@@ -32,6 +32,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ### Added
 
+- Émargement des séances (#955) : le Peda crée une séance (session, date/heures, site Nord/Ouest/Sud/Annemasse, salle ou distanciel, fenêtres de signature matin et après-midi) et invite le formateur par e-mail ; la page formateur `/emargement/formateur/:token` liste les alternants avec un statut par demi-journée (N/A, présent, absent, en retard ou parti en avance avec l'heure), affiche le QR code de signature et permet de signer la feuille (signature manuscrite + certification) une fois les créneaux passés ; les alternants confirment leur présence sur `/emargement/sign/:token` en saisissant leur e-mail, avec horodatage serveur, IP et appareil enregistrés. QR bloqué hors fenêtre (le formateur, lui, peut toujours corriger), lien valable jusqu'à la fin du jour de la séance, et feuille verrouillée après signature.
 - Questionnaires internes (#968), remplaçants de ClassMarker : éditeur par blocs (QCM 1 ou plusieurs réponses, vrai/faux, réponse libre corrigée automatiquement), import/export JSON, mode « Tester », verrouillage après le 1er passage + duplication en v2 ; lien unique + QR depuis la fiche candidat, page candidat `/test/:token` (une question par page, chrono serveur, pas de retour arrière, lien lié au 1er appareil), suivi en direct sur la fiche ; résultats filtrables (export CSV, détail réponse par réponse) et téléchargement direct du PDF des résultats, sans compte Google. Questionnaires ClassMarker repris dans `Classmarker/questions/jsons/`.
 - Tableau de bord RH (#1036) : le KPI « En immersion » est cliquable et ouvre la liste complète des candidats en immersion (candidat, entreprise d'accueil, début, fin, n° de convention, échéance), comme « En contrat ».
 
@@ -40,6 +41,10 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Résultats de test (#968) : la logique du webhook ClassMarker est extraite dans `TestResultService` ; les résultats internes sont écrits au même format (`candidate.classmarker` / `classmarker_history`, `source: 'internal'`), donc fiche, gate, PDF et MCP sont inchangés. ClassMarker reste branché pendant la transition.
 - Horaires d'immersion (#1035) : chaque jour activé peut porter deux plages facultatives (matin et après-midi) pour deux shifts le même jour ; toutes les heures restent optionnelles, une fin de matinée ou un début d'après-midi absents ne bloquent pas l'enregistrement, et les créneaux continus existants sont relus sans migration.
 - Annuaire entreprises du tableau de bord RH (#1043) : une ligne par offre — une entreprise portant plusieurs offres apparaît désormais plusieurs fois, avec une colonne « Offre » (statut) et l'historique propre à chaque offre. La liste charge maintenant toutes les analyses de besoins en arrière-plan, ce qui fait réapparaître les entreprises actives anciennes (offres « CV envoyé », « Matché », « En contrat ») qui sortaient de la fenêtre des 500 premières lignes.
+
+### Fixed
+
+- Sessions alternants : le changement de session d'un alternant (fiche alternant, et création avec une session choisie) échouait systématiquement avec « Session introuvable » depuis que les sessions de la péda sont les promotions Filiz ; l'assignation valide désormais la classe Filiz, met à jour le libellé de session et fait apparaître l'alternant dans le groupe (page session, émargement, MCP).
 
 ### Security
 

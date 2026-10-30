@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { env } from '../../../config/env';
 import { AlternantModel } from '../../../db/mongo/schemas/alternant.schema';
+import { getModels } from '../../../db/mongo/tenant';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/peda`;
 
@@ -24,12 +25,34 @@ function gqlFetch(auth: { cookieHeader: string; csrfHeader: string }, query: str
 const CREATE = `
     mutation($input: CreateAlternantInput!) {
         createAlternant(input: $input) {
-            id firstName lastName fullName session email phone
+            id firstName lastName fullName session sessionId email phone
             company { name address mentorName startDate endDate }
             linkedAlternantIds
         }
     }
 `;
+
+const UPDATE = `
+    mutation($id: ID!, $input: UpdateAlternantInput!) {
+        updateAlternant(id: $id, input: $input) { id session sessionId }
+    }
+`;
+
+/** Crée une classe Filiz : c'est elle qui tient lieu de session côté péda. */
+async function createFilizClass(suffix: string | number) {
+    const classId = `alt-class-${suffix}`;
+    await getModels().FilizClass.create({
+        _id: classId,
+        degree_id: `alt-degree-${suffix}`,
+        name: `Promo ${suffix}`,
+        start_date: null,
+        end_date: null,
+        apprenticeship_contract: true,
+        professionalization_contract: false,
+        synced_at: new Date(),
+    });
+    return classId;
+}
 
 function createInput(suffix: string | number, overrides: Record<string, unknown> = {}) {
     return {
@@ -405,6 +428,45 @@ describe('GraphQL peda alternants', () => {
         expect(await read()).toBe(false);
 
         await AlternantModel.deleteOne({ _id: created.id });
+    });
+
+    it('changes the alternant session to a Filiz class, and the group follows', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const classId = await createFilizClass(suffix);
+        const a = (await gqlFetch(auth, CREATE, { input: createInput(suffix) })).data.createAlternant;
+        try {
+            const assigned = await gqlFetch(auth, UPDATE, { id: a.id, input: { sessionId: classId } });
+            expect(assigned.errors).toBeUndefined();
+            expect(assigned.data.updateAlternant).toMatchObject({ sessionId: classId, session: `Promo ${suffix}` });
+
+            const group = await gqlFetch(auth, `query($id: ID!) { sessionAlternants(sessionId: $id) { id } }`, {
+                id: classId,
+            });
+            expect(group.errors).toBeUndefined();
+            expect(group.data.sessionAlternants.map((m: { id: string }) => m.id)).toEqual([a.id]);
+
+            const cleared = await gqlFetch(auth, UPDATE, { id: a.id, input: { sessionId: null } });
+            expect(cleared.errors).toBeUndefined();
+            expect(cleared.data.updateAlternant.sessionId).toBeNull();
+        } finally {
+            await AlternantModel.deleteOne({ _id: a.id });
+            await getModels().FilizClass.deleteOne({ _id: classId });
+        }
+    });
+
+    it('rejects an unknown session id on create and update', async () => {
+        const auth = pedaAuth();
+        const suffix = Date.now();
+        const created = await gqlFetch(auth, CREATE, {
+            input: createInput(suffix, { sessionId: `alt-unknown-${suffix}` }),
+        });
+        expect(String(created.errors[0].message)).toMatch(/Session introuvable/);
+
+        const a = (await gqlFetch(auth, CREATE, { input: createInput(`${suffix}-b`) })).data.createAlternant;
+        const updated = await gqlFetch(auth, UPDATE, { id: a.id, input: { sessionId: `alt-unknown-${suffix}` } });
+        expect(String(updated.errors[0].message)).toMatch(/Session introuvable/);
+        await AlternantModel.deleteOne({ _id: a.id });
     });
 
     it('authorises the PEDA role but forbids other employee roles without permission', async () => {

@@ -6,6 +6,8 @@ import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
 import { AlternantModel } from '../../src/db/mongo/schemas/alternant.schema';
 import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-sequence.schema';
 import { QuestionnaireAttemptModel, QuestionnaireModel } from '../../src/db/mongo/schemas/questionnaire.schema';
+import { SeanceModel } from '../../src/db/mongo/schemas/seance.schema';
+import { EmargementModel } from '../../src/db/mongo/schemas/emargement.schema';
 
 const CLEARED_TABLES = [
     'mcp_audit_log',
@@ -70,4 +72,6 @@ export async function dropMongo(): Promise<void> {
     await KpiModel.deleteMany({});
     await QuestionnaireModel.deleteMany({});
     await QuestionnaireAttemptModel.deleteMany({});
+    await SeanceModel.deleteMany({});
+    await EmargementModel.deleteMany({});
 }

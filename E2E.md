@@ -36,7 +36,7 @@ Sources : `front/disciplina-front/src/store/authStore.ts`, `front/disciplina-fro
 |---|---|---|
 | `COMMERCIAL` | `/commercial` | Dashboard, KPI, Analyses de Besoin, portefeuille entreprises, blacklist, sourcing SIRET, relances, todos |
 | `RH` | `/rh` | Candidats (liste/fiche/questionnaire), matching, calendrier, ABs reçues, relances, todos |
-| `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, modèles de mail |
+| `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, alternants, sessions, ruptures, émargements, modèles de mail |
 | `AD` / `GESTION` | `/admin` | CRUD utilisateurs, config Drive/secteurs |
 | `ENTREPRISE` | `/entreprise` | Remplir Analyse de Besoin, gérer apprentis, RDV, profils matchés |
 | Public (token/signature) | `/booking/:slug`, `/external/matching/:signature`, `/external/interview/:signature`, `/external/authenticate?sig=…`, `/external/cv-import/:signature` — les anciens liens `/public/{match,interview,cv-import}/:signature` (mails pré-migration) sont redirigés vers `/external/authenticate?sig=…` | Parcours invités sans compte |
@@ -186,6 +186,15 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`, `services/__tests__/saNotification.test.ts` (SA en cours/en retard + notif rupture), `graphql/peda/__tests__/rupture.test.ts` (déclaration + rapport mensuel), `graphql/peda/__tests__/alternant.test.ts`, `graphql/peda/__tests__/session.test.ts`. Exposition MCP : voir 3.17.
 - **Statut** : _à remplir_
 
+### 3.14 bis Émargement des séances (#955)
+
+- **Étapes** : (1) Peda crée une séance depuis `/peda/emargements` (session, date/heures, site, salle ou distanciel, formateur, fenêtres matin/après-midi) ; le formateur reçoit l'invitation ; (2) il ouvre `/emargement/formateur/:token`, corrige les statuts (N/A, présent, absent, en retard/heure, parti en avance/heure) et affiche le QR code ; (3) les alternants scannent le QR → `/emargement/sign/:token`, saisissent leur e-mail et confirment ; (4) en fin de créneaux, le formateur coche la certification, trace sa signature et signe → feuille verrouillée.
+- **Chaîne** : `POST/GET/PUT/DELETE /api/emargement/seances…` (`authenticate` + rôle PEDA/AD/GESTION) → `EmargementService` → `SeanceRepository`/`EmargementRepository` (Mongo `seances`/`emargements`) ; pages publiques `GET|POST /api/emargement/formateur/:token[/attendance|/sign]` et `GET|POST /api/emargement/sign/:token` (jeton HMAC `<seanceId>.<hmac>:<region>`, sans session CRM).
+- **Résultat attendu** : (1) invitation envoyée, liens formateur et QR distincts ; si aucune boîte Google n'est connectée (ni `dev@disciplina.re` ni le compte du Peda), la séance est créée mais l'API renvoie `inviteSent: false` et l'écran affiche un avertissement avec le lien formateur à transmettre ; (2) seules les demi-journées existantes sont éditables, IP/user-agent lus côté serveur, aucun e-mail d'alternant renvoyé à la page formateur ; (3) hors fenêtre → 409 `window`, lien expiré → 410, e-mail inconnu → 404, signature idempotente ; (4) feuille verrouillée après signature (409), signature manuscrite obligatoire, `first_signed_at` conserve la preuve du passage QR même après correction manuelle.
+- **External** : ⚠️ Gmail (`sendSystemEmail`, repli sur le compte Google du Peda si la boîte système n'est pas connectée).
+- **Test vitest** : `rest/emargement/__tests__/emargement.test.ts`.
+- **Statut** : _à remplir_
+
 ### 3.15 Notifications & Todos
 
 - **Étapes** : réception de notifications temps réel ; création/consultation de todos.
@@ -258,6 +267,7 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.12 bis Questionnaires internes | `questionnaire` (import, parcours complet, expiration, réponse libre, PDF, effacement) | dépôt Drive, SSE fiche |
 | 3.13 KPI | — | **oui** |
 | 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification`, `saNotification`, `rupture`, `alternant`, `session` | flux `run` complet (drafts) |
+| 3.14 bis Émargement | `emargement` (création + invitation, saisie formateur, QR idempotent, fenêtre fermée, feuille verrouillée) | invitation Gmail |
 | 3.17 MCP péda | `mcp/peda`, `mcp/pedaMasking` | — |
 | 3.15 Notifs/Todos | `authBoundary` (SSE) | flux nominal |
 | 3.16 Admin users | `directory`, `sensitive-fields` | — |

@@ -54,11 +54,11 @@ export class SessionService {
     }
 
     async findAlternants(id: string) {
-        return this.alternants.findByFilizClassId(id);
+        return this.alternants.findBySessionOrFilizClassId(id);
     }
 
     async countAlternants(sessionId: string): Promise<number> {
-        return (await this.alternants.findByFilizClassId(sessionId)).length;
+        return (await this.alternants.findBySessionOrFilizClassId(sessionId)).length;
     }
 
     /**

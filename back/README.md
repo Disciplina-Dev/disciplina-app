@@ -20,7 +20,7 @@ src/
   config/env.ts         Hand-rolled environment validator (exits on invalid/missing vars)
   db/
     mongo/connection.ts Mongoose connection (DB: human_ressources)
-    mongo/schemas/      11 Mongoose schemas (candidates, offers, needs_analysis, notifications…)
+    mongo/schemas/      21 Mongoose schemas (candidates, offers, needs_analysis, séances, émargements…)
     mysql/connection.ts MySQL2 connection pool (DB: disciplina)
     mysql/migrations.ts runMysqlMigrations() — auto-applies missing columns at boot
   external/             10 third-party integrations & cross-cutting infrastructure
@@ -47,14 +47,15 @@ src/
   mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, 45 read-only tools per domain (kpi, candidates, companies, offers, needsAnalysis, misc, peda), `candidateExposure`/`pedaExposure` (RGPD filters), `auditStore`
   scheduler/            pedaDraftScheduler, immersionEndScheduler, saNotificationScheduler — started from index.ts
   repositories/
-    mysql/              16 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,
+    mysql/              18 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,
                         MatchLinkRepository, InterviewAccessRepository, FilizRepository…
-    mongo/              7 repositories: CandidateRepository, OfferRepository, NeedsAnalysisRepository…
+    mongo/              18 repositories: CandidateRepository, OfferRepository, NeedsAnalysisRepository,
+                        SeanceRepository, EmargementRepository…
   services/             ~30 services: CompaniesService, CompaniesBlacklistService, UserService,
                         CandidateService, OfferService, NeedsAnalysisService, KpiService, PdfService,
                         pagination (cursor pagination helpers)
     mappers/            Snake-case ↔ camelCase mappers for user, company, candidate (MySQL side only)
-  rest/                 21 feature modules + middleware/ + shared/
+  rest/                 22 feature modules + middleware/ + shared/
     auth/               Login, register, Google OAuth
     email/              Gmail email sending + drafts (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
@@ -71,6 +72,7 @@ src/
     needsAnalysis/      Needs-analysis REST endpoints
     notifications/      SSE notification stream
     peda/               Péda: drafts, alternants, sessions, SA (séquences), ruptures (see scheduler/)
+    emargement/         Péda: feuilles d'émargement — staff séances + lien formateur / QR alternant publics
     mailTemplates/      Mail templates CRUD
     sectorSettings/     Sector reference settings
     filiz/              Filiz ERP endpoints
@@ -145,6 +147,13 @@ into the companies server.
 | GET | `/api/kpi/weekly` | JWT (ADMIN / RESPONSABLE) | Weekly KPI breakdown (`?year=&site=`) |
 | POST | `/api/kpi` | JWT (ADMIN / RESPONSABLE) | Manually upsert one KPI row |
 | POST | `/api/kpi/import` | JWT (ADMIN / RESPONSABLE) | Import KPI data from an uploaded Excel file (`multipart/form-data`, field `file`) |
+| GET · POST | `/api/emargement/seances` | JWT (AD / GESTION / PEDA) | List (filters `from` / `to` / `sessionId`) / create a séance → `{ seance, inviteSent }` (`inviteSent: false` when no Google mailbox could send the invite) |
+| GET · PUT · DELETE | `/api/emargement/seances/:id` | JWT (AD / GESTION / PEDA) | Read a séance with attendance and signatures / update / delete |
+| POST | `/api/emargement/seances/:id/resend` | JWT (AD / GESTION / PEDA) | Re-send the formateur invite (`{rotate: true}` also invalidates the previous link) → `{ links, inviteSent }` |
+| GET | `/api/emargement/formateur/:token` | Link token | Formateur sheet: alternants, statuses, QR link — rate-limited |
+| PUT | `/api/emargement/formateur/:token/attendance` | Link token | Set one alternant status for a half-day (manual entry, allowed outside the signing window) |
+| POST | `/api/emargement/formateur/:token/sign` | Link token | Confirm and sign the sheet (drawn signature as PNG data-URL, 3 MB body cap) |
+| GET · POST | `/api/emargement/sign/:token` | QR token | Alternant page state (session + date) · sign in for the current half-day — rate-limited |
 
 ## Commands
 

@@ -85,6 +85,16 @@ export const questionnaireRateLimiter = rateLimit({
     message: RATE_LIMIT_MESSAGE,
 });
 
+// Pages publiques de l'émargement (lien formateur + QR alternant) : non
+// authentifiées, même profil qu'une salle de classe derrière une seule IP.
+export const emargementRateLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: RATE_LIMIT_MESSAGE,
+});
+
 // Endpoint MCP (clé Bearer unique, accès lecture au CRM). Plafonné par IP en
 // amont de la vérif de clé pour couper tout brute-force sur MCP_API_KEY.
 export const mcpRateLimiter = rateLimit({

@@ -55,6 +55,10 @@ import FicheAlternant from "@/pages/peda/FicheAlternant";
 import ListeSessions from "@/pages/peda/ListeSessions";
 import FicheSession from "@/pages/peda/FicheSession";
 import Ruptures from "@/pages/peda/Ruptures";
+import Emargements from "@/pages/peda/Emargements";
+import EmargementSeance from "@/pages/peda/EmargementSeance";
+import FormateurEmargement from "@/pages/emargement/FormateurEmargement";
+import PublicSigning from "@/pages/emargement/PublicSigning";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -217,6 +221,8 @@ export const router = createBrowserRouter([
       { path: "sessions", element: <ListeSessions />, handle: { crumb: "Sessions" } },
       { path: "sessions/:id", element: <FicheSession />, handle: { crumb: "Fiche session" } },
       { path: "ruptures", element: <Ruptures />, handle: { crumb: "Ruptures" } },
+      { path: "emargements", element: <Emargements />, handle: { crumb: "Émargements" } },
+      { path: "emargements/:id", element: <EmargementSeance />, handle: { crumb: "Feuille d’émargement" } },
       { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
       { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
@@ -249,6 +255,16 @@ export const router = createBrowserRouter([
         // Questionnaire interne (remplace ClassMarker) : lien / QR code candidat.
         path: "/test/:token",
         element: <PublicTest />,
+      },
+      {
+        // Émargement : lien reçu par le formateur (gestion de la feuille).
+        path: "/emargement/formateur/:token",
+        element: <FormateurEmargement />,
+      },
+      {
+        // Émargement : QR code scanné par l'alternant (confirmation de présence).
+        path: "/emargement/sign/:token",
+        element: <PublicSigning />,
       },
       {
         path: "/external/authenticate",
