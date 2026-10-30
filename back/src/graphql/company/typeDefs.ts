@@ -239,6 +239,7 @@ export const typeDefs = gql`
     }
 
     type Query {
+        company(id: Int!): CompanyWithSalePerson
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
         companiesBySiren(first: Int, after: String, filters: CompanyFiltersInput): CompanySirenGroupConnection!
         companyOptions: [CompanyOption!]!

@@ -153,6 +153,15 @@ function toCompanyFilters(filtersInput?: Record<string, unknown>): CompanyFilter
 
 export const resolvers = {
     Query: {
+        // Fiche entreprise seule, pour les liens profonds (`/portefeuille/:id`)
+        // et la fiche entreprise quand le portefeuille n'est pas chargé.
+        company: async (_: unknown, { id }: { id: number }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            const company = await companiesService.findById(id);
+            if (!company) return null;
+            return { company, salePerson: await userService.findById(company.userID ?? 0) };
+        },
+
         companies: async (
             _: unknown,
             {

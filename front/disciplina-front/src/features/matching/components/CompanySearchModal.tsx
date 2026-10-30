@@ -1,13 +1,14 @@
 import { useState, useCallback, useEffect } from 'react'
 import { IconAlert, IconLoader, IconPlus, IconSearch } from '@/components/ui/icons'
-import { useQuery } from 'urql'
-import { GET_SALE_PERSONS } from '@/graphql/queries'
-import { useCompanies, useCreateCompany } from '@/graphql/hooks'
+import { useClient, useQuery } from 'urql'
+import { GET_COMPANIES, GET_SALE_PERSONS } from '@/graphql/queries'
+import { useCreateCompany } from '@/graphql/hooks'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
+import { toEntrepriseFromCompanyWithSalePerson } from '@/types/companyMapper'
 import { apiFetch } from '@/api/httpClient'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import type { AppUser } from '@/store/authStore'
-import type { Entreprise } from '@/types/entreprise'
+import type { Entreprise, CompanyWithSalePerson } from '@/types/entreprise'
 import type { SireneEtablissement } from '@/types/sourcing'
 
 interface CheckSiretResult extends SireneEtablissement {
@@ -27,9 +28,8 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
   const [abCompany, setAbCompany] = useState<Entreprise | null>(null)
   const [creating, setCreating] = useState(false)
 
-  useCompanies()
+  const client = useClient()
   const { createCompany } = useCreateCompany()
-  const companies = usePortefeuilleStore((s) => s.companies)
   const salePersons = usePortefeuilleStore((s) => s.salePersons)
   const setSalePersons = usePortefeuilleStore((s) => s.setSalePersons)
   const [spResult] = useQuery({ query: GET_SALE_PERSONS, pause: salePersons.length > 0 })
@@ -47,10 +47,39 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
     }
   }, [open])
 
-  const findAutoOwner = useCallback((siren: string) => {
-    const match = companies.find((c) => c.siret?.startsWith(siren) && c.proprietaire_id != null)
-    return match?.proprietaire_id ?? null
-  }, [companies])
+  // Recherche serveur (nom + SIRET) : le portefeuille n'est plus chargé en
+  // entier dans le store pour cette modale.
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 300)
+    return () => clearTimeout(timer)
+  }, [query])
+
+  const searchTerm = debouncedQuery.trim()
+  const searchActive = searchTerm.length >= 2
+  const [searchResult] = useQuery({
+    query: GET_COMPANIES,
+    variables: { search: searchTerm, first: 20 },
+    pause: !searchActive || !open,
+    requestPolicy: 'network-only',
+  })
+  const searchEdges: { node: CompanyWithSalePerson }[] = searchResult.data?.companies?.edges ?? []
+  const searchCompanies: Entreprise[] = searchEdges.map(({ node }) =>
+    toEntrepriseFromCompanyWithSalePerson(node),
+  )
+  const searchSettled = searchActive && !searchResult.fetching
+
+  // Propriétaire automatique : même SIREN déjà au portefeuille. Le serveur
+  // cherche par SIREN (préfixe des SIRET) car `companiesBySiren` n'expose pas
+  // de filtre par SIREN.
+  const findAutoOwner = useCallback(async (siren: string) => {
+    const result = await client
+      .query(GET_COMPANIES, { search: siren, first: 20 }, { requestPolicy: 'network-only' })
+      .toPromise()
+    const ownedEdges: { node: CompanyWithSalePerson }[] = result.data?.companies?.edges ?? []
+    const owned = ownedEdges.find(({ node }) => node.salePerson?.id != null)
+    return owned?.node.salePerson?.id ?? null
+  }, [client])
 
   const handleSiretLookup = useCallback(async () => {
     if (!/^\d{14}$/.test(siret)) {
@@ -80,7 +109,7 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
         return
       }
       setSiretData(data); setSiretStatus('success')
-      const ownerId = findAutoOwner(data.siren)
+      const ownerId = await findAutoOwner(data.siren)
       setSelectedOwnerId(ownerId ?? (currentUser?.id ? Number(currentUser.id) : null))
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erreur lors de la recherche'
@@ -182,7 +211,10 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
                 <IconAlert width={14} height={14} className="shrink-0 mt-0.5" />
                 <span>{siretError}</span>
                 {siretError.includes('existe déjà') && (
-                  <button onClick={() => setMode('search')} className="shrink-0 font-medium underline whitespace-nowrap">
+                  <button
+                    onClick={() => { setMode('search'); setQuery(siret) }}
+                    className="shrink-0 font-medium underline whitespace-nowrap"
+                  >
                     Rechercher
                   </button>
                 )}
@@ -271,7 +303,7 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
               name="company-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher par nom..."
+              placeholder="Rechercher par nom ou SIRET..."
               autoComplete="off"
               autoCorrect="off"
               autoCapitalize="off"
@@ -281,20 +313,33 @@ export function CompanySearchModal({ open, onClose, currentUser, onSuccess }: { 
             />
           </div>
           <ul className="max-h-60 divide-y overflow-y-auto rounded-lg border border-[var(--ds-border)]">
-            {companies
-              .filter((c) => c.nom_commercial?.toLowerCase().includes(query.toLowerCase()))
-              .map((c) => (
-                <li
-                  key={c.id}
-                  onClick={() => setAbCompany(c)}
-                  className="flex cursor-pointer items-center justify-between px-3 py-2.5 text-sm transition hover:bg-[var(--ds-accent-soft)]"
-                >
-                  <span className="font-medium text-[var(--ds-text)]">{c.nom_commercial}</span>
-                  {c.siret && <span className="text-xs text-[var(--ds-text-subtle)]">{c.siret}</span>}
-                </li>
-              ))}
-            {companies.filter((c) => c.nom_commercial?.toLowerCase().includes(query.toLowerCase())).length === 0 && (
+            {searchActive && searchResult.fetching && (
+              <li className="flex items-center justify-center gap-2 px-3 py-4 text-xs text-[var(--ds-text-subtle)]">
+                <IconLoader width={14} height={14} className="animate-spin" /> Recherche…
+              </li>
+            )}
+            {searchCompanies.map((c) => (
+              <li
+                key={c.id}
+                onClick={() => setAbCompany(c)}
+                className="flex cursor-pointer items-center justify-between px-3 py-2.5 text-sm transition hover:bg-[var(--ds-accent-soft)]"
+              >
+                <span className="font-medium text-[var(--ds-text)]">{c.nom_commercial}</span>
+                {c.siret && <span className="text-xs text-[var(--ds-text-subtle)]">{c.siret}</span>}
+              </li>
+            ))}
+            {searchSettled && searchResult.error && (
+              <li className="px-3 py-4 text-center text-xs text-[var(--ds-danger)]">
+                Erreur lors de la recherche : {searchResult.error.message}
+              </li>
+            )}
+            {searchSettled && !searchResult.error && searchCompanies.length === 0 && (
               <li className="px-3 py-4 text-center text-xs text-[var(--ds-text-subtle)]">Aucune entreprise trouvée</li>
+            )}
+            {!searchActive && (
+              <li className="px-3 py-4 text-center text-xs text-[var(--ds-text-subtle)]">
+                Saisissez au moins 2 caractères pour lancer la recherche.
+              </li>
             )}
           </ul>
           <button
