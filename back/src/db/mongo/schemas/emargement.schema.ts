@@ -12,6 +12,7 @@ const emargementSchema = new Schema<EmargementRecord & Document>(
         status: { type: String, required: true },
         status_time: { type: String, default: null },
         signature_mode: { type: String, required: true },
+        signature_image: { type: String, default: null },
         signed_at: { type: Date, required: true },
         first_signed_at: { type: Date, required: true },
         first_signature_mode: { type: String, required: true },

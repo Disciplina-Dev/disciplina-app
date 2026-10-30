@@ -15,7 +15,13 @@ export type EmargementHalf = 'morning' | 'afternoon'
 
 export type EmargementStatus = 'na' | 'present' | 'absent' | 'late' | 'left_early'
 
-export type SignatureMode = 'qr' | 'manual'
+/**
+ * Origine de la signature d'une demi-journée :
+ * - `qr` : l'alternant a signé sur son téléphone (QR de la séance) ;
+ * - `manual` : le formateur a saisi le statut sans signature de l'alternant ;
+ * - `handwritten` : l'alternant a tracé sa signature sur l'appareil du formateur.
+ */
+export type SignatureMode = 'qr' | 'manual' | 'handwritten'
 
 /** État d'une fenêtre de signature, calculé côté serveur. */
 export type WindowState = 'upcoming' | 'open' | 'closed'
@@ -24,8 +30,10 @@ export interface AttendanceRecord {
   status: EmargementStatus
   /** Heure `HH:mm` pour `late` / `left_early`, sinon `null`. */
   statusTime: string | null
-  /** Dernière saisie : QR de l'alternant ou saisie du formateur. */
+  /** Dernière saisie : QR de l'alternant, saisie ou signature manuscrite du formateur. */
   signatureMode: SignatureMode
+  /** Signature manuscrite de l'alternant (data-URL PNG) — mode `handwritten` uniquement. */
+  signatureImage: string | null
   signedAt: string
   /** Première signature, jamais écrasée (preuve du passage par QR). */
   firstSignedAt: string

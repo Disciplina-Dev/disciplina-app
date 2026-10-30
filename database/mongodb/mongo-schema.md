@@ -416,11 +416,11 @@ SA (séquences d'accompagnement).
 | `site` | string | required — `Nord` \| `Ouest` \| `Sud` \| `Annemasse` |
 | `mode` | string | required — `salle` \| `distanciel` |
 | `formateur_name`, `formateur_email` | string | required |
-| `morning_start`, `morning_end` | string | required — fenêtre de signature du matin |
-| `afternoon_start`, `afternoon_end` | string \| null | fenêtre de signature de l'après-midi (`null` = séance sans après-midi) |
+| `morning_start`, `morning_end` | string | required — fenêtre de signature du matin, bornée aux horaires de la séance (`start_time` ≤ `morning_start` < `morning_end` ≤ `end_time`) |
+| `afternoon_start`, `afternoon_end` | string \| null | fenêtre de signature de l'après-midi, mêmes bornes (`null` = séance sans après-midi) |
 | `timezone` | string | required — fuseau IANA du tenant au moment de la création |
 | `token_secret` | string | required — sel du lien formateur/QR ; rotation = révocation |
-| `invite_expires_at` | Date | required — fin du jour de la séance |
+| `invite_expires_at` | Date | required — fin du jour J + 7 jours (`EMARGEMENT_GRACE_DAYS`), en heure locale : le formateur peut régulariser après minuit ; un renvoi d'invitation par le Peda repousse l'échéance. Les alternants, eux, restent bornés par la fermeture de leur créneau |
 | `signed_at` | Date \| null | signature de la feuille par le formateur (verrouille la feuille) |
 | `signed_by_name`, `signature_image`, `signed_ip`, `signed_user_agent` | string \| null | preuve de signature |
 | `created_by` | number \| null | `users.id` (MySQL) |
@@ -439,7 +439,8 @@ SA (séquences d'accompagnement).
 | `half` | string | required — `morning` \| `afternoon` |
 | `status` | string | required — `na` \| `present` \| `absent` \| `late` \| `left_early` |
 | `status_time` | string \| null | `HH:mm` pour `late` / `left_early` |
-| `signature_mode` | string | required — `qr` (alternant) \| `manual` (formateur) |
+| `signature_mode` | string | required — `qr` (alternant sur son téléphone) \| `manual` (saisie formateur) \| `handwritten` (alternant sur l'appareil du formateur) |
+| `signature_image` | string \| null | data-URL PNG du tracé de l'alternant — renseigné par `handwritten`, effacé par une signature `qr` ou un passage à `absent`/`na` ; conservé lors d'une simple correction de statut restant une présence |
 | `signed_at` | Date | required — dernière saisie |
 | `first_signed_at`, `first_signature_mode` | Date, string | required — première signature, jamais écrasée |
 | `ip`, `user_agent` | string \| null | contexte de la première signature |

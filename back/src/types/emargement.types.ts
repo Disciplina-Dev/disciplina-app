@@ -23,8 +23,15 @@ export type EmargementHalf = (typeof EMARGEMENT_HALVES)[number];
 export const EMARGEMENT_STATUSES = ['na', 'present', 'absent', 'late', 'left_early'] as const;
 export type EmargementStatus = (typeof EMARGEMENT_STATUSES)[number];
 
-/** Origine de la signature : QR code scanné par l'alternant, ou saisie formateur. */
-export type EmargementSignatureMode = 'qr' | 'manual';
+/**
+ * Origine de la signature d'une demi-journée :
+ * - `qr` : l'alternant a signé lui-même sur son téléphone (QR de la séance) ;
+ * - `manual` : le formateur a saisi le statut sans signature de l'alternant ;
+ * - `handwritten` : l'alternant a tracé sa signature sur l'appareil du formateur
+ *   (repli quand son téléphone est indisponible) — l'image est conservée.
+ */
+export const EMARGEMENT_SIGNATURE_MODES = ['qr', 'manual', 'handwritten'] as const;
+export type EmargementSignatureMode = (typeof EMARGEMENT_SIGNATURE_MODES)[number];
 
 export interface Seance {
     _id: string;
@@ -60,7 +67,12 @@ export interface Seance {
     timezone: string;
     /** Secret utilisé pour dériver les jetons formateur/QR (jamais exposé). */
     token_secret: string;
-    /** Fin de la journée locale de la séance : au-delà, les liens sont expirés. */
+    /**
+     * Fin de validité des liens de la séance : fin de la journée locale + délai
+     * de régularisation (`EMARGEMENT_GRACE_DAYS`), pour que le formateur puisse
+     * encore corriger et signer après le jour J. La signature des alternants,
+     * elle, reste bornée aux créneaux.
+     */
     invite_expires_at: Date | string;
     signed_at: Date | string | null;
     signed_by_name: string | null;
@@ -84,8 +96,14 @@ export interface EmargementRecord {
     status: EmargementStatus;
     /** Heure saisie pour `late` / `left_early` (`HH:mm`), sinon `null`. */
     status_time: string | null;
-    /** Dernière signature : `qr` (alternant) ou `manual` (formateur). */
+    /** Dernière signature : `qr` (alternant), `manual` (saisie formateur) ou `handwritten`. */
     signature_mode: EmargementSignatureMode;
+    /**
+     * Signature manuscrite de l'alternant (data-URL PNG) quand `signature_mode`
+     * vaut `handwritten` ; `null` sinon. Effacée si la ligne est rejouée par QR
+     * ou par une saisie formateur.
+     */
+    signature_image: string | null;
     /** Horodatage serveur de la dernière saisie. */
     signed_at: Date | string;
     /** Première signature, jamais écrasée : conserve la preuve du passage QR. */

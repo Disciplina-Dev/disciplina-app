@@ -59,6 +59,13 @@ function AttendanceCell({ record }: { record: AttendanceRecord | null }) {
           QR du {formatTimestamp(record.firstSignedAt)}
         </span>
       )}
+      {record.signatureImage && (
+        <img
+          src={record.signatureImage}
+          alt="Signature manuscrite de l’alternant"
+          className="h-12 w-28 rounded-[var(--radius-sm)] border border-[var(--ds-border)] bg-white object-contain"
+        />
+      )}
     </div>
   )
 }

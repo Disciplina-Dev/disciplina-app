@@ -149,9 +149,10 @@ into the companies server.
 | POST | `/api/kpi/import` | JWT (ADMIN / RESPONSABLE) | Import KPI data from an uploaded Excel file (`multipart/form-data`, field `file`) |
 | GET · POST | `/api/emargement/seances` | JWT (AD / GESTION / PEDA) | List (filters `from` / `to` / `sessionId`) / create a séance → `{ seance, inviteSent }` (`inviteSent: false` when no Google mailbox could send the invite) |
 | GET · PUT · DELETE | `/api/emargement/seances/:id` | JWT (AD / GESTION / PEDA) | Read a séance with attendance and signatures / update / delete |
-| POST | `/api/emargement/seances/:id/resend` | JWT (AD / GESTION / PEDA) | Re-send the formateur invite (`{rotate: true}` also invalidates the previous link) → `{ links, inviteSent }` |
+| POST | `/api/emargement/seances/:id/resend` | JWT (AD / GESTION / PEDA) | Re-send the formateur invite (`{rotate: true}` also invalidates the previous link) and extend the link validity (end of J+7) → `{ links, inviteSent }` |
 | GET | `/api/emargement/formateur/:token` | Link token | Formateur sheet: alternants, statuses, QR link — rate-limited |
 | PUT | `/api/emargement/formateur/:token/attendance` | Link token | Set one alternant status for a half-day (manual entry, allowed outside the signing window) |
+| POST | `/api/emargement/formateur/:token/attendance/sign` | Link token | Learner handwritten signature drawn on the formateur's device (PNG data-URL) → `signatureMode: 'handwritten'`; allowed while the sheet is editable |
 | POST | `/api/emargement/formateur/:token/sign` | Link token | Confirm and sign the sheet (drawn signature as PNG data-URL, 3 MB body cap) |
 | GET · POST | `/api/emargement/sign/:token` | QR token | Alternant page state (session + date) · sign in for the current half-day — rate-limited |
 

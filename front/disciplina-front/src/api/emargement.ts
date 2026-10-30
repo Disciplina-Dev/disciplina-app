@@ -147,6 +147,23 @@ export async function saveAttendance(token: string, payload: AttendancePayload):
   return body.attendance
 }
 
+/**
+ * Signature manuscrite de l'alternant, tracée sur l'appareil du formateur
+ * (repli quand l'alternant ne peut pas scanner le QR avec son téléphone).
+ * Route distincte de la saisie de statut : le tracé est conservé comme preuve.
+ */
+export async function saveHandwrittenSignature(
+  token: string,
+  payload: { alternantId: string; half: EmargementHalf; signature: string },
+): Promise<AttendanceRecordPayload> {
+  const body = await publicCall<{ attendance: AttendanceRecordPayload }>(
+    'POST',
+    publicUrl('formateur', token, '/attendance/sign'),
+    payload,
+  )
+  return body.attendance
+}
+
 export async function signSheet(token: string, signature: string): Promise<{ signedAt: string; signedByName: string }> {
   // `confirmed` est construit ici : c'est la preuve du double contrôle demandé
   // au formateur avant verrouillage définitif de la feuille.
