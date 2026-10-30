@@ -10,6 +10,26 @@ interface Props {
 
 // Zone de dessin de signature, sans dépendance externe. Trace au pointeur
 // (souris + tactile) sur un <canvas> et renvoie un PNG en data-URL.
+const MAX_EXPORT_WIDTH = 640
+
+/**
+ * Exporte le tracé en PNG en le réduisant à `MAX_EXPORT_WIDTH` pixels de large.
+ * Une feuille d'émargement porte une signature par demi-journée et par
+ * alternant : sans ce plafond, chaque page embarquerait plusieurs Mo d'images.
+ * 640 px suffisent pour l'affichage écran comme pour un futur export PDF.
+ */
+function exportPng(canvas: HTMLCanvasElement): string {
+  const scale = Math.min(1, MAX_EXPORT_WIDTH / (canvas.width || MAX_EXPORT_WIDTH))
+  if (scale === 1) return canvas.toDataURL('image/png')
+  const scaled = document.createElement('canvas')
+  scaled.width = Math.round(canvas.width * scale)
+  scaled.height = Math.round(canvas.height * scale)
+  const ctx = scaled.getContext('2d')
+  if (!ctx) return canvas.toDataURL('image/png')
+  ctx.drawImage(canvas, 0, 0, scaled.width, scaled.height)
+  return scaled.toDataURL('image/png')
+}
+
 export default function SignaturePad({ value, onChange, label = 'Signature' }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
@@ -73,7 +93,7 @@ export default function SignaturePad({ value, onChange, label = 'Signature' }: P
     drawing.current = false
     last.current = null
     const canvas = canvasRef.current
-    if (canvas) onChange(canvas.toDataURL('image/png'))
+    if (canvas) onChange(exportPng(canvas))
   }
 
   const clear = () => {

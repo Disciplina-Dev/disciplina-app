@@ -5,6 +5,7 @@ import type {
   Seance,
   SeanceMode,
   SeanceSite,
+  SignatureMode,
   WindowState,
 } from '@/types/emargement'
 
@@ -56,8 +57,10 @@ export const WINDOW_TONES: Record<WindowState, BadgeTone> = {
 }
 
 /** Signature d'une demi-journée : le statut prime, le mode de saisie complète. */
-export function signatureLabel(mode: 'qr' | 'manual'): string {
-  return mode === 'qr' ? 'QR alternant' : 'Saisie formateur'
+export function signatureLabel(mode: SignatureMode): string {
+  if (mode === 'qr') return 'QR alternant'
+  if (mode === 'handwritten') return 'Signature manuscrite de l’alternant'
+  return 'Saisie formateur'
 }
 
 /** `2026-10-28` → « mercredi 28 octobre 2026 » (midi local, jamais de décalage). */

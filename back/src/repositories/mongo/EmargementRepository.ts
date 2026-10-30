@@ -15,6 +15,8 @@ export interface UpsertEmargementInput {
     status: EmargementStatus;
     statusTime: string | null;
     signatureMode: EmargementSignatureMode;
+    /** Signature manuscrite (data-URL PNG) pour le mode `handwritten`, sinon `null`. */
+    signatureImage: string | null;
     signedAt: Date;
     ip: string | null;
     userAgent: string | null;
@@ -54,18 +56,30 @@ export class EmargementRepository {
             alternant_id: input.alternantId,
             half: input.half,
         };
+        const set: Record<string, unknown> = {
+            first_name: input.firstName,
+            last_name: input.lastName,
+            status: input.status,
+            status_time: input.statusTime,
+            signature_mode: input.signatureMode,
+            signed_at: input.signedAt,
+            ip: input.ip,
+            user_agent: input.userAgent,
+            updated_at: now,
+        };
+        // Le tracé de l'alternant est une pièce de preuve : une simple correction de
+        // statut par le formateur ne doit pas l'effacer. Une nouvelle signature de
+        // l'alternant (`qr` sur son téléphone, `handwritten` sur l'appareil du
+        // formateur) le remplace, et un passage à `absent` / `na` l'efface — le
+        // tracé ne prouve alors plus la présence.
+        if (input.signatureMode === 'handwritten' || input.signatureMode === 'qr') {
+            set.signature_image = input.signatureImage;
+        } else if (!PRESENT_STATUSES.includes(input.status)) {
+            set.signature_image = null;
+        }
+
         const update = {
-            $set: {
-                first_name: input.firstName,
-                last_name: input.lastName,
-                status: input.status,
-                status_time: input.statusTime,
-                signature_mode: input.signatureMode,
-                signed_at: input.signedAt,
-                ip: input.ip,
-                user_agent: input.userAgent,
-                updated_at: now,
-            },
+            $set: set,
             $setOnInsert: {
                 _id: randomUUID(),
                 seance_id: seanceId,

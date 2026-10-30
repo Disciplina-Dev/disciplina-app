@@ -8,7 +8,7 @@ import pool from '../../../db/mysql/connection';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { spyOnGoogleMail } from '../../../../test/helpers/googleMail';
 import { buildSeanceToken } from '../../../services/emargementTokens';
-import { endOfLocalDay, localDate } from '../../../utils/zonedTime';
+import { addDaysToDate, endOfLocalDay, localDate } from '../../../utils/zonedTime';
 
 const API = `http://localhost:${env.API_PORT}`;
 
@@ -17,6 +17,13 @@ const API = `http://localhost:${env.API_PORT}`;
 // espionne donc le service Gmail et on sème l'utilisateur système pour que
 // `sendSystemEmail` aille jusqu'à l'envoi.
 const SYSTEM_EMAIL = 'dev@disciplina.re';
+
+/** PNG 1×1 en data-URL : suffit à satisfaire la validation de format côté serveur. */
+const SIGNATURE_PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+/** Second tracé distinct, pour vérifier qu'une signature en remplace bien une autre. */
+const FORMATEUR_SIGNATURE_PNG =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 async function seedSystemMailUser(): Promise<void> {
     await pool.execute(
@@ -112,7 +119,7 @@ function seanceInput(sessionId: string, overrides: Record<string, unknown> = {})
         mode: 'salle',
         formateurName: 'Jean Formateur',
         formateurEmail: 'formateur@test.local',
-        morningStart: '07:45',
+        morningStart: '08:00',
         morningEnd: '10:30',
         afternoonStart: '13:45',
         afternoonEnd: '14:30',
@@ -327,6 +334,185 @@ describe('API émargement — côté formateur', () => {
         }
     });
 
+    it('refuse un créneau de signature hors des horaires de la séance', async () => {
+        // Sans cette borne, la fermeture du créneau ne protège plus rien : la
+        // signature restait ouverte avant le début du cours et après sa fin.
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        try {
+            const earlyOpen = await createSeanceHttp(auth, seanceInput(classId, { morningStart: '07:00' }));
+            expect(earlyOpen.status).toBe(400);
+            expect(earlyOpen.body).toMatchObject({ code: 'validation' });
+
+            const lateClose = await createSeanceHttp(auth, seanceInput(classId, { morningEnd: '18:00' }));
+            expect(lateClose.status).toBe(400);
+
+            const afternoonEarly = await createSeanceHttp(auth, seanceInput(classId, { afternoonStart: '07:30' }));
+            expect(afternoonEarly.status).toBe(400);
+
+            const afternoonLate = await createSeanceHttp(auth, seanceInput(classId, { afternoonEnd: '18:30' }));
+            expect(afternoonLate.status).toBe(400);
+
+            // Les bornes elles-mêmes restent acceptées.
+            const ok = await createSeanceHttp(
+                auth,
+                seanceInput(classId, {
+                    morningStart: '08:00',
+                    morningEnd: '17:00',
+                    afternoonStart: null,
+                    afternoonEnd: null,
+                }),
+            );
+            expect(ok.status).toBe(201);
+        } finally {
+            await getModels().Seance.deleteMany({ session_id: classId });
+            await getModels().Emargement.deleteMany({});
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('laisse le lien formateur valable après minuit (fin du jour J + 7 jours)', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        try {
+            const { body } = await createSeanceHttp(auth, seanceInput(classId));
+            const tz = tenantTimezone();
+            const expected = endOfLocalDay(addDaysToDate(body.seance.date, 7), tz).getTime();
+            expect(new Date(body.seance.inviteExpiresAt).getTime()).toBe(expected);
+        } finally {
+            await getModels().Seance.deleteMany({ session_id: classId });
+            await getModels().Emargement.deleteMany({});
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('prolonge la validité du lien quand le Peda renvoie l’invitation', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        try {
+            const { body } = await createSeanceHttp(auth, seanceInput(classId));
+            // Lien déjà expiré : sans prolongation, le renvoi enverrait un lien mort.
+            await getModels().Seance.updateOne(
+                { _id: body.seance.id },
+                { invite_expires_at: new Date(Date.now() - 60_000) },
+            );
+
+            const resend = await fetch(`${API}/api/emargement/seances/${body.seance.id}/resend`, {
+                method: 'POST',
+                headers: staffHeaders(auth),
+                body: JSON.stringify({ rotate: true }),
+            });
+            expect(resend.status).toBe(200);
+
+            const tz = tenantTimezone();
+            const expected = endOfLocalDay(addDaysToDate(body.seance.date, 7), tz).getTime();
+            const after = await fetch(`${API}/api/emargement/seances/${body.seance.id}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            expect(new Date(after.seance.inviteExpiresAt).getTime()).toBe(expected);
+        } finally {
+            await getModels().Seance.deleteMany({ session_id: classId });
+            await getModels().Emargement.deleteMany({});
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('enregistre la signature manuscrite de l’alternant tracée chez le formateur', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        try {
+            const { body } = await createSeanceHttp(
+                auth,
+                seanceInput(classId, { afternoonStart: null, afternoonEnd: null }),
+            );
+            const token = tokenFromUrl(body.seance.formateurUrl);
+            const viewUrl = `${API}/api/emargement/formateur/${encodeURIComponent(token)}`;
+            const view = await fetch(viewUrl).then((res) => res.json());
+            const alternant = view.emargement.alternants[0];
+
+            const signature = SIGNATURE_PNG;
+            const handwritten = await fetch(`${viewUrl}/attendance/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId: alternant.id, half: 'morning', signature }),
+            });
+            expect(handwritten.status).toBe(200);
+            const saved = await handwritten.json();
+            expect(saved.attendance).toMatchObject({
+                status: 'present',
+                signatureMode: 'handwritten',
+                signatureImage: signature,
+            });
+
+            // La feuille Peda expose le tracé (pièce de preuve).
+            const detail = await fetch(`${API}/api/emargement/seances/${body.seance.id}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            const row = detail.seance.alternants.find((a: { id: string }) => a.id === alternant.id);
+            expect(row.attendance.morning).toMatchObject({
+                signatureMode: 'handwritten',
+                signatureImage: signature,
+            });
+
+            // Une correction de statut qui reste une présence conserve le tracé…
+            const late = await fetch(`${viewUrl}/attendance`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    alternantId: alternant.id,
+                    half: 'morning',
+                    status: 'late',
+                    statusTime: '08:10',
+                }),
+            }).then((res) => res.json());
+            expect(late.attendance).toMatchObject({ signatureMode: 'manual', signatureImage: signature });
+
+            // …mais un passage à `absent` l'efface : il ne prouve plus la présence.
+            const absent = await fetch(`${viewUrl}/attendance`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId: alternant.id, half: 'morning', status: 'absent' }),
+            }).then((res) => res.json());
+            expect(absent.attendance).toMatchObject({ status: 'absent', signatureImage: null });
+
+            const noSignature = await fetch(`${viewUrl}/attendance/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId: alternant.id, half: 'morning' }),
+            });
+            expect(noSignature.status).toBe(400);
+            expect((await noSignature.json()).code).toBe('signature');
+
+            const noAfternoon = await fetch(`${viewUrl}/attendance/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId: alternant.id, half: 'afternoon', signature }),
+            });
+            expect(noAfternoon.status).toBe(400);
+            expect((await noAfternoon.json()).code).toBe('window');
+        } finally {
+            await getModels().Seance.deleteMany({ session_id: classId });
+            await getModels().Emargement.deleteMany({});
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
     it('signe la feuille avec la signature manuscrite puis la verrouille', async () => {
         const auth = pedaAuth();
         const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
@@ -337,8 +523,7 @@ describe('API émargement — côté formateur', () => {
             const view = await fetch(viewUrl).then((res) => res.json());
             const alternant = view.emargement.alternants[0];
 
-            const signature =
-                'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+            const signature = SIGNATURE_PNG;
             const signResponse = await fetch(`${viewUrl}/sign`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -403,14 +588,22 @@ describe('API émargement — signature alternant par QR', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
             });
-            expect(first.status).toBe(200);
-            const firstBody = await first.json();
+            expect(first.status).toBe(400);
+            expect((await first.json()).code).toBe('signature');
+
+            const signed = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, signature: SIGNATURE_PNG }),
+            });
+            expect(signed.status).toBe(200);
+            const firstBody = await signed.json();
             expect(firstBody.result).toMatchObject({ alreadySigned: false, half: 'morning' });
 
             const second = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email }),
+                body: JSON.stringify({ email, signature: SIGNATURE_PNG }),
             });
             expect(second.status).toBe(200);
             expect((await second.json()).result.alreadySigned).toBe(true);
@@ -422,8 +615,55 @@ describe('API émargement — signature alternant par QR', () => {
                     half: 'morning',
                 })
                 .lean();
-            expect(record).toMatchObject({ status: 'present', signature_mode: 'qr' });
+            // Le tracé est conservé : il vaut preuve de présence et alimentera les exports PDF.
+            expect(record).toMatchObject({
+                status: 'present',
+                signature_mode: 'qr',
+                signature_image: SIGNATURE_PNG,
+            });
             expect(record?.ip).toBeTruthy();
+        } finally {
+            await getModels().Seance.deleteOne({ _id: seance._id });
+            await getModels().Emargement.deleteMany({ seance_id: seance._id });
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('remplace une signature manuscrite du formateur par le tracé du QR', async () => {
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        const seance = await seedSeance({ session_id: classId });
+        try {
+            // Repli d'abord : le formateur a fait signer l'alternant sur son appareil.
+            const formateurUrl = `${API}/api/emargement/formateur/${encodeURIComponent(buildSeanceToken(seance, 'formateur'))}`;
+            const handwritten = await fetch(`${formateurUrl}/attendance/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    alternantId: alternants[0]._id,
+                    half: 'morning',
+                    signature: FORMATEUR_SIGNATURE_PNG,
+                }),
+            });
+            expect(handwritten.status).toBe(200);
+
+            // Puis l'alternant signe lui-même : son tracé remplace celui du formateur.
+            const url = `${API}/api/emargement/sign/${encodeURIComponent(buildSeanceToken(seance, 'qr'))}`;
+            const signed = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: alternants[0].email, signature: SIGNATURE_PNG }),
+            });
+            expect(signed.status).toBe(200);
+            expect((await signed.json()).result).toMatchObject({ alreadySigned: false, half: 'morning' });
+
+            const record = await getModels()
+                .Emargement.findOne({ seance_id: seance._id, alternant_id: alternants[0]._id, half: 'morning' })
+                .lean();
+            expect(record).toMatchObject({ signature_mode: 'qr', signature_image: SIGNATURE_PNG });
         } finally {
             await getModels().Seance.deleteOne({ _id: seance._id });
             await getModels().Emargement.deleteMany({ seance_id: seance._id });
@@ -450,7 +690,7 @@ describe('API émargement — signature alternant par QR', () => {
             const unknown = await fetch(openUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: 'inconnu@test.local' }),
+                body: JSON.stringify({ email: 'inconnu@test.local', signature: SIGNATURE_PNG }),
             });
             expect(unknown.status).toBe(404);
             expect((await unknown.json()).code).toBe('alternant');
@@ -461,7 +701,7 @@ describe('API émargement — signature alternant par QR', () => {
             const late = await fetch(url, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: alternants[0].email }),
+                body: JSON.stringify({ email: alternants[0].email, signature: SIGNATURE_PNG }),
             });
             expect(late.status).toBe(409);
             expect((await late.json()).code).toBe('window');
