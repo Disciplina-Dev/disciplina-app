@@ -38,6 +38,7 @@ const alternantSchema = new Schema<Alternant & Document>(
         email: { type: String, default: null },
         phone: { type: String, default: null },
         candidate_id: { type: String, default: null },
+        financeur: { type: String, default: null },
         company: { type: companySchema, default: null },
         linked_alternant_ids: { type: [String], default: [] },
         filiz: { type: filizSchema, default: undefined },

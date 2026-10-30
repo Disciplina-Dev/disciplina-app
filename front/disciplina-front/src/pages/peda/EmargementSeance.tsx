@@ -26,13 +26,14 @@ import { zonedWallClockToIso } from '@/lib/timezone'
 import type { AlternantAttendance, AttendanceRecord, SeanceDetail } from '@/types/emargement'
 import {
   HALF_LABELS,
-  MODE_LABELS,
   STATUS_LABELS,
   STATUS_TONES,
   WINDOW_LABELS,
   WINDOW_TONES,
   formatSeanceDate,
   formatTimestamp,
+  seancePlace,
+  seanceProgram,
   signatureLabel,
 } from '@/utils/emargement'
 
@@ -70,6 +71,9 @@ function AlternantRow({ alternant, hasAfternoon }: { alternant: AlternantAttenda
           {alternant.firstName} {alternant.lastName}
         </p>
         {alternant.email && <p className="text-[12px] text-[var(--ds-text-subtle)]">{alternant.email}</p>}
+        {alternant.financeur && (
+          <p className="text-[11px] text-[var(--ds-text-subtle)]">Financeur : {alternant.financeur}</p>
+        )}
       </td>
       <td className="px-4 py-3 align-top">
         <AttendanceCell record={alternant.attendance.morning} />
@@ -200,6 +204,7 @@ export default function EmargementSeance() {
   }
 
   const hasAfternoon = Boolean(seance.afternoonStart)
+  const program = seanceProgram(seance)
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
@@ -218,8 +223,9 @@ export default function EmargementSeance() {
           <h1 className="text-[28px] font-extrabold leading-tight tracking-[-0.02em] text-[var(--ds-text)]">
             {seance.sessionNom}
           </h1>
+          {program && <p className="mt-1 text-[14px] font-semibold text-[var(--ds-text-muted)]">{program}</p>}
           <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
-            {seance.startTime} – {seance.endTime} · {seance.site} · {MODE_LABELS[seance.mode]}
+            {seance.startTime} – {seance.endTime} · {seancePlace(seance)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

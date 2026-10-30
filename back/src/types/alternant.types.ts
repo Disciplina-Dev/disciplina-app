@@ -43,6 +43,11 @@ export interface Alternant {
     phone?: string | null;
     /** Lien optionnel vers la fiche candidat d'origine (auto-remplissage). */
     candidate_id?: string | null;
+    /**
+     * Financeur de la formation (OPCO, Région, France Travail…) — libellé libre,
+     * affiché sur la feuille d'émargement et les exports d'assiduité.
+     */
+    financeur?: string | null;
     /** `null` = le jeune n'a plus d'entreprise (cf. `removeCompany`). */
     company: AlternantCompany | null;
     linked_alternant_ids: string[];

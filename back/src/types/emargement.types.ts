@@ -32,6 +32,15 @@ export interface Seance {
     session_id: string;
     /** Nom de la session au moment de la création (snapshot d'affichage). */
     session_nom: string;
+    /**
+     * Titre professionnel préparé, snapshot de `Session.filiere` à la création :
+     * la feuille doit rester lisible même si la promo Filiz est renommée.
+     */
+    degree_title: string | null;
+    /** Module ou séquence traités pendant la séance (libellé libre, facultatif). */
+    module: string | null;
+    /** Lieu précis : salle, adresse ou lien visio (libellé libre, facultatif). */
+    location: string | null;
     /** Jour de la séance, `YYYY-MM-DD` (heure locale du tenant). */
     date: string;
     /** Horaires de la séance, `HH:mm` (heure locale du tenant). */
@@ -102,6 +111,10 @@ export interface CreateSeanceInput {
     morningEnd: string;
     afternoonStart?: string | null;
     afternoonEnd?: string | null;
+    /** Module / séquence (facultatif, vide = non renseigné). */
+    module?: string | null;
+    /** Lieu précis : salle, adresse, lien visio (facultatif). */
+    location?: string | null;
 }
 
 export type UpdateSeanceInput = Partial<CreateSeanceInput>;

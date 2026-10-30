@@ -1,6 +1,27 @@
 /** Raison de l'archivage d'un alternant. */
 export type AlternantArchiveReason = 'rupture' | 'fin_formation'
 
+/**
+ * Suggestions de financeurs proposées à la saisie (le champ reste libre) :
+ * OPCO connus du centre + financements publics. Sert au `datalist` de la fiche
+ * alternant, et sera repris par les exports d'assiduité.
+ */
+export const FINANCEUR_SUGGESTIONS = [
+  'AKTO',
+  'ATLAS',
+  'Afdas',
+  'Constructys',
+  'OCAPIAT',
+  'Opco 2i',
+  'Opco EP',
+  'Opco Mobilités',
+  'Opco Santé',
+  "L'Opcommerce",
+  'Uniformation',
+  'Région',
+  'France Travail',
+] as const
+
 export interface AlternantCompany {
   name: string | null
   address: string | null
@@ -21,6 +42,8 @@ export interface Alternant {
   email: string | null
   phone: string | null
   candidateId: string | null
+  /** Financeur de la formation (OPCO, Région…) — affiché sur l'émargement. */
+  financeur: string | null
   company: AlternantCompany | null
   linkedAlternantIds: string[]
   /** `true` = folder Filiz encore à son étape de départ (dossier pas fini de remplir). */
@@ -68,6 +91,7 @@ export interface CreateAlternantInput {
   email?: string | null
   phone?: string | null
   candidateId?: string | null
+  financeur?: string | null
   company: {
     name?: string | null
     address?: string | null

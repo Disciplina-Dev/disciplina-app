@@ -30,6 +30,7 @@ export const typeDefs = gql`
         email: String
         phone: String
         candidateId: String
+        financeur: String
         company: AlternantCompany
         linkedAlternantIds: [String!]!
         filizInProgress: Boolean!
@@ -145,6 +146,7 @@ export const typeDefs = gql`
         email: String
         phone: String
         candidateId: String
+        financeur: String
         company: AlternantCompanyInput!
         linkedAlternantIds: [String!]
     }
@@ -157,6 +159,7 @@ export const typeDefs = gql`
         email: String
         phone: String
         candidateId: String
+        financeur: String
     }
 
     input AlternantSequenceContactsInput {

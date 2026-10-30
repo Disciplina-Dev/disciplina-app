@@ -47,7 +47,12 @@ import {
 } from '@/api/alternants'
 import { declareRupture, deleteRupture, fetchAlternantRuptures } from '@/api/ruptures'
 import { fetchSessions } from '@/api/sessions'
-import type { Alternant, AlternantSequence, SequenceContacts } from '@/types/alternant'
+import {
+  FINANCEUR_SUGGESTIONS,
+  type Alternant,
+  type AlternantSequence,
+  type SequenceContacts,
+} from '@/types/alternant'
 import { formatRuptureDate, poursuiteLabel, type Rupture } from '@/types/rupture'
 import type { Session } from '@/types/session'
 
@@ -139,6 +144,9 @@ export default function FicheAlternant() {
   const [allAlternants, setAllAlternants] = useState<Alternant[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
   const [sessionSaving, setSessionSaving] = useState(false)
+  /** Brouillon de saisie du financeur ; `null` = on affiche la valeur enregistrée. */
+  const [financeurDraft, setFinanceurDraft] = useState<string | null>(null)
+  const [financeurSaving, setFinanceurSaving] = useState(false)
   const [pendingCompletionId, setPendingCompletionId] = useState<string | null>(null)
   const [completionDate, setCompletionDate] = useState('')
   const [completing, setCompleting] = useState(false)
@@ -177,6 +185,11 @@ export default function FicheAlternant() {
       alive = false
     }
   }, [id])
+
+  // Financeur éditable en place : le brouillon de saisie prend le pas sur la
+  // valeur enregistrée tant que l'utilisateur n'a pas quitté le champ.
+  const storedFinanceur = alternant?.financeur ?? ''
+  const financeurValue = financeurDraft ?? storedFinanceur
 
   const linkedOthers = useMemo(
     () => (alternant?.linkedAlternantIds ?? []).map((lid) => ({ id: lid, name: linkedNames[lid] ?? 'Alternant' })),
@@ -431,6 +444,34 @@ export default function FicheAlternant() {
     }
   }
 
+  /**
+   * Financeur saisi en texte libre (OPCO, Région, France Travail…) : il est
+   * repris sur la feuille d'émargement et les exports d'assiduité. On
+   * n'enregistre qu'à la sortie du champ ou sur Entrée, et seulement si la
+   * valeur a changé, pour ne pas écrire à chaque frappe.
+   */
+  async function handleSaveFinanceur() {
+    if (!id || !alternant) return
+    const next = financeurValue.trim()
+    if (next === storedFinanceur) {
+      // Rien à écrire (ou simple reformatage d'espaces) : on rend la main à la
+      // valeur enregistrée.
+      setFinanceurDraft(null)
+      return
+    }
+    setFinanceurSaving(true)
+    try {
+      const updated = await updateAlternant(id, { financeur: next || null })
+      if (updated) setAlternant(updated)
+      setFinanceurDraft(null)
+    } catch (e) {
+      // On garde le brouillon : la saisie de l'utilisateur ne doit pas être perdue.
+      setError(e instanceof Error ? e.message : 'Enregistrement du financeur impossible')
+    } finally {
+      setFinanceurSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16 text-[var(--ds-text-subtle)]">
@@ -522,6 +563,33 @@ export default function FicheAlternant() {
                 <dd>{alternant.phone || '-'}</dd>
               </div>
             </dl>
+
+            <h4 className="mb-2 mt-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
+              Financeur
+            </h4>
+            <input
+              type="text"
+              value={financeurValue}
+              onChange={(e) => setFinanceurDraft(e.target.value)}
+              onBlur={handleSaveFinanceur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.currentTarget.blur()
+              }}
+              list="alternant-financeurs"
+              maxLength={80}
+              placeholder="Ex. OPCO 2i, Région, France Travail"
+              aria-label="Financeur de la formation"
+              disabled={financeurSaving}
+              className="w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)] disabled:opacity-60"
+            />
+            <datalist id="alternant-financeurs">
+              {FINANCEUR_SUGGESTIONS.map((suggestion) => (
+                <option key={suggestion} value={suggestion} />
+              ))}
+            </datalist>
+            <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+              Repris sur la feuille d’émargement et les exports d’assiduité.
+            </p>
 
             <h4 className="mb-2 mt-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
               Session

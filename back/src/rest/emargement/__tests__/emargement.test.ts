@@ -74,6 +74,8 @@ async function seedSessionWithAlternants(alternantCount = 2) {
             email: `alternant${i}.${suffix}@test.local`,
             phone: null,
             candidate_id: null,
+            // Financeur porté par la feuille d'émargement (cf. §1.7 du cahier des charges).
+            financeur: i === 0 ? 'Opco 2i' : null,
             company: null,
             linked_alternant_ids: [],
             filiz: {
@@ -171,7 +173,10 @@ describe('API émargement — côté Peda', () => {
         const auth = pedaAuth();
         const { classId, degreeId, alternants } = await seedSessionWithAlternants();
         try {
-            const { status, body } = await createSeanceHttp(auth, seanceInput(classId));
+            const { status, body } = await createSeanceHttp(
+                auth,
+                seanceInput(classId, { module: 'Séquence 3 — Communication', location: 'Salle 204' }),
+            );
             expect(status).toBe(201);
             expect(body.seance).toMatchObject({
                 sessionId: classId,
@@ -179,6 +184,11 @@ describe('API émargement — côté Peda', () => {
                 mode: 'salle',
                 signed: false,
                 formateurName: 'Jean Formateur',
+                // En-tête de la feuille : titre pro snapshoté depuis la promo Filiz,
+                // module et lieu libres.
+                degreeTitle: 'Développeur web',
+                module: 'Séquence 3 — Communication',
+                location: 'Salle 204',
             });
             expect(body.seance.formateurUrl).toContain('/emargement/formateur/');
             expect(body.seance.qrUrl).toContain('/emargement/sign/');
@@ -195,6 +205,20 @@ describe('API émargement — côté Peda', () => {
             }).then((res) => res.json());
             expect(detail.seance.alternants).toHaveLength(alternants.length);
             expect(detail.seance.alternants[0].email).toContain('@test.local');
+            expect(detail.seance.alternants[0].financeur).toBe('Opco 2i');
+            expect(detail.seance.alternants[1].financeur).toBeNull();
+
+            // Mise à jour partielle : le module change, le lieu et le titre pro tiennent.
+            const updated = await fetch(`${API}/api/emargement/seances/${body.seance.id}`, {
+                method: 'PUT',
+                headers: staffHeaders(auth),
+                body: JSON.stringify({ module: 'Séquence 4 — Négociation' }),
+            }).then((res) => res.json());
+            expect(updated.seance).toMatchObject({
+                module: 'Séquence 4 — Négociation',
+                location: 'Salle 204',
+                degreeTitle: 'Développeur web',
+            });
         } finally {
             await getModels().Seance.deleteMany({ session_id: classId });
             await getModels().Emargement.deleteMany({});
@@ -254,8 +278,14 @@ describe('API émargement — côté formateur', () => {
 
             const view = await fetch(viewUrl).then((res) => res.json());
             expect(view.emargement.seance.sessionNom).toContain('Promo émargement');
+            expect(view.emargement.seance).toMatchObject({
+                degreeTitle: 'Développeur web',
+                module: null,
+                location: null,
+            });
             expect(view.emargement.alternants).toHaveLength(alternants.length);
             expect(view.emargement.alternants[0]).not.toHaveProperty('email');
+            expect(view.emargement.alternants[0].financeur).toBe('Opco 2i');
             expect(view.emargement.canEdit).toBe(true);
 
             const alternant = view.emargement.alternants[0];

@@ -68,6 +68,8 @@ export interface AlternantEmargementDto {
     firstName: string;
     lastName: string;
     email?: string | null;
+    /** Financeur de la formation (OPCO, Région…) — figure sur la feuille et les exports. */
+    financeur?: string | null;
     attendance: {
         morning: EmargementRecordDto | null;
         afternoon: EmargementRecordDto | null;
@@ -84,6 +86,12 @@ export interface SeanceDto {
     id: string;
     sessionId: string;
     sessionNom: string;
+    /** Titre professionnel préparé (snapshot de la filière Filiz). */
+    degreeTitle: string | null;
+    /** Module ou séquence traités pendant la séance. */
+    module: string | null;
+    /** Lieu précis : salle, adresse ou lien visio. */
+    location: string | null;
     date: string;
     startTime: string;
     endTime: string;
@@ -117,6 +125,9 @@ export interface FormateurViewDto {
     seance: {
         id: string;
         sessionNom: string;
+        degreeTitle: string | null;
+        module: string | null;
+        location: string | null;
         date: string;
         startTime: string;
         endTime: string;
@@ -142,6 +153,9 @@ export interface FormateurViewDto {
 
 export interface PublicSigningDto {
     sessionNom: string;
+    degreeTitle: string | null;
+    module: string | null;
+    location: string | null;
     date: string;
     startTime: string;
     endTime: string;
@@ -196,6 +210,16 @@ function optionalTime(value: unknown, label: string): string | null {
     if (value === undefined || value === null || value === '') return null;
     if (!isHhMm(value)) throw httpError(400, 'validation', `${label} doit être au format HH:mm`);
     return value;
+}
+
+/** Libellé libre facultatif (module, lieu) : `null` si absent ou vide. */
+function optionalLabel(value: unknown, label: string, maxLength = 120): string | null {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== 'string') throw httpError(400, 'validation', `${label} est invalide`);
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.length > maxLength) throw httpError(400, 'validation', `${label} est trop long`);
+    return trimmed;
 }
 
 function requiredTime(value: unknown, label: string): string {
@@ -261,6 +285,9 @@ export class EmargementService {
         const seance = await this.seances.create({
             session_id: parsed.sessionId,
             session_nom: session.nom,
+            degree_title: session.filiere ?? null,
+            module: parsed.module ?? null,
+            location: parsed.location ?? null,
             date: parsed.date,
             start_time: parsed.startTime,
             end_time: parsed.endTime,
@@ -311,18 +338,27 @@ export class EmargementService {
             morningEnd: patch.morningEnd ?? current.morning_end,
             afternoonStart: patch.afternoonStart !== undefined ? patch.afternoonStart : current.afternoon_start,
             afternoonEnd: patch.afternoonEnd !== undefined ? patch.afternoonEnd : current.afternoon_end,
+            module: patch.module !== undefined ? patch.module : current.module,
+            location: patch.location !== undefined ? patch.location : current.location,
         });
 
         let sessionNom = current.session_nom;
+        let degreeTitle = current.degree_title ?? null;
         if (merged.sessionId !== current.session_id) {
             const session = await this.sessions.findById(merged.sessionId);
             if (!session) throw httpError(404, 'session', 'Session introuvable');
             sessionNom = session.nom;
+            // Le titre pro suit la nouvelle promo : sans ça la feuille garderait
+            // l'intitulé de la formation précédente.
+            degreeTitle = session.filiere ?? null;
         }
 
         const updated = await this.seances.update(id, {
             session_id: merged.sessionId,
             session_nom: sessionNom,
+            degree_title: degreeTitle,
+            module: merged.module ?? null,
+            location: merged.location ?? null,
             date: merged.date,
             start_time: merged.startTime,
             end_time: merged.endTime,
@@ -382,6 +418,9 @@ export class EmargementService {
             seance: {
                 id: seance._id,
                 sessionNom: seance.session_nom,
+                degreeTitle: seance.degree_title ?? null,
+                module: seance.module ?? null,
+                location: seance.location ?? null,
                 date: seance.date,
                 startTime: seance.start_time,
                 endTime: seance.end_time,
@@ -480,6 +519,9 @@ export class EmargementService {
         const now = new Date();
         return {
             sessionNom: seance.session_nom,
+            degreeTitle: seance.degree_title ?? null,
+            module: seance.module ?? null,
+            location: seance.location ?? null,
             date: seance.date,
             startTime: seance.start_time,
             endTime: seance.end_time,
@@ -588,6 +630,8 @@ export class EmargementService {
         const formateurName = requiredString(data.formateurName, 'Le nom du formateur');
         const formateurEmail = requiredString(data.formateurEmail, 'L’e-mail du formateur');
         if (!isEmail(formateurEmail)) throw httpError(400, 'validation', 'L’e-mail du formateur est invalide');
+        const module = optionalLabel(data.module, 'Le module / la séquence');
+        const location = optionalLabel(data.location, 'Le lieu');
 
         return {
             sessionId,
@@ -602,6 +646,8 @@ export class EmargementService {
             morningEnd,
             afternoonStart,
             afternoonEnd,
+            module,
+            location,
         };
     }
 
@@ -695,7 +741,13 @@ export class EmargementService {
     }
 
     private alternantsWithAttendance(
-        alternants: { _id: string; first_name: string; last_name: string; email?: string | null }[],
+        alternants: {
+            _id: string;
+            first_name: string;
+            last_name: string;
+            email?: string | null;
+            financeur?: string | null;
+        }[],
         records: EmargementRecord[],
         includeEmail: boolean,
     ): AlternantEmargementDto[] {
@@ -708,6 +760,7 @@ export class EmargementService {
                 firstName: alternant.first_name,
                 lastName: alternant.last_name,
                 ...(includeEmail ? { email: alternant.email ?? null } : {}),
+                financeur: alternant.financeur ?? null,
                 attendance: {
                     morning: morning ? this.recordDto(morning) : null,
                     afternoon: afternoon ? this.recordDto(afternoon) : null,
@@ -722,6 +775,9 @@ export class EmargementService {
             id: seance._id,
             sessionId: seance.session_id,
             sessionNom: seance.session_nom,
+            degreeTitle: seance.degree_title ?? null,
+            module: seance.module ?? null,
+            location: seance.location ?? null,
             date: seance.date,
             startTime: seance.start_time,
             endTime: seance.end_time,
