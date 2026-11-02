@@ -44,7 +44,7 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
   const [location, setLocation] = useState(seance?.location ?? '')
   const [formateurName, setFormateurName] = useState(seance?.formateurName ?? '')
   const [formateurEmail, setFormateurEmail] = useState(seance?.formateurEmail ?? '')
-  const [morningStart, setMorningStart] = useState(seance?.morningStart ?? '08:45')
+  const [morningStart, setMorningStart] = useState(seance?.morningStart ?? '09:00')
   const [morningEnd, setMorningEnd] = useState(seance?.morningEnd ?? '09:15')
   const [hasAfternoon, setHasAfternoon] = useState(Boolean(seance?.afternoonStart))
   const [afternoonStart, setAfternoonStart] = useState(seance?.afternoonStart ?? '13:45')
@@ -81,8 +81,25 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
     }
     if (startTime >= endTime) return setError('L’heure de fin doit suivre l’heure de début.')
     if (morningStart >= morningEnd) return setError('Le créneau du matin est invalide.')
+    // Les créneaux sont des fenêtres *à l'intérieur* de la séance : le back
+    // refuse (400) une ouverture avant le début ou une fermeture après la fin.
+    if (morningStart < startTime) {
+      return setError('Le créneau du matin ne peut pas ouvrir avant le début de la séance.')
+    }
+    if (morningEnd > endTime) {
+      return setError('Le créneau du matin ne peut pas fermer après la fin de la séance.')
+    }
     if (hasAfternoon && afternoonStart >= afternoonEnd) {
       return setError('Le créneau de l’après-midi est invalide.')
+    }
+    if (hasAfternoon && afternoonStart < startTime) {
+      return setError('Le créneau de l’après-midi ne peut pas ouvrir avant le début de la séance.')
+    }
+    if (hasAfternoon && afternoonEnd > endTime) {
+      return setError('Le créneau de l’après-midi ne peut pas fermer après la fin de la séance.')
+    }
+    if (hasAfternoon && morningEnd > afternoonStart) {
+      return setError('Les créneaux du matin et de l’après-midi se chevauchent.')
     }
 
     const payload = {
@@ -245,6 +262,8 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                 label="Matin — ouverture"
                 type="time"
                 value={morningStart}
+                min={startTime}
+                max={endTime}
                 onChange={(event) => setMorningStart(event.target.value)}
                 required
               />
@@ -253,6 +272,8 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                 label="Matin — fermeture"
                 type="time"
                 value={morningEnd}
+                min={morningStart}
+                max={endTime}
                 onChange={(event) => setMorningEnd(event.target.value)}
                 required
               />
@@ -275,6 +296,8 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                   label="Après-midi — ouverture"
                   type="time"
                   value={afternoonStart}
+                  min={morningEnd}
+                  max={endTime}
                   onChange={(event) => setAfternoonStart(event.target.value)}
                 />
                 <InputField
@@ -282,13 +305,15 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                   label="Après-midi — fermeture"
                   type="time"
                   value={afternoonEnd}
+                  min={afternoonStart}
+                  max={endTime}
                   onChange={(event) => setAfternoonEnd(event.target.value)}
                 />
               </div>
             )}
             <p className="text-[12px] text-[var(--ds-text-subtle)]">
-              Les alternants ne peuvent signer que dans ces créneaux ; le formateur peut toujours corriger une
-              demi-journée close.
+              Les créneaux doivent rester dans les horaires de la séance. Les alternants ne peuvent signer que
+              dans ces créneaux ; le formateur peut toujours corriger une demi-journée close.
             </p>
           </fieldset>
 

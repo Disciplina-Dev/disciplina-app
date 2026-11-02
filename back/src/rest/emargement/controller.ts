@@ -111,6 +111,15 @@ export async function setAttendance(req: Request, res: Response): Promise<void> 
     }
 }
 
+export async function signAttendanceManually(req: Request, res: Response): Promise<void> {
+    try {
+        const attendance = await service.signAttendanceManually(String(req.params.token), req.body, clientMeta(req));
+        res.json({ attendance });
+    } catch (error) {
+        sendError(res, error, 'Emargement handwritten signature failed');
+    }
+}
+
 export async function signSheet(req: Request, res: Response): Promise<void> {
     try {
         res.json(await service.signSheet(String(req.params.token), req.body, clientMeta(req)));

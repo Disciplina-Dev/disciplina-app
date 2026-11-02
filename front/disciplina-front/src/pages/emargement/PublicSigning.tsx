@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/icons'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
+import SignaturePad from '@/components/ui/SignaturePad'
 import PublicShell from '@/components/emargement/PublicShell'
 import { EmargementLinkError, fetchPublicSigning, signByQr } from '@/api/emargement'
 import type { PublicSigning, QrSignResult } from '@/types/emargement'
@@ -54,6 +55,7 @@ export default function PublicSigning() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
+  const [signature, setSignature] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [signed, setSigned] = useState<Signed | null>(null)
@@ -81,7 +83,7 @@ export default function PublicSigning() {
     setFormError(null)
     setSubmitting(true)
     try {
-      const result = await signByQr(token, email.trim())
+      const result = await signByQr(token, email.trim(), signature)
       setSigned(result)
     } catch (err) {
       if (err instanceof EmargementLinkError) {
@@ -214,17 +216,27 @@ export default function PublicSigning() {
             Utilisez l’adresse connue de votre école : elle permet de vous identifier dans la promotion.
           </p>
 
+          <div className="mt-5">
+            <SignaturePad value={signature} onChange={setSignature} label="Votre signature" />
+          </div>
+
           {formError && (
             <p role="alert" className="mt-4 rounded-[var(--radius-md)] bg-[var(--ds-danger-bg)] px-3 py-2 text-[13px] text-[var(--ds-danger)]">
               {formError}
             </p>
           )}
 
-          <Button type="submit" className="mt-5 w-full" isLoading={submitting} disabled={!email.trim()}>
+          <Button
+            type="submit"
+            className="mt-5 w-full"
+            isLoading={submitting}
+            disabled={!email.trim() || !signature}
+          >
             Confirmer ma présence
           </Button>
           <p className="mt-3 text-center text-[11px] text-[var(--ds-text-subtle)]">
-            L’heure, l’adresse IP et l’appareil utilisés sont enregistrés comme preuve de signature.
+            Votre signature, l’heure, l’adresse IP et l’appareil utilisés sont enregistrés comme preuve de
+            présence, et figurent sur la feuille d’émargement.
           </p>
         </form>
       )}

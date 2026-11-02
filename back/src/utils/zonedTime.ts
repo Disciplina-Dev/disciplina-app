@@ -88,7 +88,8 @@ export function zonedDateTimeToUtc(date: string, time: string, timeZone: string)
     return new Date(second);
 }
 
-function addDays(date: string, days: number): string {
+/** Décale une date `YYYY-MM-DD` de `days` jours (calendrier pur, sans fuseau). */
+export function addDaysToDate(date: string, days: number): string {
     const [year, month, day] = date.split('-').map(Number);
     const next = new Date(Date.UTC(year, month - 1, day + days));
     return next.toISOString().slice(0, 10);
@@ -96,7 +97,7 @@ function addDays(date: string, days: number): string {
 
 /** Dernière milliseconde de la journée locale (lien formateur valable jusqu'au soir). */
 export function endOfLocalDay(date: string, timeZone: string): Date {
-    const nextMidnight = zonedDateTimeToUtc(addDays(date, 1), '00:00', timeZone);
+    const nextMidnight = zonedDateTimeToUtc(addDaysToDate(date, 1), '00:00', timeZone);
     return new Date(nextMidnight.getTime() - 1);
 }
 

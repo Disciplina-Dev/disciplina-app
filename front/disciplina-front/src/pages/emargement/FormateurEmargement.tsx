@@ -5,6 +5,7 @@ import {
   IconAlert,
   IconCheck,
   IconCheckCircle,
+  IconClose,
   IconCopy,
   IconDownload,
   IconLoader,
@@ -19,6 +20,7 @@ import {
   EmargementLinkError,
   fetchFormateurView,
   saveAttendance,
+  saveHandwrittenSignature,
   signSheet,
   type AttendancePayload,
 } from '@/api/emargement'
@@ -84,6 +86,76 @@ function WindowRow({ label, window }: { label: string; window: SeanceWindow | nu
   )
 }
 
+type SignatureModalProps = {
+  token: string
+  alternant: AlternantAttendance
+  half: EmargementHalf
+  onClose: () => void
+  onSaved: (record: AttendanceRecord) => void
+  onError: (message: string) => void
+}
+
+/**
+ * Repli « signature manuelle en cas de problème » : l'alternant n'a pas de
+ * téléphone utilisable, il trace sa signature sur l'appareil du formateur.
+ * Le serveur horodate et enregistre le tracé comme preuve (mode `handwritten`).
+ */
+function HandwrittenSignatureModal({ token, alternant, half, onClose, onSaved, onError }: SignatureModalProps) {
+  const [signature, setSignature] = useState('')
+  const [saving, setSaving] = useState(false)
+  const fullName = `${alternant.firstName} ${alternant.lastName}`.trim()
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const saved = await saveHandwrittenSignature(token, { alternantId: alternant.id, half, signature })
+      if (saved) onSaved(saved)
+      onClose()
+    } catch (err) {
+      onError(errorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <div className="absolute inset-0 bg-[var(--ds-text)]/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative flex w-full max-w-md flex-col gap-4 rounded-2xl bg-[var(--ds-surface)] p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-[15px] font-bold text-[var(--ds-text)]">Signature de l’alternant</h2>
+            <p className="mt-0.5 text-[12px] text-[var(--ds-text-subtle)]">
+              {fullName} · {HALF_LABELS[half]}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)]"
+            aria-label="Fermer"
+          >
+            <IconClose width={16} height={16} />
+          </button>
+        </div>
+        <SignaturePad value={signature} onChange={setSignature} label="Signature manuscrite" />
+        <p className="text-[12px] text-[var(--ds-text-subtle)]">
+          L’alternant signe ici uniquement si son propre téléphone est indisponible. Le tracé, l’horodatage et
+          l’appareil du formateur sont conservés sur la feuille.
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onClose}>
+            Annuler
+          </Button>
+          <Button onClick={handleSave} isLoading={saving} disabled={!signature}>
+            Enregistrer la signature
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type CellProps = {
   token: string
   alternant: AlternantAttendance
@@ -99,6 +171,7 @@ function AttendanceCell({ token, alternant, half, canEdit, disabled, onSaved, on
   const [status, setStatus] = useState<EmargementStatus>(record?.status ?? 'na')
   const [statusTime, setStatusTime] = useState(record?.statusTime ?? '')
   const [saving, setSaving] = useState(false)
+  const [signing, setSigning] = useState(false)
 
   async function persist(nextStatus: EmargementStatus, nextTime: string | null) {
     const payload: AttendancePayload = {
@@ -148,6 +221,13 @@ function AttendanceCell({ token, alternant, half, canEdit, disabled, onSaved, on
         <span className="text-[11px] text-[var(--ds-text-subtle)]">
           {signatureLabel(record.signatureMode)} · {formatTimestamp(record.signedAt)}
         </span>
+        {record.signatureImage && (
+          <img
+            src={record.signatureImage}
+            alt={`Signature de ${alternant.firstName} ${alternant.lastName}`}
+            className="h-12 w-full rounded-[var(--radius-sm)] border border-[var(--ds-border)] bg-white object-contain"
+          />
+        )}
       </div>
     )
   }
@@ -185,6 +265,34 @@ function AttendanceCell({ token, alternant, half, canEdit, disabled, onSaved, on
           Signé par QR à {formatTimestamp(record.firstSignedAt)}
           {record.signatureMode !== 'qr' ? ' · corrigé par le formateur' : ''}
         </span>
+      )}
+      <div className="flex items-center gap-2">
+        {record?.signatureImage && (
+          <img
+            src={record.signatureImage}
+            alt={`Signature de ${alternant.firstName} ${alternant.lastName}`}
+            className="h-10 w-16 rounded-[var(--radius-sm)] border border-[var(--ds-border)] bg-white object-contain"
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => setSigning(true)}
+          disabled={saving || disabled}
+          className="flex items-center gap-1 rounded-[var(--radius-sm)] px-1.5 py-1 text-[11px] font-semibold text-[var(--ds-accent)] transition-colors hover:bg-[var(--ds-surface-sunken)] disabled:opacity-60"
+        >
+          <IconSignature width={12} height={12} />
+          {record?.signatureImage ? 'Signer à nouveau' : 'Signer à la main'}
+        </button>
+      </div>
+      {signing && (
+        <HandwrittenSignatureModal
+          token={token}
+          alternant={alternant}
+          half={half}
+          onClose={() => setSigning(false)}
+          onSaved={onSaved}
+          onError={onError}
+        />
       )}
     </div>
   )

@@ -19,6 +19,7 @@ import {
     EMARGEMENT_STATUSES,
     EmargementHalf,
     EmargementRecord,
+    EmargementSignatureMode,
     EmargementStatus,
     SEANCE_MODES,
     SEANCE_SITES,
@@ -27,6 +28,7 @@ import {
     SeanceSite,
 } from '../types/emargement.types';
 import {
+    addDaysToDate,
     endOfLocalDay,
     formatLongDateFr,
     isHhMm,
@@ -40,6 +42,19 @@ import {
 export interface SeanceLinks {
     formateurUrl: string;
     qrUrl: string;
+}
+
+/**
+ * Délai de régularisation après le jour de la séance : le formateur garde la
+ * main sur sa feuille (saisie, signature manuscrite, signature finale) au-delà
+ * de minuit. Les alternants, eux, ne peuvent plus signer dès que le créneau est
+ * fermé — c'est le créneau qui ferme leur accès, pas ce délai.
+ */
+export const EMARGEMENT_GRACE_DAYS = 7;
+
+/** Fin de validité des liens : fin du jour J + délai de régularisation. */
+function linksExpiry(date: string, timeZone: string): Date {
+    return endOfLocalDay(addDaysToDate(date, EMARGEMENT_GRACE_DAYS), timeZone);
 }
 
 /** Création : la séance existe même si l'e-mail d'invitation n'a pas pu partir. */
@@ -57,10 +72,12 @@ export interface InviteResult {
 export interface EmargementRecordDto {
     status: EmargementStatus;
     statusTime: string | null;
-    signatureMode: 'qr' | 'manual';
+    signatureMode: EmargementSignatureMode;
+    /** Signature manuscrite de l'alternant (data-URL PNG), `null` hors mode `handwritten`. */
+    signatureImage: string | null;
     signedAt: string;
     firstSignedAt: string;
-    firstSignatureMode: 'qr' | 'manual';
+    firstSignatureMode: EmargementSignatureMode;
 }
 
 export interface AlternantEmargementDto {
@@ -238,6 +255,37 @@ function isEmail(value: unknown): value is string {
     return typeof value === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+/**
+ * Un créneau de signature doit tenir dans les horaires de la séance : sinon la
+ * fermeture du créneau ne borne plus rien (signature possible avant le cours ou
+ * après sa fin).
+ */
+function assertWindowInsideSeance(
+    windowStart: string,
+    windowEnd: string,
+    seanceStart: string,
+    seanceEnd: string,
+    label: string,
+): void {
+    if (minutesOfDay(windowStart) < minutesOfDay(seanceStart)) {
+        throw httpError(400, 'validation', `Le créneau ${label} ne peut pas ouvrir avant le début de la séance`);
+    }
+    if (minutesOfDay(windowEnd) > minutesOfDay(seanceEnd)) {
+        throw httpError(400, 'validation', `Le créneau ${label} ne peut pas fermer après la fin de la séance`);
+    }
+}
+
+/** Signature manuscrite : PNG/JPEG en data-URL, plafonnée (corps de requête à 3 Mo). */
+function requireSignatureImage(value: unknown): string {
+    if (typeof value !== 'string' || !/^data:image\/(png|jpeg);base64,/.test(value)) {
+        throw httpError(400, 'signature', 'La signature manuscrite est requise');
+    }
+    if (value.length > 2_500_000) {
+        throw httpError(400, 'signature', 'La signature est trop volumineuse');
+    }
+    return value;
+}
+
 function toIso(value: Date | string | null | undefined): string | null {
     if (value === null || value === undefined) return null;
     return new Date(value).toISOString();
@@ -301,7 +349,7 @@ export class EmargementService {
             afternoon_end: parsed.afternoonEnd ?? null,
             timezone,
             token_secret: generateSignature(),
-            invite_expires_at: endOfLocalDay(parsed.date, timezone),
+            invite_expires_at: linksExpiry(parsed.date, timezone),
             signed_at: null,
             signed_by_name: null,
             signature_image: null,
@@ -370,7 +418,7 @@ export class EmargementService {
             morning_end: merged.morningEnd,
             afternoon_start: merged.afternoonStart ?? null,
             afternoon_end: merged.afternoonEnd ?? null,
-            invite_expires_at: endOfLocalDay(merged.date, current.timezone),
+            invite_expires_at: linksExpiry(merged.date, current.timezone),
         });
         if (!updated) throw httpError(404, 'not_found', 'Séance introuvable');
 
@@ -395,7 +443,13 @@ export class EmargementService {
         const seance = await this.requireSeance(id);
         if (seance.signed_at) throw httpError(409, 'signed', 'Feuille d’émargement déjà signée');
 
-        const current = rotate ? await this.seances.update(id, { token_secret: generateSignature() }) : seance;
+        // Un renvoi est une action explicite du Peda : il prolonge la validité du
+        // lien, sinon on renverrait un lien déjà expiré après le délai de
+        // régularisation (J+7). `rotate` révoque en plus les liens précédents.
+        const current = await this.seances.update(id, {
+            invite_expires_at: linksExpiry(seance.date, seance.timezone),
+            ...(rotate ? { token_secret: generateSignature() } : {}),
+        });
         if (!current) throw httpError(404, 'not_found', 'Séance introuvable');
         const links = this.links(current);
         const inviteSent = await this.sendInvite(current, links.formateurUrl, senderId);
@@ -451,7 +505,7 @@ export class EmargementService {
 
         const body = asRecord(input);
         const alternantId = requiredString(body.alternantId, 'L’alternant');
-        const half = enumValue(body.half, EMARGEMENT_HALVES, 'Le demi-journée');
+        const half = enumValue(body.half, EMARGEMENT_HALVES, 'La demi-journée');
         const status = enumValue(body.status, EMARGEMENT_STATUSES, 'Le statut');
 
         const alternants = await this.sessions.findAlternants(seance.session_id);
@@ -474,10 +528,50 @@ export class EmargementService {
             status,
             statusTime,
             signatureMode: 'manual',
+            signatureImage: null,
             signedAt: new Date(),
             ip: meta.ip,
             userAgent: meta.userAgent,
         });
+        return this.recordDto(record);
+    }
+
+    /**
+     * Repli quand l'alternant ne peut pas utiliser son téléphone : il trace sa
+     * signature sur l'appareil du formateur. La preuve reste la même (horodatage
+     * serveur + IP/appareil du formateur + tracé), avec `signature_mode`
+     * `handwritten` et l'image conservée sur la feuille.
+     */
+    async signAttendanceManually(token: string, input: unknown, meta: ClientMeta): Promise<EmargementRecordDto> {
+        const seance = await this.loadByToken(token, 'formateur');
+        this.assertEditable(seance);
+
+        const body = asRecord(input);
+        const alternantId = requiredString(body.alternantId, 'L’alternant');
+        const half = enumValue(body.half, EMARGEMENT_HALVES, 'La demi-journée');
+        const signature = requireSignatureImage(body.signature);
+        if (half === 'afternoon' && !seance.afternoon_start) {
+            throw httpError(400, 'window', 'Cette séance n’a pas de créneau l’après-midi');
+        }
+
+        const alternants = await this.sessions.findAlternants(seance.session_id);
+        const alternant = alternants.find((a) => a._id === alternantId);
+        if (!alternant) throw httpError(404, 'alternant', 'Alternant introuvable dans cette session');
+
+        const record = await this.emargements.upsert(seance._id, {
+            alternantId,
+            firstName: alternant.first_name,
+            lastName: alternant.last_name,
+            half,
+            status: 'present',
+            statusTime: null,
+            signatureMode: 'handwritten',
+            signatureImage: signature,
+            signedAt: new Date(),
+            ip: meta.ip,
+            userAgent: meta.userAgent,
+        });
+        logger.info({ seanceId: seance._id, alternantId, half }, 'Emargement handwritten signature recorded');
         return this.recordDto(record);
     }
 
@@ -490,13 +584,7 @@ export class EmargementService {
         if (body.confirmed !== true) {
             throw httpError(400, 'validation', 'La confirmation du formateur est requise');
         }
-        const signature = body.signature;
-        if (typeof signature !== 'string' || !/^data:image\/(png|jpeg);base64,/.test(signature)) {
-            throw httpError(400, 'signature', 'La signature manuscrite est requise');
-        }
-        if (signature.length > 2_500_000) {
-            throw httpError(400, 'signature', 'La signature est trop volumineuse');
-        }
+        const signature = requireSignatureImage(body.signature);
 
         const signedAt = new Date();
         const updated = await this.seances.update(seance._id, {
@@ -548,6 +636,10 @@ export class EmargementService {
             throw httpError(400, 'email', 'Une adresse e-mail valide est requise');
         }
         const email = normalizeEmail(body.email);
+        // La confirmation de présence vaut signature : le tracé de l'alternant est
+        // conservé sur la feuille (et repris par les exports PDF), comme le repli
+        // `handwritten` tracé sur l'appareil du formateur.
+        const signature = requireSignatureImage(body.signature);
 
         const now = new Date();
         const half = this.openHalf(seance, now);
@@ -580,6 +672,7 @@ export class EmargementService {
             status: 'present',
             statusTime: null,
             signatureMode: 'qr',
+            signatureImage: signature,
             signedAt: now,
             ip: meta.ip,
             userAgent: meta.userAgent,
@@ -612,6 +705,11 @@ export class EmargementService {
         if (minutesOfDay(morningStart) >= minutesOfDay(morningEnd)) {
             throw httpError(400, 'validation', 'Le créneau du matin est invalide');
         }
+        // Les créneaux sont des fenêtres *à l'intérieur* de la séance : sans cette
+        // borne, on pouvait ouvrir la signature avant le début du cours et la
+        // laisser ouverte après la fin (la fermeture du créneau ne protégeait
+        // alors plus rien).
+        assertWindowInsideSeance(morningStart, morningEnd, startTime, endTime, 'du matin');
 
         const afternoonStart = optionalTime(data.afternoonStart, 'Le début du créneau de l’après-midi');
         const afternoonEnd = optionalTime(data.afternoonEnd, 'La fin du créneau de l’après-midi');
@@ -620,6 +718,9 @@ export class EmargementService {
         }
         if (afternoonStart && afternoonEnd && minutesOfDay(afternoonStart) >= minutesOfDay(afternoonEnd)) {
             throw httpError(400, 'validation', 'Le créneau de l’après-midi est invalide');
+        }
+        if (afternoonStart && afternoonEnd) {
+            assertWindowInsideSeance(afternoonStart, afternoonEnd, startTime, endTime, 'de l’après-midi');
         }
         if (afternoonStart && minutesOfDay(morningEnd) > minutesOfDay(afternoonStart)) {
             throw httpError(400, 'validation', 'Les créneaux du matin et de l’après-midi se chevauchent');
@@ -734,6 +835,7 @@ export class EmargementService {
             status: record.status,
             statusTime: record.status_time,
             signatureMode: record.signature_mode,
+            signatureImage: record.signature_image ?? null,
             signedAt: toIso(record.signed_at)!,
             firstSignedAt: toIso(record.first_signed_at)!,
             firstSignatureMode: record.first_signature_mode,

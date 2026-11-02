@@ -20,6 +20,14 @@ Aucun code modifié. Tous les constats sont référencés `fichier:ligne` et ont
 >
 > **État au 2026-10-30 après le lot 1** (données affichées : organisme + logo, titre pro, module, lieu,
 > financeur — cf. §6) : **12 satisfaites**, **20 partielles**, **25 absentes**.
+>
+> **État au 2026-10-30 après le lot 2** (séance et signature de secours : créneaux bornés aux horaires
+> de séance, fermeture à la fin du créneau, lien formateur valable J+7, signature manuscrite de
+> l'alternant tracée chez le formateur — cf. §6) : **14 satisfaites**, **18 partielles**,
+> **25 absentes**.
+>
+> **État au 2026-10-30 après le lot 3** (signature exigée à chaque passage, y compris par QR — cf. §6) :
+> mêmes totaux que le lot 2, 3.3 restant partiel faute de vérification d'identité.
 
 Légende :
 **✅ FAIT** = conforme à l'exigence ·
@@ -37,11 +45,11 @@ Légende :
 | Service | `back/src/services/EmargementService.ts` (806 l.), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
 | Dépôts | `back/src/repositories/mongo/SeanceRepository.ts`, `EmargementRepository.ts` |
 | API staff | `POST/GET/PUT/DELETE /api/emargement/seances…` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
-| API publique | `GET\|PUT /api/emargement/formateur/:token[/attendance]`, `POST …/sign`, `GET\|POST /api/emargement/sign/:token` — `public.route.ts` |
+| API publique | `GET\|PUT /api/emargement/formateur/:token[/attendance]`, `POST …/attendance/sign` (signature manuscrite de l'alternant), `POST …/sign`, `GET\|POST /api/emargement/sign/:token` — `public.route.ts` |
 | UI Peda | `front/…/pages/peda/Emargements.tsx`, `EmargementSeance.tsx`, `components/peda/SeanceFormModal.tsx` |
 | UI publique | `front/…/pages/emargement/FormateurEmargement.tsx`, `PublicSigning.tsx`, `components/emargement/PublicShell.tsx` |
 | Client API / types | `front/…/api/emargement.ts`, `types/emargement.ts`, `utils/emargement.ts` |
-| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (7 cas) |
+| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (13 cas) |
 
 ---
 
@@ -50,7 +58,7 @@ Légende :
 | § | Exigence | État |
 |---|---|---|
 | 1 | Données obligatoires sur la feuille | ⚠️ 6/7 (groupe, titre pro + module, site + lieu, date/horaires, noms, formateur, financeur) — sites non configurables |
-| 2 | Découpage des séances | ⚠️ 2.1 / 2.2 ✅ — 2.3 / 2.4 partiels |
+| 2 | Découpage des séances | ✅ 2.1 / 2.2 / 2.3 / 2.4 — créneaux bornés aux horaires, signature de secours, lien J+7 |
 | 3 | Authentification & identité | ❌ identité = e-mail saisi, QR partagé, formateur sans compte |
 | 4 | Horodatage & intégrité | ⚠️ 4.1 / 4.2 ✅ à la signature — **aucune traçabilité des corrections** |
 | 5 | Validation par le formateur | ⚠️ 5.2 ✅ — 5.1 par journée au lieu de demi-journée, 5.3 ❌ |
@@ -85,23 +93,27 @@ Légende :
 
 ### 3.2 §2 — Découpage des séances
 
+> **Mise à jour du 2026-10-30** (lot 2 « séance et signature de secours », branche
+> `955-feat-emargement-section`) : **2.3 et 2.4 sont traités**. Détail des correctifs en §6.
+
 - **2.1 ✅ FAIT** — Deux enregistrements distincts `morning` / `afternoon`, avec index unique
   `(seance_id, alternant_id, half)` (`emargement.schema.ts:29`).
 - **2.2 ✅ FAIT** — Aucune signature journalière côté apprenant : `signByQr` écrit toujours sur la
   demi-journée ouverte (`EmargementService.ts:511`).
-- **2.3 ⚠️ PARTIEL** — Fenêtres paramétrables et **contrôlées côté serveur** (`openHalf`,
-  `EmargementService.ts:643-650` ; refus 409 `window` à `:512-514`). Manques :
-  - la fenêtre **n'est pas bornée aux horaires de séance** : `parseSeanceInput`
-    (`EmargementService.ts:556-606`) valide les créneaux entre eux, mais pas
-    `morning_start ≥ start_time` ni `morning_end ≤ end_time` → signature possible **avant le début**
-    et **après la fin** de la séance ;
-  - l'option « signature manuelle en cas de problème » n'existe que sous forme de **statut saisi par
-    le formateur** (pas de signature manuscrite de l'apprenant), et **uniquement le jour même**
-    (cf. §5.3 et défaut **B**).
-- **2.4 ⚠️ PARTIEL** — Fermeture automatique à la fin du **créneau** (`openHalf` → `null`,
-  `windowState` `closed`), pas à la fin de la **séance** (les deux sont indépendants, cf. 2.3).
-  De plus `invite_expires_at` = fin de journée locale (`EmargementService.ts:277`) : après minuit,
-  plus rien n'est possible, ni côté apprenant ni côté formateur.
+- **2.3 ✅ FAIT** <br>(traité 2026-10-30) — Fenêtres paramétrables et **contrôlées côté serveur**
+  (`openHalf`, refus 409 `window`), désormais **bornées aux horaires de la séance** :
+  `assertWindowInsideSeance` (`EmargementService.ts`) refuse en 400 `validation` une ouverture avant
+  `start_time` ou une fermeture après `end_time`, matin et après-midi, et le formulaire Peda
+  (`SeanceFormModal.tsx`) applique les mêmes bornes (`min`/`max` + messages). ~~Signature possible
+  avant le début / après la fin de la séance.~~ L'option « signature manuelle en cas de problème »
+  existe maintenant comme **vraie signature de l'apprenant** : mode `handwritten`, tracée sur
+  l'appareil du formateur (`POST /api/emargement/formateur/:token/attendance/sign`), disponible tant
+  que la feuille est éditable — donc **pas limitée au jour même**.
+- **2.4 ✅ FAIT** <br>(traité 2026-10-30) — Fermeture automatique à la fin du **créneau**
+  (`openHalf` → `null`, `windowState` `closed`), indépendamment de la fin de la séance, et
+  `invite_expires_at` = **fin du jour J + 7 jours** (`EMARGEMENT_GRACE_DAYS`, `linksExpiry`) : après
+  minuit, le formateur peut encore saisir, faire signer à la main et signer la feuille. Le QR
+  alternant, lui, reste fermé par son créneau — le jeton plus long est donc inerte côté apprenant.
 
 ### 3.3 §3 — Authentification et identité — **écart majeur**
 
@@ -116,7 +128,11 @@ Légende :
   d'assiduité opposable.
 - **3.3 ⚠️ PARTIEL** — Signature électronique simple eIDAS : horodatage serveur ✅, lien avec le
   document ✅ (`seance_id` + `alternant_id`), **vérification d'identité ❌** (simple connaissance d'un
-  e-mail), pas d'artefact de consentement au-delà du clic, pas de signature manuscrite de l'apprenant.
+  e-mail), pas d'artefact de consentement au-delà du clic. Depuis le lot 2, une **signature manuscrite
+  de l'apprenant** existe en repli (tracée sur l'appareil du formateur, mode `handwritten`) ; depuis le
+  lot 3, elle est **exigée à chaque signature QR** (tracée sur le téléphone de l'apprenant). Reste une
+  signature non vérifiée à distance : n'importe qui connaissant l'e-mail peut signer à la place d'un
+  autre (cf. 3.2).
 - **3.4 ❌ ABSENT** — Le formateur **ne s'authentifie pas** : il reçoit un lien de capacité par e-mail
   (`EmargementService.ts:662-668`), transmissible, sans login, sans MFA, sans rattachement à un
   compte (`formateur_name` / `formateur_email` saisis par le Peda).
@@ -137,13 +153,16 @@ Légende :
 - **5.1 ❌/⚠️** — Une **seule signature pour toute la journée** (`signSheet`,
   `EmargementService.ts:445-474`), pas une par demi-journée. Et elle est possible **avant la
   fermeture des créneaux** : `signSheet` ne vérifie que « non signée » (`:447`) et « non expirée »
-  (`:448`) — le `CHANGELOG.md` annonce « une fois les créneaux passés », ce **n'est pas appliqué**.
+  (`:448`). La mention « une fois les créneaux passés » a été retirée du `CHANGELOG.md` (lot 2) ; le
+  contrôle lui-même reste à implémenter (défaut **D**).
 - **5.2 ✅ FAIT** — Présent / absent / en retard (+heure) / parti en avance (+heure) :
   `setAttendance` (`:409-443`), `status_time` (`emargement.types.ts:77`).
 - **5.3 ❌ ABSENT** — Aucune détection d'anomalie : pas de statut « non validée », pas d'alerte, pas
   de liste. Seul un badge « En cours » / « Signée » dans la liste (`Emargements.tsx:160-166`).
-  Aggravant : après minuit la feuille ne peut **plus jamais** être signée (410) et le Peda n'a
+  Aggravant : après minuit la feuille ne pouvait **plus jamais** être signée (410) et le Peda n'a
   **aucun moyen de la valider lui-même** → anomalie définitive et non résoluble (défaut **B**).
+  Le lot 2 porte le lien formateur à J+7 (le formateur peut donc régulariser) ; la validation par le
+  Peda reste absente.
 
 ### 3.6 §6 — Gestion des absences et retards — **section entièrement absente**
 
@@ -222,7 +241,9 @@ Chantier séparé à ouvrir.
 - **12.2 ⚠️** HTTPS = infra. Bon point : liens publics sans cookie (`credentials: 'omit'`,
   `api/emargement.ts:109-114`), jetons HMAC non stockés. Mais jeton **dans l'URL** (fuite possible via
   logs / referrer) et aucun compte ni mot de passe côté formateur.
-- **12.3 ✅ FAIT** — Pas de géolocalisation, collecte limitée (nom, e-mail, statut, horodatage, IP, UA).
+- **12.3 ✅ FAIT** — Pas de géolocalisation, collecte limitée (nom, e-mail, statut, horodatage, IP, UA,
+  signature manuscrite de l'alternant à chaque passage — `qr` ou repli `handwritten` —, déclarée dans
+  `RGPD.md`).
   ⚠️ Durée de conservation de l'IP/UA non documentée.
 - **12.4 ⚠️ PARTIEL** — Pied de page légal générique présent (`components/legal/PublicLegalFooter.tsx`)
   + une ligne « l'heure, l'adresse IP et l'appareil utilisés sont enregistrés »
@@ -253,15 +274,15 @@ Indépendamment du cahier des charges, ces points sont des bugs ou des dettes à
 | # | Défaut | Impact | Emplacement |
 |---|---|---|---|
 | A | **Changer la session d'une séance laisse les émargements orphelins** : `update()` change `session_id` sans purger `emargements` → la feuille mélange deux groupes et les compteurs `marked`/`present` sont faux. | Intégrité des données | `EmargementService.ts:296-346` |
-| B | **Aucune remédiation après la fin de journée** : `invite_expires_at` = minuit ; `assertEditable` / `signSheet` renvoient 410 → une feuille non validée est **définitivement** bloquée, sans signature Peda possible. | Bloque 5.3 et toute correction a posteriori | `EmargementService.ts:624-631` |
-| C | **Fenêtres non bornées aux horaires de séance** (cf. 2.3). | Preuve contestable | `EmargementService.ts:556-606` |
+| B | **Aucune remédiation après la fin de journée** : `invite_expires_at` = minuit ; `assertEditable` / `signSheet` renvoient 410 → une feuille non validée est **définitivement** bloquée, sans signature Peda possible. **Corrigé le 2026-10-30 (lot 2)** : `invite_expires_at` = fin du jour J + 7 jours (`EMARGEMENT_GRACE_DAYS`), donc le formateur peut encore corriger et signer. La remédiation **côté Peda** (écran + action de validation) reste à faire. | Bloque 5.3 et toute correction a posteriori | `EmargementService.ts` (`linksExpiry`) |
+| C | **Fenêtres non bornées aux horaires de séance** (cf. 2.3). **Corrigé le 2026-10-30 (lot 2)** : `assertWindowInsideSeance` refuse en 400 `validation` une ouverture avant `start_time` ou une fermeture après `end_time` (matin et après-midi), et `SeanceFormModal` applique les mêmes bornes. | Preuve contestable | `EmargementService.ts` (`parseSeanceInput`), `SeanceFormModal.tsx` |
 | D | **Signature formateur = 1 par jour, sans contrôle de fermeture des créneaux.** | Non conforme 5.1 ; le CHANGELOG/E2E annoncent un comportement non implémenté | `EmargementService.ts:445-474` |
 | E | **Aucune trace d'audit des corrections** : `upsert` écrase statut / IP / UA / heure. | Bloque 8.3 et 10.4 | `EmargementRepository.ts:50-87` |
 | F | **Identité = e-mail saisi + QR partagé.** | Bloque 3.1 / 3.2, affaiblit 3.3 | `EmargementService.ts:499-552` |
 | G | **Liste plafonnée à 200 séances sans pagination.** | Bloque dashboards et exports historiques | `SeanceRepository.ts:23-28` |
 | H | **Aucune unicité `(session, date, début)`** → séances en doublon possibles. | Qualité de données | `seance.schema.ts:35-36` |
 | I | **Écran Peda en lecture seule** : le Peda ne peut pas saisir ni corriger une présence. | Gêne opérationnelle (10.4) | `pages/peda/EmargementSeance.tsx` |
-| J | **Incohérence documentaire** : `CHANGELOG.md` et `E2E.md` § 3.14 bis affirment « signature une fois les créneaux passés » — faux. | Confiance dans la doc | `CHANGELOG.md`, `E2E.md` |
+| J | **Incohérence documentaire** : `CHANGELOG.md` et `E2E.md` § 3.14 bis affirment « signature une fois les créneaux passés » — faux. **Corrigé le 2026-10-30 (lot 2)** : la mention a été retirée de `CHANGELOG.md` ; le comportement lui-même reste à implémenter (défaut **D**). | Confiance dans la doc | `CHANGELOG.md`, `E2E.md` |
 
 ---
 
@@ -273,9 +294,10 @@ Indépendamment du cahier des charges, ces points sont des bugs ou des dettes à
    apprenant + vérification (OTP e-mail ou lien à usage unique), journalisation du mode.
 2. **Authentification formateur** (§3.4) : compte utilisateur + rattachement (`user_id`) sur la séance.
 3. **Journal d'audit append-only** des saisies/corrections (§4.2, 8.3) + motif de correction (§10.4).
-4. **Signature par demi-journée** et contrôle de fermeture des créneaux (§5.1) ; **bornage des fenêtres**
-   aux horaires de séance (C) ; **remédiation post-journée** (B).
-5. Corriger les défauts **A**, **G**, **H**, **J**.
+4. **Signature par demi-journée** et contrôle de fermeture des créneaux (§5.1) ; ~~**bornage des fenêtres**
+   aux horaires de séance (C)~~ ✅ lot 2 ; ~~**remédiation post-journée** (B)~~ ✅ lot 2 pour le délai de
+   régularisation (reste la validation côté Peda, §5.3).
+5. Corriger les défauts **A**, **G**, **H**.
 
 ### P1 — exploitation quotidienne
 
@@ -332,3 +354,65 @@ côté Peda et côté formateur) et `back/src/graphql/peda/__tests__/alternant.t
 longueur maximale du financeur).
 
 Reste à faire pour clore §1 : exports PDF/CSV portant ces cinq données (§8), sites configurables (§13.4).
+
+### Lot 2 — séance et signature de secours (2026-10-30)
+
+Périmètre : borner la preuve au temps réel du cours et donner une vraie signature de repli à l'apprenant.
+**Les exports PDF/CSV restent hors périmètre** (point 8 du plan P1), ainsi que la signature par
+demi-journée (§5.1) et la remédiation côté Peda (§5.3).
+
+| Exigence | Correctif |
+|---|---|
+| 2.3 Créneaux bornés | `assertWindowInsideSeance` (`EmargementService.parseSeanceInput`) refuse en 400 `validation` `morning_start < start_time`, `morning_end > end_time`, et idem pour l'après-midi. `SeanceFormModal` applique les mêmes règles (`min`/`max` sur les champs heure + messages d'erreur) et ses valeurs par défaut ont été corrigées (matin 09:00–09:15, l'ancien 08:45 était hors bornes). |
+| 2.3 Signature manuelle de l'apprenant | Nouveau mode `handwritten` (`EMARGEMENT_SIGNATURE_MODES`) et route `POST /api/emargement/formateur/:token/attendance/sign` (`signAttendanceManually`) : le formateur ouvre un `SignaturePad` depuis la ligne de l'alternant, celui-ci trace à la main. Le tracé est stocké dans `emargements.signature_image`, horodaté côté serveur avec l'IP / l'appareil du formateur, et affiché sur la page formateur et la feuille Peda. Autorisé tant que la feuille est éditable — **pas limité au jour même**. |
+| 2.4 Fermeture au créneau + lien J+7 | La fermeture de la signature alternant reste portée par `openHalf` (fin du créneau, indépendante de la fin de séance). `invite_expires_at` = fin du jour J + `EMARGEMENT_GRACE_DAYS` (7) via `linksExpiry` : le formateur peut régulariser après minuit, le QR alternant restant fermé par son créneau. `resendInvite` repousse l'échéance (sinon le Peda renverrait un lien mort). |
+
+Décisions de conception :
+
+- **L'image est une pièce de preuve, pas un état** : `EmargementRepository.upsert` ne l'écrit qu'en mode
+  `handwritten` ; une simple correction de statut qui reste une présence (`present` / `late` /
+  `left_early`) la conserve, tandis qu'un passage à `absent` / `na` ou une nouvelle signature `qr`
+  l'efface — elle ne prouverait plus la présence.
+- **Validation d'image côté serveur** : `requireSignatureImage` (data-URL PNG/JPEG, ≤ 2,5 Mo) est
+  partagée avec la signature de la feuille ; le corps public reste plafonné à 3 Mo.
+- **Délai de 7 jours** plutôt que « jusqu'à clôture par le Peda » : aucun écran ni action de clôture
+  n'existe encore côté Peda (défaut **B**, §5.3) ; le délai borne la fenêtre sans nouveau chantier.
+- `addDays` de `utils/zonedTime.ts` est devenu `addDaysToDate` (exporté) et sert à `endOfLocalDay` comme
+  à `linksExpiry`, pour éviter deux arithmétiques de dates divergentes.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (12 cas) — créneau hors bornes
+(matin et après-midi, ouverture et fermeture) → 400, bornes incluses acceptées ; `inviteExpiresAt` = fin
+du jour J+7 locale et prolongée au renvoi de l'invitation ; signature manuscrite (statut `present`, image
+exposée côté Peda, conservée sur correction de présence, effacée sur `absent`), signature absente → 400
+`signature`, après-midi inexistant → 400 `window`.
+
+Reste à faire pour clore §2 : rien — 2.1 à 2.4 sont conformes. Les manques voisins relèvent d'autres
+sections : identité du signataire (§3), audit des corrections (§4.2 / 8.3), signature par demi-journée
+(§5.1), remédiation Peda (§5.3), exports (§8).
+
+### Lot 3 — signature exigée à chaque passage (2026-10-30)
+
+Périmètre : faire de la confirmation de présence de l'apprenant une **vraie signature**, exploitable
+comme pièce du dossier et reprise par les futurs exports. Les exports PDF/CSV restent hors périmètre
+(point 8 du plan P1) ; seule la donnée est désormais disponible.
+
+| Exigence | Correctif |
+|---|---|
+| 3.3 Signature de l'apprenant | `signByQr` exige un tracé (`requireSignatureImage`, PNG/JPEG data-URL ≤ 2,5 Mo) en plus de l'e-mail : le tracé est stocké dans `emargements.signature_image` avec `signature_mode: 'qr'`, à côté de l'horodatage serveur, de l'IP et de l'appareil. Absent ou mal formé → 400 `signature`. La page `/emargement/sign/:token` (`PublicSigning.tsx`) ajoute un `SignaturePad` et bloque l'envoi tant que rien n'est tracé. |
+| 1.x / 8 Préparation des exports | Le tracé est déjà affiché sur la page formateur et sur la feuille Peda (lot 2) : les exports PDF/CSV n'auront qu'à lire `signature_image` pour le reproduire. |
+
+Décisions de conception :
+
+- **Un seul champ pour les deux canaux** : `signature_image` porte le tracé quel que soit le mode
+  (`qr` sur le téléphone de l'apprenant, `handwritten` sur l'appareil du formateur). `signature_mode`
+  conserve l'origine, donc la valeur probante, sans dupliquer le stockage.
+- **Remplacement, pas empilement** : une signature `qr` remplace un tracé `handwritten` antérieur (et
+  inversement) ; l'historique de la première signature reste porté par `first_signed_at` /
+  `first_signature_mode`. Une correction de statut restant une présence conserve le tracé ; un passage à
+  `absent` / `na` l'efface.
+- **Signature obligatoire mais non vérifiée** : l'identité reste prouvée par la connaissance de l'e-mail
+  (défaut **F**, §3.1 / 3.2). Le tracé renforce la preuve d'assiduité, il ne l'authentifie pas.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (13 cas) — signature QR sans tracé
+→ 400 `signature` ; tracé stocké et visible côté Peda ; signature idempotente ; un tracé `qr` remplace
+un tracé `handwritten`.

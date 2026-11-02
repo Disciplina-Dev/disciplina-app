@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import { emargementRateLimiter } from '../middleware/rateLimiter';
 import { resolveExternalRegion } from '../external/region';
-import { formateurView, publicSigning, setAttendance, signByQr, signSheet } from './controller';
+import { formateurView, publicSigning, setAttendance, signAttendanceManually, signByQr, signSheet } from './controller';
 
 // Pages publiques de l'émargement : lien formateur et QR code alternant.
 // Le jeton porte `<seanceId>.<hmac>:<region>` — le middleware route la requête
@@ -18,6 +18,7 @@ const withRegion = (req: express.Request, res: express.Response, next: express.N
 
 router.get('/formateur/:token', withRegion, formateurView);
 router.put('/formateur/:token/attendance', withRegion, setAttendance);
+router.post('/formateur/:token/attendance/sign', withRegion, signAttendanceManually);
 router.post('/formateur/:token/sign', withRegion, signSheet);
 
 router.get('/sign/:token', withRegion, publicSigning);
