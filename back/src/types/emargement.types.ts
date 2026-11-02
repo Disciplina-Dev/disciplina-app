@@ -63,6 +63,59 @@ export interface SeanceValidation {
 export const SEANCE_VALIDATION_STATUSES = ['in_progress', 'to_validate', 'anomaly', 'validated'] as const;
 export type SeanceValidationStatus = (typeof SEANCE_VALIDATION_STATUSES)[number];
 
+/**
+ * Actions journalisées dans l'historique d'une feuille d'émargement. Le journal
+ * est append-only : il permet de reconstituer qui a changé quoi, quand et depuis
+ * quel appareil, y compris après une correction du formateur ou du Peda.
+ */
+export const EMARGEMENT_HISTORY_ACTIONS = [
+    /** Séance créée par le Peda (la feuille existe, aucun statut saisi). */
+    'seance_created',
+    /** Statut d'un alternant saisi ou corrigé par le formateur. */
+    'attendance_set',
+    /** Signature de secours de l'alternant, tracée sur l'appareil du formateur. */
+    'attendance_signed',
+    /** Signature de l'alternant sur son téléphone via le QR code. */
+    'qr_signed',
+    /** Demi-journée signée par le formateur (verrouille cette demi-journée). */
+    'half_signed',
+    /** Demi-journée validée par le service pédagogique (régularisation, avec motif). */
+    'half_validated',
+] as const;
+export type EmargementHistoryAction = (typeof EMARGEMENT_HISTORY_ACTIONS)[number];
+
+/** Auteur d'un événement du journal. */
+export const EMARGEMENT_HISTORY_SOURCES = ['peda', 'formateur', 'alternant', 'system'] as const;
+export type EmargementHistorySource = (typeof EMARGEMENT_HISTORY_SOURCES)[number];
+
+/**
+ * Entrée du journal d'une séance. `from_status` est `null` à la création de la
+ * ligne ; une entrée n'est écrite que si le statut (ou son heure) change, ou
+ * lorsqu'une signature / validation est enregistrée.
+ */
+export interface EmargementHistoryEntry {
+    _id: string;
+    seance_id: string;
+    /** Alternant concerné ; `null` pour les événements au niveau de la feuille. */
+    alternant_id: string | null;
+    /** Nom figé au moment de l'événement (l'alternant peut être renommé ensuite). */
+    alternant_name: string | null;
+    half: EmargementHalf | null;
+    action: EmargementHistoryAction;
+    from_status: EmargementStatus | null;
+    to_status: EmargementStatus | null;
+    from_status_time: string | null;
+    to_status_time: string | null;
+    source: EmargementHistorySource;
+    /** Nom de l'auteur (formateur, alternant ou utilisateur Peda). */
+    actor_name: string | null;
+    /** Motif saisi par le Peda (validation) ou contexte de l'action. */
+    note: string | null;
+    ip: string | null;
+    user_agent: string | null;
+    at: Date | string;
+}
+
 export interface Seance {
     _id: string;
     /** Classe Filiz qui tient lieu de session (groupe d'alternants). */

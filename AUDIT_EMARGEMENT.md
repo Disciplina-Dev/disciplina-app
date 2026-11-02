@@ -18,20 +18,23 @@ Aucun code modifié. Tous les constats sont référencés `fichier:ligne` et ont
 > signataire** (§3), les **absences / justificatifs / notifications** (§6), les **exports** (§8), les
 > **tableaux de bord** (§7) et l'**archivage / réversibilité** (§11).
 >
-> **État au 2026-10-30 après le lot 1** (données affichées : organisme + logo, titre pro, module, lieu,
+> **État lot 1** (données affichées : organisme + logo, titre pro, module, lieu,
 > financeur — cf. §6) : **12 satisfaites**, **20 partielles**, **25 absentes**.
 >
-> **État au 2026-10-30 après le lot 2** (séance et signature de secours : créneaux bornés aux horaires
+> **État lot 2** (séance et signature de secours : créneaux bornés aux horaires
 > de séance, fermeture à la fin du créneau, lien formateur valable J+7, signature manuscrite de
 > l'alternant tracée chez le formateur — cf. §6) : **14 satisfaites**, **18 partielles**,
 > **25 absentes**.
 >
-> **État au 2026-10-30 après le lot 3** (signature exigée à chaque passage, y compris par QR — cf. §6) :
+> **État lot 3** (signature exigée à chaque passage, y compris par QR — cf. §6) :
 > mêmes totaux que le lot 2, 3.3 restant partiel faute de vérification d'identité.
 >
-> **État au 2026-10-30 après le lot 4** (signature par demi-journée après fermeture du créneau, statut de
+> **État lot 4** (signature par demi-journée après fermeture du créneau, statut de
 > validation, alerte et liste des anomalies, validation de régularisation par le Peda — cf. §6) :
 > **16 satisfaites**, **18 partielles**, **23 absentes**.
+>
+> **État lot 5** (historique append-only des changements de statut, signatures et
+> validations — cf. §6) : **16 satisfaites**, **19 partielles**, **22 absentes**.
 
 Légende :
 **✅ FAIT** = conforme à l'exigence ·
@@ -45,15 +48,15 @@ Légende :
 | Couche | Fichiers |
 |---|---|
 | Modèle de domaine | `back/src/types/emargement.types.ts` |
-| Schémas Mongo | `back/src/db/mongo/schemas/seance.schema.ts`, `emargement.schema.ts` (+ enregistrement dans `db/mongo/tenant.ts:56-57`) |
-| Service | `back/src/services/EmargementService.ts` (1 169 l.), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
-| Dépôts | `back/src/repositories/mongo/SeanceRepository.ts`, `EmargementRepository.ts` |
+| Schémas Mongo | `back/src/db/mongo/schemas/seance.schema.ts`, `emargement.schema.ts`, `emargementHistory.schema.ts` (+ enregistrement dans `db/mongo/tenant.ts`) |
+| Service | `back/src/services/EmargementService.ts` (1 347 l.), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
+| Dépôts | `back/src/repositories/mongo/SeanceRepository.ts`, `EmargementRepository.ts`, `EmargementHistoryRepository.ts` |
 | API staff | `POST/GET/PUT/DELETE /api/emargement/seances…`, `POST /api/emargement/seances/:id/validate` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
 | API publique | `GET\|PUT /api/emargement/formateur/:token[/attendance]`, `POST …/attendance/sign` (signature manuscrite de l'alternant), `POST …/sign` (une demi-journée), `GET\|POST /api/emargement/sign/:token` — `public.route.ts` |
 | UI Peda | `front/…/pages/peda/Emargements.tsx`, `EmargementSeance.tsx`, `components/peda/SeanceFormModal.tsx` |
 | UI publique | `front/…/pages/emargement/FormateurEmargement.tsx`, `PublicSigning.tsx`, `components/emargement/PublicShell.tsx` |
 | Client API / types | `front/…/api/emargement.ts`, `types/emargement.ts`, `utils/emargement.ts` |
-| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (15 cas) |
+| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (16 cas) |
 
 ---
 
@@ -64,11 +67,11 @@ Légende :
 | 1 | Données obligatoires sur la feuille | ⚠️ 6/7 (groupe, titre pro + module, site + lieu, date/horaires, noms, formateur, financeur) — sites non configurables |
 | 2 | Découpage des séances | ✅ 2.1 / 2.2 / 2.3 / 2.4 — créneaux bornés aux horaires, signature de secours, lien J+7 |
 | 3 | Authentification & identité | ❌ identité = e-mail saisi, QR partagé, formateur sans compte |
-| 4 | Horodatage & intégrité | ⚠️ 4.1 / 4.2 ✅ à la signature — **aucune traçabilité des corrections** |
+| 4 | Horodatage & intégrité | ⚠️ 4.1 ✅ — 4.2 partiel (journal des changements, motif de correction absent) |
 | 5 | Validation par le formateur | ✅ 5.1 / 5.2 / 5.3 — signature par demi-journée après fermeture, statut, alerte et validation Peda |
 | 6 | Absences et retards | ❌ 0/5 |
 | 7 | Tableaux de bord et suivi | ⚠️ 7.3 partiel (filtre + alerte anomalies) — 7.1 / 7.2 ❌, 7.4 partiel via l'archivage alternant |
-| 8 | Exports et justificatifs | ❌ 0/5 |
+| 8 | Exports et justificatifs | ⚠️ 8.3 partiel (journal en base, non exporté) — 8.1 / 8.2 / 8.4 / 8.5 ❌ |
 | 9 | Sessions d'examen titre pro | ❌ 0/4 |
 | 10 | Rôles et droits d'accès | ⚠️ 4 rôles internes seulement — pas d'apprenant, pas d'employeur |
 | 11 | Archivage | ❌ 0/4 |
@@ -145,12 +148,14 @@ Légende :
 
 - **4.1 ✅ FAIT** — `new Date()` côté serveur uniquement (`EmargementService.ts:462`, `:510`), ISO
   avec millisecondes ; l'heure client n'est jamais utilisée pour la preuve.
-- **4.2 ⚠️ PARTIEL** — Par signature : `signed_at`, `alternant_id`, `ip`, `user_agent`,
-  `signature_mode` (+ `first_signed_at` / `first_signature_mode`). Pour la signature de la feuille :
-  `signed_at`, `signed_ip`, `signed_user_agent`, `signed_by_name` (mode implicite).
-  **Mais** `EmargementRepository.upsert` (`EmargementRepository.ts:50-87`) **écrase** `status`, `ip`,
-  `user_agent`, `signed_at` à chaque correction → **aucun historique**, aucune trace de « qui a
-  corrigé quoi et pourquoi ». Bloquant pour 8.3 et 10.4.
+- **4.2 ⚠️ PARTIEL → ⚠️ PARTIEL (lot 5)** — À l'audit : par signature `signed_at`, `alternant_id`, `ip`,
+  `user_agent`, `signature_mode` (+ `first_*`), mais `EmargementRepository.upsert` **écrasait** `status`,
+  `ip`, `user_agent`, `signed_at` à chaque correction → **aucun historique**. Depuis le lot 5, la
+  collection append-only `emargement_history` journalise chaque création, changement de statut (avant →
+  après + heure), signature et validation, avec auteur, date, IP et appareil ; le détail de la séance
+  l'expose (`history`). **Reste partiel** : le formateur ne saisit pas de **motif** lors d'une correction
+  (le « pourquoi » n'existe que pour la validation Peda), et le journal n'est ni exportable ni purgé par
+  une politique de rétention.
 
 ### 3.5 §5 — Validation par le formateur
 
@@ -206,7 +211,10 @@ Légende :
 - **8.1 ❌** Aucun export PDF (par séance / par apprenant / par groupe) : aucune route, aucun bouton,
   aucun gabarit.
 - **8.2 ❌** Aucun export Excel/CSV des présences et des heures.
-- **8.3 ❌** Aucun journal d'audit (rien à exporter — cf. 4.2).
+- **8.3 ❌ → ⚠️ PARTIEL (lot 5)** — Aucun journal d'audit à l'audit (cf. 4.2). Depuis le lot 5,
+  `emargement_history` conserve tous les changements (statut, signatures, validations) avec auteur,
+  horodatage, IP et appareil. **Manquent** : l'export du journal, un écran de recherche global
+  (l'historique n'est visible que séance par séance) et une politique de rétention paramétrable.
 - **8.4 ❌** Aucun modèle PDF paramétrable (charte Disciplina / Région / FSE+).
 - **8.5 ❌** Aucune attestation d'assiduité.
 
@@ -338,7 +346,7 @@ conservation contractuelle (11.1).
 
 ## 6. Journal des lots traités
 
-### Lot 1 — données affichées sur l'émargement (2026-10-30)
+### Lot 1 — données affichées sur l'émargement
 
 Périmètre : rendre la feuille lisible sans changer le modèle de preuve. **Les exports PDF/CSV restent
 hors périmètre** (point 8 du plan P1).
@@ -365,7 +373,7 @@ longueur maximale du financeur).
 
 Reste à faire pour clore §1 : exports PDF/CSV portant ces cinq données (§8), sites configurables (§13.4).
 
-### Lot 2 — séance et signature de secours (2026-10-30)
+### Lot 2 — séance et signature de secours
 
 Périmètre : borner la preuve au temps réel du cours et donner une vraie signature de repli à l'apprenant.
 **Les exports PDF/CSV restent hors périmètre** (point 8 du plan P1), ainsi que la signature par
@@ -400,7 +408,7 @@ Reste à faire pour clore §2 : rien — 2.1 à 2.4 sont conformes. Les manques 
 sections : identité du signataire (§3), audit des corrections (§4.2 / 8.3), signature par demi-journée
 (§5.1), remédiation Peda (§5.3), exports (§8).
 
-### Lot 3 — signature exigée à chaque passage (2026-10-30)
+### Lot 3 — signature exigée à chaque passage
 
 Périmètre : faire de la confirmation de présence de l'apprenant une **vraie signature**, exploitable
 comme pièce du dossier et reprise par les futurs exports. Les exports PDF/CSV restent hors périmètre
@@ -427,7 +435,7 @@ Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (13 cas) �
 → 400 `signature` ; tracé stocké et visible côté Peda ; signature idempotente ; un tracé `qr` remplace
 un tracé `handwritten`.
 
-### Lot 4 — validation par demi-journée et remédiation Peda (2026-10-30)
+### Lot 4 — validation par demi-journée et remédiation Peda
 
 Périmètre : rendre la signature du formateur conforme (une demi-journée à la fois, après fermeture de
 son créneau) et rendre les feuilles non signées visibles, puis résolubles par le service pédagogique.
@@ -464,3 +472,37 @@ avec motif → `validated` + `source: 'peda'` + `signatureImage: null`, revalida
 
 Reste à faire pour clore §5 et §7.3 : vue dédiée « feuilles incomplètes » (statuts non saisis),
 correction motivée côté Peda (§10.4), exports PDF/CSV portant les validations par demi-journée (§8).
+
+### Lot 5 — historique des feuilles d'émargement
+
+Périmètre : rendre les corrections traçables (défauts **4.2** et **8.3**) sans alourdir la saisie en
+séance. Les exports PDF/CSV restent hors périmètre.
+
+| Exigence | Correctif |
+|---|---|
+| 4.2 / 8.3 Journal des changements | Nouvelle collection append-only `emargement_history` (`EmargementHistoryRepository`), alimentée à chaque écriture : création de la feuille (`seance_created`), statut saisi ou corrigé (`attendance_set`, avec statut avant → après et heure « en retard / parti en avance »), signature tracée chez le formateur (`attendance_signed`), signature QR de l'alternant (`qr_signed`), signature d'une demi-journée (`half_signed`) et validation Peda (`half_validated`, avec motif). Chaque entrée porte l'auteur (`actor_name`), la source (`peda` / `formateur` / `alternant`), l'horodatage serveur, l'IP et l'appareil. |
+| Visible côté Peda | `GET /api/emargement/seances/:id` renvoie `history` (300 entrées max, du plus récent au plus ancien) ; `EmargementSeance.tsx` affiche une carte « Historique » (date, phrase lisible, badge d'action, auteur, motif). Les IP et user-agents restent en base et ne sont **pas** exposés dans le DTO. |
+
+Décisions de conception :
+
+- **Collection dédiée, pas un tableau embarqué** : `emargements` est écrasé à chaque correction ; un
+  journal append-only dans une collection séparée ne gonfle pas les lignes lues par la liste et reste
+  exploitable pour un futur export (§8.3) ou une vue globale.
+- **On ne journalise que les vrais changements** : une réécriture identique (le formateur rouvre la même
+  valeur) ou une écriture refusée (409) n'ajoute pas d'entrée. Le journal reste lisible sans bruit.
+- **Le journal ne bloque pas l'action métier** : une erreur d'écriture de l'historique est journalisée
+  côté serveur (`logger.error`) et n'échoue pas la requête, le statut étant déjà enregistré.
+- **Purge avec la séance** : `remove` supprime `emargements` **et** `emargement_history` ; aucune
+  modification ni suppression unitaire d'une entrée n'est exposée (append-only).
+- **Motif de correction non imposé** : le « pourquoi » n'est tracé que pour la validation Peda (motif
+  obligatoire). Demander un motif à chaque changement de statut aurait alourdi la saisie en séance —
+  c'est le reste de 4.2 / 10.4.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (16 cas) — création + saisie
+manuelle journalisées avec statut avant/après et auteur ; deux écritures identiques = une entrée ;
+signature tracée puis signature de la demi-journée journalisées ; correction refusée (demi-journée
+verrouillée) non journalisée ; validation Peda journalisée avec son motif ; journal renvoyé du plus
+récent au plus ancien.
+
+Reste à faire pour clore §4.2 / §8.3 : motif de correction côté formateur (§10.4), export du journal
+(§8.1 / 8.2), écran de recherche global et rétention paramétrable (§11).

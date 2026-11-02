@@ -6,6 +6,7 @@ import { withNoReply } from '../external/google/no-reply';
 import { env } from '../config/env';
 import { tenantTimezone } from '../config/tenant';
 import { EmargementRepository } from '../repositories/mongo/EmargementRepository';
+import { EmargementHistoryRepository, RecordHistoryInput } from '../repositories/mongo/EmargementHistoryRepository';
 import { SeanceListFilter, SeanceRepository } from '../repositories/mongo/SeanceRepository';
 import { SessionService } from './SessionService';
 import { UserService } from './UserService';
@@ -18,6 +19,9 @@ import {
     EMARGEMENT_HALVES,
     EMARGEMENT_STATUSES,
     EmargementHalf,
+    EmargementHistoryAction,
+    EmargementHistoryEntry,
+    EmargementHistorySource,
     EmargementRecord,
     EmargementSignatureMode,
     EmargementStatus,
@@ -115,6 +119,23 @@ export type SeanceValidationsDto = {
     afternoon: SeanceValidationDto | null;
 };
 
+/** Événement du journal d'une séance, tel qu'affiché côté Peda. */
+export interface EmargementHistoryDto {
+    id: string;
+    at: string;
+    action: EmargementHistoryAction;
+    alternantId: string | null;
+    alternantName: string | null;
+    half: EmargementHalf | null;
+    fromStatus: EmargementStatus | null;
+    toStatus: EmargementStatus | null;
+    fromStatusTime: string | null;
+    toStatusTime: string | null;
+    source: EmargementHistorySource;
+    actorName: string | null;
+    note: string | null;
+}
+
 export interface SeanceDto {
     id: string;
     sessionId: string;
@@ -157,6 +178,8 @@ export interface SeanceDto {
 
 export interface SeanceDetailDto extends SeanceDto {
     alternants: AlternantEmargementDto[];
+    /** Journal des changements (statuts, signatures, validations), du plus récent au plus ancien. */
+    history: EmargementHistoryDto[];
 }
 
 export interface FormateurViewDto {
@@ -360,10 +383,29 @@ function validationDto(validation: SeanceValidation | null): SeanceValidationDto
     };
 }
 
+function historyDto(entry: EmargementHistoryEntry): EmargementHistoryDto {
+    return {
+        id: entry._id,
+        at: toIso(entry.at)!,
+        action: entry.action,
+        alternantId: entry.alternant_id ?? null,
+        alternantName: entry.alternant_name ?? null,
+        half: entry.half ?? null,
+        fromStatus: entry.from_status ?? null,
+        toStatus: entry.to_status ?? null,
+        fromStatusTime: entry.from_status_time ?? null,
+        toStatusTime: entry.to_status_time ?? null,
+        source: entry.source,
+        actorName: entry.actor_name ?? null,
+        note: entry.note ?? null,
+    };
+}
+
 export class EmargementService {
     constructor(
         private readonly seances = new SeanceRepository(),
         private readonly emargements = new EmargementRepository(),
+        private readonly history = new EmargementHistoryRepository(),
         private readonly sessions = new SessionService(),
         private readonly users = new UserService(),
         private readonly gmailService = new GoogleGmailService(),
@@ -382,13 +424,15 @@ export class EmargementService {
 
     async get(id: string): Promise<SeanceDetailDto> {
         const seance = await this.requireSeance(id);
-        const [alternants, records] = await Promise.all([
+        const [alternants, records, history] = await Promise.all([
             this.sessions.findAlternants(seance.session_id),
             this.emargements.findBySeance(seance._id),
+            this.history.findBySeance(seance._id),
         ]);
         return {
             ...this.toDto(seance, this.countsFrom(records)),
             alternants: this.alternantsWithAttendance(alternants, records, true),
+            history: history.map(historyDto),
         };
     }
 
@@ -426,6 +470,22 @@ export class EmargementService {
 
         const links = this.links(seance);
         const inviteSent = await this.sendInvite(seance, links.formateurUrl, userId);
+        await this.logHistory({
+            seance_id: seance._id,
+            alternant_id: null,
+            alternant_name: null,
+            half: null,
+            action: 'seance_created',
+            from_status: null,
+            to_status: null,
+            from_status_time: null,
+            to_status_time: null,
+            source: 'peda',
+            actor_name: await this.actorName(userId),
+            note: null,
+            ip: null,
+            user_agent: null,
+        });
         logger.info(
             { seanceId: seance._id, sessionId: seance.session_id, userId, inviteSent },
             'Emargement séance created',
@@ -503,6 +563,7 @@ export class EmargementService {
             throw httpError(409, 'signed', 'Une feuille dont une demi-journée est validée ne peut pas être supprimée');
         }
         await this.emargements.deleteBySeance(seance._id);
+        await this.history.deleteBySeance(seance._id);
         await this.seances.delete(seance._id);
     }
 
@@ -594,6 +655,7 @@ export class EmargementService {
             statusTime = requiredTime(body.statusTime, 'L’heure');
         }
 
+        const previous = await this.emargements.findOne(seance._id, alternantId, half);
         const record = await this.emargements.upsert(seance._id, {
             alternantId,
             firstName: alternant.first_name,
@@ -607,6 +669,28 @@ export class EmargementService {
             ip: meta.ip,
             userAgent: meta.userAgent,
         });
+        // Une réécriture identique (le formateur rouvre la même valeur) n'est pas
+        // un changement : on n'encombre pas le journal.
+        const fromStatus = previous?.status ?? null;
+        const fromStatusTime = previous?.status_time ?? null;
+        if (fromStatus !== record.status || fromStatusTime !== record.status_time) {
+            await this.logHistory({
+                seance_id: seance._id,
+                alternant_id: alternantId,
+                alternant_name: `${alternant.first_name} ${alternant.last_name}`.trim(),
+                half,
+                action: 'attendance_set',
+                from_status: fromStatus,
+                to_status: record.status,
+                from_status_time: fromStatusTime,
+                to_status_time: record.status_time ?? null,
+                source: 'formateur',
+                actor_name: seance.formateur_name,
+                note: null,
+                ip: meta.ip,
+                user_agent: meta.userAgent,
+            });
+        }
         return this.recordDto(record);
     }
 
@@ -632,6 +716,7 @@ export class EmargementService {
         const alternant = alternants.find((a) => a._id === alternantId);
         if (!alternant) throw httpError(404, 'alternant', 'Alternant introuvable dans cette session');
 
+        const previous = await this.emargements.findOne(seance._id, alternantId, half);
         const record = await this.emargements.upsert(seance._id, {
             alternantId,
             firstName: alternant.first_name,
@@ -644,6 +729,22 @@ export class EmargementService {
             signedAt: new Date(),
             ip: meta.ip,
             userAgent: meta.userAgent,
+        });
+        await this.logHistory({
+            seance_id: seance._id,
+            alternant_id: alternantId,
+            alternant_name: `${alternant.first_name} ${alternant.last_name}`.trim(),
+            half,
+            action: 'attendance_signed',
+            from_status: previous?.status ?? null,
+            to_status: record.status,
+            from_status_time: previous?.status_time ?? null,
+            to_status_time: record.status_time ?? null,
+            source: 'formateur',
+            actor_name: seance.formateur_name,
+            note: null,
+            ip: meta.ip,
+            user_agent: meta.userAgent,
         });
         logger.info({ seanceId: seance._id, alternantId, half }, 'Emargement handwritten signature recorded');
         return this.recordDto(record);
@@ -694,6 +795,22 @@ export class EmargementService {
         };
         const updated = await this.seances.update(seance._id, { [`validations.${half}`]: validation });
         if (!updated) throw httpError(404, 'not_found', 'Séance introuvable');
+        await this.logHistory({
+            seance_id: seance._id,
+            alternant_id: null,
+            alternant_name: null,
+            half,
+            action: 'half_signed',
+            from_status: null,
+            to_status: null,
+            from_status_time: null,
+            to_status_time: null,
+            source: 'formateur',
+            actor_name: seance.formateur_name,
+            note: null,
+            ip: meta.ip,
+            user_agent: meta.userAgent,
+        });
         logger.info({ seanceId: seance._id, half }, 'Emargement half-day signed');
 
         return { half, signedAt: signedAt.toISOString(), signedByName: seance.formateur_name };
@@ -728,6 +845,7 @@ export class EmargementService {
 
         const patch: Record<string, unknown> = { validated_by: userId ?? null, validation_note: note };
         const validations = validationsOf(seance);
+        const validatedHalves: EmargementHalf[] = [];
         for (const half of applicableHalves(seance)) {
             if (validations[half]) continue;
             const validation: SeanceValidation = {
@@ -739,10 +857,29 @@ export class EmargementService {
                 signed_user_agent: meta.userAgent,
             };
             patch[`validations.${half}`] = validation;
+            validatedHalves.push(half);
         }
 
         const updated = await this.seances.update(id, patch);
         if (!updated) throw httpError(404, 'not_found', 'Séance introuvable');
+        for (const half of validatedHalves) {
+            await this.logHistory({
+                seance_id: seance._id,
+                alternant_id: null,
+                alternant_name: null,
+                half,
+                action: 'half_validated',
+                from_status: null,
+                to_status: null,
+                from_status_time: null,
+                to_status_time: null,
+                source: 'peda',
+                actor_name: validatorName,
+                note,
+                ip: meta.ip,
+                user_agent: meta.userAgent,
+            });
+        }
         logger.info({ seanceId: id, userId, note }, 'Emargement sheet validated by Peda');
 
         return this.get(id);
@@ -831,8 +968,26 @@ export class EmargementService {
             userAgent: meta.userAgent,
         });
 
+        const fullName = `${alternant.first_name} ${alternant.last_name}`.trim();
+        await this.logHistory({
+            seance_id: seance._id,
+            alternant_id: alternant._id,
+            alternant_name: fullName,
+            half,
+            action: 'qr_signed',
+            from_status: existing?.status ?? null,
+            to_status: record.status,
+            from_status_time: existing?.status_time ?? null,
+            to_status_time: record.status_time ?? null,
+            source: 'alternant',
+            actor_name: fullName,
+            note: null,
+            ip: meta.ip,
+            user_agent: meta.userAgent,
+        });
+
         return {
-            fullName: `${alternant.first_name} ${alternant.last_name}`.trim(),
+            fullName,
             half,
             signedAt: toIso(record.signed_at)!,
             alreadySigned: false,
@@ -919,6 +1074,29 @@ export class EmargementService {
             throw httpError(404, 'not_found', 'Lien invalide');
         }
         return seance;
+    }
+
+    /**
+     * Écrit une entrée du journal. Le journal ne doit pas faire échouer l'action
+     * métier (le statut, lui, est déjà enregistré) : une erreur d'écriture part
+     * dans les logs serveur, jamais chez le client.
+     */
+    private async logHistory(input: RecordHistoryInput): Promise<void> {
+        try {
+            await this.history.record(input);
+        } catch (error) {
+            logger.error(
+                { err: error, seanceId: input.seance_id, action: input.action },
+                'Emargement history write failed',
+            );
+        }
+    }
+
+    /** Nom affichable d'un utilisateur Peda (`null` si l'id est absent ou inconnu). */
+    private async actorName(userId: number | undefined): Promise<string | null> {
+        if (userId == null) return null;
+        const user = await this.users.findById(userId);
+        return user ? `${user.firstName} ${user.lastName}`.trim() : null;
     }
 
     private isExpired(seance: Seance): boolean {

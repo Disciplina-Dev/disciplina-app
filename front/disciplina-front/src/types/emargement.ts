@@ -38,6 +38,34 @@ export type SeanceValidationStatus = 'in_progress' | 'to_validate' | 'anomaly' |
 /** `formateur` = signature du formateur ; `peda` = régularisation par le service pédagogique. */
 export type SeanceValidationSource = 'formateur' | 'peda'
 
+/** Auteur d'un événement du journal d'une feuille. */
+export type EmargementHistorySource = 'peda' | 'formateur' | 'alternant' | 'system'
+
+export type EmargementHistoryAction =
+  | 'seance_created'
+  | 'attendance_set'
+  | 'attendance_signed'
+  | 'qr_signed'
+  | 'half_signed'
+  | 'half_validated'
+
+/** Événement du journal d'une séance (du plus récent au plus ancien côté API). */
+export interface EmargementHistoryEntry {
+  id: string
+  at: string
+  action: EmargementHistoryAction
+  alternantId: string | null
+  alternantName: string | null
+  half: EmargementHalf | null
+  fromStatus: EmargementStatus | null
+  toStatus: EmargementStatus | null
+  fromStatusTime: string | null
+  toStatusTime: string | null
+  source: EmargementHistorySource
+  actorName: string | null
+  note: string | null
+}
+
 export interface SeanceValidation {
   signedAt: string
   signedByName: string
@@ -128,6 +156,8 @@ export interface Seance {
 
 export interface SeanceDetail extends Seance {
   alternants: AlternantAttendance[]
+  /** Journal des changements (statuts, signatures, validations), du plus récent au plus ancien. */
+  history: EmargementHistoryEntry[]
 }
 
 export interface FormateurView {
