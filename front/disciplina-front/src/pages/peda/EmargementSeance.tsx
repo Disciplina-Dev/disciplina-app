@@ -9,6 +9,7 @@ import {
   IconCopy,
   IconDownload,
   IconEdit,
+  IconHistory,
   IconLoader,
   IconMail,
   IconQrCode,
@@ -26,6 +27,8 @@ import { zonedWallClockToIso } from '@/lib/timezone'
 import type { AlternantAttendance, AttendanceRecord, SeanceDetail } from '@/types/emargement'
 import {
   HALF_LABELS,
+  HISTORY_ACTION_LABELS,
+  HISTORY_ACTION_TONES,
   STATUS_LABELS,
   STATUS_TONES,
   VALIDATION_LABELS,
@@ -34,6 +37,7 @@ import {
   WINDOW_TONES,
   formatSeanceDate,
   formatTimestamp,
+  historySummary,
   seancePlace,
   seanceProgram,
   signatureLabel,
@@ -554,6 +558,40 @@ export default function EmargementSeance() {
           </Card>
         </div>
       </div>
+
+      <Card className="mt-5">
+        <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-[var(--ds-text)]">
+          <IconHistory width={16} height={16} className="text-[var(--ds-accent)]" />
+          Historique
+          <span className="text-[12px] font-normal text-[var(--ds-text-subtle)]">
+            {seance.history.length} événement{seance.history.length > 1 ? 's' : ''}
+          </span>
+        </h2>
+        <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+          Journal des changements de statut, signatures et validations. Les entrées ne peuvent pas être modifiées.
+        </p>
+        {seance.history.length === 0 ? (
+          <p className="mt-3 text-[13px] text-[var(--ds-text-subtle)]">Aucun changement enregistré.</p>
+        ) : (
+          <ol className="mt-3 max-h-[360px] divide-y divide-[var(--ds-border)] overflow-y-auto">
+            {seance.history.map((entry) => (
+              <li key={entry.id} className="flex gap-3 py-2.5">
+                <span className="w-[104px] shrink-0 text-[11px] text-[var(--ds-text-subtle)]">
+                  {formatTimestamp(entry.at)}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[13px] text-[var(--ds-text)]">{historySummary(entry)}</p>
+                  <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--ds-text-subtle)]">
+                    <Badge tone={HISTORY_ACTION_TONES[entry.action]}>{HISTORY_ACTION_LABELS[entry.action]}</Badge>
+                    {entry.actorName && <span>· {entry.actorName}</span>}
+                    {entry.note && <span>· Motif : {entry.note}</span>}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Card>
 
       {validating && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

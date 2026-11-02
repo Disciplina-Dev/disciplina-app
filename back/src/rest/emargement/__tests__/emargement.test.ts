@@ -169,8 +169,11 @@ async function seedSeance(overrides: Record<string, unknown> = {}) {
     return seance;
 }
 
-afterEach(() => {
+afterEach(async () => {
     vi.restoreAllMocks();
+    // Le journal d'émargement est append-only en production : en test, on le vide
+    // entre deux cas pour que les assertions ne voient que leurs propres événements.
+    await getModels().EmargementHistory.deleteMany({});
 });
 
 describe('API émargement — côté Peda', () => {
@@ -324,9 +327,122 @@ describe('API émargement — côté formateur', () => {
                 headers: { Cookie: auth.cookieHeader },
             }).then((res) => res.json());
             expect(detail.seance).toMatchObject({ marked: 1, present: 1 });
+
+            // La saisie manuelle est journalisée (création de la feuille + statut).
+            expect(detail.seance.history.map((entry: { action: string }) => entry.action)).toContain('seance_created');
+            expect(detail.seance.history).toContainEqual(
+                expect.objectContaining({
+                    action: 'attendance_set',
+                    alternantName: `${alternant.firstName} ${alternant.lastName}`,
+                    half: 'morning',
+                    fromStatus: null,
+                    toStatus: 'late',
+                    toStatusTime: '08:15',
+                    source: 'formateur',
+                    actorName: 'Jean Formateur',
+                }),
+            );
         } finally {
             await getModels().Seance.deleteMany({ session_id: classId });
             await getModels().Emargement.deleteMany({});
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('journalise les changements de statut, signatures et verrouillages', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        // Créneau du matin déjà fermé : la demi-journée est signable, puis verrouillée.
+        const seance = await seedSeance({
+            session_id: classId,
+            morning_start: '00:00',
+            morning_end: '00:01',
+            afternoon_start: null,
+            afternoon_end: null,
+        });
+        try {
+            const token = buildSeanceToken(seance, 'formateur');
+            const viewUrl = `${API}/api/emargement/formateur/${encodeURIComponent(token)}`;
+            const alternantId = alternants[0]._id;
+            const alternantName = `${alternants[0].first_name} ${alternants[0].last_name}`;
+
+            const setStatus = (status: string) =>
+                fetch(`${viewUrl}/attendance`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ alternantId, half: 'morning', status }),
+                });
+
+            // Deux écritures identiques ne produisent qu'une entrée de journal.
+            expect((await setStatus('present')).status).toBe(200);
+            expect((await setStatus('present')).status).toBe(200);
+            expect((await setStatus('absent')).status).toBe(200);
+
+            const handwritten = await fetch(`${viewUrl}/attendance/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId, half: 'morning', signature: SIGNATURE_PNG }),
+            });
+            expect(handwritten.status).toBe(200);
+
+            // Horodatage à la milliseconde : on laisse passer un tick pour que la
+            // signature de la feuille soit strictement postérieure dans le journal.
+            await new Promise((resolve) => setTimeout(resolve, 5));
+            const sheet = await fetch(`${viewUrl}/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ half: 'morning', confirmed: true, signature: SIGNATURE_PNG }),
+            });
+            expect(sheet.status).toBe(200);
+
+            // Demi-journée verrouillée : la correction refusée n'entre pas au journal.
+            expect((await setStatus('present')).status).toBe(409);
+
+            const detail = await fetch(`${API}/api/emargement/seances/${seance._id}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            const history: { action: string; at: string }[] = detail.seance.history;
+
+            // Journal du plus récent au plus ancien.
+            const timestamps = history.map((entry) => new Date(entry.at).getTime());
+            expect([...timestamps].sort((a, b) => b - a)).toEqual(timestamps);
+            expect(history[0]).toMatchObject({ action: 'half_signed', half: 'morning', source: 'formateur' });
+
+            expect(history.filter((entry) => entry.action === 'attendance_set')).toHaveLength(2);
+            expect(detail.seance.history).toContainEqual(
+                expect.objectContaining({
+                    action: 'attendance_set',
+                    alternantName,
+                    half: 'morning',
+                    fromStatus: null,
+                    toStatus: 'present',
+                    source: 'formateur',
+                    actorName: 'Jean Formateur',
+                }),
+            );
+            expect(detail.seance.history).toContainEqual(
+                expect.objectContaining({
+                    action: 'attendance_set',
+                    fromStatus: 'present',
+                    toStatus: 'absent',
+                }),
+            );
+            expect(detail.seance.history).toContainEqual(
+                expect.objectContaining({
+                    action: 'attendance_signed',
+                    alternantName,
+                    fromStatus: 'absent',
+                    toStatus: 'present',
+                    source: 'formateur',
+                }),
+            );
+        } finally {
+            await getModels().Emargement.deleteMany({ seance_id: seance._id });
+            await getModels().Seance.deleteOne({ _id: seance._id });
             await cleanupSession(
                 classId,
                 degreeId,
@@ -669,6 +785,16 @@ describe('API émargement — côté formateur', () => {
                 signatureImage: null,
             });
             expect(detail.validations.morning.signedByName).toBeTruthy();
+
+            // La validation de régularisation est journalisée avec son motif.
+            expect(detail.history).toContainEqual(
+                expect.objectContaining({
+                    action: 'half_validated',
+                    half: 'morning',
+                    source: 'peda',
+                    note: 'Formateur injoignable, lien expiré.',
+                }),
+            );
 
             // Une feuille validée ne se revalide pas et ne se supprime plus.
             const again = await fetch(`${API}/api/emargement/seances/${seance._id}/validate`, {

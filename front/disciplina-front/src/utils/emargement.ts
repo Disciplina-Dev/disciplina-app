@@ -1,6 +1,8 @@
 import type { BadgeTone } from '@/components/ui/Badge'
 import type {
   EmargementHalf,
+  EmargementHistoryAction,
+  EmargementHistoryEntry,
   EmargementStatus,
   Seance,
   SeanceMode,
@@ -131,4 +133,57 @@ export function seanceProgram(seance: Pick<Seance, 'degreeTitle' | 'module'>): s
 export function seancePlace(seance: Pick<Seance, 'site' | 'mode' | 'location'>): string {
   const base = `${seance.site} · ${MODE_LABELS[seance.mode]}`
   return seance.location ? `${base} · ${seance.location}` : base
+}
+
+/** Nature d'un événement du journal d'une feuille. */
+export const HISTORY_ACTION_LABELS: Record<EmargementHistoryAction, string> = {
+  seance_created: 'Feuille créée',
+  attendance_set: 'Statut modifié',
+  attendance_signed: 'Signature tracée',
+  qr_signed: 'Signature par QR code',
+  half_signed: 'Demi-journée signée',
+  half_validated: 'Validée par le pédago',
+}
+
+export const HISTORY_ACTION_TONES: Record<EmargementHistoryAction, BadgeTone> = {
+  seance_created: 'neutral',
+  attendance_set: 'accent',
+  attendance_signed: 'accent',
+  qr_signed: 'success',
+  half_signed: 'success',
+  half_validated: 'warning',
+}
+
+function statusWithTime(status: EmargementStatus, time: string | null): string {
+  const label = STATUS_LABELS[status]
+  return time ? `${label} (${time})` : label
+}
+
+/**
+ * Phrase lisible d'une entrée du journal : qui / quoi / depuis quel statut.
+ * Les statuts restent explicites (`Présent → Absent`) : c'est la question que
+ * pose le Peda devant une feuille corrigée.
+ */
+export function historySummary(entry: EmargementHistoryEntry): string {
+  const subject = [entry.alternantName, entry.half ? HALF_LABELS[entry.half].toLowerCase() : null]
+    .filter((value): value is string => Boolean(value))
+    .join(' · ')
+
+  switch (entry.action) {
+    case 'seance_created':
+      return 'Feuille ouverte pour cette séance.'
+    case 'attendance_set': {
+      const from = entry.fromStatus ? statusWithTime(entry.fromStatus, entry.fromStatusTime) : 'Non renseigné'
+      const to = statusWithTime(entry.toStatus ?? 'na', entry.toStatusTime)
+      return `${subject} : ${from} → ${to}`
+    }
+    case 'attendance_signed':
+      return `${subject} : signature tracée sur l’appareil du formateur.`
+    case 'qr_signed':
+      return `${subject} : signature de l’alternant par QR code.`
+    case 'half_signed':
+      return `${subject} : demi-journée signée par le formateur.`
+    case 'half_validated':
+      return `${subject} : validée par le service pédagogique.`
+  }
 }

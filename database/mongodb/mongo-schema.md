@@ -452,6 +452,29 @@ SA (séquences d'accompagnement).
 
 `{ seance_id, alternant_id, half }` — une seule ligne par alternant et par demi-journée.
 
+## Collection: emargement_history
+
+Journal d'une feuille d'émargement (#955) : **append-only**, une ligne par événement. Contrairement à
+`emargements` (écrasé à chaque correction), cette collection conserve qui a changé quoi, quand et depuis
+quel appareil. Purge avec la séance (aucune modification ni suppression unitaire).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | UUID |
+| `seance_id` | string | required, indexed avec `at` |
+| `alternant_id`, `alternant_name` | string \| null | alternant concerné (`null` pour un événement de feuille) ; nom figé au moment de l'événement |
+| `half` | string \| null | `morning` \| `afternoon` (`null` pour la création de la feuille) |
+| `action` | enum | `seance_created` \| `attendance_set` \| `attendance_signed` \| `qr_signed` \| `half_signed` \| `half_validated` |
+| `from_status`, `to_status` | string \| null | statut avant / après (`null` = ligne inexistante ou événement sans statut) |
+| `from_status_time`, `to_status_time` | string \| null | heure « en retard » / « parti en avance » avant / après |
+| `source` | enum | `peda` \| `formateur` \| `alternant` \| `system` |
+| `actor_name` | string \| null | nom de l'auteur (formateur, alternant, utilisateur Peda) |
+| `note` | string \| null | motif de validation Peda le cas échéant |
+| `ip`, `user_agent` | string \| null | contexte serveur de l'action (non exposé dans les DTO) |
+| `at` | Date | horodatage serveur |
+
+`{ seance_id: 1, at: -1 }` — le détail lit le journal du plus récent au plus ancien (300 entrées max).
+
 ## Collection: questionnaires
 
 Internal tests replacing ClassMarker (#968). Per region (`getModels()`), nothing shared.

@@ -148,7 +148,7 @@ into the companies server.
 | POST | `/api/kpi` | JWT (ADMIN / RESPONSABLE) | Manually upsert one KPI row |
 | POST | `/api/kpi/import` | JWT (ADMIN / RESPONSABLE) | Import KPI data from an uploaded Excel file (`multipart/form-data`, field `file`) |
 | GET · POST | `/api/emargement/seances` | JWT (AD / GESTION / PEDA) | List (filters `from` / `to` / `sessionId` / `validation` = `in_progress` \| `to_validate` \| `anomaly` \| `validated`) / create a séance → `{ seance, inviteSent }` (`inviteSent: false` when no Google mailbox could send the invite) |
-| GET · PUT · DELETE | `/api/emargement/seances/:id` | JWT (AD / GESTION / PEDA) | Read a séance with attendance and per-half signatures / update / delete (both refused once a half-day is validated) |
+| GET · PUT · DELETE | `/api/emargement/seances/:id` | JWT (AD / GESTION / PEDA) | Read a séance with attendance, per-half signatures and its append-only `history` (status changes, signatures, validations) / update / delete (both refused once a half-day is validated) |
 | POST | `/api/emargement/seances/:id/resend` | JWT (AD / GESTION / PEDA) | Re-send the formateur invite (`{rotate: true}` also invalidates the previous link) and extend the link validity (end of J+7) → `{ links, inviteSent }` |
 | POST | `/api/emargement/seances/:id/validate` | JWT (AD / GESTION / PEDA) | Peda override: validate a sheet the formateur will not sign (`{note}` mandatory, stored with validator id + date) — missing halves are recorded as `source: 'peda'`, no drawn signature |
 | GET | `/api/emargement/formateur/:token` | Link token | Formateur sheet: alternants, statuses, QR link, per-half validation state — rate-limited |
