@@ -9,6 +9,7 @@ import type {
   Seance,
   SeanceDetail,
   SeanceLinks,
+  SeanceValidationStatus,
 } from '@/types/emargement'
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
@@ -28,6 +29,8 @@ export interface SeanceFilters {
   from?: string
   to?: string
   sessionId?: string
+  /** État de validation calculé côté serveur (créneaux + délai de régularisation). */
+  validation?: SeanceValidationStatus
 }
 
 export async function fetchSeances(filters: SeanceFilters = {}): Promise<Seance[]> {
@@ -35,6 +38,7 @@ export async function fetchSeances(filters: SeanceFilters = {}): Promise<Seance[
   if (filters.from) params.set('from', filters.from)
   if (filters.to) params.set('to', filters.to)
   if (filters.sessionId) params.set('sessionId', filters.sessionId)
+  if (filters.validation) params.set('validation', filters.validation)
   const query = params.toString()
   const body = await staffCall<{ seances: Seance[] }>(`/seances${query ? `?${query}` : ''}`)
   return body.seances
@@ -164,13 +168,28 @@ export async function saveHandwrittenSignature(
   return body.attendance
 }
 
-export async function signSheet(token: string, signature: string): Promise<{ signedAt: string; signedByName: string }> {
+export async function signSheet(
+  token: string,
+  half: EmargementHalf,
+  signature: string,
+): Promise<{ half: EmargementHalf; signedAt: string; signedByName: string }> {
   // `confirmed` est construit ici : c'est la preuve du double contrôle demandé
-  // au formateur avant verrouillage définitif de la feuille.
-  return publicCall<{ signedAt: string; signedByName: string }>('POST', publicUrl('formateur', token, '/sign'), {
-    confirmed: true,
-    signature,
+  // au formateur avant verrouillage définitif de la demi-journée.
+  return publicCall<{ half: EmargementHalf; signedAt: string; signedByName: string }>(
+    'POST',
+    publicUrl('formateur', token, '/sign'),
+    { half, confirmed: true, signature },
+  )
+}
+
+/** Validation de régularisation par le Peda : motif obligatoire, tracé côté serveur. */
+export async function validateSeance(id: string, note: string): Promise<SeanceDetail> {
+  const body = await staffCall<{ seance: SeanceDetail }>(`/seances/${encodeURIComponent(id)}/validate`, {
+    method: 'POST',
+    headers: JSON_HEADERS,
+    body: JSON.stringify({ note }),
   })
+  return body.seance
 }
 
 export async function fetchPublicSigning(token: string): Promise<PublicSigning> {

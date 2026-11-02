@@ -18,15 +18,30 @@ import PageHeader from '@/components/ui/PageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SeanceFormModal from '@/components/peda/SeanceFormModal'
 import { fetchSeances } from '@/api/emargement'
-import type { Seance } from '@/types/emargement'
-import { formatSeanceDate, seancePlace, windowsSummary } from '@/utils/emargement'
+import type { Seance, SeanceValidationStatus } from '@/types/emargement'
+import {
+  VALIDATION_LABELS,
+  VALIDATION_TONES,
+  formatSeanceDate,
+  seancePlace,
+  windowsSummary,
+} from '@/utils/emargement'
 
 type Range = 'upcoming' | 'past' | 'all'
+type StatusFilter = 'all' | SeanceValidationStatus
 
 const RANGE_OPTIONS: { value: Range; label: string }[] = [
   { value: 'upcoming', label: 'À venir' },
   { value: 'past', label: 'Passées' },
   { value: 'all', label: 'Toutes' },
+]
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'Tous statuts' },
+  { value: 'in_progress', label: 'En cours' },
+  { value: 'to_validate', label: 'À valider' },
+  { value: 'anomaly', label: 'Anomalies' },
+  { value: 'validated', label: 'Validées' },
 ]
 
 function localToday(): string {
@@ -45,17 +60,37 @@ export default function Emargements() {
   const navigate = useNavigate()
   const [seances, setSeances] = useState<Seance[]>([])
   const [range, setRange] = useState<Range>('upcoming')
+  const [status, setStatus] = useState<StatusFilter>('all')
+  const [anomalies, setAnomalies] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
 
+  // Compteur d'anomalies indépendant de la période affichée : une feuille en
+  // anomalie est toujours passée, elle disparaîtrait du filtre « À venir ».
+  useEffect(() => {
+    let alive = true
+    fetchSeances({ validation: 'anomaly' }).then(
+      (rows) => {
+        if (alive) setAnomalies(rows.length)
+      },
+      () => {
+        // Le compteur est secondaire : une erreur ici ne doit pas masquer la liste.
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [reloadKey])
+
   useEffect(() => {
     let alive = true
     const today = localToday()
-    fetchSeances(
-      range === 'upcoming' ? { from: today } : range === 'past' ? { to: yesterday() } : {},
-    ).then(
+    fetchSeances({
+      ...(range === 'upcoming' ? { from: today } : range === 'past' ? { to: yesterday() } : {}),
+      ...(status === 'all' ? {} : { validation: status }),
+    }).then(
       (rows) => {
         if (!alive) return
         setSeances(rows)
@@ -71,7 +106,7 @@ export default function Emargements() {
     return () => {
       alive = false
     }
-  }, [range, reloadKey])
+  }, [range, status, reloadKey])
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
@@ -96,6 +131,26 @@ export default function Emargements() {
         }
       />
 
+      {anomalies > 0 && status !== 'anomaly' && (
+        <button
+          type="button"
+          onClick={() => {
+            setLoading(true)
+            setStatus('anomaly')
+          }}
+          className="mb-4 flex w-full items-start gap-2 rounded-[var(--radius-md)] border border-[var(--ds-danger)]/30 bg-[var(--ds-danger-bg)] px-4 py-3 text-left text-sm text-[var(--ds-danger)]"
+        >
+          <IconAlert width={18} height={18} className="mt-0.5 shrink-0" />
+          <span>
+            <strong>
+              {anomalies} feuille{anomalies > 1 ? 's' : ''} en anomalie
+            </strong>{' '}
+            : lien formateur expiré et au moins une demi-journée non signée. Cliquez pour les afficher et les
+            valider.
+          </span>
+        </button>
+      )}
+
       <div className="mb-6 flex flex-wrap items-center gap-3">
         <SegmentedControl
           label="Période"
@@ -104,6 +159,16 @@ export default function Emargements() {
           onChange={(next) => {
             setLoading(true)
             setRange(next)
+          }}
+          size="sm"
+        />
+        <SegmentedControl
+          label="Statut"
+          options={STATUS_OPTIONS}
+          value={status}
+          onChange={(next) => {
+            setLoading(true)
+            setStatus(next)
           }}
           size="sm"
         />
@@ -160,13 +225,16 @@ export default function Emargements() {
                       {seance.startTime} – {seance.endTime} · {seancePlace(seance)}
                     </p>
                   </div>
-                  {seance.signed ? (
-                    <Badge tone="success" icon={<IconCheckCircle width={12} height={12} />}>
-                      Signée
-                    </Badge>
-                  ) : (
-                    <Badge tone="accent">En cours</Badge>
-                  )}
+                  <Badge
+                    tone={VALIDATION_TONES[seance.validationStatus]}
+                    icon={
+                      seance.validationStatus === 'validated' ? (
+                        <IconCheckCircle width={12} height={12} />
+                      ) : undefined
+                    }
+                  >
+                    {VALIDATION_LABELS[seance.validationStatus]}
+                  </Badge>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[var(--ds-text-muted)]">

@@ -5,6 +5,8 @@ import type {
   Seance,
   SeanceMode,
   SeanceSite,
+  SeanceValidationSource,
+  SeanceValidationStatus,
   SignatureMode,
   WindowState,
 } from '@/types/emargement'
@@ -54,6 +56,28 @@ export const WINDOW_TONES: Record<WindowState, BadgeTone> = {
   upcoming: 'neutral',
   open: 'success',
   closed: 'neutral',
+}
+
+/** État de validation d'une feuille, tel qu'affiché dans les listes et le détail. */
+export const VALIDATION_LABELS: Record<SeanceValidationStatus, string> = {
+  in_progress: 'En cours',
+  to_validate: 'À valider',
+  anomaly: 'Anomalie',
+  validated: 'Validée',
+}
+
+export const VALIDATION_TONES: Record<SeanceValidationStatus, BadgeTone> = {
+  in_progress: 'accent',
+  to_validate: 'warning',
+  anomaly: 'danger',
+  validated: 'success',
+}
+
+/** « Signée par le formateur » / « Validée par le service pédagogique ». */
+export function validationSourceLabel(source: SeanceValidationSource | null): string {
+  if (source === 'peda') return 'Validée par le service pédagogique'
+  if (source === 'formateur') return 'Signée par le formateur'
+  return 'Non validée'
 }
 
 /** Signature d'une demi-journée : le statut prime, le mode de saisie complète. */

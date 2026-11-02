@@ -1,7 +1,7 @@
 import express, { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
-import { create, get, list, remove, resend, update } from './controller';
+import { create, get, list, remove, resend, update, validate } from './controller';
 
 export const router: Router = express.Router();
 
@@ -16,3 +16,4 @@ router.get('/seances/:id', ...access, get);
 router.put('/seances/:id', ...access, update);
 router.delete('/seances/:id', ...access, remove);
 router.post('/seances/:id/resend', ...access, resend);
+router.post('/seances/:id/validate', ...access, validate);

@@ -26,6 +26,26 @@ export type SignatureMode = 'qr' | 'manual' | 'handwritten'
 /** État d'une fenêtre de signature, calculé côté serveur. */
 export type WindowState = 'upcoming' | 'open' | 'closed'
 
+/**
+ * État de validation d'une feuille :
+ * - `in_progress` : un créneau n'est pas encore fermé ;
+ * - `to_validate` : créneaux fermés, le formateur peut encore signer ;
+ * - `anomaly` : lien expiré (J+7) et demi-journée non signée ;
+ * - `validated` : toutes les demi-journées sont validées.
+ */
+export type SeanceValidationStatus = 'in_progress' | 'to_validate' | 'anomaly' | 'validated'
+
+/** `formateur` = signature du formateur ; `peda` = régularisation par le service pédagogique. */
+export type SeanceValidationSource = 'formateur' | 'peda'
+
+export interface SeanceValidation {
+  signedAt: string
+  signedByName: string
+  source: SeanceValidationSource
+  /** Tracé du formateur ; `null` quand la demi-journée est régularisée par le Peda. */
+  signatureImage: string | null
+}
+
 export interface AttendanceRecord {
   status: EmargementStatus
   /** Heure `HH:mm` pour `late` / `left_early`, sinon `null`. */
@@ -84,10 +104,18 @@ export interface Seance {
   afternoonEnd: string | null
   timezone: string
   inviteExpiresAt: string
-  signed: boolean
-  signedAt: string | null
-  signedByName: string | null
-  signatureImage: string | null
+  /** Validation par demi-journée (signature du formateur ou régularisation Peda). */
+  validations: {
+    morning: SeanceValidation | null
+    afternoon: SeanceValidation | null
+  }
+  validationStatus: SeanceValidationStatus
+  /** `peda` dès qu'une demi-journée a été régularisée par le service pédagogique. */
+  validationSource: SeanceValidationSource | null
+  validatedBy: number | null
+  validationNote: string | null
+  /** `true` quand le Peda peut valider lui-même (créneaux fermés, validation incomplète). */
+  canValidateByPeda: boolean
   createdAt: string
   updatedAt: string
   formateurUrl: string
@@ -115,10 +143,11 @@ export interface FormateurView {
     site: SeanceSite
     mode: SeanceMode
     formateurName: string
-    signed: boolean
-    signedAt: string | null
-    signedByName: string | null
-    signatureImage: string | null
+    validations: {
+      morning: SeanceValidation | null
+      afternoon: SeanceValidation | null
+    }
+    validationStatus: SeanceValidationStatus
     qrUrl: string
   }
   alternants: AlternantAttendance[]
@@ -129,7 +158,12 @@ export interface FormateurView {
     afternoon: SeanceWindow | null
   }
   expired: boolean
+  /** `true` tant qu'au moins une demi-journée reste éditable. */
   canEdit: boolean
+  /** Demi-journées encore modifiables (statuts, signature manuscrite). */
+  editableHalves: EmargementHalf[]
+  /** Demi-journées signables : créneau fermé, non validées, lien valide. */
+  signableHalves: EmargementHalf[]
 }
 
 export interface PublicSigning {

@@ -189,7 +189,8 @@ describe('API émargement — côté Peda', () => {
                 sessionId: classId,
                 site: 'Nord',
                 mode: 'salle',
-                signed: false,
+                validationStatus: 'in_progress',
+                validations: { morning: null, afternoon: null },
                 formateurName: 'Jean Formateur',
                 // En-tête de la feuille : titre pro snapshoté depuis la promo Filiz,
                 // module et lieu libres.
@@ -513,41 +514,177 @@ describe('API émargement — côté formateur', () => {
         }
     });
 
-    it('signe la feuille avec la signature manuscrite puis la verrouille', async () => {
-        const auth = pedaAuth();
+    it('signe chaque demi-journée après la fermeture de son créneau et les verrouille séparément', async () => {
         const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        // Matin fermé depuis 00:01, après-midi encore ouvert : la signature du
+        // matin doit être possible, celle de l'après-midi refusée.
+        const seance = await seedSeance({
+            session_id: classId,
+            morning_start: '00:00',
+            morning_end: '00:01',
+            afternoon_start: '00:02',
+            afternoon_end: '23:59',
+        });
         try {
-            const { body } = await createSeanceHttp(auth, seanceInput(classId));
-            const token = tokenFromUrl(body.seance.formateurUrl);
+            const token = buildSeanceToken(seance, 'formateur');
             const viewUrl = `${API}/api/emargement/formateur/${encodeURIComponent(token)}`;
-            const view = await fetch(viewUrl).then((res) => res.json());
-            const alternant = view.emargement.alternants[0];
-
             const signature = SIGNATURE_PNG;
-            const signResponse = await fetch(`${viewUrl}/sign`, {
+
+            const beforeClose = await fetch(`${viewUrl}/sign`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ confirmed: true, signature }),
+                body: JSON.stringify({ half: 'afternoon', confirmed: true, signature }),
             });
-            expect(signResponse.status).toBe(200);
-            const signed = await signResponse.json();
-            expect(signed.signedByName).toBe('Jean Formateur');
+            expect(beforeClose.status).toBe(409);
+            expect((await beforeClose.json()).code).toBe('window');
+
+            const signMorning = await fetch(`${viewUrl}/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ half: 'morning', confirmed: true, signature }),
+            });
+            expect(signMorning.status).toBe(200);
+            expect(await signMorning.json()).toMatchObject({ half: 'morning', signedByName: 'Jean Formateur' });
 
             const after = await fetch(viewUrl).then((res) => res.json());
-            expect(after.emargement.seance.signed).toBe(true);
-            expect(after.emargement.seance.signatureImage).toBe(signature);
-            expect(after.emargement.canEdit).toBe(false);
+            expect(after.emargement.seance.validations.morning).toMatchObject({
+                source: 'formateur',
+                signatureImage: signature,
+            });
+            expect(after.emargement.seance.validations.afternoon).toBeNull();
+            // L'après-midi reste éditable et signable plus tard.
+            expect(after.emargement.seance.validationStatus).toBe('in_progress');
+            expect(after.emargement.canEdit).toBe(true);
+            expect(after.emargement.editableHalves).toEqual(['afternoon']);
+            expect(after.emargement.signableHalves).toEqual([]);
 
-            const locked = await fetch(`${viewUrl}/attendance`, {
+            // Le matin signé est verrouillé, l'après-midi ne l'est pas.
+            const lockedMorning = await fetch(`${viewUrl}/attendance`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ alternantId: alternant.id, half: 'morning', status: 'present' }),
+                body: JSON.stringify({ alternantId: alternants[0]._id, half: 'morning', status: 'present' }),
             });
-            expect(locked.status).toBe(409);
-            expect((await locked.json()).code).toBe('signed');
+            expect(lockedMorning.status).toBe(409);
+            expect((await lockedMorning.json()).code).toBe('signed');
+
+            const afternoon = await fetch(`${viewUrl}/attendance`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId: alternants[0]._id, half: 'afternoon', status: 'present' }),
+            });
+            expect(afternoon.status).toBe(200);
+
+            // Rejouer la signature de la même demi-journée est refusé.
+            const again = await fetch(`${viewUrl}/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ half: 'morning', confirmed: true, signature }),
+            });
+            expect(again.status).toBe(409);
+            expect((await again.json()).code).toBe('signed');
         } finally {
-            await getModels().Seance.deleteMany({ session_id: classId });
-            await getModels().Emargement.deleteMany({});
+            await getModels().Seance.deleteOne({ _id: seance._id });
+            await getModels().Emargement.deleteMany({ seance_id: seance._id });
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('refuse la signature d’une demi-journée avant la fermeture de son créneau', async () => {
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        // Créneau ouvert sur toute la journée : la signature reste fermée.
+        const seance = await seedSeance({ session_id: classId });
+        try {
+            const token = buildSeanceToken(seance, 'formateur');
+            const response = await fetch(`${API}/api/emargement/formateur/${encodeURIComponent(token)}/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ half: 'morning', confirmed: true, signature: SIGNATURE_PNG }),
+            });
+            expect(response.status).toBe(409);
+            expect((await response.json()).code).toBe('window');
+        } finally {
+            await getModels().Seance.deleteOne({ _id: seance._id });
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('signale une anomalie quand le lien a expiré sans signature, et laisse le Peda valider', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        const seance = await seedSeance({
+            session_id: classId,
+            morning_start: '00:00',
+            morning_end: '00:01',
+            invite_expires_at: new Date(Date.now() - 60_000),
+        });
+        try {
+            // Le lien est expiré : le formateur ne peut plus signer (410)…
+            const token = buildSeanceToken(seance, 'formateur');
+            const formateurUrl = `${API}/api/emargement/formateur/${encodeURIComponent(token)}/sign`;
+            const late = await fetch(formateurUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ half: 'morning', confirmed: true, signature: SIGNATURE_PNG }),
+            });
+            expect(late.status).toBe(410);
+            expect((await late.json()).code).toBe('expired');
+
+            // … et la liste la classe en anomalie.
+            const anomalies = await fetch(`${API}/api/emargement/seances?validation=anomaly`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            expect(anomalies.seances.map((row: { id: string }) => row.id)).toContain(seance._id);
+
+            // Le motif est obligatoire.
+            const withoutNote = await fetch(`${API}/api/emargement/seances/${seance._id}/validate`, {
+                method: 'POST',
+                headers: staffHeaders(auth),
+                body: JSON.stringify({}),
+            });
+            expect(withoutNote.status).toBe(400);
+            expect((await withoutNote.json()).code).toBe('validation');
+
+            const validated = await fetch(`${API}/api/emargement/seances/${seance._id}/validate`, {
+                method: 'POST',
+                headers: staffHeaders(auth),
+                body: JSON.stringify({ note: 'Formateur injoignable, lien expiré.' }),
+            });
+            expect(validated.status).toBe(200);
+            const detail = (await validated.json()).seance;
+            expect(detail).toMatchObject({
+                validationStatus: 'validated',
+                validationSource: 'peda',
+                validationNote: 'Formateur injoignable, lien expiré.',
+            });
+            expect(detail.validations.morning).toMatchObject({
+                source: 'peda',
+                signatureImage: null,
+            });
+            expect(detail.validations.morning.signedByName).toBeTruthy();
+
+            // Une feuille validée ne se revalide pas et ne se supprime plus.
+            const again = await fetch(`${API}/api/emargement/seances/${seance._id}/validate`, {
+                method: 'POST',
+                headers: staffHeaders(auth),
+                body: JSON.stringify({ note: 'Doublon' }),
+            });
+            expect(again.status).toBe(409);
+            expect((await again.json()).code).toBe('signed');
+            const removed = await fetch(`${API}/api/emargement/seances/${seance._id}`, {
+                method: 'DELETE',
+                headers: staffHeaders(auth),
+            });
+            expect(removed.status).toBe(409);
+        } finally {
+            await getModels().Seance.deleteOne({ _id: seance._id });
             await cleanupSession(
                 classId,
                 degreeId,

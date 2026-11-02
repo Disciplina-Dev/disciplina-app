@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
 import { ClientMeta, EmargementService } from '../../services/EmargementService';
+import { SEANCE_VALIDATION_STATUSES, SeanceValidationStatus } from '../../types/emargement.types';
 import { isIsoDate } from '../../utils/zonedTime';
 
 const service = new EmargementService();
@@ -39,10 +40,15 @@ export async function list(req: AuthRequest, res: Response): Promise<void> {
         const from = queryString(req.query.from);
         const to = queryString(req.query.to);
         const sessionId = queryString(req.query.sessionId);
+        const validation = queryString(req.query.validation);
         const seances = await service.list({
             sessionId,
             from: from && isIsoDate(from) ? from : undefined,
             to: to && isIsoDate(to) ? to : undefined,
+            validation:
+                validation && (SEANCE_VALIDATION_STATUSES as readonly string[]).includes(validation)
+                    ? (validation as SeanceValidationStatus)
+                    : undefined,
         });
         res.json({ seances });
     } catch (error) {
@@ -89,6 +95,17 @@ export async function resend(req: AuthRequest, res: Response): Promise<void> {
         res.json(await service.resendInvite(String(req.params.id), rotate, req.user?.id));
     } catch (error) {
         sendError(res, error, 'Emargement resend failed');
+    }
+}
+
+/** Validation de régularisation : le Peda débloque une feuille que le formateur ne signera pas. */
+export async function validate(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        res.json({
+            seance: await service.validate(String(req.params.id), req.body, req.user?.id, clientMeta(req)),
+        });
+    } catch (error) {
+        sendError(res, error, 'Emargement validation failed');
     }
 }
 

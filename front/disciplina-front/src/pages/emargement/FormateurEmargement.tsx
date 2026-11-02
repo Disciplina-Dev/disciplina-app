@@ -30,12 +30,14 @@ import type {
   EmargementHalf,
   EmargementStatus,
   FormateurView,
+  SeanceValidation,
   SeanceWindow,
 } from '@/types/emargement'
 import {
   HALF_LABELS,
   STATUS_LABELS,
   STATUS_TONES,
+  VALIDATION_TONES,
   WINDOW_LABELS,
   WINDOW_TONES,
   formatSeanceDate,
@@ -298,6 +300,107 @@ function AttendanceCell({ token, alternant, half, canEdit, disabled, onSaved, on
   )
 }
 
+type SheetSignatureProps = {
+  token: string
+  half: EmargementHalf
+  validation: SeanceValidation | null
+  window: SeanceWindow | null
+  signable: boolean
+  expired: boolean
+  onSigned: (half: EmargementHalf, signedAt: string) => void
+  onError: (message: string) => void
+}
+
+/**
+ * Signature d'une demi-journée : disponible uniquement après la fermeture de son
+ * créneau, puis verrouillée. L'autre demi-journée garde son propre bloc.
+ */
+function SheetSignatureBlock({
+  token,
+  half,
+  validation,
+  window,
+  signable,
+  expired,
+  onSigned,
+  onError,
+}: SheetSignatureProps) {
+  const [signature, setSignature] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
+  const [signing, setSigning] = useState(false)
+  const label = half === 'morning' ? 'du matin' : 'de l’après-midi'
+
+  async function handleSign() {
+    setSigning(true)
+    try {
+      const result = await signSheet(token, half, signature)
+      onSigned(half, result.signedAt)
+    } catch (err) {
+      onError(errorMessage(err))
+    } finally {
+      setSigning(false)
+    }
+  }
+
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--ds-border)] px-3 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[13px] font-bold text-[var(--ds-text)]">{HALF_LABELS[half]}</p>
+        {validation && (
+          <Badge tone="success" icon={<IconCheckCircle width={12} height={12} />}>
+            {validation.source === 'peda' ? 'Validée par le Peda' : 'Signée'}
+          </Badge>
+        )}
+      </div>
+
+      {validation ? (
+        <>
+          <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+            {validation.signedByName} · {formatTimestamp(validation.signedAt)}
+          </p>
+          {validation.signatureImage && (
+            <img
+              src={validation.signatureImage}
+              alt={`Signature du formateur — ${HALF_LABELS[half]}`}
+              className="mt-2 h-20 w-full rounded-[var(--radius-sm)] border border-[var(--ds-border)] bg-white object-contain p-1"
+            />
+          )}
+        </>
+      ) : signable ? (
+        <div className="mt-2 space-y-3">
+          <p className="text-[12px] text-[var(--ds-text-subtle)]">
+            Créneau fermé{window ? ` à ${window.end}` : ''} : signez pour verrouiller cette demi-journée.
+          </p>
+          <SignaturePad value={signature} onChange={setSignature} label={`Signature ${label}`} />
+          <label className="flex items-start gap-2 text-[12px] text-[var(--ds-text-muted)]">
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(event) => setConfirmed(event.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-[var(--ds-border)] text-[var(--ds-accent)]"
+            />
+            Je certifie l’exactitude des présences {label} et je signe cette demi-journée d’émargement.
+          </label>
+          <Button
+            className="w-full"
+            onClick={handleSign}
+            isLoading={signing}
+            disabled={!signature || !confirmed}
+          >
+            Signer {label}
+          </Button>
+        </div>
+      ) : (
+        <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+          {expired
+            ? 'Le lien a expiré avant la signature de cette demi-journée. Contactez le service pédagogique.'
+            : `Disponible après la fermeture du créneau${window ? ` (${window.end})` : ''}.`}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function FormateurEmargement() {
   const { token = '' } = useParams()
   const [view, setView] = useState<FormateurView | null>(null)
@@ -306,9 +409,6 @@ export default function FormateurEmargement() {
   const [notice, setNotice] = useState<string | null>(null)
   const [showQr, setShowQr] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [signature, setSignature] = useState('')
-  const [confirmed, setConfirmed] = useState(false)
-  const [signing, setSigning] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -363,20 +463,11 @@ export default function FormateurEmargement() {
     link.click()
   }
 
-  async function handleSign() {
-    setSigning(true)
-    setError(null)
-    try {
-      const result = await signSheet(token, signature)
-      setNotice(`Feuille signée le ${formatTimestamp(result.signedAt)}. Elle est désormais verrouillée.`)
-      setSignature('')
-      setConfirmed(false)
-      load()
-    } catch (err) {
-      setError(errorMessage(err))
-    } finally {
-      setSigning(false)
-    }
+  function handleHalfSigned(half: EmargementHalf, signedAt: string) {
+    setNotice(
+      `Demi-journée du ${half === 'morning' ? 'matin' : 'après-midi'} signée le ${formatTimestamp(signedAt)}. Elle est désormais verrouillée.`,
+    )
+    load()
   }
 
   if (loading) {
@@ -421,15 +512,15 @@ export default function FormateurEmargement() {
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Badge tone="accent">Formateur : {seance.formateurName}</Badge>
-          {seance.signed ? (
-            <Badge tone="success" icon={<IconCheckCircle width={12} height={12} />}>
-              Signée le {formatTimestamp(seance.signedAt)}
-            </Badge>
-          ) : view.expired ? (
-            <Badge tone="neutral">Lien expiré</Badge>
-          ) : (
-            <Badge tone="warning">En attente de votre signature</Badge>
-          )}
+          <Badge tone={VALIDATION_TONES[seance.validationStatus]}>
+            {seance.validationStatus === 'validated'
+              ? 'Feuille validée'
+              : seance.validationStatus === 'anomaly'
+                ? 'Lien expiré'
+                : seance.validationStatus === 'to_validate'
+                  ? 'Signature attendue'
+                  : 'Émargement en cours'}
+          </Badge>
         </div>
       </header>
 
@@ -479,7 +570,7 @@ export default function FormateurEmargement() {
                         token={token}
                         alternant={alternant}
                         half="morning"
-                        canEdit={editable}
+                        canEdit={view.editableHalves.includes('morning')}
                         onSaved={(record) => applyRecord(alternant.id, 'morning', record)}
                         onError={setError}
                       />
@@ -491,7 +582,7 @@ export default function FormateurEmargement() {
                           token={token}
                           alternant={alternant}
                           half="afternoon"
-                          canEdit={editable}
+                          canEdit={view.editableHalves.includes('afternoon')}
                           onSaved={(record) => applyRecord(alternant.id, 'afternoon', record)}
                           onError={setError}
                         />
@@ -504,7 +595,7 @@ export default function FormateurEmargement() {
               </tbody>
             </table>
           </div>
-          {!editable && !seance.signed && (
+          {!editable && seance.validationStatus !== 'validated' && (
             <p className="mt-3 text-[12px] text-[var(--ds-text-subtle)]">
               Ce lien a expiré : la feuille est en lecture seule. Contactez le service pédagogique pour une
               correction.
@@ -560,47 +651,28 @@ export default function FormateurEmargement() {
           <section className="rounded-[var(--radius-lg)] border border-[var(--ds-border)] p-4">
             <h2 className="flex items-center gap-2 text-[14px] font-bold text-[var(--ds-text)]">
               <IconSignature width={16} height={16} className="text-[var(--ds-accent)]" />
-              Signature de la feuille
+              Validation de la feuille
             </h2>
-            {seance.signed ? (
-              <div className="mt-2 space-y-2">
-                <p className="text-[13px] text-[var(--ds-text-muted)]">
-                  Signée par {seance.signedByName} le {formatTimestamp(seance.signedAt)}.
-                </p>
-                {seance.signatureImage && (
-                  <img
-                    src={seance.signatureImage}
-                    alt={`Signature de ${seance.signedByName ?? 'le formateur'}`}
-                    className="h-28 w-full rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-white object-contain p-2"
+            <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+              Chaque demi-journée se signe après la fermeture de son créneau, puis reste verrouillée.
+            </p>
+            <div className="mt-3 flex flex-col gap-3">
+              {(['morning', 'afternoon'] as const)
+                .filter((half) => half === 'morning' || hasAfternoon)
+                .map((half) => (
+                  <SheetSignatureBlock
+                    key={half}
+                    token={token}
+                    half={half}
+                    validation={seance.validations[half]}
+                    window={view.windows[half]}
+                    signable={view.signableHalves.includes(half)}
+                    expired={view.expired}
+                    onSigned={(signedHalf, signedAt) => handleHalfSigned(signedHalf, signedAt)}
+                    onError={setError}
                   />
-                )}
-              </div>
-            ) : view.expired ? (
-              <p className="mt-2 text-[13px] text-[var(--ds-text-subtle)]">
-                Le lien a expiré avant signature. Contactez le service pédagogique.
-              </p>
-            ) : (
-              <div className="mt-2 space-y-3">
-                <SignaturePad value={signature} onChange={setSignature} label="Signature du formateur" />
-                <label className="flex items-start gap-2 text-[12px] text-[var(--ds-text-muted)]">
-                  <input
-                    type="checkbox"
-                    checked={confirmed}
-                    onChange={(event) => setConfirmed(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-[var(--ds-border)] text-[var(--ds-accent)]"
-                  />
-                  Je certifie l’exactitude des présences ci-dessus et je signe la feuille d’émargement.
-                </label>
-                <Button
-                  className="w-full"
-                  onClick={handleSign}
-                  isLoading={signing}
-                  disabled={!signature || !confirmed}
-                >
-                  Confirmer et signer
-                </Button>
-              </div>
-            )}
+                ))}
+            </div>
           </section>
         </aside>
       </div>
