@@ -182,10 +182,19 @@ describe('API émargement — côté Peda', () => {
         await seedSystemMailUser();
         const auth = pedaAuth();
         const { classId, degreeId, alternants } = await seedSessionWithAlternants();
+        // Séance datée de demain : avec la date du jour, les créneaux 08:00–10:30 et
+        // 13:45–14:30 sont déjà fermés quand la CI tourne l'après-midi, et la feuille
+        // est alors légitimement `to_validate` au lieu d'`in_progress`. Le test doit
+        // tester l'état « en cours », pas l'heure d'exécution.
+        const tomorrow = addDaysToDate(localDate(new Date(), tenantTimezone()), 1);
         try {
             const { status, body } = await createSeanceHttp(
                 auth,
-                seanceInput(classId, { module: 'Séquence 3 — Communication', location: 'Salle 204' }),
+                seanceInput(classId, {
+                    date: tomorrow,
+                    module: 'Séquence 3 — Communication',
+                    location: 'Salle 204',
+                }),
             );
             expect(status).toBe(201);
             expect(body.seance).toMatchObject({
