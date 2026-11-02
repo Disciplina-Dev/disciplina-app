@@ -21,13 +21,15 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import SeanceFormModal from '@/components/peda/SeanceFormModal'
-import { deleteSeance, fetchSeance, resendInvite } from '@/api/emargement'
+import { deleteSeance, fetchSeance, resendInvite, validateSeance } from '@/api/emargement'
 import { zonedWallClockToIso } from '@/lib/timezone'
 import type { AlternantAttendance, AttendanceRecord, SeanceDetail } from '@/types/emargement'
 import {
   HALF_LABELS,
   STATUS_LABELS,
   STATUS_TONES,
+  VALIDATION_LABELS,
+  VALIDATION_TONES,
   WINDOW_LABELS,
   WINDOW_TONES,
   formatSeanceDate,
@@ -35,6 +37,7 @@ import {
   seancePlace,
   seanceProgram,
   signatureLabel,
+  validationSourceLabel,
 } from '@/utils/emargement'
 
 /** Affiché quand le back signale que l'invitation n'a pas pu partir. */
@@ -109,6 +112,8 @@ export default function EmargementSeance() {
   )
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [validationNote, setValidationNote] = useState('')
   const [copied, setCopied] = useState<'formateur' | 'qr' | null>(null)
   const qrRef = useRef<HTMLDivElement>(null)
 
@@ -188,6 +193,24 @@ export default function EmargementSeance() {
     }
   }
 
+  async function handleValidate() {
+    const note = validationNote.trim()
+    if (!note) return
+    setBusy(true)
+    setError(null)
+    try {
+      const detail = await validateSeance(id, note)
+      setSeance(detail)
+      setValidating(false)
+      setValidationNote('')
+      flash('Feuille validée par le service pédagogique.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Validation impossible')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-[var(--ds-text-subtle)]">
@@ -212,6 +235,11 @@ export default function EmargementSeance() {
 
   const hasAfternoon = Boolean(seance.afternoonStart)
   const program = seanceProgram(seance)
+  const locked = Boolean(seance.validations.morning || seance.validations.afternoon)
+  const missingHalves = (['morning', 'afternoon'] as const).filter(
+    (half) => (half === 'morning' || hasAfternoon) && !seance.validations[half],
+  )
+  const missingHalvesLabel = missingHalves.map((half) => HALF_LABELS[half].toLowerCase()).join(' et ')
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
@@ -236,19 +264,31 @@ export default function EmargementSeance() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {seance.signed ? (
-            <Badge tone="success" icon={<IconCheckCircle width={12} height={12} />}>
-              Feuille signée
-            </Badge>
-          ) : (
-            <Badge tone="accent">En attente de signature</Badge>
+          <Badge
+            tone={VALIDATION_TONES[seance.validationStatus]}
+            icon={
+              seance.validationStatus === 'validated' ? <IconCheckCircle width={12} height={12} /> : undefined
+            }
+          >
+            {VALIDATION_LABELS[seance.validationStatus]}
+          </Badge>
+          {seance.canValidateByPeda && (
+            <Button
+              variant="secondary"
+              size="sm"
+              leftIcon={<IconSignature width={15} height={15} />}
+              onClick={() => setValidating(true)}
+              disabled={busy}
+            >
+              Valider la feuille
+            </Button>
           )}
           <Button
             variant="secondary"
             size="sm"
             leftIcon={<IconEdit width={15} height={15} />}
             onClick={() => setEditing(true)}
-            disabled={seance.signed || busy}
+            disabled={locked || busy}
           >
             Modifier
           </Button>
@@ -257,7 +297,7 @@ export default function EmargementSeance() {
             size="sm"
             leftIcon={<IconTrash width={15} height={15} />}
             onClick={handleDelete}
-            disabled={busy}
+            disabled={locked || busy}
           >
             Supprimer
           </Button>
@@ -277,6 +317,50 @@ export default function EmargementSeance() {
       {error && (
         <div className="mb-4 flex items-start gap-2 rounded-[var(--radius-md)] bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)]">
           <IconAlert width={16} height={16} /> {error}
+        </div>
+      )}
+
+      {seance.validationStatus === 'anomaly' && (
+        <div className="mb-4 flex flex-col gap-3 rounded-[var(--radius-md)] border border-[var(--ds-danger)]/30 bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)] sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2">
+            <IconAlert width={16} height={16} className="mt-0.5 shrink-0" />
+            <span>
+              <strong>Anomalie : lien formateur expiré</strong> le {formatTimestamp(seance.inviteExpiresAt)} et{' '}
+              {missingHalvesLabel} non signé{missingHalves.length > 1 ? 's' : ''}. Le formateur ne peut plus signer :
+              validez la feuille pour la clôturer.
+            </span>
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={<IconSignature width={15} height={15} />}
+            onClick={() => setValidating(true)}
+            disabled={busy}
+          >
+            Valider la feuille
+          </Button>
+        </div>
+      )}
+
+      {seance.validationStatus === 'to_validate' && (
+        <div className="mb-4 flex flex-col gap-3 rounded-[var(--radius-md)] bg-[var(--ds-warning-bg)] px-4 py-3 text-sm text-[var(--ds-warning)] sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-start gap-2">
+            <IconAlert width={16} height={16} className="mt-0.5 shrink-0" />
+            <span>
+              Les créneaux sont fermés, {missingHalvesLabel} {missingHalves.length > 1 ? 'restent' : 'reste'} à
+              signer. Le lien formateur est valable jusqu’au {formatTimestamp(seance.inviteExpiresAt)} ; passé ce
+              délai la feuille passera en anomalie.
+            </span>
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            leftIcon={<IconSignature width={15} height={15} />}
+            onClick={() => setValidating(true)}
+            disabled={busy}
+          >
+            Valider à sa place
+          </Button>
         </div>
       )}
 
@@ -315,24 +399,58 @@ export default function EmargementSeance() {
             </p>
           </Card>
 
-          {seance.signed && (
-            <Card>
-              <h2 className="flex items-center gap-2 text-[15px] font-bold text-[var(--ds-text)]">
-                <IconSignature width={16} height={16} className="text-[var(--ds-accent)]" />
-                Signature du formateur
-              </h2>
-              <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
-                {seance.signedByName} · {formatTimestamp(seance.signedAt)}
+          <Card>
+            <h2 className="flex items-center gap-2 text-[15px] font-bold text-[var(--ds-text)]">
+              <IconSignature width={16} height={16} className="text-[var(--ds-accent)]" />
+              Validation de la feuille
+            </h2>
+            <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+              {validationSourceLabel(seance.validationSource)} · chaque demi-journée se signe après la fermeture de
+              son créneau.
+            </p>
+            <ul className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {(['morning', 'afternoon'] as const)
+                .filter((half) => half === 'morning' || hasAfternoon)
+                .map((half) => {
+                  const validation = seance.validations[half]
+                  return (
+                    <li
+                      key={half}
+                      className="rounded-[var(--radius-md)] border border-[var(--ds-border)] px-3 py-3"
+                    >
+                      <p className="text-[12px] font-semibold uppercase tracking-wide text-[var(--ds-text-subtle)]">
+                        {HALF_LABELS[half]}
+                      </p>
+                      {validation ? (
+                        <>
+                          <p className="mt-1 text-[13px] text-[var(--ds-text)]">{validation.signedByName}</p>
+                          <p className="text-[11px] text-[var(--ds-text-subtle)]">
+                            {validation.source === 'peda'
+                              ? 'Validée par le service pédagogique'
+                              : 'Signée par le formateur'}{' '}
+                            · {formatTimestamp(validation.signedAt)}
+                          </p>
+                          {validation.signatureImage && (
+                            <img
+                              src={validation.signatureImage}
+                              alt={`Signature du formateur — ${HALF_LABELS[half]}`}
+                              className="mt-2 h-20 w-full rounded-[var(--radius-sm)] border border-[var(--ds-border)] bg-white object-contain p-1"
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">Non signée</p>
+                      )}
+                    </li>
+                  )
+                })}
+            </ul>
+            {seance.validationNote && (
+              <p className="mt-3 rounded-[var(--radius-md)] bg-[var(--ds-surface-sunken)] px-3 py-2 text-[12px] text-[var(--ds-text-muted)]">
+                <strong>Motif de validation :</strong> {seance.validationNote}
               </p>
-              {seance.signatureImage && (
-                <img
-                  src={seance.signatureImage}
-                  alt={`Signature de ${seance.signedByName ?? 'le formateur'}`}
-                  className="mt-3 h-28 rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-white object-contain p-2"
-                />
-              )}
-            </Card>
-          )}
+            )}
+          </Card>
         </div>
 
         <div className="flex flex-col gap-5">
@@ -436,6 +554,50 @@ export default function EmargementSeance() {
           </Card>
         </div>
       </div>
+
+      {validating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[var(--ds-text)]/50 backdrop-blur-sm" onClick={() => setValidating(false)} />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="validation-modal-title"
+            className="relative w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-5 shadow-2xl"
+          >
+            <h2 id="validation-modal-title" className="text-[16px] font-bold text-[var(--ds-text)]">
+              Valider la feuille
+            </h2>
+            <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
+              {missingHalvesLabel || 'La demi-journée restante'} : validation par le service pédagogique, sans
+              signature du formateur. Le motif est conservé avec la feuille et visible dans son détail.
+            </p>
+            <label
+              htmlFor="validation-note"
+              className="mt-4 block text-[13px] font-semibold text-[var(--ds-text-muted)]"
+            >
+              Motif de la validation
+            </label>
+            <textarea
+              id="validation-note"
+              value={validationNote}
+              onChange={(event) => setValidationNote(event.target.value)}
+              rows={3}
+              maxLength={500}
+              required
+              placeholder="Formateur injoignable, lien expiré, signature manquante…"
+              className="mt-1.5 w-full resize-y rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)]"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setValidating(false)} disabled={busy}>
+                Annuler
+              </Button>
+              <Button onClick={handleValidate} isLoading={busy} disabled={!validationNote.trim()}>
+                Valider la feuille
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editing && (
         <SeanceFormModal

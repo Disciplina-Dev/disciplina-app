@@ -33,6 +33,36 @@ export type EmargementStatus = (typeof EMARGEMENT_STATUSES)[number];
 export const EMARGEMENT_SIGNATURE_MODES = ['qr', 'manual', 'handwritten'] as const;
 export type EmargementSignatureMode = (typeof EMARGEMENT_SIGNATURE_MODES)[number];
 
+/**
+ * Auteur de la validation d'une demi-journée :
+ * - `formateur` : le formateur a signé la demi-journée depuis son lien ;
+ * - `peda` : le service pédagogique a régularisé une demi-journée que le
+ *   formateur n'a pas signée (lien expiré, formateur injoignable), avec motif.
+ */
+export const SEANCE_VALIDATION_SOURCES = ['formateur', 'peda'] as const;
+export type SeanceValidationSource = (typeof SEANCE_VALIDATION_SOURCES)[number];
+
+/** Validation d'une demi-journée (une signature formateur ou une validation Peda). */
+export interface SeanceValidation {
+    signed_at: Date | string;
+    signed_by_name: string;
+    source: SeanceValidationSource;
+    /** Tracé du formateur ; `null` quand la demi-journée est régularisée par le Peda. */
+    signature_image: string | null;
+    signed_ip: string | null;
+    signed_user_agent: string | null;
+}
+
+/**
+ * État de validation d'une feuille :
+ * - `in_progress` : au moins un créneau n'est pas encore fermé ;
+ * - `to_validate` : tous les créneaux sont fermés, le formateur peut encore signer ;
+ * - `anomaly` : le lien a expiré (J+7) et une demi-journée reste non signée ;
+ * - `validated` : toutes les demi-journées sont validées (formateur ou Peda).
+ */
+export const SEANCE_VALIDATION_STATUSES = ['in_progress', 'to_validate', 'anomaly', 'validated'] as const;
+export type SeanceValidationStatus = (typeof SEANCE_VALIDATION_STATUSES)[number];
+
 export interface Seance {
     _id: string;
     /** Classe Filiz qui tient lieu de session (groupe d'alternants). */
@@ -74,12 +104,28 @@ export interface Seance {
      * elle, reste bornée aux créneaux.
      */
     invite_expires_at: Date | string;
-    signed_at: Date | string | null;
-    signed_by_name: string | null;
-    /** Signature manuscrite du formateur (data-URL PNG), `null` tant que non signée. */
-    signature_image: string | null;
-    signed_ip: string | null;
-    signed_user_agent: string | null;
+    /**
+     * Validation par demi-journée : le formateur signe le matin après la
+     * fermeture du créneau du matin, l'après-midi après le sien. Une
+     * demi-journée validée est verrouillée, l'autre reste éditable.
+     */
+    validations: {
+        morning: SeanceValidation | null;
+        afternoon: SeanceValidation | null;
+    };
+    /** Auteur de la validation Peda (id utilisateur), `null` si le formateur a tout signé. */
+    validated_by: number | null;
+    /** Motif saisi par le Peda lors d'une validation de régularisation. */
+    validation_note: string | null;
+    /**
+     * @deprecated Ancien stockage « feuille signée en un bloc », antérieur au lot 4.
+     * Conservé pour relire les feuilles existantes (repli dans `validationsOf`).
+     */
+    signed_at?: Date | string | null;
+    signed_by_name?: string | null;
+    signature_image?: string | null;
+    signed_ip?: string | null;
+    signed_user_agent?: string | null;
     created_by: number | null;
     created_at: Date | string;
     updated_at: Date | string;

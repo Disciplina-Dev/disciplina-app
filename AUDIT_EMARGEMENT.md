@@ -28,6 +28,10 @@ Aucun code modifié. Tous les constats sont référencés `fichier:ligne` et ont
 >
 > **État au 2026-10-30 après le lot 3** (signature exigée à chaque passage, y compris par QR — cf. §6) :
 > mêmes totaux que le lot 2, 3.3 restant partiel faute de vérification d'identité.
+>
+> **État au 2026-10-30 après le lot 4** (signature par demi-journée après fermeture du créneau, statut de
+> validation, alerte et liste des anomalies, validation de régularisation par le Peda — cf. §6) :
+> **16 satisfaites**, **18 partielles**, **23 absentes**.
 
 Légende :
 **✅ FAIT** = conforme à l'exigence ·
@@ -42,14 +46,14 @@ Légende :
 |---|---|
 | Modèle de domaine | `back/src/types/emargement.types.ts` |
 | Schémas Mongo | `back/src/db/mongo/schemas/seance.schema.ts`, `emargement.schema.ts` (+ enregistrement dans `db/mongo/tenant.ts:56-57`) |
-| Service | `back/src/services/EmargementService.ts` (806 l.), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
+| Service | `back/src/services/EmargementService.ts` (1 169 l.), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
 | Dépôts | `back/src/repositories/mongo/SeanceRepository.ts`, `EmargementRepository.ts` |
-| API staff | `POST/GET/PUT/DELETE /api/emargement/seances…` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
-| API publique | `GET\|PUT /api/emargement/formateur/:token[/attendance]`, `POST …/attendance/sign` (signature manuscrite de l'alternant), `POST …/sign`, `GET\|POST /api/emargement/sign/:token` — `public.route.ts` |
+| API staff | `POST/GET/PUT/DELETE /api/emargement/seances…`, `POST /api/emargement/seances/:id/validate` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
+| API publique | `GET\|PUT /api/emargement/formateur/:token[/attendance]`, `POST …/attendance/sign` (signature manuscrite de l'alternant), `POST …/sign` (une demi-journée), `GET\|POST /api/emargement/sign/:token` — `public.route.ts` |
 | UI Peda | `front/…/pages/peda/Emargements.tsx`, `EmargementSeance.tsx`, `components/peda/SeanceFormModal.tsx` |
 | UI publique | `front/…/pages/emargement/FormateurEmargement.tsx`, `PublicSigning.tsx`, `components/emargement/PublicShell.tsx` |
 | Client API / types | `front/…/api/emargement.ts`, `types/emargement.ts`, `utils/emargement.ts` |
-| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (13 cas) |
+| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (15 cas) |
 
 ---
 
@@ -61,9 +65,9 @@ Légende :
 | 2 | Découpage des séances | ✅ 2.1 / 2.2 / 2.3 / 2.4 — créneaux bornés aux horaires, signature de secours, lien J+7 |
 | 3 | Authentification & identité | ❌ identité = e-mail saisi, QR partagé, formateur sans compte |
 | 4 | Horodatage & intégrité | ⚠️ 4.1 / 4.2 ✅ à la signature — **aucune traçabilité des corrections** |
-| 5 | Validation par le formateur | ⚠️ 5.2 ✅ — 5.1 par journée au lieu de demi-journée, 5.3 ❌ |
+| 5 | Validation par le formateur | ✅ 5.1 / 5.2 / 5.3 — signature par demi-journée après fermeture, statut, alerte et validation Peda |
 | 6 | Absences et retards | ❌ 0/5 |
-| 7 | Tableaux de bord et suivi | ❌ 0/4 (7.4 partiel via l'archivage alternant) |
+| 7 | Tableaux de bord et suivi | ⚠️ 7.3 partiel (filtre + alerte anomalies) — 7.1 / 7.2 ❌, 7.4 partiel via l'archivage alternant |
 | 8 | Exports et justificatifs | ❌ 0/5 |
 | 9 | Sessions d'examen titre pro | ❌ 0/4 |
 | 10 | Rôles et droits d'accès | ⚠️ 4 rôles internes seulement — pas d'apprenant, pas d'employeur |
@@ -150,19 +154,20 @@ Légende :
 
 ### 3.5 §5 — Validation par le formateur
 
-- **5.1 ❌/⚠️** — Une **seule signature pour toute la journée** (`signSheet`,
-  `EmargementService.ts:445-474`), pas une par demi-journée. Et elle est possible **avant la
-  fermeture des créneaux** : `signSheet` ne vérifie que « non signée » (`:447`) et « non expirée »
-  (`:448`). La mention « une fois les créneaux passés » a été retirée du `CHANGELOG.md` (lot 2) ; le
-  contrôle lui-même reste à implémenter (défaut **D**).
+- **5.1 ❌/⚠️ → ✅ FAIT (lot 4)** — À l'audit : une **seule signature pour toute la journée** (`signSheet`,
+  `EmargementService.ts:445-474`), pas une par demi-journée ; elle était possible **avant la fermeture
+  des créneaux** (« non signée » + « non expirée » seulement, défaut **D**). Corrigé au lot 4 :
+  `signSheet` prend `{half, confirmed, signature}`, refuse en **409 `window`** tant que le créneau de la
+  demi-journée n'est pas fermé, et n'écrit que `validations.<half>` — chaque demi-journée validée
+  verrouille sa propre édition (`assertHalfEditable`), l'autre reste modifiable.
 - **5.2 ✅ FAIT** — Présent / absent / en retard (+heure) / parti en avance (+heure) :
   `setAttendance` (`:409-443`), `status_time` (`emargement.types.ts:77`).
-- **5.3 ❌ ABSENT** — Aucune détection d'anomalie : pas de statut « non validée », pas d'alerte, pas
-  de liste. Seul un badge « En cours » / « Signée » dans la liste (`Emargements.tsx:160-166`).
-  Aggravant : après minuit la feuille ne pouvait **plus jamais** être signée (410) et le Peda n'a
-  **aucun moyen de la valider lui-même** → anomalie définitive et non résoluble (défaut **B**).
-  Le lot 2 porte le lien formateur à J+7 (le formateur peut donc régulariser) ; la validation par le
-  Peda reste absente.
+- **5.3 ❌ ABSENT → ✅ FAIT (lot 4)** — À l'audit : aucune détection d'anomalie (pas de statut « non
+  validée », pas d'alerte, pas de liste), et le Peda n'avait aucun moyen de valider une feuille bloquée
+  (défaut **B**). Corrigé : `validationStatus` (`in_progress` | `to_validate` | `anomaly` | `validated`,
+  anomalie = lien expiré à J+7 avec une demi-journée non signée), filtre `?validation=` et alerte avec
+  compteur dans la liste Peda, et `POST /api/emargement/seances/:id/validate` — motif obligatoire,
+  auteur + date tracés, demi-journées manquantes en `source: 'peda'` sans tracé.
 
 ### 3.6 §6 — Gestion des absences et retards — **section entièrement absente**
 
@@ -184,8 +189,11 @@ Légende :
   `countsBySeance` (`EmargementRepository.ts:98-117`).
 - **7.2 ❌** Aucun calcul heures prévues / réalisées (le statut demi-journée n'est pas converti en
   durée ; il faudrait `start_time`/`end_time` × présence).
-- **7.3 ❌** Aucune liste « feuilles incomplètes / non validées » (pas de filtre, pas de notion
-  d'anomalie — cf. 5.3).
+- **7.3 ❌ → ⚠️ PARTIEL (lot 4)** — Pas de liste « feuilles incomplètes / non validées » à l'audit.
+  Depuis le lot 4 : filtre `?validation=` sur la liste Peda (en cours / à valider / anomalies /
+  validées), alerte avec compteur d'anomalies, et badge de statut dans la liste et le détail. Reste
+  absent : vue dédiée « feuilles incomplètes » (demi-journée fermée avec des statuts non saisis) et
+  agrégats par période.
 - **7.4 ⚠️ PARTIEL** — Le socle existe : `archived_at` + `archive_reason ('rupture'|'fin_formation')`
   (`alternant.schema.ts:47-48`), module Ruptures avec `poursuitFormation`
   (`services/RuptureService.ts:49-68`), et les archivés sont **exclus** de `findAlternants`
@@ -306,6 +314,8 @@ Indépendamment du cahier des charges, ces points sont des bugs ou des dettes à
 8. Exports PDF (séance / apprenant / groupe), Excel/CSV, attestations (§8.1 / 8.2 / 8.5), en réutilisant
    `PdfService`.
 9. Tableaux de bord assiduité + heures prévues/réalisées + feuilles non validées (§7.1–7.3).
+   **Traité le 2026-10-30 pour la liste et l'alerte des feuilles non validées** (filtre `?validation=`,
+   statut, anomalies) — voir §6 ; restent les tableaux de bord et les heures.
 10. En-tête organisme + logo, titre pro, module/séquence, salle/lieu, financeur (§1.1 / 1.2 / 1.3 / 1.7).
     **Traité le 2026-10-30 pour l'affichage écran** — voir §6 ; reste la reprise de ces données dans les
     exports PDF/CSV (point 8).
@@ -416,3 +426,41 @@ Décisions de conception :
 Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (13 cas) — signature QR sans tracé
 → 400 `signature` ; tracé stocké et visible côté Peda ; signature idempotente ; un tracé `qr` remplace
 un tracé `handwritten`.
+
+### Lot 4 — validation par demi-journée et remédiation Peda (2026-10-30)
+
+Périmètre : rendre la signature du formateur conforme (une demi-journée à la fois, après fermeture de
+son créneau) et rendre les feuilles non signées visibles, puis résolubles par le service pédagogique.
+Les exports PDF/CSV restent hors périmètre (point 8 du plan P1).
+
+| Exigence | Correctif |
+|---|---|
+| 5.1 Signature par demi-journée | `signSheet` prend `{half, confirmed, signature}` et n'écrit que `validations.<half>` (`signed_at`, `signed_by_name`, `source: 'formateur'`, `signature_image`, IP, user-agent). Avant la fermeture du créneau → **409 `window`** ; demi-journée déjà signée → 409 `signed` ; après-midi inexistant → 400 `window`. Chaque demi-journée validée verrouille sa propre édition (`assertHalfEditable` dans `setAttendance` / `signAttendanceManually` / `signByQr`), l'autre reste modifiable et signable. `update` / `remove` refusent dès qu'une demi-journée est validée ; `resendInvite` reste possible tant que la feuille n'est pas entièrement validée. |
+| 5.3 Statut, alerte et liste | `validationStatus` : `in_progress` (un créneau ouvert), `to_validate` (créneaux fermés, signature incomplète), `anomaly` (lien expiré J+7 **et** au moins une demi-journée non signée), `validated`. Exposé dans les DTO liste/détail/formateur. `GET /api/emargement/seances?validation=` filtre en mémoire (l'état dépend de l'heure courante) ; la liste Peda affiche un badge par ligne, un filtre par statut et une alerte avec le nombre d'anomalies, toutes périodes confondues. |
+| 5.3 Validation de régularisation Peda | `POST /api/emargement/seances/:id/validate` (`EmargementService.validate`) : motif obligatoire (400 `validation`), refus si la feuille est déjà validée ou si un créneau n'est pas fermé (409), sinon les demi-journées manquantes sont écrites en `source: 'peda'`, `signature_image: null`, `signed_by_name` = nom du Peda (repli « Service pédagogique ») ; `validated_by` (users.id) et `validation_note` conservent qui, quand et pourquoi. |
+| 7.3 Liste des feuilles non validées | Le filtre `?validation=anomaly` et l'alerte de la liste couvrent le besoin « voir les feuilles en défaut » ; le détail Peda affiche le statut, les bandeaux « à valider » / « anomalie » et une carte de validation par demi-journée (auteur, date, tracé ou mention « validée par le service pédagogique »). |
+
+Décisions de conception :
+
+- **Une signature par demi-journée, pas une signature globale** : signer le matin à 9 h puis saisir une
+  absence à 10 h rendrait la signature mensongère. La fenêtre de signature s'ouvre donc à la fermeture
+  du créneau, et chaque demi-journée verrouille sa propre édition — le formateur peut encore corriger
+  l'après-midi après avoir signé le matin.
+- **Le Peda valide sans signer** : il ne peut pas produire la signature manuscrite du formateur. La
+  validation de régularisation trace l'auteur, la date et le motif, et marque les demi-journées
+  concernées `source: 'peda'` avec `signature_image: null` — la feuille reste honnête sur l'origine de
+  chaque validation. Un motif est obligatoire pour éviter les validations « de confort ».
+- **Pas de migration de données** : `validationsOf` retombe sur l'ancien `signed_at` global quand
+  `validations` est vide, et considère alors les deux demi-journées comme signées par le formateur. Les
+  feuilles antérieures au lot 4 restent lisibles et exportables sans script de reprise.
+- **Anomalie = lien expiré + signature manquante** : c'est la seule condition retenue. Une demi-journée
+  fermée avec des statuts non saisis n'est pas une anomalie (elle relève de 7.3, vue dédiée à venir).
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (15 cas) — signature du matin
+acceptée après fermeture et verrouillage séparé, signature de l'après-midi refusée avant fermeture
+(409 `window`), rejeu refusé (409 `signed`), édition de la demi-journée signée refusée et de l'autre
+acceptée ; lien expiré → 410 et classement `?validation=anomaly` ; validation Peda sans motif → 400,
+avec motif → `validated` + `source: 'peda'` + `signatureImage: null`, revalidation et suppression → 409.
+
+Reste à faire pour clore §5 et §7.3 : vue dédiée « feuilles incomplètes » (statuts non saisis),
+correction motivée côté Peda (§10.4), exports PDF/CSV portant les validations par demi-journée (§8).

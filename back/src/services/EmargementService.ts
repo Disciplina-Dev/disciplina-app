@@ -26,6 +26,9 @@ import {
     Seance,
     SeanceMode,
     SeanceSite,
+    SeanceValidation,
+    SeanceValidationSource,
+    SeanceValidationStatus,
 } from '../types/emargement.types';
 import {
     addDaysToDate,
@@ -99,6 +102,19 @@ export interface SeanceWindowDto {
     state: WindowState;
 }
 
+export interface SeanceValidationDto {
+    signedAt: string;
+    signedByName: string;
+    source: SeanceValidationSource;
+    /** Tracé du formateur ; `null` quand la demi-journée est régularisée par le Peda. */
+    signatureImage: string | null;
+}
+
+export type SeanceValidationsDto = {
+    morning: SeanceValidationDto | null;
+    afternoon: SeanceValidationDto | null;
+};
+
 export interface SeanceDto {
     id: string;
     sessionId: string;
@@ -122,10 +138,15 @@ export interface SeanceDto {
     afternoonEnd: string | null;
     timezone: string;
     inviteExpiresAt: string;
-    signed: boolean;
-    signedAt: string | null;
-    signedByName: string | null;
-    signatureImage: string | null;
+    /** Validation par demi-journée (formateur ou Peda). */
+    validations: SeanceValidationsDto;
+    validationStatus: SeanceValidationStatus;
+    /** `peda` dès qu'au moins une demi-journée a été régularisée par le service pédagogique. */
+    validationSource: SeanceValidationSource | null;
+    validatedBy: number | null;
+    validationNote: string | null;
+    /** `true` quand le Peda peut valider lui-même (créneaux fermés, validation incomplète). */
+    canValidateByPeda: boolean;
     createdAt: string;
     updatedAt: string;
     formateurUrl: string;
@@ -151,10 +172,8 @@ export interface FormateurViewDto {
         site: SeanceSite;
         mode: SeanceMode;
         formateurName: string;
-        signed: boolean;
-        signedAt: string | null;
-        signedByName: string | null;
-        signatureImage: string | null;
+        validations: SeanceValidationsDto;
+        validationStatus: SeanceValidationStatus;
         qrUrl: string;
     };
     alternants: AlternantEmargementDto[];
@@ -165,7 +184,12 @@ export interface FormateurViewDto {
         afternoon: SeanceWindowDto | null;
     };
     expired: boolean;
+    /** `true` tant qu'au moins une demi-journée reste éditable (non validée, lien valide). */
     canEdit: boolean;
+    /** Demi-journées encore modifiables (statuts, signature manuscrite). */
+    editableHalves: EmargementHalf[];
+    /** Demi-journées signables par le formateur : créneau fermé, non validée, lien valide. */
+    signableHalves: EmargementHalf[];
 }
 
 export interface PublicSigningDto {
@@ -189,6 +213,7 @@ export interface PublicSigningDto {
 }
 
 export interface SignSheetResult {
+    half: EmargementHalf;
     signedAt: string;
     signedByName: string;
 }
@@ -295,6 +320,46 @@ function normalizeEmail(value: string): string {
     return value.trim().toLowerCase();
 }
 
+/** Demi-journées à valider : l'après-midi n'existe que s'il a un créneau. */
+function applicableHalves(seance: Seance): EmargementHalf[] {
+    return seance.afternoon_start ? [...EMARGEMENT_HALVES] : ['morning'];
+}
+
+/**
+ * Validations stockées, avec repli sur l'ancien champ `signed_at` : les feuilles
+ * signées avant le lot 4 n'ont qu'une signature globale, qui valait pour toutes
+ * les demi-journées du jour. Aucune migration de données n'est nécessaire.
+ */
+function validationsOf(seance: Seance): {
+    morning: SeanceValidation | null;
+    afternoon: SeanceValidation | null;
+} {
+    const stored = seance.validations ?? { morning: null, afternoon: null };
+    if (stored.morning || stored.afternoon) {
+        return { morning: stored.morning ?? null, afternoon: stored.afternoon ?? null };
+    }
+    if (!seance.signed_at) return { morning: null, afternoon: null };
+    const legacy: SeanceValidation = {
+        signed_at: seance.signed_at,
+        signed_by_name: seance.signed_by_name ?? seance.formateur_name,
+        source: 'formateur',
+        signature_image: seance.signature_image ?? null,
+        signed_ip: seance.signed_ip ?? null,
+        signed_user_agent: seance.signed_user_agent ?? null,
+    };
+    return { morning: legacy, afternoon: seance.afternoon_start ? legacy : null };
+}
+
+function validationDto(validation: SeanceValidation | null): SeanceValidationDto | null {
+    if (!validation) return null;
+    return {
+        signedAt: toIso(validation.signed_at)!,
+        signedByName: validation.signed_by_name,
+        source: validation.source,
+        signatureImage: validation.signature_image ?? null,
+    };
+}
+
 export class EmargementService {
     constructor(
         private readonly seances = new SeanceRepository(),
@@ -309,7 +374,10 @@ export class EmargementService {
     async list(filter: SeanceListFilter = {}): Promise<SeanceDto[]> {
         const seances = await this.seances.findAll(filter);
         const counts = await this.emargements.countsBySeance(seances.map((s) => s._id));
-        return seances.map((seance) => this.toDto(seance, counts.get(seance._id)));
+        const dtos = seances.map((seance) => this.toDto(seance, counts.get(seance._id)));
+        // L'état dépend de l'heure courante et des créneaux : il se calcule après
+        // lecture, le filtre ne peut pas être poussé dans la requête Mongo.
+        return filter.validation ? dtos.filter((dto) => dto.validationStatus === filter.validation) : dtos;
     }
 
     async get(id: string): Promise<SeanceDetailDto> {
@@ -350,11 +418,9 @@ export class EmargementService {
             timezone,
             token_secret: generateSignature(),
             invite_expires_at: linksExpiry(parsed.date, timezone),
-            signed_at: null,
-            signed_by_name: null,
-            signature_image: null,
-            signed_ip: null,
-            signed_user_agent: null,
+            validations: { morning: null, afternoon: null },
+            validated_by: null,
+            validation_note: null,
             created_by: userId ?? null,
         });
 
@@ -370,7 +436,9 @@ export class EmargementService {
 
     async update(id: string, input: unknown): Promise<SeanceDto> {
         const current = await this.requireSeance(id);
-        if (current.signed_at) throw httpError(409, 'signed', 'Feuille d’émargement déjà signée');
+        if (this.hasAnyValidation(current)) {
+            throw httpError(409, 'signed', 'Une feuille dont une demi-journée est validée ne peut plus être modifiée');
+        }
 
         const patch = asRecord(input);
         const merged = this.parseSeanceInput({
@@ -431,8 +499,8 @@ export class EmargementService {
 
     async remove(id: string): Promise<void> {
         const seance = await this.requireSeance(id);
-        if (seance.signed_at) {
-            throw httpError(409, 'signed', 'Une feuille d’émargement signée ne peut pas être supprimée');
+        if (this.hasAnyValidation(seance)) {
+            throw httpError(409, 'signed', 'Une feuille dont une demi-journée est validée ne peut pas être supprimée');
         }
         await this.emargements.deleteBySeance(seance._id);
         await this.seances.delete(seance._id);
@@ -441,7 +509,9 @@ export class EmargementService {
     /** Renvoie (et éventuellement régénère) les liens sans renvoyer la séance entière. */
     async resendInvite(id: string, rotate: boolean, senderId?: number): Promise<InviteResult> {
         const seance = await this.requireSeance(id);
-        if (seance.signed_at) throw httpError(409, 'signed', 'Feuille d’émargement déjà signée');
+        // Une feuille partiellement signée reste renvoyable : c'est le moyen de
+        // donner au formateur un lien valide pour signer la demi-journée manquante.
+        if (this.isFullyValidated(seance)) throw httpError(409, 'signed', 'Feuille d’émargement déjà validée');
 
         // Un renvoi est une action explicite du Peda : il prolonge la validité du
         // lien, sinon on renverrait un lien déjà expiré après le délai de
@@ -466,7 +536,8 @@ export class EmargementService {
         ]);
         const now = new Date();
         const expired = this.isExpired(seance);
-        const signed = seance.signed_at != null;
+        const validations = validationsOf(seance);
+        const editableHalves = this.editableHalves(seance, now);
 
         return {
             seance: {
@@ -481,10 +552,11 @@ export class EmargementService {
                 site: seance.site,
                 mode: seance.mode,
                 formateurName: seance.formateur_name,
-                signed,
-                signedAt: toIso(seance.signed_at),
-                signedByName: seance.signed_by_name,
-                signatureImage: seance.signature_image,
+                validations: {
+                    morning: validationDto(validations.morning),
+                    afternoon: validationDto(validations.afternoon),
+                },
+                validationStatus: this.validationStatus(seance, now),
                 qrUrl: this.links(seance).qrUrl,
             },
             alternants: this.alternantsWithAttendance(alternants, records, false),
@@ -495,18 +567,20 @@ export class EmargementService {
                 afternoon: this.windowDto(seance, 'afternoon', now),
             },
             expired,
-            canEdit: !signed && !expired,
+            canEdit: editableHalves.length > 0,
+            editableHalves,
+            signableHalves: this.signableHalves(seance, now),
         };
     }
 
     async setAttendance(token: string, input: unknown, meta: ClientMeta): Promise<EmargementRecordDto> {
         const seance = await this.loadByToken(token, 'formateur');
-        this.assertEditable(seance);
 
         const body = asRecord(input);
         const alternantId = requiredString(body.alternantId, 'L’alternant');
         const half = enumValue(body.half, EMARGEMENT_HALVES, 'La demi-journée');
         const status = enumValue(body.status, EMARGEMENT_STATUSES, 'Le statut');
+        this.assertHalfEditable(seance, half);
 
         const alternants = await this.sessions.findAlternants(seance.session_id);
         const alternant = alternants.find((a) => a._id === alternantId);
@@ -544,11 +618,11 @@ export class EmargementService {
      */
     async signAttendanceManually(token: string, input: unknown, meta: ClientMeta): Promise<EmargementRecordDto> {
         const seance = await this.loadByToken(token, 'formateur');
-        this.assertEditable(seance);
 
         const body = asRecord(input);
         const alternantId = requiredString(body.alternantId, 'L’alternant');
         const half = enumValue(body.half, EMARGEMENT_HALVES, 'La demi-journée');
+        this.assertHalfEditable(seance, half);
         const signature = requireSignatureImage(body.signature);
         if (half === 'afternoon' && !seance.afternoon_start) {
             throw httpError(400, 'window', 'Cette séance n’a pas de créneau l’après-midi');
@@ -575,29 +649,103 @@ export class EmargementService {
         return this.recordDto(record);
     }
 
+    /**
+     * Signature d'une demi-journée par le formateur. Elle n'est ouverte qu'après
+     * la fermeture du créneau correspondant : signer le matin à 9 h puis saisir
+     * une absence à 10 h rendrait la signature mensongère. Chaque demi-journée
+     * signée est verrouillée séparément, l'autre reste éditable.
+     */
     async signSheet(token: string, input: unknown, meta: ClientMeta): Promise<SignSheetResult> {
         const seance = await this.loadByToken(token, 'formateur');
-        if (seance.signed_at) throw httpError(409, 'signed', 'Feuille d’émargement déjà signée');
         if (this.isExpired(seance)) throw httpError(410, 'expired', 'Ce lien a expiré');
 
         const body = asRecord(input);
+        const half = enumValue(body.half, EMARGEMENT_HALVES, 'La demi-journée');
+        if (half === 'afternoon' && !seance.afternoon_start) {
+            throw httpError(400, 'window', 'Cette séance n’a pas de créneau l’après-midi');
+        }
+        if (validationsOf(seance)[half]) {
+            throw httpError(409, 'signed', 'Cette demi-journée est déjà signée');
+        }
+
+        const window = this.halfWindow(seance, half)!;
+        if (Date.now() <= window.end.getTime()) {
+            const end = half === 'morning' ? seance.morning_end : seance.afternoon_end;
+            throw httpError(
+                409,
+                'window',
+                `La signature de la demi-journée sera possible après la fermeture du créneau (${end})`,
+            );
+        }
+
         if (body.confirmed !== true) {
             throw httpError(400, 'validation', 'La confirmation du formateur est requise');
         }
         const signature = requireSignatureImage(body.signature);
 
         const signedAt = new Date();
-        const updated = await this.seances.update(seance._id, {
+        const validation: SeanceValidation = {
             signed_at: signedAt,
             signed_by_name: seance.formateur_name,
+            source: 'formateur',
             signature_image: signature,
             signed_ip: meta.ip,
             signed_user_agent: meta.userAgent,
-        });
+        };
+        const updated = await this.seances.update(seance._id, { [`validations.${half}`]: validation });
         if (!updated) throw httpError(404, 'not_found', 'Séance introuvable');
-        logger.info({ seanceId: seance._id }, 'Emargement sheet signed');
+        logger.info({ seanceId: seance._id, half }, 'Emargement half-day signed');
 
-        return { signedAt: signedAt.toISOString(), signedByName: seance.formateur_name };
+        return { half, signedAt: signedAt.toISOString(), signedByName: seance.formateur_name };
+    }
+
+    /**
+     * Validation de régularisation par le service pédagogique : quand le lien a
+     * expiré (J+7) et qu'une demi-journée n'est pas signée, la feuille serait
+     * sinon bloquée pour toujours. Le motif est obligatoire et tracé, les
+     * demi-journées manquantes sont marquées `source: 'peda'` (sans tracé).
+     */
+    async validate(id: string, input: unknown, userId: number | undefined, meta: ClientMeta): Promise<SeanceDetailDto> {
+        const seance = await this.requireSeance(id);
+        const now = new Date();
+        if (this.isFullyValidated(seance)) {
+            throw httpError(409, 'signed', 'Cette feuille est déjà validée');
+        }
+        const notClosed = applicableHalves(seance).filter(
+            (half) => this.windowDto(seance, half, now)?.state !== 'closed',
+        );
+        if (notClosed.length) {
+            throw httpError(
+                409,
+                'window',
+                'La feuille ne peut être validée qu’après la fermeture de tous les créneaux',
+            );
+        }
+
+        const note = requiredString(asRecord(input).note, 'Le motif de la validation', 500);
+        const user = userId != null ? await this.users.findById(userId) : null;
+        const validatorName = user ? `${user.firstName} ${user.lastName}`.trim() : 'Service pédagogique';
+
+        const patch: Record<string, unknown> = { validated_by: userId ?? null, validation_note: note };
+        const validations = validationsOf(seance);
+        for (const half of applicableHalves(seance)) {
+            if (validations[half]) continue;
+            const validation: SeanceValidation = {
+                signed_at: now,
+                signed_by_name: validatorName,
+                source: 'peda',
+                signature_image: null,
+                signed_ip: meta.ip,
+                signed_user_agent: meta.userAgent,
+            };
+            patch[`validations.${half}`] = validation;
+        }
+
+        const updated = await this.seances.update(id, patch);
+        if (!updated) throw httpError(404, 'not_found', 'Séance introuvable');
+        logger.info({ seanceId: id, userId, note }, 'Emargement sheet validated by Peda');
+
+        return this.get(id);
     }
 
     // ── Côté alternant (QR code) ─────────────────────────────────────────────
@@ -615,7 +763,7 @@ export class EmargementService {
             endTime: seance.end_time,
             site: seance.site,
             mode: seance.mode,
-            signed: seance.signed_at != null,
+            signed: this.isFullyValidated(seance),
             expired: this.isExpired(seance),
             serverNow: now.toISOString(),
             openHalf: this.openHalf(seance, now),
@@ -628,7 +776,9 @@ export class EmargementService {
 
     async signByQr(token: string, input: unknown, meta: ClientMeta): Promise<QrSignResult> {
         const seance = await this.loadByToken(token, 'qr');
-        if (seance.signed_at) throw httpError(409, 'signed', 'La feuille d’émargement est déjà signée');
+        if (this.isFullyValidated(seance)) {
+            throw httpError(409, 'signed', 'La feuille d’émargement est déjà signée');
+        }
         if (this.isExpired(seance)) throw httpError(410, 'expired', 'Ce lien a expiré');
 
         const body = asRecord(input);
@@ -645,6 +795,9 @@ export class EmargementService {
         const half = this.openHalf(seance, now);
         if (!half) {
             throw httpError(409, 'window', 'La fenêtre d’émargement est fermée');
+        }
+        if (validationsOf(seance)[half]) {
+            throw httpError(409, 'signed', 'Cette demi-journée est déjà signée');
         }
 
         const alternants = await this.sessions.findAlternants(seance.session_id);
@@ -772,9 +925,48 @@ export class EmargementService {
         return new Date(seance.invite_expires_at).getTime() < Date.now();
     }
 
-    private assertEditable(seance: Seance): void {
-        if (seance.signed_at) throw httpError(409, 'signed', 'Feuille d’émargement déjà signée');
+    /** Une demi-journée validée est verrouillée ; l'autre reste éditable. */
+    private assertHalfEditable(seance: Seance, half: EmargementHalf): void {
         if (this.isExpired(seance)) throw httpError(410, 'expired', 'Ce lien a expiré');
+        if (validationsOf(seance)[half]) {
+            throw httpError(409, 'signed', 'Cette demi-journée est déjà signée');
+        }
+    }
+
+    private hasAnyValidation(seance: Seance): boolean {
+        return applicableHalves(seance).some((half) => validationsOf(seance)[half] != null);
+    }
+
+    private isFullyValidated(seance: Seance): boolean {
+        return applicableHalves(seance).every((half) => validationsOf(seance)[half] != null);
+    }
+
+    /** État affiché dans les listes : en cours, à valider, anomalie, validée. */
+    private validationStatus(seance: Seance, now: Date): SeanceValidationStatus {
+        const halves = applicableHalves(seance);
+        const validations = validationsOf(seance);
+        if (halves.every((half) => validations[half])) return 'validated';
+        const allClosed = halves.every((half) => this.windowDto(seance, half, now)?.state === 'closed');
+        if (!allClosed) return 'in_progress';
+        // Tous les créneaux sont fermés mais une demi-journée reste non signée :
+        // tant que le lien court (J+7), le formateur peut encore la signer.
+        return this.isExpired(seance) ? 'anomaly' : 'to_validate';
+    }
+
+    /** Demi-journées encore modifiables (statuts, signature manuscrite). */
+    private editableHalves(seance: Seance, _now: Date): EmargementHalf[] {
+        if (this.isExpired(seance)) return [];
+        const validations = validationsOf(seance);
+        return applicableHalves(seance).filter((half) => !validations[half]);
+    }
+
+    /** Demi-journées signables : créneau fermé, non validées, lien encore valide. */
+    private signableHalves(seance: Seance, now: Date): EmargementHalf[] {
+        if (this.isExpired(seance)) return [];
+        const validations = validationsOf(seance);
+        return applicableHalves(seance).filter(
+            (half) => !validations[half] && this.windowDto(seance, half, now)?.state === 'closed',
+        );
     }
 
     private halfWindow(seance: Seance, half: EmargementHalf): { start: Date; end: Date } | null {
@@ -873,6 +1065,9 @@ export class EmargementService {
 
     private toDto(seance: Seance, counts?: { marked: number; present: number }, links?: SeanceLinks): SeanceDto {
         const resolvedLinks = links ?? this.links(seance);
+        const now = new Date();
+        const validations = validationsOf(seance);
+        const validationStatus = this.validationStatus(seance, now);
         return {
             id: seance._id,
             sessionId: seance.session_id,
@@ -893,10 +1088,20 @@ export class EmargementService {
             afternoonEnd: seance.afternoon_end,
             timezone: seance.timezone,
             inviteExpiresAt: toIso(seance.invite_expires_at)!,
-            signed: seance.signed_at != null,
-            signedAt: toIso(seance.signed_at),
-            signedByName: seance.signed_by_name,
-            signatureImage: seance.signature_image ?? null,
+            validations: {
+                morning: validationDto(validations.morning),
+                afternoon: validationDto(validations.afternoon),
+            },
+            validationStatus,
+            validationSource:
+                validations.morning?.source === 'peda' || validations.afternoon?.source === 'peda'
+                    ? 'peda'
+                    : validations.morning || validations.afternoon
+                      ? 'formateur'
+                      : null,
+            validatedBy: seance.validated_by ?? null,
+            validationNote: seance.validation_note ?? null,
+            canValidateByPeda: validationStatus === 'to_validate' || validationStatus === 'anomaly',
             createdAt: toIso(seance.created_at)!,
             updatedAt: toIso(seance.updated_at)!,
             ...resolvedLinks,

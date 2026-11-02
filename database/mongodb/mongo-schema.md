@@ -421,8 +421,10 @@ SA (séquences d'accompagnement).
 | `timezone` | string | required — fuseau IANA du tenant au moment de la création |
 | `token_secret` | string | required — sel du lien formateur/QR ; rotation = révocation |
 | `invite_expires_at` | Date | required — fin du jour J + 7 jours (`EMARGEMENT_GRACE_DAYS`), en heure locale : le formateur peut régulariser après minuit ; un renvoi d'invitation par le Peda repousse l'échéance. Les alternants, eux, restent bornés par la fermeture de leur créneau |
-| `signed_at` | Date \| null | signature de la feuille par le formateur (verrouille la feuille) |
-| `signed_by_name`, `signature_image`, `signed_ip`, `signed_user_agent` | string \| null | preuve de signature |
+| `validations.morning`, `validations.afternoon` | subdocument \| null | validation par demi-journée : `signed_at` (Date), `signed_by_name`, `source` (`formateur` \| `peda`), `signature_image` (tracé du formateur, `null` quand la demi-journée est régularisée par le Peda), `signed_ip`, `signed_user_agent`. Une demi-journée validée verrouille sa propre édition ; l'autre reste modifiable |
+| `validated_by` | number \| null | `users.id` du Peda ayant validé une feuille à sa place (`null` si tout a été signé par le formateur) |
+| `validation_note` | string \| null | motif obligatoire saisi par le Peda lors d'une validation de régularisation |
+| `signed_at`, `signed_by_name`, `signature_image`, `signed_ip`, `signed_user_agent` | Date / string \| null | **legacy** — ancien stockage « feuille signée en un bloc » (antérieur au lot 4). Plus jamais écrit, relu en repli par `validationsOf` (les deux demi-journées sont alors considérées signées par le formateur) |
 | `created_by` | number \| null | `users.id` (MySQL) |
 | `created_at`, `updated_at` | Date | |
 

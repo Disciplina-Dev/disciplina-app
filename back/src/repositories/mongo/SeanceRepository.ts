@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
-import { Seance } from '../../types/emargement.types';
+import { Seance, SeanceValidationStatus } from '../../types/emargement.types';
 
 export interface SeanceListFilter {
     sessionId?: string;
@@ -8,6 +8,8 @@ export interface SeanceListFilter {
     from?: string;
     /** Borne haute incluse, `YYYY-MM-DD`. */
     to?: string;
+    /** État de validation calculé (créneaux, délai de régularisation) — filtre en mémoire. */
+    validation?: SeanceValidationStatus;
 }
 
 export class SeanceRepository {
@@ -20,12 +22,16 @@ export class SeanceRepository {
             if (filter.to) range.$lte = filter.to;
             query.date = range;
         }
-        return getModels()
-            .Seance.find(query)
-            .select('-signature_image')
-            .sort({ date: -1, start_time: -1 })
-            .limit(200)
-            .lean() as unknown as Promise<Seance[]>;
+        return (
+            getModels()
+                .Seance.find(query)
+                // Les tracés de signature n'ont pas leur place dans une liste : ils
+                // pèsent plusieurs dizaines de Ko chacun et ne servent qu'au détail.
+                .select('-signature_image -validations.morning.signature_image -validations.afternoon.signature_image')
+                .sort({ date: -1, start_time: -1 })
+                .limit(200)
+                .lean() as unknown as Promise<Seance[]>
+        );
     }
 
     async findById(id: string): Promise<Seance | null> {
