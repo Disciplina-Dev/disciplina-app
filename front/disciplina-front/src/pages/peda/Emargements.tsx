@@ -27,6 +27,7 @@ import {
   VALIDATION_TONES,
   formatSeanceDate,
   seancePlace,
+  scheduleSummary,
   windowsSummary,
 } from '@/utils/emargement'
 
@@ -64,6 +65,7 @@ export default function Emargements() {
   const [seances, setSeances] = useState<Seance[]>([])
   const [range, setRange] = useState<Range>('upcoming')
   const [status, setStatus] = useState<StatusFilter>('all')
+  const [missingOnly, setMissingOnly] = useState(false)
   const [anomalies, setAnomalies] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -94,6 +96,7 @@ export default function Emargements() {
     fetchSeances({
       ...(range === 'upcoming' ? { from: today } : range === 'past' ? { to: yesterday() } : {}),
       ...(status === 'all' ? {} : { validation: status }),
+      ...(missingOnly ? { missing: true } : {}),
     }).then(
       (rows) => {
         if (!alive) return
@@ -110,7 +113,7 @@ export default function Emargements() {
     return () => {
       alive = false
     }
-  }, [range, status, reloadKey])
+  }, [range, status, missingOnly, reloadKey])
 
   /** Période affichée : l'export suit le filtre « À venir / Passées / Toutes ». */
   const exportFilter = range === 'upcoming' ? { from: localToday() } : range === 'past' ? { to: yesterday() } : {}
@@ -191,6 +194,17 @@ export default function Emargements() {
           }}
           size="sm"
         />
+        <Button
+          variant={missingOnly ? 'primary' : 'secondary'}
+          size="sm"
+          leftIcon={<IconAlert width={15} height={15} />}
+          onClick={() => {
+            setLoading(true)
+            setMissingOnly((current) => !current)
+          }}
+        >
+          Statuts manquants
+        </Button>
         {!loading && (
           <span className="text-[13px] text-[var(--ds-text-subtle)]">
             {seances.length} séance{seances.length > 1 ? 's' : ''}
@@ -263,7 +277,7 @@ export default function Emargements() {
                       <p className="mt-0.5 truncate text-[12px] font-medium text-[var(--ds-text-muted)]">{seance.module}</p>
                     )}
                     <p className="mt-0.5 text-[13px] text-[var(--ds-text-subtle)]">
-                      {seance.startTime} – {seance.endTime} · {seancePlace(seance)}
+                      {scheduleSummary(seance)} · {seancePlace(seance)}
                     </p>
                   </div>
                   <Badge
@@ -288,6 +302,13 @@ export default function Emargements() {
                     {windowsSummary(seance)}
                   </span>
                   <span className="truncate">Formateur : {seance.formateurName}</span>
+                  {seance.attendanceProgress.missing > 0 && (
+                    <Badge tone="warning" icon={<IconAlert width={12} height={12} />}>
+                      {seance.attendanceProgress.missing} statut
+                      {seance.attendanceProgress.missing > 1 ? 's' : ''} manquant
+                      {seance.attendanceProgress.missing > 1 ? 's' : ''}
+                    </Badge>
+                  )}
                 </div>
               </Link>
             </li>

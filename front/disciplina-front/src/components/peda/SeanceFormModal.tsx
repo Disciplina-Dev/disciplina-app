@@ -36,8 +36,13 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
   const [sessions, setSessions] = useState<{ id: string; nom: string }[]>([])
   const [sessionId, setSessionId] = useState(seance?.sessionId ?? '')
   const [date, setDate] = useState(seance?.date ?? todayIso())
-  const [startTime, setStartTime] = useState(seance?.startTime ?? '09:00')
-  const [endTime, setEndTime] = useState(seance?.endTime ?? '17:00')
+  // Horaires de cours : base des heures prévues / réalisées. Sur une séance
+  // antérieure au lot 8, on pré-remplit avec les créneaux de signature pour que
+  // les heures calculées restent identiques.
+  const [morningClassStart, setMorningClassStart] = useState(
+    seance?.morningClassStart ?? seance?.morningStart ?? '09:00',
+  )
+  const [morningClassEnd, setMorningClassEnd] = useState(seance?.morningClassEnd ?? seance?.morningEnd ?? '12:30')
   const [site, setSite] = useState<SeanceSite>(seance?.site ?? 'Nord')
   const [mode, setMode] = useState<SeanceMode>(seance?.mode ?? 'salle')
   const [moduleName, setModuleName] = useState(seance?.module ?? '')
@@ -46,7 +51,15 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
   const [formateurEmail, setFormateurEmail] = useState(seance?.formateurEmail ?? '')
   const [morningStart, setMorningStart] = useState(seance?.morningStart ?? '09:00')
   const [morningEnd, setMorningEnd] = useState(seance?.morningEnd ?? '09:15')
-  const [hasAfternoon, setHasAfternoon] = useState(Boolean(seance?.afternoonStart))
+  const [hasAfternoon, setHasAfternoon] = useState(
+    Boolean(seance?.afternoonStart ?? seance?.afternoonClassStart),
+  )
+  const [afternoonClassStart, setAfternoonClassStart] = useState(
+    seance?.afternoonClassStart ?? seance?.afternoonStart ?? '13:30',
+  )
+  const [afternoonClassEnd, setAfternoonClassEnd] = useState(
+    seance?.afternoonClassEnd ?? seance?.afternoonEnd ?? '17:00',
+  )
   const [afternoonStart, setAfternoonStart] = useState(seance?.afternoonStart ?? '13:45')
   const [afternoonEnd, setAfternoonEnd] = useState(seance?.afternoonEnd ?? '14:15')
   const [error, setError] = useState<string | null>(null)
@@ -79,38 +92,46 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formateurEmail.trim())) {
       return setError('L’adresse e-mail du formateur est invalide.')
     }
-    if (startTime >= endTime) return setError('L’heure de fin doit suivre l’heure de début.')
-    if (morningStart >= morningEnd) return setError('Le créneau du matin est invalide.')
-    // Les créneaux sont des fenêtres *à l'intérieur* de la séance : le back
-    // refuse (400) une ouverture avant le début ou une fermeture après la fin.
-    if (morningStart < startTime) {
-      return setError('Le créneau du matin ne peut pas ouvrir avant le début de la séance.')
+    // Horaires de cours : ils portent les heures prévues / réalisées.
+    if (morningClassStart >= morningClassEnd) {
+      return setError('Les horaires de cours du matin sont invalides.')
     }
-    if (morningEnd > endTime) {
-      return setError('Le créneau du matin ne peut pas fermer après la fin de la séance.')
+    if (hasAfternoon && afternoonClassStart >= afternoonClassEnd) {
+      return setError('Les horaires de cours de l’après-midi sont invalides.')
+    }
+    if (hasAfternoon && morningClassEnd > afternoonClassStart) {
+      return setError('Les horaires de cours du matin et de l’après-midi se chevauchent.')
+    }
+    if (morningStart >= morningEnd) return setError('Le créneau du matin est invalide.')
+    // Les créneaux sont des fenêtres *à l'intérieur* de la demi-journée de cours :
+    // le back refuse (400) une ouverture avant le début ou une fermeture après la fin.
+    if (morningStart < morningClassStart) {
+      return setError('Le créneau du matin ne peut pas ouvrir avant le début des cours du matin.')
+    }
+    if (morningEnd > morningClassEnd) {
+      return setError('Le créneau du matin ne peut pas fermer après la fin des cours du matin.')
     }
     if (hasAfternoon && afternoonStart >= afternoonEnd) {
       return setError('Le créneau de l’après-midi est invalide.')
     }
-    if (hasAfternoon && afternoonStart < startTime) {
-      return setError('Le créneau de l’après-midi ne peut pas ouvrir avant le début de la séance.')
+    if (hasAfternoon && afternoonStart < afternoonClassStart) {
+      return setError('Le créneau de l’après-midi ne peut pas ouvrir avant le début des cours de l’après-midi.')
     }
-    if (hasAfternoon && afternoonEnd > endTime) {
-      return setError('Le créneau de l’après-midi ne peut pas fermer après la fin de la séance.')
-    }
-    if (hasAfternoon && morningEnd > afternoonStart) {
-      return setError('Les créneaux du matin et de l’après-midi se chevauchent.')
+    if (hasAfternoon && afternoonEnd > afternoonClassEnd) {
+      return setError('Le créneau de l’après-midi ne peut pas fermer après la fin des cours de l’après-midi.')
     }
 
     const payload = {
       sessionId,
       date,
-      startTime,
-      endTime,
       site,
       mode,
       formateurName: formateurName.trim(),
       formateurEmail: formateurEmail.trim(),
+      morningClassStart,
+      morningClassEnd,
+      afternoonClassStart: hasAfternoon ? afternoonClassStart : null,
+      afternoonClassEnd: hasAfternoon ? afternoonClassEnd : null,
       morningStart,
       morningEnd,
       afternoonStart: hasAfternoon ? afternoonStart : null,
@@ -178,23 +199,66 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
               onChange={(event) => setDate(event.target.value)}
               required
             />
-            <InputField
-              id="seance-start"
-              label="Début"
-              type="time"
-              value={startTime}
-              onChange={(event) => setStartTime(event.target.value)}
-              required
-            />
-            <InputField
-              id="seance-end"
-              label="Fin"
-              type="time"
-              value={endTime}
-              onChange={(event) => setEndTime(event.target.value)}
-              required
-            />
           </div>
+
+          <fieldset className="space-y-3 rounded-[var(--radius-md)] border border-[var(--ds-border)] p-4">
+            <legend className="flex items-center gap-1.5 px-1 text-[13px] font-semibold text-[var(--ds-text-muted)]">
+              <IconCalendar width={14} height={14} />
+              Horaires de cours
+            </legend>
+            <div className="grid grid-cols-2 gap-3">
+              <InputField
+                id="seance-cours-matin-debut"
+                label="Matin — début"
+                type="time"
+                value={morningClassStart}
+                onChange={(event) => setMorningClassStart(event.target.value)}
+                required
+              />
+              <InputField
+                id="seance-cours-matin-fin"
+                label="Matin — fin"
+                type="time"
+                value={morningClassEnd}
+                min={morningClassStart}
+                onChange={(event) => setMorningClassEnd(event.target.value)}
+                required
+              />
+            </div>
+            {hasAfternoon && (
+              <div className="grid grid-cols-2 gap-3">
+                <InputField
+                  id="seance-cours-apresmidi-debut"
+                  label="Après-midi — début"
+                  type="time"
+                  value={afternoonClassStart}
+                  min={morningClassEnd}
+                  onChange={(event) => setAfternoonClassStart(event.target.value)}
+                />
+                <InputField
+                  id="seance-cours-apresmidi-fin"
+                  label="Après-midi — fin"
+                  type="time"
+                  value={afternoonClassEnd}
+                  min={afternoonClassStart}
+                  onChange={(event) => setAfternoonClassEnd(event.target.value)}
+                />
+              </div>
+            )}
+            <label className="flex items-center gap-2 text-[13px] font-medium text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                checked={hasAfternoon}
+                onChange={(event) => setHasAfternoon(event.target.checked)}
+                className="h-4 w-4 rounded border-[var(--ds-border)] text-[var(--ds-accent)]"
+              />
+              Séance avec une demi-journée l’après-midi
+            </label>
+            <p className="text-[12px] text-[var(--ds-text-subtle)]">
+              Base des heures prévues et réalisées : la pause déjeuner entre les deux demi-journées n’est pas
+              comptée.
+            </p>
+          </fieldset>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Select label="Site" options={SITE_OPTIONS} value={site} onChange={setSite} />
@@ -262,8 +326,8 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                 label="Matin — ouverture"
                 type="time"
                 value={morningStart}
-                min={startTime}
-                max={endTime}
+                min={morningClassStart}
+                max={morningClassEnd}
                 onChange={(event) => setMorningStart(event.target.value)}
                 required
               />
@@ -273,21 +337,11 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                 type="time"
                 value={morningEnd}
                 min={morningStart}
-                max={endTime}
+                max={morningClassEnd}
                 onChange={(event) => setMorningEnd(event.target.value)}
                 required
               />
             </div>
-
-            <label className="flex items-center gap-2 text-[13px] font-medium text-[var(--ds-text-muted)]">
-              <input
-                type="checkbox"
-                checked={hasAfternoon}
-                onChange={(event) => setHasAfternoon(event.target.checked)}
-                className="h-4 w-4 rounded border-[var(--ds-border)] text-[var(--ds-accent)]"
-              />
-              Séance avec une demi-journée l’après-midi
-            </label>
 
             {hasAfternoon && (
               <div className="grid grid-cols-2 gap-3">
@@ -296,8 +350,8 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                   label="Après-midi — ouverture"
                   type="time"
                   value={afternoonStart}
-                  min={morningEnd}
-                  max={endTime}
+                  min={afternoonClassStart}
+                  max={afternoonClassEnd}
                   onChange={(event) => setAfternoonStart(event.target.value)}
                 />
                 <InputField
@@ -306,14 +360,14 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                   type="time"
                   value={afternoonEnd}
                   min={afternoonStart}
-                  max={endTime}
+                  max={afternoonClassEnd}
                   onChange={(event) => setAfternoonEnd(event.target.value)}
                 />
               </div>
             )}
             <p className="text-[12px] text-[var(--ds-text-subtle)]">
-              Les créneaux doivent rester dans les horaires de la séance. Les alternants ne peuvent signer que
-              dans ces créneaux ; le formateur peut toujours corriger une demi-journée close.
+              Les créneaux doivent rester dans les horaires de cours de leur demi-journée. Les alternants ne
+              peuvent signer que dans ces créneaux ; le formateur peut toujours corriger une demi-journée close.
             </p>
           </fieldset>
 

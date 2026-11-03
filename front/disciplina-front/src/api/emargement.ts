@@ -1,5 +1,7 @@
 import { apiFetch } from '@/api/httpClient'
 import type {
+  Assiduite,
+  AssiduiteAlternant,
   CreateSeanceInput,
   EmargementExportFilter,
   EmargementExportFormat,
@@ -12,6 +14,7 @@ import type {
   Seance,
   SeanceDetail,
   SeanceLinks,
+  SeanceSite,
   SeanceValidationStatus,
 } from '@/types/emargement'
 
@@ -34,6 +37,8 @@ export interface SeanceFilters {
   sessionId?: string
   /** État de validation calculé côté serveur (créneaux + délai de régularisation). */
   validation?: SeanceValidationStatus
+  /** Ne garde que les feuilles avec des statuts non saisis sur un créneau fermé. */
+  missing?: boolean
 }
 
 export async function fetchSeances(filters: SeanceFilters = {}): Promise<Seance[]> {
@@ -42,6 +47,7 @@ export async function fetchSeances(filters: SeanceFilters = {}): Promise<Seance[
   if (filters.to) params.set('to', filters.to)
   if (filters.sessionId) params.set('sessionId', filters.sessionId)
   if (filters.validation) params.set('validation', filters.validation)
+  if (filters.missing) params.set('missing', '1')
   const query = params.toString()
   const body = await staffCall<{ seances: Seance[] }>(`/seances${query ? `?${query}` : ''}`)
   return body.seances
@@ -233,6 +239,7 @@ function exportQuery(filter: EmargementExportFilter, extra: Record<string, strin
   if (filter.sessionId) params.set('sessionId', filter.sessionId)
   if (filter.from) params.set('from', filter.from)
   if (filter.to) params.set('to', filter.to)
+  if (filter.includeArchived) params.set('includeArchived', '1')
   for (const [key, value] of Object.entries(extra)) params.set(key, value)
   const query = params.toString()
   return query ? `?${query}` : ''
@@ -292,4 +299,40 @@ export function fetchGroupSummary(
     )}`,
     'assiduite-groupe.pdf',
   )
+}
+
+// ── Assiduité (7.1 / 7.2) ────────────────────────────────────────────────────
+
+export interface AssiduiteFilters {
+  from?: string
+  to?: string
+  sessionId?: string
+  site?: SeanceSite
+}
+
+function assiduiteQuery(filters: AssiduiteFilters): string {
+  const params = new URLSearchParams()
+  if (filters.from) params.set('from', filters.from)
+  if (filters.to) params.set('to', filters.to)
+  if (filters.sessionId) params.set('sessionId', filters.sessionId)
+  if (filters.site) params.set('site', filters.site)
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
+/** Agrégats d'assiduité (par alternant, session et site) sur une période. */
+export async function fetchAssiduite(filters: AssiduiteFilters = {}): Promise<Assiduite> {
+  const body = await staffCall<{ assiduite: Assiduite }>(`/assiduite${assiduiteQuery(filters)}`)
+  return body.assiduite
+}
+
+/** Assiduité d'un alternant : synthèse et détail séance par séance. */
+export async function fetchAssiduiteAlternant(
+  alternantId: string,
+  options: { from?: string; to?: string } = {},
+): Promise<AssiduiteAlternant> {
+  const body = await staffCall<{ assiduite: AssiduiteAlternant }>(
+    `/assiduite/${encodeURIComponent(alternantId)}${assiduiteQuery(options)}`,
+  )
+  return body.assiduite
 }

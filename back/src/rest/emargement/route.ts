@@ -2,6 +2,8 @@ import express, { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
 import {
+    assiduite,
+    assiduiteAlternant,
     create,
     exportAttendance,
     exportAttestation,
@@ -38,3 +40,8 @@ router.get('/exports/attendance', ...access, exportAttendance);
 router.get('/exports/history', ...access, exportHistory);
 router.get('/attestations/:alternantId', ...access, exportAttestation);
 router.get('/sessions/:sessionId/attendance.pdf', ...access, exportGroupPdf);
+
+// Assiduité (7.1 / 7.2) : agrégats par alternant / session / site et fiche d'un
+// alternant. Lecture seule, mêmes droits que le reste du module.
+router.get('/assiduite', ...access, assiduite);
+router.get('/assiduite/:alternantId', ...access, assiduiteAlternant);

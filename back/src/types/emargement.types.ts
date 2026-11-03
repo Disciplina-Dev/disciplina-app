@@ -133,13 +133,27 @@ export interface Seance {
     location: string | null;
     /** Jour de la séance, `YYYY-MM-DD` (heure locale du tenant). */
     date: string;
-    /** Horaires de la séance, `HH:mm` (heure locale du tenant). */
+    /**
+     * Horaires globaux de la séance, `HH:mm` (heure locale du tenant). Dérivés
+     * des horaires de cours (`morning_class_start` → `afternoon_class_end`) :
+     * ils restent la référence des listes, des invitations et du PDF.
+     */
     start_time: string;
     end_time: string;
     site: SeanceSite;
     mode: SeanceMode;
     formateur_name: string;
     formateur_email: string;
+    /**
+     * Horaires de cours du matin, `HH:mm` locaux : base du calcul des heures
+     * prévues / réalisées (la pause déjeuner ne compte pas).
+     * `null` sur les séances créées avant le lot 8 (repli sur les créneaux).
+     */
+    morning_class_start: string | null;
+    morning_class_end: string | null;
+    /** Horaires de cours de l'après-midi ; `null` = séance sans après-midi. */
+    afternoon_class_start: string | null;
+    afternoon_class_end: string | null;
     /** Créneau d'émargement du matin, `HH:mm` locaux. */
     morning_start: string;
     morning_end: string;
@@ -218,12 +232,19 @@ export interface EmargementRecord {
 export interface CreateSeanceInput {
     sessionId: string;
     date: string;
-    startTime: string;
-    endTime: string;
+    /** Horaires globaux, dérivés des horaires de cours : jamais saisis directement. */
+    startTime?: string;
+    endTime?: string;
     site: string;
     mode: string;
     formateurName: string;
     formateurEmail: string;
+    /** Horaires de cours, base du calcul des heures prévues / réalisées. */
+    morningClassStart: string;
+    morningClassEnd: string;
+    afternoonClassStart?: string | null;
+    afternoonClassEnd?: string | null;
+    /** Créneaux de signature (bornés à la demi-journée de cours correspondante). */
     morningStart: string;
     morningEnd: string;
     afternoonStart?: string | null;

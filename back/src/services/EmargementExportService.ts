@@ -2,6 +2,7 @@ import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
 import {
     AttestationDto,
+    AlternantPresenceDto,
     AttendanceExportDto,
     AttendanceExportRow,
     GroupSummaryDto,
@@ -95,6 +96,31 @@ export function hoursDecimal(minutes: number): number {
 function percent(attended: number, planned: number): string {
     if (planned <= 0) return '—';
     return `${Math.round((attended / planned) * 100)} %`;
+}
+
+/** Date d'effet courte (`JJ/MM/AAAA`) d'une date `YYYY-MM-DD`, sans décalage de fuseau. */
+function shortDay(isoDate: string | null | undefined): string {
+    if (!isoDate) return '';
+    const date = new Date(`${isoDate}T12:00:00Z`);
+    if (Number.isNaN(date.getTime())) return isoDate;
+    return new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC' }).format(date);
+}
+
+/**
+ * Colonne « Situation » : l'alternant est-il encore dans la formation au moment
+ * de la séance ? Une rupture qui n'archive pas (poursuite de formation) est
+ * distinguée d'une sortie réelle, datée de sa date d'effet (7.4).
+ */
+function situationLabel(presence: AlternantPresenceDto): string {
+    if (presence.archived) {
+        const reason = presence.archiveReason === 'fin_formation' ? 'fin de formation' : 'rupture';
+        const date = shortDay(presence.archiveDate);
+        return date ? `Archivé — ${reason} (${date})` : `Archivé — ${reason}`;
+    }
+    if (presence.ruptureDate && presence.poursuitFormation) {
+        return `Rupture — poursuit la formation (${shortDay(presence.ruptureDate)})`;
+    }
+    return 'En formation';
 }
 
 function dataUrlToBuffer(dataUrl: string | null | undefined): Buffer | null {
@@ -259,6 +285,23 @@ function drawAttendanceTableHeader(
     doc.y = y + 18;
 }
 
+/**
+ * Mention de situation affichée sous le nom sur la feuille (7.4) : une sortie
+ * doit se lire sur le document, avec sa date d'effet, et une rupture qui
+ * poursuit la formation ne doit pas passer pour un départ.
+ */
+function situationNote(presence: AlternantPresenceDto): string | null {
+    if (presence.archived) {
+        const reason = presence.archiveReason === 'fin_formation' ? 'fin de formation' : 'rupture';
+        const date = shortDay(presence.archiveDate);
+        return date ? `Sortie le ${date} (${reason})` : `Sorti (${reason})`;
+    }
+    if (presence.ruptureDate && presence.poursuitFormation) {
+        return `Rupture le ${shortDay(presence.ruptureDate)} — poursuit la formation`;
+    }
+    return null;
+}
+
 function drawAttendanceRow(
     doc: PDFKit.PDFDocument,
     dto: SeanceDetailDto,
@@ -271,26 +314,39 @@ function drawAttendanceRow(
     const hasImages = Boolean(
         row.attendance.morning?.signatureImage || (hasAfternoon && row.attendance.afternoon?.signatureImage),
     );
-    const rowHeight = hasImages ? 62 : 30;
+    const situation = situationNote(row.presence);
+    const rowHeight = hasImages ? 62 : situation ? 42 : 30;
     ensureSpace(doc, rowHeight, () => drawAttendanceTableHeader(doc, theme, hasAfternoon));
 
     const y = doc.y;
     const totalWidth = widths.reduce((a, b) => a + b, 0);
     doc.rect(left, y, totalWidth, rowHeight).lineWidth(0.4).strokeColor('#e5e7eb').stroke();
 
-    // Nom + financeur (le financeur figure sur la feuille : exigence OPCO).
+    // Nom + financeur (le financeur figure sur la feuille : exigence OPCO) +
+    // situation d'archivage éventuelle.
     doc.font('Helvetica-Bold')
         .fillColor('#111827')
         .fontSize(8.5)
         .text(`${row.firstName} ${row.lastName}`, left + 6, y + 6, {
             width: widths[0] - 12,
         });
+    let detailY = y + 18;
     if (row.financeur) {
         doc.font('Helvetica')
             .fillColor('#6b7280')
             .fontSize(6.8)
-            .text(`Financeur : ${row.financeur}`, left + 6, y + 18, {
+            .text(`Financeur : ${row.financeur}`, left + 6, detailY, {
                 width: widths[0] - 12,
+            });
+        detailY += 9;
+    }
+    if (situation) {
+        doc.font('Helvetica-Bold')
+            .fillColor('#b45309')
+            .fontSize(6.8)
+            .text(situation, left + 6, detailY, {
+                width: widths[0] - 12,
+                lineBreak: false,
             });
     }
 
@@ -416,6 +472,18 @@ function drawValidationBlocks(doc: PDFKit.PDFDocument, dto: SeanceDetailDto): vo
     }
 }
 
+/**
+ * Horaires affichés sur la feuille : matin / après-midi, pause déjeuner exclue.
+ * Les séances antérieures au lot 8 n'ont pas d'horaires de cours : on retombe
+ * sur leurs horaires globaux.
+ */
+function seanceHoursLabel(dto: SeanceDetailDto): string {
+    if (!dto.morningClassStart || !dto.morningClassEnd) return `${dto.startTime} – ${dto.endTime}`;
+    const morning = `Matin ${dto.morningClassStart}–${dto.morningClassEnd}`;
+    if (!dto.afternoonClassStart || !dto.afternoonClassEnd) return morning;
+    return `${morning} · Après-midi ${dto.afternoonClassStart}–${dto.afternoonClassEnd}`;
+}
+
 function seancePdf(dto: SeanceDetailDto, themeKey: EmargementPdfTheme): Promise<Buffer> {
     const theme = EMARGEMENT_PDF_THEME_SPECS[themeKey];
     const { doc, done } = createPdf();
@@ -426,7 +494,7 @@ function seancePdf(dto: SeanceDetailDto, themeKey: EmargementPdfTheme): Promise<
         [
             { label: 'Titre professionnel', value: dto.degreeTitle ?? '—' },
             { label: 'Module / séquence', value: dto.module ?? '—' },
-            { label: 'Horaires', value: `${dto.startTime} – ${dto.endTime}` },
+            { label: 'Horaires', value: seanceHoursLabel(dto) },
             { label: 'Site / modalité', value: `${dto.site} · ${dto.mode === 'salle' ? 'En salle' : 'Distanciel'}` },
             { label: 'Lieu', value: dto.location ?? '—' },
             { label: 'Formateur', value: dto.formateurName },
@@ -712,7 +780,9 @@ function groupPdf(summary: GroupSummaryDto, themeKey: EmargementPdfTheme): Promi
 
     drawHeader();
     for (const row of summary.rows) {
-        ensureSpace(doc, 26, drawHeader);
+        const situation = situationNote(row.presence);
+        const rowHeight = situation ? 36 : 26;
+        ensureSpace(doc, rowHeight, drawHeader);
         const top = doc.y;
         const values = [
             `${row.firstName} ${row.lastName}`,
@@ -728,12 +798,18 @@ function groupPdf(summary: GroupSummaryDto, themeKey: EmargementPdfTheme): Promi
             doc.text(value, x + 5, top + 6, { width: columns[index] - 10, lineBreak: false });
             x += columns[index];
         });
-        doc.moveTo(left, top + 24)
-            .lineTo(left + columns.reduce((a, b) => a + b, 0), top + 24)
+        if (situation) {
+            doc.font('Helvetica-Oblique')
+                .fillColor('#b45309')
+                .fontSize(6.6)
+                .text(situation, left + 5, top + 17, { width: columns[0] - 10, lineBreak: false });
+        }
+        doc.moveTo(left, top + rowHeight - 2)
+            .lineTo(left + columns.reduce((a, b) => a + b, 0), top + rowHeight - 2)
             .lineWidth(0.3)
             .strokeColor('#e5e7eb')
             .stroke();
-        doc.y = top + 26;
+        doc.y = top + rowHeight;
     }
 
     if (summary.rows.length === 0) {
@@ -794,6 +870,7 @@ const ATTENDANCE_HEADERS = [
     'Alternant',
     'Prénom',
     'Nom',
+    'Situation',
     'Financeur',
     'Demi-journée',
     'Statut',
@@ -820,6 +897,7 @@ function attendanceRowValues(row: AttendanceExportRow): (string | number | null)
         `${row.firstName} ${row.lastName}`,
         row.firstName,
         row.lastName,
+        situationLabel(row.presence),
         row.financeur,
         HALF_LABELS[row.half],
         STATUS_LABELS[row.status],
@@ -861,54 +939,33 @@ function validationLabel(row: AttendanceExportRow): string {
 
 function attendanceCsv(data: AttendanceExportDto): string {
     const rows = data.rows.map(attendanceRowValues);
-    const summaryHeader = [
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        'Synthèse par alternant',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        'Heures prévues',
-        'Heures réalisées',
-        'Taux',
-        'Absences',
-        'Séances',
-        '',
-    ];
-    const summaryRows = data.summaries.map((summary) => [
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        '',
-        `${summary.firstName} ${summary.lastName}`,
-        summary.firstName,
-        summary.lastName,
-        summary.financeur,
-        '',
-        '',
-        '',
-        hoursDecimal(summary.plannedMinutes).toFixed(2).replace('.', ','),
-        hoursDecimal(summary.attendedMinutes).toFixed(2).replace('.', ','),
-        percent(summary.attendedMinutes, summary.plannedMinutes),
-        summary.absences,
-        summary.sessions,
-        '',
-    ]);
+    // Les lignes de synthèse réutilisent la grille du détail : on les aligne sur
+    // les colonnes utiles (alternant, situation, heures, taux, absences).
+    const summaryHeader = ATTENDANCE_HEADERS.map((header, index) => {
+        if (index === 9) return 'Synthèse par alternant';
+        if (index === 17) return 'Heures prévues';
+        if (index === 18) return 'Heures réalisées';
+        if (index === 19) return 'Taux';
+        if (index === 20) return 'Absences';
+        if (index === 21) return 'Séances';
+        if (index === 22) return 'Non renseignées';
+        return '';
+    });
+    const summaryRows = data.summaries.map((summary) => {
+        const values: (string | number | null)[] = new Array(ATTENDANCE_HEADERS.length).fill('');
+        values[9] = `${summary.firstName} ${summary.lastName}`;
+        values[10] = summary.firstName;
+        values[11] = summary.lastName;
+        values[12] = situationLabel(summary.presence);
+        values[13] = summary.financeur;
+        values[17] = hoursDecimal(summary.plannedMinutes).toFixed(2).replace('.', ',');
+        values[18] = hoursDecimal(summary.attendedMinutes).toFixed(2).replace('.', ',');
+        values[19] = percent(summary.attendedMinutes, summary.plannedMinutes);
+        values[20] = summary.absences;
+        values[21] = summary.sessions;
+        values[22] = summary.missingHalves;
+        return values;
+    });
     return toCsv(ATTENDANCE_HEADERS, [...rows, summaryHeader, ...summaryRows]);
 }
 
@@ -981,6 +1038,7 @@ async function attendanceXlsx(data: AttendanceExportDto): Promise<Buffer> {
         { header: 'Site', key: 'site', width: 10 },
         { header: 'Modalité', key: 'mode', width: 12 },
         { header: 'Alternant', key: 'alternant', width: 26 },
+        { header: 'Situation', key: 'situation', width: 34 },
         { header: 'Financeur', key: 'financeur', width: 18 },
         { header: 'Demi-journée', key: 'half', width: 12 },
         { header: 'Statut', key: 'status', width: 15 },
@@ -1004,6 +1062,7 @@ async function attendanceXlsx(data: AttendanceExportDto): Promise<Buffer> {
             site: row.site,
             mode: row.mode === 'salle' ? 'En salle' : 'Distanciel',
             alternant: `${row.firstName} ${row.lastName}`,
+            situation: situationLabel(row.presence),
             financeur: row.financeur ?? '',
             half: HALF_LABELS[row.half],
             status: STATUS_LABELS[row.status],
@@ -1025,9 +1084,11 @@ async function attendanceXlsx(data: AttendanceExportDto): Promise<Buffer> {
     const summary = workbook.addWorksheet('Synthèse');
     summary.columns = [
         { header: 'Alternant', key: 'alternant', width: 30 },
+        { header: 'Situation', key: 'situation', width: 34 },
         { header: 'Financeur', key: 'financeur', width: 20 },
         { header: 'Séances', key: 'sessions', width: 10 },
         { header: 'Demi-journées', key: 'halves', width: 15 },
+        { header: 'Demi-journées non renseignées', key: 'missingHalves', width: 20 },
         { header: 'Absences', key: 'absences', width: 11 },
         { header: 'Heures prévues', key: 'planned', width: 15 },
         { header: 'Heures réalisées', key: 'attended', width: 16 },
@@ -1036,9 +1097,11 @@ async function attendanceXlsx(data: AttendanceExportDto): Promise<Buffer> {
     for (const row of data.summaries) {
         summary.addRow({
             alternant: `${row.firstName} ${row.lastName}`,
+            situation: situationLabel(row.presence),
             financeur: row.financeur ?? '',
             sessions: row.sessions,
             halves: row.halves,
+            missingHalves: row.missingHalves,
             absences: row.absences,
             planned: hoursDecimal(row.plannedMinutes),
             attended: hoursDecimal(row.attendedMinutes),

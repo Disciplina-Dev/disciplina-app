@@ -12,7 +12,10 @@ import {
     RecordHistoryInput,
 } from '../repositories/mongo/EmargementHistoryRepository';
 import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
+import { RuptureRepository } from '../repositories/mongo/RuptureRepository';
 import { SeanceListFilter, SeanceRepository } from '../repositories/mongo/SeanceRepository';
+import { Alternant, AlternantArchiveReason } from '../types/alternant.types';
+import { Rupture } from '../types/rupture.types';
 import { SessionService } from './SessionService';
 import { UserService } from './UserService';
 import { httpError } from './httpError';
@@ -45,6 +48,7 @@ import {
     formatLongDateFr,
     isHhMm,
     isIsoDate,
+    localDate,
     minutesOfDay,
     windowState,
     WindowState,
@@ -92,6 +96,27 @@ export interface EmargementRecordDto {
     firstSignatureMode: EmargementSignatureMode;
 }
 
+/**
+ * Situation d'un alternant vis-à-vis de sa session : archivage (sortie) et
+ * dernière rupture déclarée. Sert à expliquer pourquoi une ligne reste ou non
+ * attendue sur une feuille d'émargement (7.4).
+ */
+export interface AlternantPresenceDto {
+    /** `true` = sorti de la formation (archivé) : plus attendu sur les séances suivantes. */
+    archived: boolean;
+    /** `rupture` = sortie par rupture, `fin_formation` = fin normale, `null` = actif. */
+    archiveReason: AlternantArchiveReason | null;
+    /**
+     * Date d'effet de la sortie (`YYYY-MM-DD`) : date de la rupture déclarée
+     * quand elle existe, sinon date d'archivage. `null` quand l'alternant est actif.
+     */
+    archiveDate: string | null;
+    /** Dernière rupture déclarée, même quand le jeune poursuit sa formation. */
+    ruptureDate: string | null;
+    /** La dernière rupture déclarée indique que le jeune poursuit sa formation. */
+    poursuitFormation: boolean;
+}
+
 export interface AlternantEmargementDto {
     id: string;
     firstName: string;
@@ -99,10 +124,27 @@ export interface AlternantEmargementDto {
     email?: string | null;
     /** Financeur de la formation (OPCO, Région…) — figure sur la feuille et les exports. */
     financeur?: string | null;
+    /** Statut d'archivage / rupture, affiché sur la feuille à côté du nom (7.4). */
+    presence: AlternantPresenceDto;
     attendance: {
         morning: EmargementRecordDto | null;
         afternoon: EmargementRecordDto | null;
     };
+}
+
+/**
+ * Avancement de la saisie d'une feuille : combien d'alternants sont attendus et
+ * combien ont un statut réellement saisi (« non renseigné » ne compte pas).
+ */
+export interface SeanceAttendanceProgressDto {
+    /** Alternants attendus sur la séance, toutes demi-journées confondues. */
+    expected: number;
+    morning: { expected: number; recorded: number };
+    afternoon: { expected: number; recorded: number };
+    /** Statuts manquants sur des demi-journées déjà fermées. */
+    missing: number;
+    /** Demi-journées fermées avec au moins un statut manquant. */
+    missingHalves: EmargementHalf[];
 }
 
 export interface SeanceWindowDto {
@@ -152,8 +194,16 @@ export interface SeanceDto {
     /** Lieu précis : salle, adresse ou lien visio. */
     location: string | null;
     date: string;
+    /** Début des cours (dérivé : `morningClassStart`). */
     startTime: string;
+    /** Fin des cours (dérivée : `afternoonClassEnd`, sinon `morningClassEnd`). */
     endTime: string;
+    /** Horaires de cours du matin, base des heures prévues / réalisées. */
+    morningClassStart: string | null;
+    morningClassEnd: string | null;
+    /** Horaires de cours de l'après-midi ; `null` = séance sans après-midi. */
+    afternoonClassStart: string | null;
+    afternoonClassEnd: string | null;
     site: SeanceSite;
     mode: SeanceMode;
     formateurName: string;
@@ -179,6 +229,8 @@ export interface SeanceDto {
     qrUrl: string;
     marked: number;
     present: number;
+    /** Avancement de la saisie (statuts manquants sur les créneaux fermés). */
+    attendanceProgress: SeanceAttendanceProgressDto;
 }
 
 export interface SeanceDetailDto extends SeanceDto {
@@ -198,11 +250,18 @@ export interface EmargementExportFilter {
     from?: string;
     /** Borne haute incluse, `YYYY-MM-DD`. */
     to?: string;
+    /**
+     * Inclut aussi les alternants archivés dont la sortie est antérieure à la
+     * séance (export historique). Par défaut, un sorti n'apparaît que sur les
+     * séances où il était encore présent.
+     */
+    includeArchived?: boolean;
 }
 
 /** Une ligne d'export = un alternant × une demi-journée d'une séance. */
 export interface AttendanceExportRow {
     seanceId: string;
+    sessionId: string;
     date: string;
     startTime: string;
     endTime: string;
@@ -217,6 +276,8 @@ export interface AttendanceExportRow {
     firstName: string;
     lastName: string;
     financeur: string | null;
+    /** Situation de l'alternant (actif / rupture / sortie) au moment de la séance. */
+    presence: AlternantPresenceDto;
     half: EmargementHalf;
     status: EmargementStatus;
     statusTime: string | null;
@@ -226,6 +287,8 @@ export interface AttendanceExportRow {
     plannedMinutes: number;
     /** Heures réellement suivies, selon le statut et l'heure éventuelle. */
     attendedMinutes: number;
+    /** `true` quand la demi-journée est fermée et que le statut n'a pas été saisi. */
+    missing: boolean;
     validation: SeanceValidationDto | null;
 }
 
@@ -235,9 +298,13 @@ export interface AttendanceExportSummary {
     firstName: string;
     lastName: string;
     financeur: string | null;
+    /** Situation de l'alternant à la fin de la période exportée. */
+    presence: AlternantPresenceDto;
     sessions: number;
     halves: number;
     absences: number;
+    /** Demi-journées fermées sans statut saisi : le taux peut être sous-évalué. */
+    missingHalves: number;
     plannedMinutes: number;
     attendedMinutes: number;
 }
@@ -294,6 +361,8 @@ export interface AttestationSeanceDto {
         statusTime: string | null;
         plannedMinutes: number;
         attendedMinutes: number;
+        /** `true` quand le créneau est fermé et que le statut n'a pas été saisi. */
+        missing: boolean;
         validation: SeanceValidationDto | null;
     }[];
 }
@@ -311,7 +380,8 @@ export interface GroupSummaryDto {
     rows: AttendanceExportSummary[];
 }
 
-/** Données d'une attestation d'assiduité (un alternant, une période). */ export interface AttestationDto {
+/** Données d'une attestation d'assiduité (un alternant, une période). */
+export interface AttestationDto {
     generatedAt: string;
     alternantId: string;
     firstName: string;
@@ -326,6 +396,78 @@ export interface GroupSummaryDto {
     seances: AttestationSeanceDto[];
 }
 
+// ── Assiduité (7.1 / 7.2) ────────────────────────────────────────────────────
+
+/** Filtre du tableau de bord d'assiduité. */
+export interface AssiduiteFilter {
+    /** Borne basse incluse, `YYYY-MM-DD`. */
+    from?: string;
+    /** Borne haute incluse, `YYYY-MM-DD`. */
+    to?: string;
+    sessionId?: string;
+    site?: SeanceSite;
+}
+
+/** Compteurs d'heures communs aux lignes et aux totaux. */
+export interface AssiduiteTotalsDto {
+    alternants: number;
+    seances: number;
+    /** Demi-journées réellement saisies (statut ≠ « non renseigné »). */
+    halves: number;
+    /** Demi-journées fermées sans statut saisi : le taux peut être sous-évalué. */
+    missingHalves: number;
+    absences: number;
+    plannedMinutes: number;
+    attendedMinutes: number;
+    /** `attended / planned` entre 0 et 1 ; `null` quand aucune heure n'est prévue. */
+    rate: number | null;
+}
+
+/** Une ligne du tableau de bord : un alternant, une session ou un site. */
+export interface AssiduiteRowDto extends AssiduiteTotalsDto {
+    key: string;
+    label: string;
+}
+
+export interface AssiduiteAlternantRowDto extends AssiduiteRowDto {
+    alternantId: string;
+    firstName: string;
+    lastName: string;
+    financeur: string | null;
+    /** Nombre de sessions distinctes fréquentées sur la période. */
+    sessions: number;
+    lastSeanceDate: string | null;
+    presence: AlternantPresenceDto;
+}
+
+export interface AssiduiteDto {
+    generatedAt: string;
+    from: string | null;
+    to: string | null;
+    sessionId: string | null;
+    site: SeanceSite | null;
+    totals: AssiduiteTotalsDto;
+    alternants: AssiduiteAlternantRowDto[];
+    sessions: AssiduiteRowDto[];
+    sites: AssiduiteRowDto[];
+}
+
+/** Assiduité d'un alternant : synthèse + détail séance par séance. */
+export interface AssiduiteAlternantDto {
+    generatedAt: string;
+    alternantId: string;
+    firstName: string;
+    lastName: string;
+    financeur: string | null;
+    sessionNom: string;
+    degreeTitle: string | null;
+    presence: AlternantPresenceDto;
+    from: string | null;
+    to: string | null;
+    totals: AssiduiteTotalsDto;
+    seances: AttestationSeanceDto[];
+}
+
 export interface FormateurViewDto {
     seance: {
         id: string;
@@ -336,6 +478,11 @@ export interface FormateurViewDto {
         date: string;
         startTime: string;
         endTime: string;
+        /** Horaires de cours (`null` sur les séances antérieures au lot 8). */
+        morningClassStart: string | null;
+        morningClassEnd: string | null;
+        afternoonClassStart: string | null;
+        afternoonClassEnd: string | null;
         site: SeanceSite;
         mode: SeanceMode;
         formateurName: string;
@@ -367,6 +514,11 @@ export interface PublicSigningDto {
     date: string;
     startTime: string;
     endTime: string;
+    /** Horaires de cours (`null` sur les séances antérieures au lot 8). */
+    morningClassStart: string | null;
+    morningClassEnd: string | null;
+    afternoonClassStart: string | null;
+    afternoonClassEnd: string | null;
     site: SeanceSite;
     mode: SeanceMode;
     signed: boolean;
@@ -499,27 +651,39 @@ function halfBounds(seance: Seance, half: EmargementHalf): { start: string; end:
     return start && end ? { start, end } : null;
 }
 
-/** Heures prévues d'une demi-journée : la durée du créneau de signature. */
+/**
+ * Horaires de cours d'une demi-journée, qui servent au calcul des heures.
+ * Les séances créées avant le lot 8 n'ont pas ces champs : on retombe alors sur
+ * le créneau de signature, ce qui reproduit exactement les heures d'avant.
+ */
+function classSchedule(seance: Seance, half: EmargementHalf): { start: string; end: string } | null {
+    const start = half === 'morning' ? seance.morning_class_start : seance.afternoon_class_start;
+    const end = half === 'morning' ? seance.morning_class_end : seance.afternoon_class_end;
+    if (start && end) return { start, end };
+    return halfBounds(seance, half);
+}
+
+/** Heures prévues d'une demi-journée : la durée des horaires de cours. */
 function plannedMinutesOf(seance: Seance, half: EmargementHalf): number {
-    const bounds = halfBounds(seance, half);
+    const bounds = classSchedule(seance, half);
     if (!bounds) return 0;
     return Math.max(0, minutesOfDay(bounds.end) - minutesOfDay(bounds.start));
 }
 
 /**
  * Heures réalisées d'une demi-journée :
- * - `present` → tout le créneau ;
- * - `late` → de l'heure d'arrivée à la fin du créneau ;
- * - `left_early` → du début du créneau à l'heure de départ ;
+ * - `present` → tous les horaires de cours ;
+ * - `late` → de l'heure d'arrivée à la fin des cours ;
+ * - `left_early` → du début des cours à l'heure de départ ;
  * - `absent` / `na` → 0.
  *
- * Sans heure saisie, une arrivée tardive ou un départ anticipé comptent le
- * créneau entier : mieux vaut surestimer la présence que de la nier.
+ * Sans heure saisie, une arrivée tardive ou un départ anticipé comptent la
+ * demi-journée entière : mieux vaut surestimer la présence que de la nier.
  */
 function attendedMinutesOf(seance: Seance, half: EmargementHalf, record: EmargementRecord | null): number {
     const planned = plannedMinutesOf(seance, half);
     if (!record || planned === 0) return 0;
-    const bounds = halfBounds(seance, half)!;
+    const bounds = classSchedule(seance, half)!;
     if (record.status === 'present') return planned;
     if (record.status === 'late' && record.status_time) {
         return Math.max(0, Math.min(planned, minutesOfDay(bounds.end) - minutesOfDay(record.status_time)));
@@ -583,12 +747,109 @@ function historyDto(entry: EmargementHistoryEntry): EmargementHistoryDto {
     };
 }
 
+/** Un alternant et sa situation (archive / rupture) au moment de la lecture. */
+interface RosterEntry {
+    alternant: Alternant;
+    presence: AlternantPresenceDto;
+}
+
+/** Date locale `YYYY-MM-DD` d'un horodatage Mongo. */
+function localDay(value: Date | string | null | undefined, timezone: string): string | null {
+    if (value === null || value === undefined) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : localDate(date, timezone);
+}
+
+/**
+ * Situation d'un alternant : sortie (archivage) et dernière rupture déclarée.
+ *
+ * La date d'effet d'une sortie par rupture est celle de la rupture déclarée
+ * (celle qui a archivé), pas la date d'archivage technique ; elle décide si
+ * l'alternant était encore attendu sur une séance donnée.
+ */
+function presenceOf(alternant: Alternant, ruptures: Rupture[], timezone: string): AlternantPresenceDto {
+    const sorted = ruptures
+        .slice()
+        .sort((a, b) => new Date(b.date_rupture).getTime() - new Date(a.date_rupture).getTime());
+    const latest = sorted[0] ?? null;
+    const quitting = sorted.find((rupture) => rupture.poursuit_formation === false) ?? null;
+    const archived = Boolean(alternant.archived_at);
+    const archiveReason = archived ? (alternant.archive_reason ?? 'rupture') : null;
+    const archiveDate = archived
+        ? archiveReason === 'rupture' && quitting
+            ? localDay(quitting.date_rupture, timezone)
+            : localDay(alternant.archived_at, timezone)
+        : null;
+    return {
+        archived,
+        archiveReason,
+        archiveDate,
+        ruptureDate: latest ? localDay(latest.date_rupture, timezone) : null,
+        poursuitFormation: latest?.poursuit_formation === true,
+    };
+}
+
+/** Accumulateur d'assiduité : on additionne des lignes, on calcule le taux à la fin. */
+interface AssiduiteAccumulator {
+    seanceIds: Set<string>;
+    sessionIds: Set<string>;
+    alternantIds: Set<string>;
+    halves: number;
+    missingHalves: number;
+    absences: number;
+    plannedMinutes: number;
+    attendedMinutes: number;
+}
+
+function emptyAccumulator(): AssiduiteAccumulator {
+    return {
+        seanceIds: new Set(),
+        sessionIds: new Set(),
+        alternantIds: new Set(),
+        halves: 0,
+        missingHalves: 0,
+        absences: 0,
+        plannedMinutes: 0,
+        attendedMinutes: 0,
+    };
+}
+
+/**
+ * Une ligne d'export = un alternant × une demi-journée. `halves` ne compte que
+ * les demi-journées réellement saisies ; les non renseignées sont comptées à
+ * part (`missingHalves`) pour signaler un taux potentiellement sous-évalué.
+ */
+function accumulateRow(acc: AssiduiteAccumulator, row: AttendanceExportRow): void {
+    acc.seanceIds.add(row.seanceId);
+    acc.sessionIds.add(row.sessionId);
+    acc.alternantIds.add(row.alternantId);
+    if (row.status !== 'na') acc.halves += 1;
+    if (row.missing) acc.missingHalves += 1;
+    if (row.status === 'absent') acc.absences += 1;
+    acc.plannedMinutes += row.plannedMinutes;
+    acc.attendedMinutes += row.attendedMinutes;
+}
+
+function totalsFrom(acc: AssiduiteAccumulator): AssiduiteTotalsDto {
+    return {
+        alternants: acc.alternantIds.size,
+        seances: acc.seanceIds.size,
+        halves: acc.halves,
+        missingHalves: acc.missingHalves,
+        absences: acc.absences,
+        plannedMinutes: acc.plannedMinutes,
+        attendedMinutes: acc.attendedMinutes,
+        rate: acc.plannedMinutes > 0 ? acc.attendedMinutes / acc.plannedMinutes : null,
+    };
+}
+
 export class EmargementService {
     constructor(
         private readonly seances = new SeanceRepository(),
         private readonly emargements = new EmargementRepository(),
         private readonly history = new EmargementHistoryRepository(),
         private readonly alternants = new AlternantRepository(),
+        private readonly ruptures = new RuptureRepository(),
         private readonly sessions = new SessionService(),
         private readonly users = new UserService(),
         private readonly gmailService = new GoogleGmailService(),
@@ -598,23 +859,55 @@ export class EmargementService {
 
     async list(filter: SeanceListFilter = {}): Promise<SeanceDto[]> {
         const seances = await this.seances.findAll(filter);
-        const counts = await this.emargements.countsBySeance(seances.map((s) => s._id));
-        const dtos = seances.map((seance) => this.toDto(seance, counts.get(seance._id)));
+        const ids = seances.map((seance) => seance._id);
+        const [counts, recorded, rosters] = await Promise.all([
+            this.emargements.countsBySeance(ids),
+            this.emargements.countsBySeanceAndHalf(ids),
+            this.sessionRosters(seances),
+        ]);
+        const now = new Date();
+        const dtos = seances.map((seance) => {
+            const roster = (rosters.get(seance.session_id) ?? []).filter((entry) =>
+                this.isOnSeance(entry, seance, false),
+            );
+            return this.toDto(
+                seance,
+                counts.get(seance._id),
+                undefined,
+                this.attendanceProgress(seance, roster, recorded.get(seance._id), now),
+            );
+        });
         // L'état dépend de l'heure courante et des créneaux : il se calcule après
-        // lecture, le filtre ne peut pas être poussé dans la requête Mongo.
-        return filter.validation ? dtos.filter((dto) => dto.validationStatus === filter.validation) : dtos;
+        // lecture, les filtres ne peuvent pas être poussés dans la requête Mongo.
+        return dtos.filter(
+            (dto) =>
+                (!filter.validation || dto.validationStatus === filter.validation) &&
+                (!filter.missing || dto.attendanceProgress.missing > 0),
+        );
     }
 
     async get(id: string): Promise<SeanceDetailDto> {
         const seance = await this.requireSeance(id);
-        const [alternants, records, history] = await Promise.all([
-            this.sessions.findAlternants(seance.session_id),
+        const roster = (await this.sessionRosters([seance])).get(seance.session_id) ?? [];
+        const entries = roster.filter((entry) => this.isOnSeance(entry, seance, false));
+        const [records, history] = await Promise.all([
             this.emargements.findBySeance(seance._id),
             this.history.findBySeance(seance._id),
         ]);
+        const presenceById = new Map(entries.map((entry) => [entry.alternant._id, entry.presence]));
         return {
-            ...this.toDto(seance, this.countsFrom(records)),
-            alternants: this.alternantsWithAttendance(alternants, records, true),
+            ...this.toDto(
+                seance,
+                this.countsFrom(records),
+                undefined,
+                this.attendanceProgress(seance, entries, this.recordedHalvesFrom(records), new Date()),
+            ),
+            alternants: this.alternantsWithAttendance(
+                entries.map((entry) => entry.alternant),
+                records,
+                true,
+                presenceById,
+            ),
             history: history.map(historyDto),
         };
     }
@@ -639,23 +932,25 @@ export class EmargementService {
         const seances = await this.exportSeances(filter);
         const records = await this.emargements.findBySeances(seances.map((s) => s._id));
         const byKey = new Map(records.map((r) => [`${r.seance_id}:${r.alternant_id}:${r.half}`, r]));
-        const alternantsBySession = new Map<string, Awaited<ReturnType<SessionService['findAlternants']>>>();
+        const rosters = await this.sessionRosters(seances);
+        const includeArchived = filter.includeArchived === true;
         const now = new Date();
 
         const rows: AttendanceExportRow[] = [];
         for (const seance of seances) {
-            let alternants = alternantsBySession.get(seance.session_id);
-            if (!alternants) {
-                alternants = await this.sessions.findAlternants(seance.session_id);
-                alternantsBySession.set(seance.session_id, alternants);
-            }
+            const roster = (rosters.get(seance.session_id) ?? []).filter((entry) =>
+                this.isOnSeance(entry, seance, includeArchived),
+            );
             const validations = validationsOf(seance);
             const validationStatus = this.validationStatus(seance, now);
-            for (const alternant of alternants) {
+            const closed = this.closedHalves(seance, now);
+            for (const entry of roster) {
+                const alternant = entry.alternant;
                 for (const half of applicableHalves(seance)) {
                     const record = byKey.get(`${seance._id}:${alternant._id}:${half}`) ?? null;
                     rows.push({
                         seanceId: seance._id,
+                        sessionId: seance.session_id,
                         date: seance.date,
                         startTime: seance.start_time,
                         endTime: seance.end_time,
@@ -670,6 +965,7 @@ export class EmargementService {
                         firstName: alternant.first_name,
                         lastName: alternant.last_name,
                         financeur: alternant.financeur ?? null,
+                        presence: entry.presence,
                         half,
                         status: record?.status ?? 'na',
                         statusTime: record?.status_time ?? null,
@@ -677,6 +973,7 @@ export class EmargementService {
                         signedAt: record ? toIso(record.signed_at) : null,
                         plannedMinutes: plannedMinutesOf(seance, half),
                         attendedMinutes: attendedMinutesOf(seance, half, record),
+                        missing: closed.has(half) && (record?.status ?? 'na') === 'na',
                         validation: validationDto(validations[half]),
                     });
                 }
@@ -702,18 +999,23 @@ export class EmargementService {
                     firstName: row.firstName,
                     lastName: row.lastName,
                     financeur: row.financeur,
+                    presence: row.presence,
                     sessions: 0,
                     halves: 0,
                     absences: 0,
+                    missingHalves: 0,
                     plannedMinutes: 0,
                     attendedMinutes: 0,
                     seanceIds: new Set<string>(),
                 };
                 summaries.set(row.alternantId, summary);
             }
+            // La dernière ligne vue (tri par date croissante) porte la situation la plus récente.
+            summary.presence = row.presence;
             summary.seanceIds.add(row.seanceId);
             summary.halves += 1;
             if (row.status === 'absent') summary.absences += 1;
+            if (row.missing) summary.missingHalves += 1;
             summary.plannedMinutes += row.plannedMinutes;
             summary.attendedMinutes += row.attendedMinutes;
         }
@@ -820,6 +1122,7 @@ export class EmargementService {
             .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time))
             .map((seance) => {
                 const validations = validationsOf(seance);
+                const closed = this.closedHalves(seance, now);
                 const halves = applicableHalves(seance).map((half) => {
                     const record = byKey.get(`${seance._id}:${half}`) ?? null;
                     return {
@@ -828,6 +1131,7 @@ export class EmargementService {
                         statusTime: record?.status_time ?? null,
                         plannedMinutes: plannedMinutesOf(seance, half),
                         attendedMinutes: attendedMinutesOf(seance, half, record),
+                        missing: closed.has(half) && (record?.status ?? 'na') === 'na',
                         validation: validationDto(validations[half]),
                     };
                 });
@@ -861,6 +1165,125 @@ export class EmargementService {
         };
     }
 
+    // ── Assiduité (7.1 / 7.2) ────────────────────────────────────────────────
+
+    /**
+     * Tableau de bord d'assiduité : les mêmes lignes que l'export de présences,
+     * agrégées par alternant, par session et par site. Le taux est calculé sur
+     * les heures prévues des créneaux applicables ; `missingHalves` signale les
+     * demi-journées fermées sans statut, qui dégradent artificiellement le taux.
+     */
+    async assiduite(filter: AssiduiteFilter = {}): Promise<AssiduiteDto> {
+        const data = await this.exportAttendance({
+            from: filter.from,
+            to: filter.to,
+            sessionId: filter.sessionId,
+        });
+        const rows = filter.site ? data.rows.filter((row) => row.site === filter.site) : data.rows;
+
+        const totals = emptyAccumulator();
+        const alternants = new Map<string, AssiduiteAccumulator & { row: AttendanceExportRow; lastDate: string }>();
+        const sessions = new Map<string, AssiduiteAccumulator & { label: string }>();
+        const sites = new Map<string, AssiduiteAccumulator & { label: string }>();
+
+        for (const row of rows) {
+            accumulateRow(totals, row);
+
+            const alternant = alternants.get(row.alternantId) ?? {
+                ...emptyAccumulator(),
+                row,
+                lastDate: row.date,
+            };
+            accumulateRow(alternant, row);
+            if (row.date > alternant.lastDate) alternant.lastDate = row.date;
+            alternants.set(row.alternantId, alternant);
+
+            const session = sessions.get(row.sessionId) ?? { ...emptyAccumulator(), label: row.sessionNom };
+            accumulateRow(session, row);
+            sessions.set(row.sessionId, session);
+
+            const site = sites.get(row.site) ?? { ...emptyAccumulator(), label: row.site };
+            accumulateRow(site, row);
+            sites.set(row.site, site);
+        }
+
+        return {
+            generatedAt: new Date().toISOString(),
+            from: filter.from ?? null,
+            to: filter.to ?? null,
+            sessionId: filter.sessionId ?? null,
+            site: filter.site ?? null,
+            totals: totalsFrom(totals),
+            alternants: [...alternants.entries()]
+                .map(([alternantId, acc]) => ({
+                    ...totalsFrom(acc),
+                    key: alternantId,
+                    label: `${acc.row.lastName} ${acc.row.firstName}`,
+                    alternantId,
+                    firstName: acc.row.firstName,
+                    lastName: acc.row.lastName,
+                    financeur: acc.row.financeur,
+                    sessions: acc.sessionIds.size,
+                    lastSeanceDate: acc.lastDate,
+                    presence: acc.row.presence,
+                }))
+                .sort(
+                    (a, b) =>
+                        a.lastName.localeCompare(b.lastName, 'fr') || a.firstName.localeCompare(b.firstName, 'fr'),
+                ),
+            sessions: [...sessions.entries()]
+                .map(([key, acc]) => ({ ...totalsFrom(acc), key, label: acc.label }))
+                .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
+            sites: [...sites.entries()]
+                .map(([key, acc]) => ({ ...totalsFrom(acc), key, label: acc.label }))
+                .sort((a, b) => a.label.localeCompare(b.label, 'fr')),
+        };
+    }
+
+    /**
+     * Assiduité d'un alternant : synthèse sur la période et détail séance par
+     * séance. Repose sur l'attestation pour que la fiche, le PDF et le tableau
+     * de bord racontent exactement la même chose.
+     */
+    async assiduiteAlternant(
+        alternantId: string,
+        filter: { from?: string; to?: string } = {},
+    ): Promise<AssiduiteAlternantDto> {
+        const alternant = await this.alternants.findById(alternantId);
+        if (!alternant) throw httpError(404, 'alternant', 'Alternant introuvable');
+        const [data, ruptures] = await Promise.all([
+            this.attestation(alternantId, filter),
+            this.ruptures.findByAlternantId(alternantId),
+        ]);
+
+        const acc = emptyAccumulator();
+        for (const seance of data.seances) {
+            acc.seanceIds.add(seance.seanceId);
+            acc.plannedMinutes += seance.plannedMinutes;
+            acc.attendedMinutes += seance.attendedMinutes;
+            for (const half of seance.halves) {
+                if (half.status !== 'na') acc.halves += 1;
+                if (half.status === 'absent') acc.absences += 1;
+                if (half.missing) acc.missingHalves += 1;
+            }
+        }
+
+        return {
+            generatedAt: new Date().toISOString(),
+            alternantId: data.alternantId,
+            firstName: data.firstName,
+            lastName: data.lastName,
+            financeur: data.financeur,
+            sessionNom: data.sessionNom,
+            degreeTitle: data.degreeTitle,
+            presence: presenceOf(alternant, ruptures, tenantTimezone()),
+            from: data.from,
+            to: data.to,
+            totals: totalsFrom(acc),
+            seances: data.seances,
+        };
+    }
+
     async create(input: unknown, userId: number | undefined): Promise<CreatedSeance> {
         const parsed = this.parseSeanceInput(input);
         const session = await this.sessions.findById(parsed.sessionId);
@@ -874,8 +1297,12 @@ export class EmargementService {
             module: parsed.module ?? null,
             location: parsed.location ?? null,
             date: parsed.date,
-            start_time: parsed.startTime,
-            end_time: parsed.endTime,
+            start_time: parsed.startTime!,
+            end_time: parsed.endTime!,
+            morning_class_start: parsed.morningClassStart,
+            morning_class_end: parsed.morningClassEnd,
+            afternoon_class_start: parsed.afternoonClassStart ?? null,
+            afternoon_class_end: parsed.afternoonClassEnd ?? null,
             site: parsed.site as SeanceSite,
             mode: parsed.mode as SeanceMode,
             formateur_name: parsed.formateurName,
@@ -926,19 +1353,35 @@ export class EmargementService {
         }
 
         const patch = asRecord(input);
+        // Une séance antérieure au lot 8 n'a pas d'horaires de cours : on reprend
+        // alors son créneau de signature (celui du patch s'il change) pour ne pas
+        // changer ses heures.
+        const effectiveMorningStart = patch.morningStart ?? current.morning_start;
+        const effectiveMorningEnd = patch.morningEnd ?? current.morning_end;
+        const effectiveAfternoonStart =
+            patch.afternoonStart !== undefined ? patch.afternoonStart : current.afternoon_start;
+        const effectiveAfternoonEnd = patch.afternoonEnd !== undefined ? patch.afternoonEnd : current.afternoon_end;
         const merged = this.parseSeanceInput({
             sessionId: patch.sessionId ?? current.session_id,
             date: patch.date ?? current.date,
-            startTime: patch.startTime ?? current.start_time,
-            endTime: patch.endTime ?? current.end_time,
             site: patch.site ?? current.site,
             mode: patch.mode ?? current.mode,
             formateurName: patch.formateurName ?? current.formateur_name,
             formateurEmail: patch.formateurEmail ?? current.formateur_email,
-            morningStart: patch.morningStart ?? current.morning_start,
-            morningEnd: patch.morningEnd ?? current.morning_end,
-            afternoonStart: patch.afternoonStart !== undefined ? patch.afternoonStart : current.afternoon_start,
-            afternoonEnd: patch.afternoonEnd !== undefined ? patch.afternoonEnd : current.afternoon_end,
+            morningClassStart: patch.morningClassStart ?? current.morning_class_start ?? effectiveMorningStart,
+            morningClassEnd: patch.morningClassEnd ?? current.morning_class_end ?? effectiveMorningEnd,
+            afternoonClassStart:
+                patch.afternoonClassStart !== undefined
+                    ? patch.afternoonClassStart
+                    : (current.afternoon_class_start ?? effectiveAfternoonStart),
+            afternoonClassEnd:
+                patch.afternoonClassEnd !== undefined
+                    ? patch.afternoonClassEnd
+                    : (current.afternoon_class_end ?? effectiveAfternoonEnd),
+            morningStart: effectiveMorningStart,
+            morningEnd: effectiveMorningEnd,
+            afternoonStart: effectiveAfternoonStart,
+            afternoonEnd: effectiveAfternoonEnd,
             module: patch.module !== undefined ? patch.module : current.module,
             location: patch.location !== undefined ? patch.location : current.location,
         });
@@ -961,8 +1404,12 @@ export class EmargementService {
             module: merged.module ?? null,
             location: merged.location ?? null,
             date: merged.date,
-            start_time: merged.startTime,
-            end_time: merged.endTime,
+            start_time: merged.startTime!,
+            end_time: merged.endTime!,
+            morning_class_start: merged.morningClassStart,
+            morning_class_end: merged.morningClassEnd,
+            afternoon_class_start: merged.afternoonClassStart ?? null,
+            afternoon_class_end: merged.afternoonClassEnd ?? null,
             site: merged.site,
             mode: merged.mode,
             formateur_name: merged.formateurName,
@@ -984,9 +1431,9 @@ export class EmargementService {
 
     async remove(id: string): Promise<void> {
         const seance = await this.requireSeance(id);
-        if (this.hasAnyValidation(seance)) {
-            throw httpError(409, 'signed', 'Une feuille dont une demi-journée est validée ne peut pas être supprimée');
-        }
+        // Suppression toujours possible, même validée : une feuille créée par
+        // erreur doit pouvoir disparaître (la confirmation côté Peda rappelle que
+        // statuts, signatures et journal sont perdus avec elle).
         await this.emargements.deleteBySeance(seance._id);
         await this.history.deleteBySeance(seance._id);
         await this.seances.delete(seance._id);
@@ -1035,6 +1482,10 @@ export class EmargementService {
                 date: seance.date,
                 startTime: seance.start_time,
                 endTime: seance.end_time,
+                morningClassStart: seance.morning_class_start ?? null,
+                morningClassEnd: seance.morning_class_end ?? null,
+                afternoonClassStart: seance.afternoon_class_start ?? null,
+                afternoonClassEnd: seance.afternoon_class_end ?? null,
                 site: seance.site,
                 mode: seance.mode,
                 formateurName: seance.formateur_name,
@@ -1323,6 +1774,10 @@ export class EmargementService {
             date: seance.date,
             startTime: seance.start_time,
             endTime: seance.end_time,
+            morningClassStart: seance.morning_class_start ?? null,
+            morningClassEnd: seance.morning_class_end ?? null,
+            afternoonClassStart: seance.afternoon_class_start ?? null,
+            afternoonClassEnd: seance.afternoon_class_end ?? null,
             site: seance.site,
             mode: seance.mode,
             signed: this.isFullyValidated(seance),
@@ -1427,22 +1882,44 @@ export class EmargementService {
         const date = requiredString(data.date, 'La date');
         if (!isIsoDate(date)) throw httpError(400, 'validation', 'La date doit être au format AAAA-MM-JJ');
 
-        const startTime = requiredTime(data.startTime, 'L’heure de début');
-        const endTime = requiredTime(data.endTime, 'L’heure de fin');
-        if (minutesOfDay(startTime) >= minutesOfDay(endTime)) {
-            throw httpError(400, 'validation', 'L’heure de fin doit suivre l’heure de début');
+        // Horaires de cours : ils portent les heures prévues / réalisées, pause
+        // déjeuner exclue. Les horaires globaux de la séance en sont dérivés, ils
+        // ne sont plus saisis.
+        const morningClassStart = requiredTime(data.morningClassStart, 'Le début des cours du matin');
+        const morningClassEnd = requiredTime(data.morningClassEnd, 'La fin des cours du matin');
+        if (minutesOfDay(morningClassStart) >= minutesOfDay(morningClassEnd)) {
+            throw httpError(400, 'validation', 'Les horaires de cours du matin sont invalides');
         }
+
+        const afternoonClassStart = optionalTime(data.afternoonClassStart, 'Le début des cours de l’après-midi');
+        const afternoonClassEnd = optionalTime(data.afternoonClassEnd, 'La fin des cours de l’après-midi');
+        if ((afternoonClassStart === null) !== (afternoonClassEnd === null)) {
+            throw httpError(400, 'validation', 'Les deux horaires de cours de l’après-midi doivent être renseignés');
+        }
+        if (
+            afternoonClassStart &&
+            afternoonClassEnd &&
+            minutesOfDay(afternoonClassStart) >= minutesOfDay(afternoonClassEnd)
+        ) {
+            throw httpError(400, 'validation', 'Les horaires de cours de l’après-midi sont invalides');
+        }
+        if (afternoonClassStart && minutesOfDay(morningClassEnd) > minutesOfDay(afternoonClassStart)) {
+            throw httpError(400, 'validation', 'Les horaires de cours du matin et de l’après-midi se chevauchent');
+        }
+
+        const startTime = morningClassStart;
+        const endTime = afternoonClassEnd ?? morningClassEnd;
 
         const morningStart = requiredTime(data.morningStart, 'Le début du créneau du matin');
         const morningEnd = requiredTime(data.morningEnd, 'La fin du créneau du matin');
         if (minutesOfDay(morningStart) >= minutesOfDay(morningEnd)) {
             throw httpError(400, 'validation', 'Le créneau du matin est invalide');
         }
-        // Les créneaux sont des fenêtres *à l'intérieur* de la séance : sans cette
-        // borne, on pouvait ouvrir la signature avant le début du cours et la
-        // laisser ouverte après la fin (la fermeture du créneau ne protégeait
-        // alors plus rien).
-        assertWindowInsideSeance(morningStart, morningEnd, startTime, endTime, 'du matin');
+        // Les créneaux sont des fenêtres *à l'intérieur* de la demi-journée de
+        // cours : sans cette borne, on pouvait ouvrir la signature avant le début
+        // du cours et la laisser ouverte après la fin (la fermeture du créneau ne
+        // protégeait alors plus rien).
+        assertWindowInsideSeance(morningStart, morningEnd, morningClassStart, morningClassEnd, 'du matin');
 
         const afternoonStart = optionalTime(data.afternoonStart, 'Le début du créneau de l’après-midi');
         const afternoonEnd = optionalTime(data.afternoonEnd, 'La fin du créneau de l’après-midi');
@@ -1453,10 +1930,31 @@ export class EmargementService {
             throw httpError(400, 'validation', 'Le créneau de l’après-midi est invalide');
         }
         if (afternoonStart && afternoonEnd) {
-            assertWindowInsideSeance(afternoonStart, afternoonEnd, startTime, endTime, 'de l’après-midi');
+            // Un créneau de signature ne peut pas exister sans cours l'après-midi :
+            // les heures n'auraient plus de demi-journée à mesurer.
+            if (!afternoonClassStart || !afternoonClassEnd) {
+                throw httpError(
+                    400,
+                    'validation',
+                    'Les horaires de cours de l’après-midi sont requis pour un créneau l’après-midi',
+                );
+            }
+            assertWindowInsideSeance(
+                afternoonStart,
+                afternoonEnd,
+                afternoonClassStart,
+                afternoonClassEnd,
+                'de l’après-midi',
+            );
         }
-        if (afternoonStart && minutesOfDay(morningEnd) > minutesOfDay(afternoonStart)) {
-            throw httpError(400, 'validation', 'Les créneaux du matin et de l’après-midi se chevauchent');
+        if (afternoonClassStart && !afternoonStart) {
+            // L'inverse : des cours l'après-midi sans créneau ne produiraient jamais
+            // d'heures (l'après-midi n'existerait pas pour la feuille).
+            throw httpError(
+                400,
+                'validation',
+                'Les horaires de cours de l’après-midi exigent un créneau de signature l’après-midi',
+            );
         }
 
         const site = enumValue(data.site, SEANCE_SITES, 'Le site');
@@ -1476,6 +1974,10 @@ export class EmargementService {
             mode,
             formateurName,
             formateurEmail,
+            morningClassStart,
+            morningClassEnd,
+            afternoonClassStart,
+            afternoonClassEnd,
             morningStart,
             morningEnd,
             afternoonStart,
@@ -1601,6 +2103,13 @@ export class EmargementService {
         };
     }
 
+    /** Demi-journées dont le créneau de signature est fermé : seules celles-là peuvent manquer. */
+    private closedHalves(seance: Seance, now: Date): Set<EmargementHalf> {
+        return new Set(
+            applicableHalves(seance).filter((half) => this.windowDto(seance, half, now)?.state === 'closed'),
+        );
+    }
+
     private links(seance: Seance): SeanceLinks {
         const base = env.FRONTEND_BASE_URL.replace(/\/$/, '');
         return {
@@ -1614,6 +2123,86 @@ export class EmargementService {
      * `EmargementRepository.countsBySeance` (une ligne non `na` = une
      * demi-journée saisie ; présent = présent/retard/parti en avance).
      */
+    /**
+     * Effectifs d'une session avec leur situation d'archivage, en une passe.
+     * Les archivés sont chargés : une feuille passée doit garder ses sortis.
+     */
+    private async sessionRosters(seances: Seance[]): Promise<Map<string, RosterEntry[]>> {
+        const sessionIds = [...new Set(seances.map((seance) => seance.session_id))];
+        const entries = await Promise.all(
+            sessionIds.map(async (sessionId) => {
+                const alternants = await this.alternants.findBySessionOrFilizClassId(sessionId, true);
+                const ruptures = await this.ruptures.findByAlternantIds(alternants.map((alternant) => alternant._id));
+                const byAlternant = new Map<string, Rupture[]>();
+                for (const rupture of ruptures) {
+                    const list = byAlternant.get(rupture.alternant_id) ?? [];
+                    list.push(rupture);
+                    byAlternant.set(rupture.alternant_id, list);
+                }
+                const timezone =
+                    seances.find((seance) => seance.session_id === sessionId)?.timezone ?? tenantTimezone();
+                return [
+                    sessionId,
+                    alternants.map((alternant) => ({
+                        alternant,
+                        presence: presenceOf(alternant, byAlternant.get(alternant._id) ?? [], timezone),
+                    })),
+                ] as const;
+            }),
+        );
+        return new Map(entries);
+    }
+
+    /**
+     * Un alternant figure sur une feuille tant qu'il était dans la formation ce
+     * jour-là ; `includeArchived` force la présence des sortis (export historique).
+     */
+    private isOnSeance(entry: RosterEntry, seance: Seance, includeArchived: boolean): boolean {
+        if (!entry.presence.archived) return true;
+        if (includeArchived) return true;
+        return entry.presence.archiveDate !== null && entry.presence.archiveDate >= seance.date;
+    }
+
+    /** Statuts réellement saisis d'une feuille (« non renseigné » ne compte pas). */
+    private recordedHalvesFrom(records: EmargementRecord[]): { morning: number; afternoon: number } {
+        const counts = { morning: 0, afternoon: 0 };
+        for (const record of records) {
+            if (record.status !== 'na') counts[record.half] += 1;
+        }
+        return counts;
+    }
+
+    /**
+     * Avancement de la saisie : les manques ne comptent que sur les créneaux
+     * fermés (une demi-journée ouverte n'a pas encore à être remplie).
+     */
+    private attendanceProgress(
+        seance: Seance,
+        roster: RosterEntry[],
+        recorded: { morning: number; afternoon: number } | undefined,
+        now: Date,
+    ): SeanceAttendanceProgressDto {
+        const expected = roster.length;
+        const progress: SeanceAttendanceProgressDto = {
+            expected,
+            morning: { expected, recorded: 0 },
+            afternoon: { expected, recorded: 0 },
+            missing: 0,
+            missingHalves: [],
+        };
+        for (const half of applicableHalves(seance)) {
+            const recordedForHalf = Math.min(recorded?.[half] ?? 0, expected);
+            progress[half] = { expected, recorded: recordedForHalf };
+            if (this.windowDto(seance, half, now)?.state !== 'closed') continue;
+            const gap = expected - recordedForHalf;
+            if (gap > 0) {
+                progress.missing += gap;
+                progress.missingHalves.push(half);
+            }
+        }
+        return progress;
+    }
+
     private countsFrom(records: EmargementRecord[]): { marked: number; present: number } {
         let marked = 0;
         let present = 0;
@@ -1638,15 +2227,10 @@ export class EmargementService {
     }
 
     private alternantsWithAttendance(
-        alternants: {
-            _id: string;
-            first_name: string;
-            last_name: string;
-            email?: string | null;
-            financeur?: string | null;
-        }[],
+        alternants: Alternant[],
         records: EmargementRecord[],
         includeEmail: boolean,
+        presenceById?: Map<string, AlternantPresenceDto>,
     ): AlternantEmargementDto[] {
         const byKey = new Map(records.map((r) => [`${r.alternant_id}:${r.half}`, r]));
         return alternants.map((alternant) => {
@@ -1658,6 +2242,13 @@ export class EmargementService {
                 lastName: alternant.last_name,
                 ...(includeEmail ? { email: alternant.email ?? null } : {}),
                 financeur: alternant.financeur ?? null,
+                presence: presenceById?.get(alternant._id) ?? {
+                    archived: false,
+                    archiveReason: null,
+                    archiveDate: null,
+                    ruptureDate: null,
+                    poursuitFormation: false,
+                },
                 attendance: {
                     morning: morning ? this.recordDto(morning) : null,
                     afternoon: afternoon ? this.recordDto(afternoon) : null,
@@ -1666,7 +2257,12 @@ export class EmargementService {
         });
     }
 
-    private toDto(seance: Seance, counts?: { marked: number; present: number }, links?: SeanceLinks): SeanceDto {
+    private toDto(
+        seance: Seance,
+        counts?: { marked: number; present: number },
+        links?: SeanceLinks,
+        progress?: SeanceAttendanceProgressDto,
+    ): SeanceDto {
         const resolvedLinks = links ?? this.links(seance);
         const now = new Date();
         const validations = validationsOf(seance);
@@ -1681,6 +2277,10 @@ export class EmargementService {
             date: seance.date,
             startTime: seance.start_time,
             endTime: seance.end_time,
+            morningClassStart: seance.morning_class_start ?? null,
+            morningClassEnd: seance.morning_class_end ?? null,
+            afternoonClassStart: seance.afternoon_class_start ?? null,
+            afternoonClassEnd: seance.afternoon_class_end ?? null,
             site: seance.site,
             mode: seance.mode,
             formateurName: seance.formateur_name,
@@ -1710,6 +2310,13 @@ export class EmargementService {
             ...resolvedLinks,
             marked: counts?.marked ?? 0,
             present: counts?.present ?? 0,
+            attendanceProgress: progress ?? {
+                expected: 0,
+                morning: { expected: 0, recorded: 0 },
+                afternoon: { expected: 0, recorded: 0 },
+                missing: 0,
+                missingHalves: [],
+            },
         };
     }
 

@@ -52,6 +52,9 @@ import {
   formatSeanceDate,
   formatTimestamp,
   historySummary,
+  presenceLabel,
+  presenceTone,
+  scheduleSummary,
   seancePlace,
   seanceProgram,
   signatureLabel,
@@ -92,6 +95,7 @@ function AttendanceCell({ record }: { record: AttendanceRecord | null }) {
 }
 
 function AlternantRow({ alternant, hasAfternoon }: { alternant: AlternantAttendance; hasAfternoon: boolean }) {
+  const presence = presenceLabel(alternant.presence)
   return (
     <tr className="border-t border-[var(--ds-border)]">
       <td className="px-4 py-3 align-top">
@@ -101,6 +105,11 @@ function AlternantRow({ alternant, hasAfternoon }: { alternant: AlternantAttenda
         {alternant.email && <p className="text-[12px] text-[var(--ds-text-subtle)]">{alternant.email}</p>}
         {alternant.financeur && (
           <p className="text-[11px] text-[var(--ds-text-subtle)]">Financeur : {alternant.financeur}</p>
+        )}
+        {presence && (
+          <p className="mt-1">
+            <Badge tone={presenceTone(alternant.presence)}>{presence}</Badge>
+          </p>
         )}
       </td>
       <td className="px-4 py-3 align-top">
@@ -136,6 +145,7 @@ export default function EmargementSeance() {
   const [theme, setTheme] = useState<EmargementPdfTheme>('disciplina')
   const [exporting, setExporting] = useState<string | null>(null)
   const [attestationId, setAttestationId] = useState('')
+  const [includeArchived, setIncludeArchived] = useState(false)
   const qrRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -203,7 +213,10 @@ export default function EmargementSeance() {
 
   async function handleDelete() {
     if (!seance) return
-    if (!window.confirm(`Supprimer la séance du ${formatSeanceDate(seance.date)} ? La feuille sera perdue.`)) return
+    const message = locked
+      ? `Cette feuille est validée : la suppression effacera définitivement les statuts, les signatures et le journal. Supprimer la séance du ${formatSeanceDate(seance.date)} ?`
+      : `Supprimer la séance du ${formatSeanceDate(seance.date)} ? La feuille sera perdue.`
+    if (!window.confirm(message)) return
     setBusy(true)
     try {
       await deleteSeance(id)
@@ -294,7 +307,7 @@ export default function EmargementSeance() {
           </h1>
           {program && <p className="mt-1 text-[14px] font-semibold text-[var(--ds-text-muted)]">{program}</p>}
           <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
-            {seance.startTime} – {seance.endTime} · {seancePlace(seance)}
+            {scheduleSummary(seance)} · {seancePlace(seance)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -331,7 +344,7 @@ export default function EmargementSeance() {
             size="sm"
             leftIcon={<IconTrash width={15} height={15} />}
             onClick={handleDelete}
-            disabled={locked || busy}
+            disabled={busy}
           >
             Supprimer
           </Button>
@@ -406,9 +419,18 @@ export default function EmargementSeance() {
                 <IconUser width={16} height={16} className="text-[var(--ds-accent)]" />
                 Alternants ({seance.alternants.length})
               </h2>
-              <span className="text-[12px] text-[var(--ds-text-subtle)]">
-                {seance.present}/{seance.marked} demi-journée(s) en présence
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {seance.attendanceProgress.missing > 0 && (
+                  <Badge tone="warning" icon={<IconAlert width={12} height={12} />}>
+                    {seance.attendanceProgress.missing} statut
+                    {seance.attendanceProgress.missing > 1 ? 's' : ''} manquant
+                    {seance.attendanceProgress.missing > 1 ? 's' : ''}
+                  </Badge>
+                )}
+                <span className="text-[12px] text-[var(--ds-text-subtle)]">
+                  {seance.present}/{seance.marked} demi-journée(s) en présence
+                </span>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-left">
@@ -668,6 +690,21 @@ export default function EmargementSeance() {
               Une ligne par alternant et par demi-journée, heures prévues / réalisées calculées sur les créneaux de
               signature.
             </p>
+            <label className="mt-2 flex cursor-pointer items-start gap-2 text-[12px] text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                checked={includeArchived}
+                onChange={(event) => setIncludeArchived(event.target.checked)}
+                className="mt-0.5 h-3.5 w-3.5 accent-[var(--ds-accent)]"
+              />
+              <span>
+                Inclure les alternants sortis de la formation
+                <span className="block text-[11px] text-[var(--ds-text-subtle)]">
+                  Utile pour un export historique : par défaut, un sorti ne figure que sur les séances où il était
+                  encore présent.
+                </span>
+              </span>
+            </label>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 variant="secondary"
@@ -675,7 +712,11 @@ export default function EmargementSeance() {
                 leftIcon={<IconDownload width={15} height={15} />}
                 isLoading={exporting === 'csv'}
                 disabled={exporting !== null}
-                onClick={() => runExport('csv', () => fetchAttendanceExport({ seanceId: seance.id }, 'csv'))}
+                onClick={() =>
+                  runExport('csv', () =>
+                    fetchAttendanceExport({ seanceId: seance.id, includeArchived }, 'csv'),
+                  )
+                }
               >
                 Présences CSV
               </Button>
@@ -685,7 +726,11 @@ export default function EmargementSeance() {
                 leftIcon={<IconDownload width={15} height={15} />}
                 isLoading={exporting === 'xlsx'}
                 disabled={exporting !== null}
-                onClick={() => runExport('xlsx', () => fetchAttendanceExport({ seanceId: seance.id }, 'xlsx'))}
+                onClick={() =>
+                  runExport('xlsx', () =>
+                    fetchAttendanceExport({ seanceId: seance.id, includeArchived }, 'xlsx'),
+                  )
+                }
               >
                 Présences Excel
               </Button>

@@ -11,6 +11,15 @@ export class RuptureRepository {
         return getModels().Rupture.find({ alternant_id: alternantId }).sort({ date_rupture: -1 }).lean();
     }
 
+    /** Ruptures de plusieurs alternants en une requête (feuilles et exports d'émargement). */
+    async findByAlternantIds(alternantIds: string[]): Promise<Rupture[]> {
+        if (alternantIds.length === 0) return [];
+        return getModels()
+            .Rupture.find({ alternant_id: { $in: alternantIds } })
+            .sort({ date_rupture: -1 })
+            .lean();
+    }
+
     /** Toutes les ruptures dont la date tombe dans le mois calendaire donné. */
     async findByMonth(year: number, month: number): Promise<Rupture[]> {
         const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));

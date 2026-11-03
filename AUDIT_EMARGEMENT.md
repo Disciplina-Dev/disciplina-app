@@ -39,6 +39,18 @@ Aucun code modifié. Tous les constats sont référencés `fichier:ligne` et ont
 > **État lot 6** (exports PDF séance / apprenant / groupe, présences et heures en CSV/Excel,
 > journal d'audit exportable, chartes d'impression, attestation d'assiduité — cf. §6) :
 > **21 satisfaites**, **19 partielles**, **17 absentes**.
+>
+> **État lot 7** (assiduité rattachée aux alternants : taux et heures par apprenant / groupe / site /
+> période, feuilles incomplètes, statut d'archivage daté et export historique — cf. §6) :
+> **24 satisfaites**, **17 partielles**, **16 absentes**. §7 est clos ; les manques bloquants restants
+> sont l'identité du signataire (§3), les absences justifiées et notifications (§6), l'archivage /
+> rétention (§11) et les rôles apprenant / employeur (§10).
+>
+> **État lot 8** (heures prévues / réalisées calculées sur les horaires de cours, pause déjeuner
+> exclue, au lieu des créneaux de signature — cf. §6) : **24 satisfaites**, **17 partielles**,
+> **16 absentes**. Le lot précise le calcul de 7.2 et l'en-tête de 8.1, sans fermer d'exigence
+> ouverte : les manques bloquants restent l'identité du signataire (§3), les absences justifiées
+> et notifications (§6), la rétention (§11) et les rôles apprenant / employeur (§10).
 
 Légende :
 **✅ FAIT** = conforme à l'exigence ·
@@ -49,20 +61,20 @@ Légende :
 
 ## 1. Cartographie de l'existant
 
-*(complétée à chaque lot ; état courant après le lot 6)*
+*(complétée à chaque lot ; état courant après le lot 8)*
 
 | Couche | Fichiers |
 |---|---|
-| Modèle de domaine | `back/src/types/emargement.types.ts` |
+| Modèle de domaine | `back/src/types/emargement.types.ts` (+ `rupture.types.ts`, `alternant.types.ts` pour la situation d'un alternant) |
 | Schémas Mongo | `back/src/db/mongo/schemas/seance.schema.ts`, `emargement.schema.ts`, `emargementHistory.schema.ts` (+ enregistrement dans `db/mongo/tenant.ts`) |
-| Service | `back/src/services/EmargementService.ts` (1 772 l.), `EmargementExportService.ts` (1 087 l. — PDF/CSV/XLSX), `emargementPdfThemes.ts` (chartes d'impression), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
-| Dépôts | `back/src/repositories/mongo/SeanceRepository.ts`, `EmargementRepository.ts`, `EmargementHistoryRepository.ts` |
-| API staff | `POST/GET/PUT/DELETE /api/emargement/seances…`, `POST /api/emargement/seances/:id/validate`, exports `GET /seances/:id/pdf`, `GET /exports/attendance`, `GET /exports/history`, `GET /attestations/:alternantId`, `GET /sessions/:sessionId/attendance.pdf` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
+| Service | `back/src/services/EmargementService.ts` (2 264 l.), `EmargementExportService.ts` (1 138 l. — PDF/CSV/XLSX), `emargementPdfThemes.ts` (chartes d'impression), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
+| Dépôts | `back/src/repositories/mongo/SeanceRepository.ts`, `EmargementRepository.ts` (`countsBySeance`, `countsBySeanceAndHalf`), `EmargementHistoryRepository.ts`, `RuptureRepository.ts` (`findByAlternantIds`) |
+| API staff | `POST/GET/PUT/DELETE /api/emargement/seances…` (`?missing=1`), `POST /api/emargement/seances/:id/validate`, exports `GET /seances/:id/pdf`, `GET /exports/attendance` (`includeArchived`), `GET /exports/history`, `GET /attestations/:alternantId`, `GET /sessions/:sessionId/attendance.pdf`, assiduité `GET /assiduite`, `GET /assiduite/:alternantId` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
 | API publique | `GET\|PUT /api/emargement/formateur/:token[/attendance]`, `POST …/attendance/sign` (signature manuscrite de l'alternant), `POST …/sign` (une demi-journée), `GET\|POST /api/emargement/sign/:token` — `public.route.ts` |
-| UI Peda | `front/…/pages/peda/Emargements.tsx`, `EmargementSeance.tsx`, `components/peda/SeanceFormModal.tsx` |
+| UI Peda | `front/…/pages/peda/Emargements.tsx` (filtre « Statuts manquants »), `EmargementSeance.tsx` (situation + progression), `Assiduite.tsx` (tableau de bord), `DashboardPeda.tsx` (bandeau du mois), `FicheAlternant.tsx` (carte assiduité), `components/peda/SeanceFormModal.tsx` |
 | UI publique | `front/…/pages/emargement/FormateurEmargement.tsx`, `PublicSigning.tsx`, `components/emargement/PublicShell.tsx` |
 | Client API / types | `front/…/api/emargement.ts`, `types/emargement.ts`, `utils/emargement.ts`, `utils/download.ts` |
-| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (18 cas) |
+| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (22 cas) |
 
 ---
 
@@ -76,11 +88,11 @@ Légende :
 | 4 | Horodatage & intégrité | ⚠️ 4.1 ✅ — 4.2 partiel (journal des changements, motif de correction absent) |
 | 5 | Validation par le formateur | ✅ 5.1 / 5.2 / 5.3 — signature par demi-journée après fermeture, statut, alerte et validation Peda |
 | 6 | Absences et retards | ❌ 0/5 |
-| 7 | Tableaux de bord et suivi | ⚠️ 7.2 ✅ (heures prévues / réalisées dans les exports) — 7.3 partiel (filtre + alerte anomalies), 7.1 ❌, 7.4 partiel via l'archivage alternant |
+| 7 | Tableaux de bord et suivi | ✅ 7.1 / 7.2 / 7.3 / 7.4 — tableau de bord d'assiduité (alternant / groupe / site / période), heures prévues / réalisées, feuilles incomplètes filtrables, situation d'archivage datée sur la feuille et dans les exports |
 | 8 | Exports et justificatifs | ✅ 8.1 / 8.2 / 8.4 / 8.5 — 8.3 ⚠️ (journal en base et exportable en CSV, pas d'écran de recherche global ni de rétention) |
 | 9 | Sessions d'examen titre pro | ❌ 0/4 |
 | 10 | Rôles et droits d'accès | ⚠️ 4 rôles internes seulement — pas d'apprenant, pas d'employeur |
-| 11 | Archivage | ❌ 0/4 |
+| 11 | Archivage | ⚠️ 11.2 partiel — une feuille validée est verrouillée et tout est exportable (lot 6) ; manquent la rétention paramétrable (11.1), les sauvegardes planifiées (11.3) et l'export de réversibilité (11.4) |
 | 12 | RGPD et sécurité | ⚠️ 12.3 / 12.6 ✅ — le reste partiel ou hors code |
 | 13 | Ergonomie | ⚠️ responsive ✅ — offline / PWA / a11y / import planning ❌ |
 
@@ -193,28 +205,36 @@ Légende :
   > mais ils sont pilotés par un **Google Sheet** externe (`pages/peda/SuiviAbsences.tsx` +
   > `scheduler/pedaDraftScheduler.ts`), **sans aucun lien avec les données d'émargement**.
 
-### 3.7 §7 — Tableaux de bord et suivi
+### 3.7 §7 — Tableaux de bord et suivi — ✅ couvert depuis le lot 7
 
-- **7.1 ❌** Aucun taux d'assiduité (apprenant / groupe / site / période). `pages/peda/DashboardPeda.tsx`
-  ne traite que les SA (séquences). Aucune agrégation côté back : `EmargementRepository` n'expose que
-  `countsBySeance` (`EmargementRepository.ts:98-117`).
-- **7.2 ❌ → ✅ FAIT (lot 6)** — Le calcul existe désormais (exports §8) : pour chaque demi-journée,
-  `plannedMinutesOf` prend la durée du créneau de signature et `attendedMinutesOf` la convertit en
-  heures suivies selon le statut (`present` = créneau entier, `late` = heure d'arrivée → fin,
-  `left_early` = début → heure de départ, `absent` / `na` = 0). Les heures sont agrégées par
-  alternant, par séance et par groupe dans les exports CSV/Excel et dans l'attestation. Reste absent
-  un **écran** de suivi (7.1).
-- **7.3 ❌ → ⚠️ PARTIEL (lot 4)** — Pas de liste « feuilles incomplètes / non validées » à l'audit.
-  Depuis le lot 4 : filtre `?validation=` sur la liste Peda (en cours / à valider / anomalies /
-  validées), alerte avec compteur d'anomalies, et badge de statut dans la liste et le détail. Reste
-  absent : vue dédiée « feuilles incomplètes » (demi-journée fermée avec des statuts non saisis) et
-  agrégats par période.
-- **7.4 ⚠️ PARTIEL** — Le socle existe : `archived_at` + `archive_reason ('rupture'|'fin_formation')`
-  (`alternant.schema.ts:47-48`), module Ruptures avec `poursuitFormation`
-  (`services/RuptureService.ts:49-68`), et les archivés sont **exclus** de `findAlternants`
-  (`AlternantRepository.findBySessionOrFilizClassId`, `:69-73`) → pas d'émargement attendu après une
-  sortie ✅. Manquent : statut + **date d'effet** affichés sur la feuille, distinction « rupture qui
-  reste en formation », et possibilité d'inclure les archivés dans un export historique.
+- **7.1 ✅ FAIT (lot 7)** — `GET /api/emargement/assiduite?from&to&sessionId&site` renvoie les mêmes
+  lignes que l'export de présences, agrégées en trois découpages (alternant, session, site) plus un
+  total ; `GET /api/emargement/assiduite/:alternantId` donne la synthèse et le détail d'un alternant.
+  Côté front, `/peda/assiduite` (`Assiduite.tsx`) affiche les tuiles, les trois onglets et l'export
+  CSV/Excel de la période ; `DashboardPeda.tsx` porte un bandeau « Assiduité du mois » ;
+  `FicheAlternant.tsx` une carte « Assiduité » avec le bouton d'attestation PDF.
+- **7.2 ✅ FAIT (lots 6 + 7 + 8)** — `plannedMinutesOf` prend la durée des **horaires de cours** de la
+  demi-journée (`morning_class_*` / `afternoon_class_*`, lot 8 : la pause déjeuner ne compte pas) et
+  `attendedMinutesOf` la convertit en heures suivies selon le statut (`present` = demi-journée entière,
+  `late` = heure d'arrivée → fin des cours, `left_early` = début des cours → heure de départ,
+  `absent` / `na` = 0 ; heure manquante = demi-journée entière). Les séances antérieures au lot 8 n'ont
+  pas ces horaires : `classSchedule` retombe alors sur le créneau de signature, donc leurs heures ne
+  changent pas. Les heures sont agrégées par demi-journée, séance, alternant, groupe et site, dans les
+  exports CSV/Excel, l'attestation, les PDF de groupe et le tableau de bord.
+- **7.3 ✅ FAIT (lots 4 + 7)** — Filtre `?validation=` (en cours / à valider / anomalies / validées) et
+  alerte d'anomalies depuis le lot 4 ; depuis le lot 7, `GET /seances?missing=1` liste les feuilles aux
+  statuts non saisis sur un créneau **fermé**, chaque séance porte `attendanceProgress` (attendu /
+  saisi par demi-journée, `missing`, `missingHalves`) et l'écran affiche le compteur en liste et en
+  détail. Une demi-journée non renseignée n'est **pas** comptée comme une absence : elle est comptée à
+  part dans les synthèses (`missingHalves`).
+- **7.4 ✅ FAIT (lot 7)** — En plus du socle (`archived_at` + `archive_reason`, `poursuitFormation`, et
+  l'exclusion des archivés de la liste des alternants attendus), chaque ligne de feuille, d'export et
+  de tableau de bord porte `presence` : `archived` + `archiveReason` + `archiveDate` (date d'effet) et,
+  pour une rupture qui n'archive pas, `ruptureDate` + `poursuitFormation`. Un archivé ne figure que
+  sur les séances où il était encore présent (`archiveDate >= seance.date`) ; `includeArchived=1`
+  force son inclusion dans un export historique. La mention est affichée sur la feuille (badge), dans
+  le PDF de séance (sous le nom), le PDF de groupe, les CSV/Excel (colonne « Situation ») et le
+  tableau de bord.
 
 ### 3.8 §8 — Exports et justificatifs — ✅ couvert depuis le lot 6
 
@@ -224,7 +244,9 @@ Légende :
   le détail de séance et rendu `EmargementExportService` (pdfkit, signatures intégrées).
 - **8.2 ❌ → ✅ FAIT (lot 6)** — `GET /api/emargement/exports/attendance?format=csv|xlsx`
   (filtres séance / session / période) : une ligne par alternant × demi-journée, heures prévues et
-  réalisées, et dans le classeur une seconde feuille de synthèse par alternant.
+  réalisées, et dans le classeur une seconde feuille de synthèse par alternant. Depuis le lot 7 :
+  colonne « Situation » (archive / rupture datée), compteur « Non renseignées » dans la synthèse et
+  `includeArchived` pour un export historique incluant les sortis.
 - **8.3 ⚠️ PARTIEL (lots 5-6)** — `emargement_history` conserve tous les changements (statut,
   signatures, validations) avec auteur, horodatage, IP et appareil, et
   `GET /api/emargement/exports/history` les exporte en CSV. **Manquent** : un écran de recherche
@@ -263,7 +285,9 @@ Chantier séparé à ouvrir.
   Pire : la ligne ajoutée dans `RGPD.md` dit « conservation **avec la séance et la session d'origine** »
   → **contradiction directe** avec les ≥ 10 ans exigés.
 - **11.2 ⚠️ PARTIEL** — Une feuille signée est verrouillée (409, `EmargementService.ts:298`, `:351`,
-  `:447`) donc non modifiable, mais rien n'est « archivé » et surtout **rien n'est exportable** (§8).
+  `:447`) donc non modifiable, et tout est désormais exportable (§8, lot 6) : PDF de séance, présences
+  CSV/Excel, attestation, récapitulatif de groupe. Il n'existe pas pour autant d'« archivage » formel
+  (gel de période, export de clôture signé).
 - **11.3 ⚠️ PARTIEL** — Sauvegardes uniquement **au déploiement** (`scripts/deploy.sh:171-182` →
   `scripts/backup-db.sh`, mysqldump/mongodump). Pas de sauvegarde planifiée, pas de politique de
   rétention des dumps.
@@ -340,10 +364,12 @@ Indépendamment du cahier des charges, ces points sont des bugs ou des dettes à
 7. Notifications automatiques apprenant / CFA / employeur + historique + seuil (§6.3–6.5).
 8. ~~Exports PDF (séance / apprenant / groupe), Excel/CSV, attestations (§8.1 / 8.2 / 8.5)~~ ✅ **lot 6**
    (`EmargementExportService`, pdfkit + `ExcelJS`, 5 routes ; voir §6).
-9. Tableaux de bord assiduité + heures prévues/réalisées + feuilles non validées (§7.1–7.3).
-   **Traité le 2026-10-30 pour la liste et l'alerte des feuilles non validées** (filtre `?validation=`,
-   statut, anomalies) — voir §6 ; **heures prévues / réalisées traitées au lot 6** (exports, 7.2) ;
-   restent les tableaux de bord (7.1).
+9. ~~Tableaux de bord assiduité + heures prévues/réalisées + feuilles non validées (§7.1–7.3).~~
+   ✅ **lot 7** pour les tableaux de bord (page `/peda/assiduite`, bandeau du tableau de bord, carte
+   de la fiche alternant), les agrégats par alternant / groupe / site / période et les feuilles
+   incomplètes (`?missing=1`, `attendanceProgress`) ; ✅ **lot 6** pour les heures prévues / réalisées
+   (exports, 7.2) ; ✅ **lot 7** pour la situation d'archivage datée et l'export historique (7.4).
+   Voir §6.
 10. En-tête organisme + logo, titre pro, module/séquence, salle/lieu, financeur (§1.1 / 1.2 / 1.3 / 1.7).
     **Traité le 2026-10-30 pour l'affichage écran** — voir §6 ; **reporté dans les exports PDF/CSV au
     lot 6** (titre pro, module, lieu, financeur, formateur sur la feuille et dans les tableurs).
@@ -488,7 +514,7 @@ Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (15 cas) �
 acceptée après fermeture et verrouillage séparé, signature de l'après-midi refusée avant fermeture
 (409 `window`), rejeu refusé (409 `signed`), édition de la demi-journée signée refusée et de l'autre
 acceptée ; lien expiré → 410 et classement `?validation=anomaly` ; validation Peda sans motif → 400,
-avec motif → `validated` + `source: 'peda'` + `signatureImage: null`, revalidation et suppression → 409.
+avec motif → `validated` + `source: 'peda'` + `signatureImage: null`, revalidation → 409 ; la suppression, elle, reste toujours possible (200).
 
 Reste à faire pour clore §5 et §7.3 : vue dédiée « feuilles incomplètes » (statuts non saisis),
 correction motivée côté Peda (§10.4), exports PDF/CSV portant les validations par demi-journée (§8).
@@ -512,8 +538,10 @@ Décisions de conception :
   valeur) ou une écriture refusée (409) n'ajoute pas d'entrée. Le journal reste lisible sans bruit.
 - **Le journal ne bloque pas l'action métier** : une erreur d'écriture de l'historique est journalisée
   côté serveur (`logger.error`) et n'échoue pas la requête, le statut étant déjà enregistré.
-- **Purge avec la séance** : `remove` supprime `emargements` **et** `emargement_history` ; aucune
-  modification ni suppression unitaire d'une entrée n'est exposée (append-only).
+- **Purge avec la séance** : `remove` supprime `emargements` **et** `emargement_history`, y compris
+  pour une feuille validée (le Peda doit pouvoir retirer une feuille créée par erreur, la
+  confirmation rappelant la perte) ; aucune modification ni suppression unitaire d'une entrée n'est
+  exposée (append-only).
 - **Motif de correction non imposé** : le « pourquoi » n'est tracé que pour la validation Peda (motif
   obligatoire). Demander un motif à chaque changement de statut aurait alourdi la saisie en séance —
   c'est le reste de 4.2 / 10.4.
@@ -536,14 +564,14 @@ produits à la demande, par un utilisateur authentifié.
 
 | Exigence | Correctif |
 |---|---|
-| 8.1 Export PDF par séance | `GET /api/emargement/seances/:id/pdf` → `EmargementExportService.seancePdf` : en-tête (session, date longue, titre pro, module, horaires, site/modalité, lieu, formateur, créneaux de signature, état de la feuille), tableau des alternants (statut + heure, horodatage de signature, tracé intégré, financeur) et blocs de signature du formateur par demi-journée (auteur, date, tracé ou mention de validation Peda + motif). |
+| 8.1 Export PDF par séance | `GET /api/emargement/seances/:id/pdf` → `EmargementExportService.seancePdf` : en-tête (session, date longue, titre pro, module, horaires de cours matin / après-midi, site/modalité, lieu, formateur, créneaux de signature, état de la feuille), tableau des alternants (statut + heure, horodatage de signature, tracé intégré, financeur) et blocs de signature du formateur par demi-journée (auteur, date, tracé ou mention de validation Peda + motif). |
 | 8.1 Export PDF par apprenant | `GET /api/emargement/attestations/:alternantId?from&to` → `attestation` (service) puis `attestationPdf` : identité, formation, session, financeur, période, heures prévues / réalisées, taux d'assiduité et détail séance par séance, avec zone de signature du service pédagogique. |
 | 8.1 Export PDF par groupe | `GET /api/emargement/sessions/:sessionId/attendance.pdf?from&to` → `groupSummary` (réutilise `exportAttendance` filtré sur la session) puis `groupPdf` : totaux du groupe et une ligne par alternant (séances, absences, heures prévues / réalisées). |
 | 8.2 Export Excel / CSV des présences et heures | `GET /api/emargement/exports/attendance` (`seanceId` / `sessionId` / `from` / `to`, `format=csv` ou `xlsx`) → `exportAttendance` : une ligne par alternant × demi-journée (session, titre pro, module, formateur, site, modalité, financeur, statut, heure, heures prévues / réalisées, signature, validation, état de la feuille) et une synthèse par alternant. CSV : BOM UTF-8 + séparateur `;`, heures décimales à virgule ; XLSX (`ExcelJS`) : feuilles « Présences » (filtre + volets figés) et « Synthèse » (heures + taux). |
 | 8.3 Journal exportable | `GET /api/emargement/exports/history` → `exportHistory` puis `historyCsv` : horodatage, date de séance, session, séance, action, alternant, demi-journée, statut avant → après, heure avant → après, auteur, source, motif. Plafond de 5 000 entrées (`HISTORY_EXPORT_LIMIT`), du plus récent au plus ancien. |
 | 8.4 Modèle PDF paramétrable | Trois chartes choisies à l'export (`theme=disciplina` / `region` / `fse`, défaut `disciplina`) : couleur d'accent, bandeau de cofinancement, libellé de marque et lignes de pied de page (mentions légales + ligne financeur). `services/emargementPdfThemes.ts` ; le contenu du document est identique, seule la charte change. |
 | 8.5 Attestation d'assiduité | Couverte par le PDF « par apprenant » ci-dessus (heures, taux, détail, signature). |
-| 7.2 Heures prévues / réalisées | `plannedMinutesOf` = durée du créneau de signature ; `attendedMinutesOf` convertit le statut : `present` = créneau entier, `late` = heure d'arrivée → fin du créneau, `left_early` = début du créneau → heure de départ, `absent` / `na` = 0. Agrégats par demi-journée, par séance, par alternant et par groupe, utilisés par tous les exports. |
+| 7.2 Heures prévues / réalisées | `plannedMinutesOf` = durée des horaires de cours de la demi-journée (lot 8, pause déjeuner exclue ; repli sur le créneau de signature pour les séances antérieures) ; `attendedMinutesOf` convertit le statut : `present` = demi-journée entière, `late` = heure d'arrivée → fin des cours, `left_early` = début des cours → heure de départ, `absent` / `na` = 0. Agrégats par demi-journée, par séance, par alternant et par groupe, utilisés par tous les exports. |
 
 Décisions de conception :
 
@@ -573,7 +601,96 @@ PDF (`theme=fse`), puis refus sans authentification (401) et séance inconnue (4
 aussi été relus visuellement (rendu `pdftoppm`) : colonne « Après-midi » masquée quand la séance n'a pas
 de créneau, alignements et pieds de page corrects.
 
-Reste à faire pour clore §7 et §8.3 : écran de suivi / tableaux de bord d'assiduité (7.1), écran de
-recherche global du journal (aujourd'hui séance par séance, avec export CSV), politique de rétention
-paramétrable, motif de correction imposé côté formateur (§10.4) et vérification de l'identité du
-signataire (§3.1 / §3.2).
+Reste à faire pour clore §8.3 : écran de recherche global du journal (aujourd'hui séance par séance,
+avec export CSV) et politique de rétention paramétrable. Restent aussi, hors §7/§8 : motif de correction
+imposé côté formateur (§10.4) et vérification de l'identité du signataire (§3.1 / §3.2). Les tableaux de
+bord d'assiduité (7.1) ont été livrés au lot 7 ci-dessous.
+
+### Lot 7 — assiduité, feuilles incomplètes et archivage (§7)
+
+Périmètre : les données créées et utilisées par l'émargement n'étaient visibles nulle part ailleurs et
+n'étaient jamais réutilisées. Ce lot les rattache aux alternants — assiduité par apprenant / groupe /
+site / période, heures prévues et réalisées, liste des feuilles incomplètes, statut d'archivage daté —
+sans toucher aux règles de calcul du lot 6, qui restent la seule source de vérité.
+
+| Exigence | Correctif |
+|---|---|
+| 7.1 Taux d'assiduité par alternant / groupe / site / période | `EmargementService.assiduite()` agrège les lignes de `exportAttendance` en trois découpages (alternant, session, site) plus un total ; `GET /api/emargement/assiduite?from&to&sessionId&site`. `assiduiteAlternant()` réutilise `attestation()` pour que la fiche, le PDF et le tableau de bord racontent la même chose ; `GET /api/emargement/assiduite/:alternantId?from&to`. |
+| 7.2 Heures prévues / réalisées | Mêmes règles qu'au lot 6 (`plannedMinutesOf` / `attendedMinutesOf`), mais agrégées et exposées par ligne et en total : `plannedMinutes`, `attendedMinutes`, `rate` (`attended ÷ planned`, `null` si aucune heure prévue). Aucun recalcul parallèle : `accumulateRow` / `totalsFrom` consomment les lignes de l'export. |
+| 7.3 Liste « feuilles incomplètes / non validées » | `SeanceListFilter.missing` + `?missing=1` : ne garde que les feuilles dont une demi-journée **fermée** n'a pas de statut. Chaque `SeanceDto` porte `attendanceProgress` (`expected`, `morning`/`afternoon` = attendu / saisi, `missing`, `missingHalves`), calculé avec `countsBySeanceAndHalf` (nouvelle agrégation Mongo) et le roster réel. Écran : filtre « Statuts manquants » et badge de compteur en liste et en détail. |
+| 7.4 Archivage et date d'effet sur la feuille | `presenceOf(alternant, ruptures, timezone)` produit `AlternantPresenceDto` (`archived`, `archiveReason`, `archiveDate`, `ruptureDate`, `poursuitFormation`), rattaché à chaque `AlternantAttendance` et à chaque ligne d'export / de synthèse. La date d'effet d'une sortie par rupture est la date de la rupture déclarée (`date_rupture` avec `poursuit_formation === false`), pas la date d'archivage technique ; une rupture qui poursuit la formation est mentionnée sans être une sortie. |
+| Exclusion des sortis + export historique | `isOnSeance` garde un archivé sur la feuille tant que `archiveDate >= seance.date` ; `includeArchived=1` force son inclusion (export historique). Le tableau de bord suit la même règle par défaut. |
+| Situation dans les justificatifs | Colonne « Situation » dans les CSV/Excel (détail et synthèse), mention sous le nom sur le PDF de séance (ligne plus haute si présente) et sous la ligne du PDF de groupe : « Archivé — rupture (JJ/MM/AAAA) », « Rupture le … — poursuit la formation » ou « En formation ». Série « Non renseignées » ajoutée à la synthèse CSV/Excel. |
+| UI Peda | Nouvelle page `/peda/assiduite` (tuiles, onglets alternants / groupes / sites, filtres période + session + site, export CSV/Excel, alerte « demi-journées fermées sans statut »), bandeau « Assiduité du mois » sur `DashboardPeda`, carte « Assiduité » + bouton attestation sur `FicheAlternant`, badge de situation et compteur de statuts manquants sur `EmargementSeance`. |
+
+Décisions de conception :
+
+- **Une seule source de vérité** : l'assiduité dérive des lignes de `exportAttendance`, elles-mêmes
+  calculées sur les rosters (`sessionRosters` / `isOnSeance`) et les mêmes fonctions d'heures que les
+  exports. Un chiffre affiché à l'écran ne peut pas diverger d'un chiffre exporté.
+- **« Non renseigné » n'est pas une absence** : une demi-journée fermée sans statut n'entre pas dans
+  `halves` et ne pèse pas sur le taux comme un `absent` ; elle est comptée à part (`missingHalves`) et
+  signalée à l'écran. Le taux n'est donc pas silencieusement faussé vers le bas, et les exports
+  distinguent les deux situations.
+- **Le dénominateur reste le prévu** : `rate = attendedMinutes / plannedMinutes`, les heures prévues
+  couvrant toutes les demi-journées applicables (y compris non renseignées) ; `missingHalves` dit
+  explicitement quand ce taux est sous-évalué.
+- **Date d'effet = date déclarée, pas date technique** : pour une sortie par rupture, c'est
+  `date_rupture` qui décide si l'alternant était encore attendu sur une séance ; `archived_at` ne sert
+  que pour une fin de formation.
+- **Une rupture peut ne pas être une sortie** : `poursuit_formation: true` n'archive pas et n'exclut
+  pas des feuilles ; la distinction est portée jusqu'aux PDF pour éviter de faire disparaître un jeune
+  qui a changé d'entreprise mais reste en formation.
+- **Lecture seule depuis l'émargement** : le module ne modifie ni l'alternant ni la rupture ; il lit
+  `RuptureRepository.findByAlternantIds` et l'archivage reste piloté par le module Ruptures.
+- **Export historique explicite** : par défaut un sorti n'apparaît que sur les séances où il était
+  présent (sinon sa ligne serait un faux « absent » après son départ) ; `includeArchived` est une
+  demande volontaire, jamais un défaut.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (22 cas au lot 7, dont 4 pour ce lot ; 24 au total après le lot 8) —
+agrégats par alternant / session / site avec taux à 50 %, fiche d'un alternant (détail par demi-journée,
+404 sur un identifiant inconnu) ; `?missing=1` et `attendanceProgress` avant / après saisie ; exclusion
+d'un sorti de la veille, maintien d'une rupture qui poursuit, export avec `includeArchived` (colonne
+« Situation » et date d'effet au format français), tableau de bord aligné ; demi-journée non renseignée
+comptée dans `missingHalves` sans devenir une absence. Vérifié aussi côté front : `tsc -b`, eslint sur
+les fichiers touchés, `npm run build`.
+
+Reste à faire pour clore §7 : rien côté données ; les manques restants sont 11.1 (rétention) et
+8.3 (recherche globale du journal), traités comme dettes séparées.
+
+### Lot 8 — heures prévues / réalisées sur les horaires de cours (7.2, 8.1)
+
+Périmètre : les heures d'assiduité étaient calculées sur les **créneaux de signature** (15 à 30 minutes),
+qui ne mesurent pas le temps de formation. Ce lot sépare les deux notions : les horaires de cours
+(matin / après-midi, pause déjeuner exclue) portent les heures, les créneaux de signature continuent de
+borner la signature des alternants et la fermeture d'une demi-journée.
+
+| Exigence | Correctif |
+|---|---|
+| 7.2 Heures prévues / réalisées | La séance porte `morning_class_start` / `morning_class_end` et `afternoon_class_start` / `afternoon_class_end` (`HH:mm`). `classSchedule(seance, half)` les lit ; `plannedMinutesOf` = durée de la demi-journée de cours ; `attendedMinutesOf` : `present` = demi-journée entière, `late` = heure d'arrivée → fin des cours, `left_early` = début des cours → heure de départ, `absent` / `na` = 0, les bornes restant bornées à `[0, prévu]`. La pause déjeuner (12:30 → 13:30 par défaut) n'est jamais comptée. |
+| 8.1 En-tête du PDF de séance | La ligne « Horaires » affiche « Matin 09:00–12:30 · Après-midi 13:30–17:00 » (`seanceHoursLabel`) au lieu d'une plage globale qui englobait la pause. Les créneaux de signature restent affichés sur leur propre ligne. |
+| Création / modification d'une séance | `parseSeanceInput` exige les horaires de cours du matin, valide la paire de l'après-midi (chevauchement refusé : `morning_class_end` ≤ `afternoon_class_start`), borne chaque créneau de signature à **sa** demi-journée de cours et refuse un créneau l'après-midi sans horaires de cours l'après-midi. `start_time` / `end_time` ne sont plus saisis : ils sont dérivés (`start_time` = `morning_class_start`, `end_time` = `afternoon_class_end`, sinon `morning_class_end`) pour les listes, les invitations et les exports. |
+| Rétrocompatibilité | Les séances créées avant le lot 8 n'ont pas d'horaires de cours (`null`). `classSchedule` retombe sur le créneau de signature, ce qui reproduit exactement leurs heures actuelles ; aucune migration, aucune écriture. À la première modification, le formulaire pré-remplit les horaires de cours avec les créneaux existants. |
+| UI | `SeanceFormModal` : bloc « Horaires de cours » (matin début/fin, après-midi début/fin, la case « demi-journée l'après-midi » commandant les deux), validation miroir du serveur, créneaux de signature bornés par `min`/`max` à leur demi-journée. Listes, détail de feuille, page formateur et page QR affichent `scheduleSummary` (« Matin … · Après-midi … », repli sur les horaires globaux pour une séance ancienne). |
+
+Décisions de conception :
+
+- **Deux notions, deux vies** : les créneaux de signature gardent leur rôle (ouverture du QR, fermeture
+  de la demi-journée, verrouillage) ; seuls les horaires de cours alimentent les heures. Changer l'un ne
+  change pas l'autre.
+- **Pas d'invention de données** : aucune reprise de masse des séances existantes. Le repli sur le créneau
+  garde les chiffres historiques stables, et une séance mise à jour acquiert ses horaires de cours sans
+  effet rétroactif sur les exports déjà produits.
+- **Pause déjeuner par construction** : deux plages horaires séparées rendent le trou non comptable —
+  impossible de « travailler » pendant la pause, même si les créneaux de signature l'encadrent.
+- **Heures réalisées bornées** : une heure de retard antérieure au début ou un départ postérieur à la fin
+  est ramené dans `[0, prévu]`, donc une saisie approximative ne peut ni dépasser le prévu ni devenir
+  négative.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (24 cas, dont 2 pour ce lot) —
+journée 09:00–12:30 / 13:30–17:00 : 420 minutes prévues par alternant (et non 480), retard 14:30 → 150
+minutes, départ anticipé 10:30 → 90 minutes, détail par demi-journée aligné, horaires globaux dérivés
+(`startTime` = 09:00, `endTime` = 17:00) ; créneau de signature débordant sur la pause ou sur
+l'après-midi refusé (400), créneau de l'après-midi sans horaires de cours refusé (400), séance sans
+après-midi acceptée. Vérifié aussi côté front : `tsc -b`, eslint sur les fichiers touchés,
+`npm run build`.

@@ -46,13 +46,18 @@ import {
   type CompanyForm,
 } from '@/api/alternants'
 import { declareRupture, deleteRupture, fetchAlternantRuptures } from '@/api/ruptures'
+import { fetchAssiduiteAlternant, fetchAttestation } from '@/api/emargement'
 import { fetchSessions } from '@/api/sessions'
+import { toast } from '@/store/toastStore'
+import { downloadBlob } from '@/utils/download'
+import { formatMinutes, formatRate, HALF_LABELS, STATUS_LABELS, formatSeanceDate, presenceLabel, presenceTone } from '@/utils/emargement'
 import {
   FINANCEUR_SUGGESTIONS,
   type Alternant,
   type AlternantSequence,
   type SequenceContacts,
 } from '@/types/alternant'
+import type { AssiduiteAlternant } from '@/types/emargement'
 import { formatRuptureDate, poursuiteLabel, type Rupture } from '@/types/rupture'
 import type { Session } from '@/types/session'
 
@@ -153,6 +158,43 @@ export default function FicheAlternant() {
   const [rescheduleId, setRescheduleId] = useState<string | null>(null)
   const [rescheduleDate, setRescheduleDate] = useState('')
   const [rescheduling, setRescheduling] = useState(false)
+  /** Assiduité issue des feuilles d'émargement (7.1) — chargée à part. */
+  const [assiduite, setAssiduite] = useState<AssiduiteAlternant | null>(null)
+  const [assiduiteError, setAssiduiteError] = useState<string | null>(null)
+  const [downloadingAttestation, setDownloadingAttestation] = useState(false)
+
+  useEffect(() => {
+    if (!id) return
+    let alive = true
+    fetchAssiduiteAlternant(id).then(
+      (result) => {
+        if (!alive) return
+        setAssiduite(result)
+        setAssiduiteError(null)
+      },
+      (e: unknown) => {
+        if (!alive) return
+        // Un alternant sans session n'a pas d'émargement : ce n'est pas une erreur bloquante.
+        setAssiduiteError(e instanceof Error ? e.message : 'Assiduité indisponible')
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [id])
+
+  async function downloadAttestation() {
+    if (!id) return
+    setDownloadingAttestation(true)
+    try {
+      const { blob, fileName } = await fetchAttestation(id)
+      downloadBlob(blob, fileName)
+    } catch (e) {
+      toast.errorMessage('Attestation indisponible', e instanceof Error ? e.message : undefined)
+    } finally {
+      setDownloadingAttestation(false)
+    }
+  }
 
   useEffect(() => {
     if (!id) return
@@ -712,6 +754,112 @@ export default function FicheAlternant() {
                 </span>
               </li>
             </ul>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Assiduité"
+              description="Feuilles d’émargement — heures prévues et réalisées"
+              actions={
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  leftIcon={<IconFile width={15} height={15} />}
+                  isLoading={downloadingAttestation}
+                  disabled={!assiduite || assiduite.seances.length === 0}
+                  onClick={downloadAttestation}
+                >
+                  Attestation PDF
+                </Button>
+              }
+            />
+            {assiduiteError ? (
+              <p className="text-sm italic text-[var(--ds-text-subtle)]">{assiduiteError}</p>
+            ) : !assiduite ? (
+              <p className="text-sm italic text-[var(--ds-text-subtle)]">Chargement…</p>
+            ) : assiduite.seances.length === 0 ? (
+              <p className="text-sm italic text-[var(--ds-text-subtle)]">
+                Aucune feuille d’émargement sur la période : rien à calculer pour l’instant.
+              </p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-[var(--ds-surface-sunken)] px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ds-text-subtle)]">
+                      Taux d’assiduité
+                    </p>
+                    <p className="mt-0.5 text-[20px] font-extrabold text-[var(--ds-text)]">
+                      {formatRate(assiduite.totals.rate)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-[var(--ds-surface-sunken)] px-3 py-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ds-text-subtle)]">
+                      Heures réalisées
+                    </p>
+                    <p className="mt-0.5 text-[20px] font-extrabold text-[var(--ds-text)]">
+                      {formatMinutes(assiduite.totals.attendedMinutes)}
+                    </p>
+                    <p className="text-[11px] text-[var(--ds-text-subtle)]">
+                      sur {formatMinutes(assiduite.totals.plannedMinutes)} prévues
+                    </p>
+                  </div>
+                </div>
+
+                {presenceLabel(assiduite.presence) && (
+                  <p className="mt-3">
+                    <Badge tone={presenceTone(assiduite.presence)}>{presenceLabel(assiduite.presence)}</Badge>
+                  </p>
+                )}
+
+                <ul className="mt-3 space-y-1 text-[12px] text-[var(--ds-text-muted)]">
+                  <li className="flex justify-between gap-2">
+                    <span>Séances émargées</span>
+                    <span className="font-semibold text-[var(--ds-text)]">{assiduite.totals.seances}</span>
+                  </li>
+                  <li className="flex justify-between gap-2">
+                    <span>Absences</span>
+                    <span className="font-semibold text-[var(--ds-text)]">{assiduite.totals.absences}</span>
+                  </li>
+                  {assiduite.totals.missingHalves > 0 && (
+                    <li className="flex justify-between gap-2 text-[var(--ds-warning)]">
+                      <span>Demi-journées non renseignées</span>
+                      <span className="font-semibold">{assiduite.totals.missingHalves}</span>
+                    </li>
+                  )}
+                </ul>
+
+                <details className="mt-3">
+                  <summary className="cursor-pointer text-[12px] font-semibold text-[var(--ds-accent)]">
+                    Détail des {assiduite.seances.length} séance{assiduite.seances.length > 1 ? 's' : ''}
+                  </summary>
+                  <ul className="mt-2 divide-y divide-[var(--ds-border)]">
+                    {assiduite.seances.map((seance) => (
+                      <li key={seance.seanceId} className="py-2">
+                        <p className="flex flex-wrap items-center justify-between gap-2 text-[12px] font-semibold text-[var(--ds-text)]">
+                          <span>{formatSeanceDate(seance.date)}</span>
+                          <span className="text-[var(--ds-text-subtle)]">
+                            {formatMinutes(seance.attendedMinutes)} / {formatMinutes(seance.plannedMinutes)}
+                          </span>
+                        </p>
+                        {seance.module && (
+                          <p className="text-[11px] text-[var(--ds-text-subtle)]">{seance.module}</p>
+                        )}
+                        <p className="mt-0.5 flex flex-wrap gap-1.5 text-[11px] text-[var(--ds-text-muted)]">
+                          {seance.halves.map((half) => (
+                            <span key={half.half}>
+                              {HALF_LABELS[half.half]} :{' '}
+                              <span className={half.missing ? 'text-[var(--ds-warning)]' : ''}>
+                                {half.missing ? 'Non renseigné' : STATUS_LABELS[half.status]}
+                              </span>
+                            </span>
+                          ))}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              </>
+            )}
           </Card>
 
           <Card>

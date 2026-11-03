@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { IconCalendar, IconCheckCircle, IconCompany, IconLoader, IconRefresh, IconSearch, IconTraining } from '@/components/ui/icons'
+import { Link, useNavigate } from 'react-router-dom'
+import { IconCalendar, IconCheckCircle, IconCompany, IconLoader, IconRefresh, IconReport, IconSearch, IconTraining } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import Badge from '@/components/ui/Badge'
 import Card from '@/components/ui/Card'
@@ -9,11 +9,14 @@ import PageHeader from '@/components/ui/PageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import Tabs from '@/components/ui/Tabs'
 import PedaCalendrier from '@/components/peda/PedaCalendrier'
+import { fetchAssiduite } from '@/api/emargement'
 import { fetchAlternants, fetchSequences } from '@/api/alternants'
 import { reconcilePedaCalendar } from '@/api/peda'
 import { fetchSessions } from '@/api/sessions'
 import type { Alternant, AlternantSequence } from '@/types/alternant'
+import type { Assiduite } from '@/types/emargement'
 import type { Session } from '@/types/session'
+import { LOW_ATTENDANCE_RATE, formatMinutes, formatRate } from '@/utils/emargement'
 
 type Bucket = 'late' | 'soon' | 'upcoming'
 type View = 'list' | 'calendar'
@@ -68,6 +71,19 @@ function pluralize(count: number, singular: string, plural?: string): string {
   return `${count} ${count > 1 ? (plural ?? `${singular}s`) : singular}`
 }
 
+/** Premier jour du mois courant en date locale (`YYYY-MM-DD`). */
+function monthStart(): string {
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60_000
+  return `${new Date(now.getTime() - offset).toISOString().slice(0, 8)}01`
+}
+
+function localToday(): string {
+  const now = new Date()
+  const offset = now.getTimezoneOffset() * 60_000
+  return new Date(now.getTime() - offset).toISOString().slice(0, 10)
+}
+
 export default function DashboardPeda() {
   const navigate = useNavigate()
   const [tab, setTab] = useState<Bucket>('late')
@@ -79,6 +95,25 @@ export default function DashboardPeda() {
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
   const [search, setSearch] = useState('')
+  const [assiduite, setAssiduite] = useState<Assiduite | null>(null)
+
+  // Bandeau d'assiduité du mois : le tableau de bord ne suivait que les SA,
+  // les données d'émargement n'étaient visibles nulle part ailleurs (7.1).
+  useEffect(() => {
+    if (view !== 'list') return
+    let alive = true
+    fetchAssiduite({ from: monthStart(), to: localToday() }).then(
+      (result) => {
+        if (alive) setAssiduite(result)
+      },
+      () => {
+        // Secondaire : un échec ne doit pas masquer les SA.
+      },
+    )
+    return () => {
+      alive = false
+    }
+  }, [view, refreshKey])
 
   useEffect(() => {
     // La vue calendrier charge ses propres données (API Google) : inutile de
@@ -219,6 +254,76 @@ export default function DashboardPeda() {
           </div>
         }
       />
+
+      {view === 'list' && assiduite && assiduite.totals.seances > 0 && (
+        <Card className="mb-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-[15px] font-bold text-[var(--ds-text)]">
+                <IconReport width={16} height={16} className="text-[var(--ds-accent)]" />
+                Assiduité du mois
+              </h2>
+              <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+                {assiduite.from && assiduite.to
+                  ? `Émargements du ${formatDate(assiduite.from)} au ${formatDate(assiduite.to)}, toutes sessions confondues.`
+                  : 'Toutes sessions confondues, sur tout l’historique.'}
+              </p>
+            </div>
+            <Link
+              to="/peda/assiduite"
+              className="text-[13px] font-semibold text-[var(--ds-accent)] no-underline hover:underline"
+            >
+              Voir le détail par alternant, groupe et site →
+            </Link>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="rounded-[var(--radius-lg)] bg-[var(--ds-surface-sunken)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ds-text-subtle)]">
+                Taux d’assiduité
+              </p>
+              <p className="mt-1 text-[22px] font-extrabold leading-tight text-[var(--ds-text)]">
+                {formatRate(assiduite.totals.rate)}
+              </p>
+            </div>
+            <div className="rounded-[var(--radius-lg)] bg-[var(--ds-surface-sunken)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ds-text-subtle)]">
+                Heures réalisées
+              </p>
+              <p className="mt-1 text-[22px] font-extrabold leading-tight text-[var(--ds-text)]">
+                {formatMinutes(assiduite.totals.attendedMinutes)}
+              </p>
+              <p className="mt-0.5 text-[11px] text-[var(--ds-text-subtle)]">
+                sur {formatMinutes(assiduite.totals.plannedMinutes)} prévues
+              </p>
+            </div>
+            <div className="rounded-[var(--radius-lg)] bg-[var(--ds-surface-sunken)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ds-text-subtle)]">
+                Sous le seuil
+              </p>
+              <p className="mt-1 text-[22px] font-extrabold leading-tight text-[var(--ds-text)]">
+                {
+                  assiduite.alternants.filter(
+                    (row) => row.rate !== null && row.rate < LOW_ATTENDANCE_RATE,
+                  ).length
+                }
+              </p>
+              <p className="mt-0.5 text-[11px] text-[var(--ds-text-subtle)]">
+                alternant(s) sous {Math.round(LOW_ATTENDANCE_RATE * 100)} %
+              </p>
+            </div>
+            <div className="rounded-[var(--radius-lg)] bg-[var(--ds-surface-sunken)] px-4 py-3">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--ds-text-subtle)]">
+                Feuilles incomplètes
+              </p>
+              <p className="mt-1 text-[22px] font-extrabold leading-tight text-[var(--ds-text)]">
+                {assiduite.totals.missingHalves}
+              </p>
+              <p className="mt-0.5 text-[11px] text-[var(--ds-text-subtle)]">demi-journée(s) sans statut</p>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {error && (
         <div className="mb-6 rounded-xl border border-[var(--ds-danger)]/30 bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)]">
