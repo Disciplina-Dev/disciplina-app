@@ -401,7 +401,7 @@ SA (séquences d'accompagnement).
 
 ## Collection: seances
 
-Émargement (#955). Une séance = une demi-journée ou journée de cours d'une promotion Filiz, avec ses fenêtres de signature.
+Émargement (#955). Une séance = une demi-journée ou journée de cours d'une promotion Filiz, avec ses horaires de cours (matin / après-midi, pause déjeuner exclue) et ses fenêtres de signature — deux notions distinctes depuis le lot 8 : les heures d'assiduité se calculent sur les horaires de cours, la signature reste bornée aux fenêtres.
 
 | Field | Type | Notes |
 |-------|------|-------|
@@ -412,12 +412,14 @@ SA (séquences d'accompagnement).
 | `module` | string \| null | module / séquence traités, libellé libre (≤ 120 car.) |
 | `location` | string \| null | lieu précis (salle, adresse, lien visio), libellé libre (≤ 120 car.) — complète `site` + `mode` |
 | `date` | string | required, `YYYY-MM-DD` (jour local du tenant), indexed |
-| `start_time`, `end_time` | string | required, `HH:mm` |
+| `start_time`, `end_time` | string | required, `HH:mm` — horaires globaux **dérivés** des horaires de cours (`morning_class_start` → `afternoon_class_end`, sinon `morning_class_end`) ; plus jamais saisis, ils servent aux listes, aux invitations et au PDF |
+| `morning_class_start`, `morning_class_end` | string \| null | horaires de cours du matin, base des heures prévues / réalisées (lot 8) ; `null` sur les séances créées avant. Repli sur la fenêtre de signature du matin tant qu'ils sont absents |
+| `afternoon_class_start`, `afternoon_class_end` | string \| null | horaires de cours de l'après-midi, pause déjeuner exclue (`morning_class_end` ≤ `afternoon_class_start`) ; `null` = séance sans après-midi. Repli sur la fenêtre de l'après-midi |
 | `site` | string | required — `Nord` \| `Ouest` \| `Sud` \| `Annemasse` |
 | `mode` | string | required — `salle` \| `distanciel` |
 | `formateur_name`, `formateur_email` | string | required |
-| `morning_start`, `morning_end` | string | required — fenêtre de signature du matin, bornée aux horaires de la séance (`start_time` ≤ `morning_start` < `morning_end` ≤ `end_time`) |
-| `afternoon_start`, `afternoon_end` | string \| null | fenêtre de signature de l'après-midi, mêmes bornes (`null` = séance sans après-midi) |
+| `morning_start`, `morning_end` | string | required — fenêtre de signature du matin, bornée à sa demi-journée de cours (`morning_class_start` ≤ `morning_start` < `morning_end` ≤ `morning_class_end`) |
+| `afternoon_start`, `afternoon_end` | string \| null | fenêtre de signature de l'après-midi : mêmes bornes, et obligatoirement accompagnée des horaires de cours de l'après-midi (`null` = séance sans après-midi) |
 | `timezone` | string | required — fuseau IANA du tenant au moment de la création |
 | `token_secret` | string | required — sel du lien formateur/QR ; rotation = révocation |
 | `invite_expires_at` | Date | required — fin du jour J + 7 jours (`EMARGEMENT_GRACE_DAYS`), en heure locale : le formateur peut régulariser après minuit ; un renvoi d'invitation par le Peda repousse l'échéance. Les alternants, eux, restent bornés par la fermeture de leur créneau |

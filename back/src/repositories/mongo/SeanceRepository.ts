@@ -10,6 +10,8 @@ export interface SeanceListFilter {
     to?: string;
     /** État de validation calculé (créneaux, délai de régularisation) — filtre en mémoire. */
     validation?: SeanceValidationStatus;
+    /** Ne garde que les feuilles avec des statuts non saisis sur un créneau fermé. */
+    missing?: boolean;
 }
 
 export class SeanceRepository {

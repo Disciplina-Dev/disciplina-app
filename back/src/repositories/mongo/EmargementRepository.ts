@@ -145,4 +145,33 @@ export class EmargementRepository {
         ]);
         return new Map(rows.map((row) => [row._id, { marked: row.marked, present: row.present }]));
     }
+
+    /**
+     * Statuts réellement saisis par séance et par demi-journée (« non renseigné »
+     * ne compte pas). Sert à repérer les feuilles incomplètes sans rapatrier les
+     * tracés de signature.
+     */
+    async countsBySeanceAndHalf(seanceIds: string[]): Promise<Map<string, { morning: number; afternoon: number }>> {
+        if (seanceIds.length === 0) return new Map();
+        const rows = await getModels().Emargement.aggregate<{
+            _id: { seance: string; half: EmargementHalf };
+            count: number;
+        }>([
+            { $match: { seance_id: { $in: seanceIds }, status: { $ne: 'na' } } },
+            {
+                $group: {
+                    _id: { seance: '$seance_id', half: '$half' },
+                    count: { $sum: 1 },
+                },
+            },
+        ]);
+        const counts = new Map<string, { morning: number; afternoon: number }>();
+        for (const row of rows) {
+            const entry = counts.get(row._id.seance) ?? { morning: 0, afternoon: 0 };
+            if (row._id.half === 'morning') entry.morning = row.count;
+            else entry.afternoon = row.count;
+            counts.set(row._id.seance, entry);
+        }
+        return counts;
+    }
 }

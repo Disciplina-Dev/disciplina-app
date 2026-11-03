@@ -42,6 +42,7 @@ import {
   WINDOW_TONES,
   formatSeanceDate,
   formatTimestamp,
+  scheduleSummary,
   seancePlace,
   seanceProgram,
   signatureLabel,
@@ -508,7 +509,7 @@ export default function FormateurEmargement() {
           <p className="mt-0.5 text-[14px] font-semibold text-[var(--ds-text-muted)]">{program}</p>
         )}
         <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
-          {formatSeanceDate(seance.date)} · {seance.startTime}–{seance.endTime} · {seancePlace(seance)}
+          {formatSeanceDate(seance.date)} · {scheduleSummary(seance)} · {seancePlace(seance)}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Badge tone="accent">Formateur : {seance.formateurName}</Badge>

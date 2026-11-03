@@ -1,10 +1,20 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
-import { ClientMeta, EmargementExportFilter, EmargementService } from '../../services/EmargementService';
+import {
+    ClientMeta,
+    AssiduiteFilter,
+    EmargementExportFilter,
+    EmargementService,
+} from '../../services/EmargementService';
 import { EmargementExportService } from '../../services/EmargementExportService';
 import { parsePdfTheme } from '../../services/emargementPdfThemes';
-import { SEANCE_VALIDATION_STATUSES, SeanceValidationStatus } from '../../types/emargement.types';
+import {
+    SEANCE_SITES,
+    SEANCE_VALIDATION_STATUSES,
+    SeanceSite,
+    SeanceValidationStatus,
+} from '../../types/emargement.types';
 import { isIsoDate } from '../../utils/zonedTime';
 
 const service = new EmargementService();
@@ -36,6 +46,12 @@ function queryString(value: unknown): string | undefined {
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
 }
 
+/** Booléen de query string : `1`, `true`, `yes` (insensible à la casse). */
+function queryFlag(value: unknown): boolean {
+    const raw = queryString(value)?.toLowerCase();
+    return raw === '1' || raw === 'true' || raw === 'yes';
+}
+
 // ── Côté Peda ────────────────────────────────────────────────────────────────
 
 export async function list(req: AuthRequest, res: Response): Promise<void> {
@@ -52,6 +68,7 @@ export async function list(req: AuthRequest, res: Response): Promise<void> {
                 validation && (SEANCE_VALIDATION_STATUSES as readonly string[]).includes(validation)
                     ? (validation as SeanceValidationStatus)
                     : undefined,
+            missing: queryFlag(req.query.missing),
         });
         res.json({ seances });
     } catch (error) {
@@ -145,6 +162,21 @@ function exportFilter(req: AuthRequest): EmargementExportFilter {
         sessionId,
         from: from && isIsoDate(from) ? from : undefined,
         to: to && isIsoDate(to) ? to : undefined,
+        includeArchived: queryFlag(req.query.includeArchived),
+    };
+}
+
+/** Période d'assiduité : bornes de dates + session / site optionnels. */
+function assiduiteFilter(req: AuthRequest): AssiduiteFilter {
+    const from = queryString(req.query.from);
+    const to = queryString(req.query.to);
+    const sessionId = queryString(req.query.sessionId);
+    const site = queryString(req.query.site);
+    return {
+        from: from && isIsoDate(from) ? from : undefined,
+        to: to && isIsoDate(to) ? to : undefined,
+        sessionId,
+        site: site && (SEANCE_SITES as readonly string[]).includes(site) ? (site as SeanceSite) : undefined,
     };
 }
 
@@ -236,6 +268,33 @@ export async function exportGroupPdf(req: AuthRequest, res: Response): Promise<v
         );
     } catch (error) {
         sendError(res, error, 'Emargement group PDF export failed');
+    }
+}
+
+// ── Assiduité (7.1 / 7.2) ────────────────────────────────────────────────────
+
+/** Agrégats d'assiduité : par alternant, par session et par site, sur une période. */
+export async function assiduite(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        res.json({ assiduite: await service.assiduite(assiduiteFilter(req)) });
+    } catch (error) {
+        sendError(res, error, 'Emargement assiduite failed');
+    }
+}
+
+/** Assiduité d'un alternant : synthèse et détail séance par séance. */
+export async function assiduiteAlternant(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const from = queryString(req.query.from);
+        const to = queryString(req.query.to);
+        res.json({
+            assiduite: await service.assiduiteAlternant(String(req.params.alternantId), {
+                from: from && isIsoDate(from) ? from : undefined,
+                to: to && isIsoDate(to) ? to : undefined,
+            }),
+        });
+    } catch (error) {
+        sendError(res, error, 'Emargement alternant assiduite failed');
     }
 }
 

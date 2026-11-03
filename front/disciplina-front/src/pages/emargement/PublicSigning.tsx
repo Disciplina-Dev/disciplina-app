@@ -21,6 +21,7 @@ import {
   WINDOW_TONES,
   formatSeanceDate,
   formatTimestamp,
+  scheduleSummary,
   seancePlace,
   seanceProgram,
 } from '@/utils/emargement'
@@ -133,7 +134,7 @@ export default function PublicSigning() {
         <h1 className="mt-1 text-[22px] font-extrabold leading-tight text-[var(--ds-text)]">{seance.sessionNom}</h1>
         {program && <p className="mt-0.5 text-[13px] font-semibold text-[var(--ds-text-muted)]">{program}</p>}
         <p className="mt-1 text-[13px] text-[var(--ds-text-subtle)]">
-          {formatSeanceDate(seance.date)} · {seance.startTime}–{seance.endTime}
+          {formatSeanceDate(seance.date)} · {scheduleSummary(seance)}
         </p>
         <p className="text-[13px] text-[var(--ds-text-subtle)]">{seancePlace(seance)}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">

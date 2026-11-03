@@ -57,6 +57,7 @@ import FicheSession from "@/pages/peda/FicheSession";
 import Ruptures from "@/pages/peda/Ruptures";
 import Emargements from "@/pages/peda/Emargements";
 import EmargementSeance from "@/pages/peda/EmargementSeance";
+import Assiduite from "@/pages/peda/Assiduite";
 import FormateurEmargement from "@/pages/emargement/FormateurEmargement";
 import PublicSigning from "@/pages/emargement/PublicSigning";
 
@@ -223,6 +224,7 @@ export const router = createBrowserRouter([
       { path: "ruptures", element: <Ruptures />, handle: { crumb: "Ruptures" } },
       { path: "emargements", element: <Emargements />, handle: { crumb: "Émargements" } },
       { path: "emargements/:id", element: <EmargementSeance />, handle: { crumb: "Feuille d’émargement" } },
+      { path: "assiduite", element: <Assiduite />, handle: { crumb: "Assiduité" } },
       { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
       { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],

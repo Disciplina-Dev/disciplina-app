@@ -95,10 +95,44 @@ export interface AlternantAttendance {
   email?: string | null
   /** Financeur de la formation (OPCO, Région…) — affiché sur la feuille. */
   financeur?: string | null
+  /** Situation vis-à-vis de la formation (archivage / rupture) au moment de la séance. */
+  presence: AlternantPresence
   attendance: {
     morning: AttendanceRecord | null
     afternoon: AttendanceRecord | null
   }
+}
+
+/**
+ * Situation d'un alternant vis-à-vis de sa session : une sortie (archivage) ou
+ * une rupture qui n'archive pas (le jeune poursuit sa formation).
+ */
+export interface AlternantPresence {
+  /** `true` = sorti de la formation, plus attendu sur les séances suivantes. */
+  archived: boolean
+  /** `rupture` = sortie par rupture, `fin_formation` = fin normale, `null` = actif. */
+  archiveReason: AlternantArchiveReason | null
+  /** Date d'effet de la sortie (`YYYY-MM-DD`), `null` quand l'alternant est actif. */
+  archiveDate: string | null
+  /** Dernière rupture déclarée, même quand le jeune poursuit sa formation. */
+  ruptureDate: string | null
+  /** La dernière rupture déclarée indique que le jeune poursuit sa formation. */
+  poursuitFormation: boolean
+}
+
+export type AlternantArchiveReason = 'rupture' | 'fin_formation'
+
+/**
+ * Avancement de la saisie d'une feuille : les manques ne sont comptés que sur
+ * les créneaux déjà fermés (« non renseigné » n'est pas une absence).
+ */
+export interface SeanceAttendanceProgress {
+  expected: number
+  morning: { expected: number; recorded: number }
+  afternoon: { expected: number; recorded: number }
+  /** Statuts manquants sur des demi-journées fermées. */
+  missing: number
+  missingHalves: EmargementHalf[]
 }
 
 export interface SeanceWindow {
@@ -119,8 +153,16 @@ export interface Seance {
   location: string | null
   /** Jour de la séance, `YYYY-MM-DD` (heure locale du tenant). */
   date: string
+  /** Début des cours (dérivé : `morningClassStart`). */
   startTime: string
+  /** Fin des cours (dérivée : `afternoonClassEnd`, sinon `morningClassEnd`). */
   endTime: string
+  /** Horaires de cours du matin (`null` sur les séances antérieures au lot 8). */
+  morningClassStart: string | null
+  morningClassEnd: string | null
+  /** Horaires de cours de l'après-midi ; `null` = séance sans après-midi. */
+  afternoonClassStart: string | null
+  afternoonClassEnd: string | null
   site: SeanceSite
   mode: SeanceMode
   formateurName: string
@@ -151,6 +193,8 @@ export interface Seance {
   marked: number
   /** Nombre de présences (présent, en retard, parti en avance). */
   present: number
+  /** Avancement de la saisie : statuts manquants sur les créneaux fermés. */
+  attendanceProgress: SeanceAttendanceProgress
 }
 
 export interface SeanceDetail extends Seance {
@@ -169,6 +213,11 @@ export interface FormateurView {
     date: string
     startTime: string
     endTime: string
+    /** Horaires de cours (`null` sur les séances antérieures au lot 8). */
+    morningClassStart: string | null
+    morningClassEnd: string | null
+    afternoonClassStart: string | null
+    afternoonClassEnd: string | null
     site: SeanceSite
     mode: SeanceMode
     formateurName: string
@@ -203,6 +252,11 @@ export interface PublicSigning {
   date: string
   startTime: string
   endTime: string
+  /** Horaires de cours (`null` sur les séances antérieures au lot 8). */
+  morningClassStart: string | null
+  morningClassEnd: string | null
+  afternoonClassStart: string | null
+  afternoonClassEnd: string | null
   site: SeanceSite
   mode: SeanceMode
   signed: boolean
@@ -218,12 +272,16 @@ export interface PublicSigning {
 export interface CreateSeanceInput {
   sessionId: string
   date: string
-  startTime: string
-  endTime: string
   site: SeanceSite
   mode: SeanceMode
   formateurName: string
   formateurEmail: string
+  /** Horaires de cours, base des heures prévues / réalisées (pause déjeuner exclue). */
+  morningClassStart: string
+  morningClassEnd: string
+  afternoonClassStart: string | null
+  afternoonClassEnd: string | null
+  /** Créneaux de signature, bornés à la demi-journée de cours correspondante. */
   morningStart: string
   morningEnd: string
   afternoonStart: string | null
@@ -267,6 +325,96 @@ export interface EmargementExportFilter {
   from?: string
   /** `YYYY-MM-DD`, borne haute incluse. */
   to?: string
+  /**
+   * Inclut les alternants archivés même sortis avant la séance (export
+   * historique). Par défaut, un sorti ne figure que sur les séances où il était
+   * encore présent.
+   */
+  includeArchived?: boolean
 }
 
 export type EmargementExportFormat = 'csv' | 'xlsx'
+
+// ── Assiduité (7.1 / 7.2) ────────────────────────────────────────────────────
+
+/** Compteurs d'heures communs aux lignes et aux totaux du tableau de bord. */
+export interface AssiduiteTotals {
+  alternants: number
+  seances: number
+  /** Demi-journées réellement saisies (statut ≠ « non renseigné »). */
+  halves: number
+  /** Demi-journées fermées sans statut saisi : le taux peut être sous-évalué. */
+  missingHalves: number
+  absences: number
+  plannedMinutes: number
+  attendedMinutes: number
+  /** `attended / planned` entre 0 et 1 ; `null` quand aucune heure n'est prévue. */
+  rate: number | null
+}
+
+/** Une ligne du tableau de bord : un alternant, une session ou un site. */
+export interface AssiduiteRow extends AssiduiteTotals {
+  key: string
+  label: string
+}
+
+export interface AssiduiteAlternantRow extends AssiduiteRow {
+  alternantId: string
+  firstName: string
+  lastName: string
+  financeur: string | null
+  /** Nombre de sessions distinctes fréquentées sur la période. */
+  sessions: number
+  lastSeanceDate: string | null
+  presence: AlternantPresence
+}
+
+export interface Assiduite {
+  generatedAt: string
+  from: string | null
+  to: string | null
+  sessionId: string | null
+  site: SeanceSite | null
+  totals: AssiduiteTotals
+  alternants: AssiduiteAlternantRow[]
+  sessions: AssiduiteRow[]
+  sites: AssiduiteRow[]
+}
+
+/** Détail d'une séance dans une attestation / fiche d'assiduité. */
+export interface AssiduiteSeance {
+  seanceId: string
+  date: string
+  startTime: string
+  endTime: string
+  module: string | null
+  validationStatus: SeanceValidationStatus
+  plannedMinutes: number
+  attendedMinutes: number
+  halves: {
+    half: EmargementHalf
+    status: EmargementStatus
+    statusTime: string | null
+    plannedMinutes: number
+    attendedMinutes: number
+    /** Créneau fermé sans statut saisi. */
+    missing: boolean
+    validation: SeanceValidation | null
+  }[]
+}
+
+/** Assiduité d'un alternant : synthèse + détail séance par séance. */
+export interface AssiduiteAlternant {
+  generatedAt: string
+  alternantId: string
+  firstName: string
+  lastName: string
+  financeur: string | null
+  sessionNom: string
+  degreeTitle: string | null
+  presence: AlternantPresence
+  from: string | null
+  to: string | null
+  totals: AssiduiteTotals
+  seances: AssiduiteSeance[]
+}

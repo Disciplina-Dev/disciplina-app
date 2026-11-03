@@ -8,6 +8,7 @@ import pool from '../../../db/mysql/connection';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { spyOnGoogleMail } from '../../../../test/helpers/googleMail';
 import { buildSeanceToken } from '../../../services/emargementTokens';
+import { RUPTURE_MOTIFS } from '../../../types/rupture.types';
 import { addDaysToDate, endOfLocalDay, localDate } from '../../../utils/zonedTime';
 
 const API = `http://localhost:${env.API_PORT}`;
@@ -113,12 +114,16 @@ function seanceInput(sessionId: string, overrides: Record<string, unknown> = {})
     return {
         sessionId,
         date: today,
-        startTime: '08:00',
-        endTime: '17:00',
         site: 'Nord',
         mode: 'salle',
         formateurName: 'Jean Formateur',
         formateurEmail: 'formateur@test.local',
+        // Horaires de cours (base des heures) : pause déjeuner 12:30 → 13:30.
+        morningClassStart: '08:00',
+        morningClassEnd: '12:30',
+        afternoonClassStart: '13:30',
+        afternoonClassEnd: '17:00',
+        // Créneaux de signature, bornés à la demi-journée correspondante.
         morningStart: '08:00',
         morningEnd: '10:30',
         afternoonStart: '13:45',
@@ -460,9 +465,10 @@ describe('API émargement — côté formateur', () => {
         }
     });
 
-    it('refuse un créneau de signature hors des horaires de la séance', async () => {
+    it('refuse un créneau de signature hors des horaires de cours de sa demi-journée', async () => {
         // Sans cette borne, la fermeture du créneau ne protège plus rien : la
-        // signature restait ouverte avant le début du cours et après sa fin.
+        // signature restait ouverte avant le début du cours et après sa fin. Le
+        // créneau est borné à *sa* demi-journée (la pause déjeuner est exclue).
         const auth = pedaAuth();
         const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
         try {
@@ -470,8 +476,12 @@ describe('API émargement — côté formateur', () => {
             expect(earlyOpen.status).toBe(400);
             expect(earlyOpen.body).toMatchObject({ code: 'validation' });
 
-            const lateClose = await createSeanceHttp(auth, seanceInput(classId, { morningEnd: '18:00' }));
+            const lateClose = await createSeanceHttp(auth, seanceInput(classId, { morningEnd: '13:00' }));
             expect(lateClose.status).toBe(400);
+
+            // Un créneau du matin ne peut pas déborder sur l'après-midi.
+            const overlapsLunch = await createSeanceHttp(auth, seanceInput(classId, { morningEnd: '12:45' }));
+            expect(overlapsLunch.status).toBe(400);
 
             const afternoonEarly = await createSeanceHttp(auth, seanceInput(classId, { afternoonStart: '07:30' }));
             expect(afternoonEarly.status).toBe(400);
@@ -484,12 +494,24 @@ describe('API émargement — côté formateur', () => {
                 auth,
                 seanceInput(classId, {
                     morningStart: '08:00',
-                    morningEnd: '17:00',
+                    morningEnd: '12:30',
+                    afternoonStart: '13:30',
+                    afternoonEnd: '17:00',
+                }),
+            );
+            expect(ok.status).toBe(201);
+
+            // Sans après-midi : ni cours ni créneau l'après-midi.
+            const morningOnly = await createSeanceHttp(
+                auth,
+                seanceInput(classId, {
+                    afternoonClassStart: null,
+                    afternoonClassEnd: null,
                     afternoonStart: null,
                     afternoonEnd: null,
                 }),
             );
-            expect(ok.status).toBe(201);
+            expect(morningOnly.status).toBe(201);
         } finally {
             await getModels().Seance.deleteMany({ session_id: classId });
             await getModels().Emargement.deleteMany({});
@@ -561,7 +583,12 @@ describe('API émargement — côté formateur', () => {
         try {
             const { body } = await createSeanceHttp(
                 auth,
-                seanceInput(classId, { afternoonStart: null, afternoonEnd: null }),
+                seanceInput(classId, {
+                    afternoonClassStart: null,
+                    afternoonClassEnd: null,
+                    afternoonStart: null,
+                    afternoonEnd: null,
+                }),
             );
             const token = tokenFromUrl(body.seance.formateurUrl);
             const viewUrl = `${API}/api/emargement/formateur/${encodeURIComponent(token)}`;
@@ -805,7 +832,9 @@ describe('API émargement — côté formateur', () => {
                 }),
             );
 
-            // Une feuille validée ne se revalide pas et ne se supprime plus.
+            // Une feuille validée ne se revalide pas, mais reste supprimable : le
+            // Peda doit pouvoir retirer une feuille créée par erreur, même signée
+            // (statuts, signatures et journal sont alors perdus avec elle).
             const again = await fetch(`${API}/api/emargement/seances/${seance._id}/validate`, {
                 method: 'POST',
                 headers: staffHeaders(auth),
@@ -817,7 +846,10 @@ describe('API émargement — côté formateur', () => {
                 method: 'DELETE',
                 headers: staffHeaders(auth),
             });
-            expect(removed.status).toBe(409);
+            expect(removed.status).toBe(200);
+            expect(await removed.json()).toEqual({ deleted: true });
+            expect(await getModels().Seance.findOne({ _id: seance._id })).toBeNull();
+            expect(await getModels().EmargementHistory.countDocuments({ seance_id: seance._id })).toBe(0);
         } finally {
             await getModels().Seance.deleteOne({ _id: seance._id });
             await cleanupSession(
@@ -989,6 +1021,309 @@ describe('API émargement — signature alternant par QR', () => {
     });
 });
 
+describe('API émargement — assiduité et archivage (lot 7)', () => {
+    /** Assiduité attendue d'une séance d'une minute : 1 minute prévue par demi-journée. */
+    async function mark(
+        seance: Parameters<typeof buildSeanceToken>[0],
+        alternantId: string,
+        status: string,
+        half = 'morning',
+    ): Promise<void> {
+        const viewUrl = `${API}/api/emargement/formateur/${encodeURIComponent(buildSeanceToken(seance, 'formateur'))}`;
+        const response = await fetch(`${viewUrl}/attendance`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ alternantId, half, status }),
+        });
+        expect(response.status).toBe(200);
+    }
+
+    async function cleanupLot7(classId: string, degreeId: string, alternantIds: string[]): Promise<void> {
+        await getModels().Rupture.deleteMany({ alternant_id: { $in: alternantIds } });
+        await getModels().Emargement.deleteMany({});
+        await getModels().Seance.deleteMany({ session_id: classId });
+        await cleanupSession(classId, degreeId, alternantIds);
+    }
+
+    it('agrège l’assiduité par alternant, par session et par site sur une période', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(2);
+        const seance = await seedSeance({
+            session_id: classId,
+            session_nom: 'Promo assiduité',
+            morning_start: '00:00',
+            morning_end: '00:01',
+            afternoon_start: null,
+            afternoon_end: null,
+        });
+        try {
+            await mark(seance, alternants[0]._id, 'present');
+            await mark(seance, alternants[1]._id, 'absent');
+
+            const response = await fetch(
+                `${API}/api/emargement/assiduite?from=${seance.date}&to=${seance.date}&site=Nord`,
+                { headers: { Cookie: auth.cookieHeader } },
+            );
+            expect(response.status).toBe(200);
+            const { assiduite } = await response.json();
+            expect(assiduite).toMatchObject({ site: 'Nord', from: seance.date, to: seance.date });
+            expect(assiduite.totals).toMatchObject({
+                alternants: 2,
+                seances: 1,
+                halves: 2,
+                absences: 1,
+                // Créneau de 1 minute, une demi-journée par alternant.
+                plannedMinutes: 2,
+                attendedMinutes: 1,
+            });
+            expect(assiduite.totals.rate).toBeCloseTo(0.5, 5);
+
+            // Lignes triées par nom : Nom0 (présent) puis Nom1 (absent).
+            const [present, absent] = assiduite.alternants;
+            expect(present).toMatchObject({
+                alternantId: alternants[0]._id,
+                label: `Nom0 Prénom0`,
+                sessions: 1,
+                plannedMinutes: 1,
+                attendedMinutes: 1,
+                presence: { archived: false, archiveDate: null },
+            });
+            expect(present.rate).toBe(1);
+            expect(absent).toMatchObject({
+                alternantId: alternants[1]._id,
+                plannedMinutes: 1,
+                attendedMinutes: 0,
+                absences: 1,
+                lastSeanceDate: seance.date,
+            });
+            expect(absent.rate).toBe(0);
+
+            expect(assiduite.sessions).toHaveLength(1);
+            expect(assiduite.sessions[0]).toMatchObject({ key: classId, label: 'Promo assiduité', alternants: 2 });
+            expect(assiduite.sites).toEqual([expect.objectContaining({ key: 'Nord', label: 'Nord', alternants: 2 })]);
+
+            // Fiche d'un alternant : même total, détail séance par séance.
+            const fiche = await fetch(
+                `${API}/api/emargement/assiduite/${alternants[1]._id}?from=${seance.date}&to=${seance.date}`,
+                { headers: { Cookie: auth.cookieHeader } },
+            );
+            expect(fiche.status).toBe(200);
+            const detail = (await fiche.json()).assiduite;
+            expect(detail).toMatchObject({
+                alternantId: alternants[1]._id,
+                sessionNom: 'Promo assiduité',
+                presence: { archived: false },
+                totals: { halves: 1, absences: 1, plannedMinutes: 1, attendedMinutes: 0 },
+            });
+            expect(detail.totals.rate).toBe(0);
+            expect(detail.seances).toHaveLength(1);
+            expect(detail.seances[0].halves).toEqual([
+                expect.objectContaining({ half: 'morning', status: 'absent', attendedMinutes: 0, missing: false }),
+            ]);
+
+            const unknown = await fetch(`${API}/api/emargement/assiduite/inconnu`, {
+                headers: { Cookie: auth.cookieHeader },
+            });
+            expect(unknown.status).toBe(404);
+        } finally {
+            await cleanupLot7(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('liste les feuilles incomplètes et compte les statuts manquants sur les créneaux fermés', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(2);
+        const seance = await seedSeance({
+            session_id: classId,
+            morning_start: '00:00',
+            morning_end: '00:01',
+            afternoon_start: null,
+            afternoon_end: null,
+        });
+        try {
+            const incomplete = await fetch(`${API}/api/emargement/seances?sessionId=${classId}&missing=1`, {
+                headers: { Cookie: auth.cookieHeader },
+            });
+            const { seances } = await incomplete.json();
+            expect(seances).toHaveLength(1);
+            expect(seances[0]).toMatchObject({
+                id: seance._id,
+                attendanceProgress: {
+                    expected: 2,
+                    morning: { expected: 2, recorded: 0 },
+                    afternoon: { expected: 2, recorded: 0 },
+                    missing: 2,
+                    missingHalves: ['morning'],
+                },
+            });
+
+            // Un statut saisi sur deux : la feuille reste incomplète pour l'autre.
+            await mark(seance, alternants[0]._id, 'present');
+            const detail = await fetch(`${API}/api/emargement/seances/${seance._id}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            expect(detail.seance.attendanceProgress.morning).toEqual({ expected: 2, recorded: 1 });
+            expect(detail.seance.attendanceProgress.missing).toBe(1);
+
+            // Feuille complète : plus dans la liste des incomplètes.
+            await mark(seance, alternants[1]._id, 'present');
+            const done = await fetch(`${API}/api/emargement/seances?sessionId=${classId}&missing=1`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            expect(done.seances).toHaveLength(0);
+        } finally {
+            await cleanupLot7(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('sort les archivés de la feuille, distingue la rupture qui poursuit et les inclut sur demande', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(3);
+        const tz = tenantTimezone();
+        const today = localDate(new Date(), tz);
+        const yesterday = addDaysToDate(today, -1);
+        const ruptureAt = new Date(`${yesterday}T12:00:00Z`);
+        const seance = await seedSeance({ session_id: classId, session_nom: 'Promo archivage' });
+        try {
+            // Nom1 : rupture qui sort de la formation (archivé la veille).
+            await getModels().Alternant.updateOne(
+                { _id: alternants[1]._id },
+                { $set: { archived_at: ruptureAt, archive_reason: 'rupture' } },
+            );
+            await getModels().Rupture.create({
+                _id: randomUUID(),
+                alternant_id: alternants[1]._id,
+                date_rupture: ruptureAt,
+                entreprise: null,
+                motif: RUPTURE_MOTIFS[0],
+                detail: null,
+                poursuit_formation: false,
+                created_at: new Date(),
+                updated_at: new Date(),
+            });
+            // Nom2 : rupture qui n'archive pas — il reste attendu en formation.
+            await getModels().Rupture.create({
+                _id: randomUUID(),
+                alternant_id: alternants[2]._id,
+                date_rupture: ruptureAt,
+                entreprise: null,
+                motif: RUPTURE_MOTIFS[0],
+                detail: null,
+                poursuit_formation: true,
+                created_at: new Date(),
+                updated_at: new Date(),
+            });
+
+            const detail = await fetch(`${API}/api/emargement/seances/${seance._id}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            // Le sorti de la veille n'est plus attendu ; le rupturé qui poursuit l'est.
+            expect(detail.seance.alternants.map((a: { id: string }) => a.id)).toEqual([
+                alternants[0]._id,
+                alternants[2]._id,
+            ]);
+            expect(detail.seance.attendanceProgress.expected).toBe(2);
+            expect(detail.seance.alternants[0].presence).toMatchObject({
+                archived: false,
+                archiveDate: null,
+                ruptureDate: null,
+            });
+            expect(detail.seance.alternants[1].presence).toMatchObject({
+                archived: false,
+                ruptureDate: yesterday,
+                poursuitFormation: true,
+            });
+
+            const filters = `seanceId=${seance._id}`;
+            const current = await fetch(`${API}/api/emargement/exports/attendance?${filters}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then(async (res) => Buffer.from(await res.arrayBuffer()).toString('utf8'));
+            expect(current).toContain('Rupture — poursuit la formation');
+            expect(current).not.toContain(`${alternants[1].first_name} ${alternants[1].last_name}`);
+
+            // Export historique : l'archivé revient, avec sa situation datée.
+            const archivedCsv = await fetch(`${API}/api/emargement/exports/attendance?${filters}&includeArchived=1`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then(async (res) => Buffer.from(await res.arrayBuffer()).toString('utf8'));
+            expect(archivedCsv).toContain(`${alternants[1].first_name} ${alternants[1].last_name}`);
+            expect(archivedCsv).toContain('Archivé — rupture');
+            const archiveDate = new Intl.DateTimeFormat('fr-FR', { timeZone: 'UTC' }).format(ruptureAt);
+            expect(archivedCsv).toContain(archiveDate);
+
+            // Le tableau de bord suit la même règle par défaut.
+            const dashboard = await fetch(`${API}/api/emargement/assiduite?from=${seance.date}&to=${seance.date}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            expect(dashboard.assiduite.alternants.map((row: { alternantId: string }) => row.alternantId)).toEqual([
+                alternants[0]._id,
+                alternants[2]._id,
+            ]);
+        } finally {
+            await cleanupLot7(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('compte une demi-journée non renseignée sans la confondre avec une absence', async () => {
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        const seance = await seedSeance({
+            session_id: classId,
+            morning_start: '00:00',
+            morning_end: '00:01',
+            afternoon_start: null,
+            afternoon_end: null,
+        });
+        try {
+            const view = await fetch(
+                `${API}/api/emargement/formateur/${encodeURIComponent(buildSeanceToken(seance, 'formateur'))}`,
+            ).then((res) => res.json());
+            const alternant = view.emargement.alternants[0];
+
+            // Aucun statut saisi : la feuille est incomplète, pas « absente ».
+            const detail = await fetch(`${API}/api/emargement/seances/${seance._id}`, {
+                headers: { Cookie: pedaAuth().cookieHeader },
+            }).then((res) => res.json());
+            expect(detail.seance.alternants[0].attendance.morning).toBeNull();
+            expect(detail.seance.attendanceProgress).toMatchObject({ missing: 1, missingHalves: ['morning'] });
+
+            const attestation = await fetch(
+                `${API}/api/emargement/attestations/${alternants[0]._id}?from=${seance.date}&to=${seance.date}`,
+                { headers: { Cookie: pedaAuth().cookieHeader } },
+            );
+            expect(attestation.status).toBe(200);
+
+            const assiduite = await fetch(`${API}/api/emargement/assiduite/${alternants[0]._id}`, {
+                headers: { Cookie: pedaAuth().cookieHeader },
+            }).then((res) => res.json());
+            expect(assiduite.assiduite.totals).toMatchObject({
+                halves: 0,
+                absences: 0,
+                missingHalves: 1,
+                plannedMinutes: 1,
+                attendedMinutes: 0,
+            });
+            expect(alternant.id).toBe(alternants[0]._id);
+        } finally {
+            await cleanupLot7(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+});
+
 describe('API émargement — exports (§8)', () => {
     it('exporte la feuille en PDF, les présences en CSV/Excel, le journal et une attestation', async () => {
         const auth = pedaAuth();
@@ -1107,5 +1442,137 @@ describe('API émargement — exports (§8)', () => {
             headers: { Cookie: auth.cookieHeader },
         });
         expect(missing.status).toBe(404);
+    });
+});
+
+describe('API émargement — heures de cours (lot 8)', () => {
+    it('calcule les heures sur les horaires de cours, pause déjeuner exclue', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(3);
+        try {
+            // Journée 09:00–12:30 puis 13:30–17:00 : 12:30 → 13:30 ne compte pas.
+            const { status, body } = await createSeanceHttp(
+                auth,
+                seanceInput(classId, {
+                    morningClassStart: '09:00',
+                    morningClassEnd: '12:30',
+                    afternoonClassStart: '13:30',
+                    afternoonClassEnd: '17:00',
+                    morningStart: '09:00',
+                    morningEnd: '09:15',
+                    afternoonStart: '13:30',
+                    afternoonEnd: '13:45',
+                }),
+            );
+            expect(status).toBe(201);
+            // Les horaires globaux de la séance sont dérivés des horaires de cours.
+            expect(body.seance).toMatchObject({
+                startTime: '09:00',
+                endTime: '17:00',
+                morningClassStart: '09:00',
+                morningClassEnd: '12:30',
+                afternoonClassStart: '13:30',
+                afternoonClassEnd: '17:00',
+            });
+
+            const url = `${API}/api/emargement/formateur/${encodeURIComponent(tokenFromUrl(body.seance.formateurUrl))}`;
+            const markAttendance = async (
+                alternantId: string,
+                half: string,
+                attendanceStatus: string,
+                statusTime?: string,
+            ) => {
+                const response = await fetch(`${url}/attendance`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        alternantId,
+                        half,
+                        status: attendanceStatus,
+                        ...(statusTime ? { statusTime } : {}),
+                    }),
+                });
+                expect(response.status).toBe(200);
+            };
+
+            // Journée complète : 3h30 + 3h30 = 7h (et non 8h comme le voudraient
+            // les horaires globaux 09:00–17:00).
+            await markAttendance(alternants[0]._id, 'morning', 'present');
+            await markAttendance(alternants[0]._id, 'afternoon', 'present');
+            // En retard l'après-midi (arrivée 14:30) : 2h30 au lieu de 3h30.
+            await markAttendance(alternants[1]._id, 'afternoon', 'late', '14:30');
+            // Parti en avance le matin (départ 10:30) : 1h30 au lieu de 3h30.
+            await markAttendance(alternants[2]._id, 'morning', 'left_early', '10:30');
+
+            const filters = `from=${body.seance.date}&to=${body.seance.date}&sessionId=${classId}`;
+            const dashboard = await fetch(`${API}/api/emargement/assiduite?${filters}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            expect(dashboard.assiduite.totals).toMatchObject({
+                alternants: 3,
+                seances: 1,
+                halves: 4,
+                // 3 alternants × (3h30 + 3h30).
+                plannedMinutes: 3 * 420,
+                // 420 + 150 (retard) + 90 (départ anticipé).
+                attendedMinutes: 660,
+            });
+
+            const [full, late, early] = dashboard.assiduite.alternants;
+            expect(full).toMatchObject({ plannedMinutes: 420, attendedMinutes: 420 });
+            expect(late).toMatchObject({ plannedMinutes: 420, attendedMinutes: 150 });
+            expect(early).toMatchObject({ plannedMinutes: 420, attendedMinutes: 90 });
+
+            // Le détail par demi-journée expose les mêmes heures.
+            const detail = await fetch(`${API}/api/emargement/assiduite/${alternants[1]._id}?${filters}`, {
+                headers: { Cookie: auth.cookieHeader },
+            }).then((res) => res.json());
+            expect(detail.assiduite.seances[0].halves).toEqual([
+                expect.objectContaining({ half: 'morning', status: 'na', plannedMinutes: 210, attendedMinutes: 0 }),
+                expect.objectContaining({
+                    half: 'afternoon',
+                    status: 'late',
+                    statusTime: '14:30',
+                    plannedMinutes: 210,
+                    attendedMinutes: 150,
+                }),
+            ]);
+        } finally {
+            await getModels().Emargement.deleteMany({});
+            await getModels().Seance.deleteMany({ session_id: classId });
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('exige les horaires de cours de l’après-midi avec un créneau l’après-midi', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        try {
+            const { status, body } = await createSeanceHttp(
+                auth,
+                seanceInput(classId, { afternoonClassStart: null, afternoonClassEnd: null }),
+            );
+            expect(status).toBe(400);
+            expect(body).toMatchObject({ code: 'validation' });
+
+            // L'inverse est refusé aussi : des cours l'après-midi sans créneau ne
+            // produiraient jamais d'heures.
+            const withoutWindow = await createSeanceHttp(
+                auth,
+                seanceInput(classId, { afternoonStart: null, afternoonEnd: null }),
+            );
+            expect(withoutWindow.status).toBe(400);
+            expect(withoutWindow.body).toMatchObject({ code: 'validation' });
+        } finally {
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
     });
 });
