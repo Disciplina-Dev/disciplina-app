@@ -49,8 +49,7 @@ export type EmargementHistoryAction =
   | 'half_signed'
   | 'half_validated'
 
-/** Événement du journal d'une séance (du plus récent au plus ancien côté API). */
-export interface EmargementHistoryEntry {
+/** Événement du journal d'une séance (du plus récent au plus ancien côté API). */export interface EmargementHistoryEntry {
   id: string
   at: string
   action: EmargementHistoryAction
@@ -246,3 +245,28 @@ export interface QrSignResult {
   signedAt: string
   alreadySigned: boolean
 }
+
+/**
+ * Charte d'impression des documents d'émargement (§8.4) : choisie au moment de
+ * l'export, elle ne change que l'habillage (couleur, bandeau, mentions légales).
+ */
+export const EMARGEMENT_PDF_THEMES = ['disciplina', 'region', 'fse'] as const
+export type EmargementPdfTheme = (typeof EMARGEMENT_PDF_THEMES)[number]
+
+export const PDF_THEME_LABELS: Record<EmargementPdfTheme, string> = {
+  disciplina: 'Disciplina',
+  region: 'Région Réunion',
+  fse: 'FSE+',
+}
+
+/** Filtres communs aux exports de période (séance, session, dates). */
+export interface EmargementExportFilter {
+  seanceId?: string
+  sessionId?: string
+  /** `YYYY-MM-DD`, borne basse incluse. */
+  from?: string
+  /** `YYYY-MM-DD`, borne haute incluse. */
+  to?: string
+}
+
+export type EmargementExportFormat = 'csv' | 'xlsx'

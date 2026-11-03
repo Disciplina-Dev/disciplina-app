@@ -35,6 +35,10 @@ Aucun code modifié. Tous les constats sont référencés `fichier:ligne` et ont
 >
 > **État lot 5** (historique append-only des changements de statut, signatures et
 > validations — cf. §6) : **16 satisfaites**, **19 partielles**, **22 absentes**.
+>
+> **État lot 6** (exports PDF séance / apprenant / groupe, présences et heures en CSV/Excel,
+> journal d'audit exportable, chartes d'impression, attestation d'assiduité — cf. §6) :
+> **21 satisfaites**, **19 partielles**, **17 absentes**.
 
 Légende :
 **✅ FAIT** = conforme à l'exigence ·
@@ -45,18 +49,20 @@ Légende :
 
 ## 1. Cartographie de l'existant
 
+*(complétée à chaque lot ; état courant après le lot 6)*
+
 | Couche | Fichiers |
 |---|---|
 | Modèle de domaine | `back/src/types/emargement.types.ts` |
 | Schémas Mongo | `back/src/db/mongo/schemas/seance.schema.ts`, `emargement.schema.ts`, `emargementHistory.schema.ts` (+ enregistrement dans `db/mongo/tenant.ts`) |
-| Service | `back/src/services/EmargementService.ts` (1 347 l.), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
+| Service | `back/src/services/EmargementService.ts` (1 772 l.), `EmargementExportService.ts` (1 087 l. — PDF/CSV/XLSX), `emargementPdfThemes.ts` (chartes d'impression), `emargementTokens.ts`, `emargementInviteTemplate.ts` |
 | Dépôts | `back/src/repositories/mongo/SeanceRepository.ts`, `EmargementRepository.ts`, `EmargementHistoryRepository.ts` |
-| API staff | `POST/GET/PUT/DELETE /api/emargement/seances…`, `POST /api/emargement/seances/:id/validate` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
+| API staff | `POST/GET/PUT/DELETE /api/emargement/seances…`, `POST /api/emargement/seances/:id/validate`, exports `GET /seances/:id/pdf`, `GET /exports/attendance`, `GET /exports/history`, `GET /attestations/:alternantId`, `GET /sessions/:sessionId/attendance.pdf` — `back/src/rest/emargement/route.ts` (rôles AD/GESTION/PEDA) |
 | API publique | `GET\|PUT /api/emargement/formateur/:token[/attendance]`, `POST …/attendance/sign` (signature manuscrite de l'alternant), `POST …/sign` (une demi-journée), `GET\|POST /api/emargement/sign/:token` — `public.route.ts` |
 | UI Peda | `front/…/pages/peda/Emargements.tsx`, `EmargementSeance.tsx`, `components/peda/SeanceFormModal.tsx` |
 | UI publique | `front/…/pages/emargement/FormateurEmargement.tsx`, `PublicSigning.tsx`, `components/emargement/PublicShell.tsx` |
-| Client API / types | `front/…/api/emargement.ts`, `types/emargement.ts`, `utils/emargement.ts` |
-| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (16 cas) |
+| Client API / types | `front/…/api/emargement.ts`, `types/emargement.ts`, `utils/emargement.ts`, `utils/download.ts` |
+| Tests | `back/src/rest/emargement/__tests__/emargement.test.ts` (18 cas) |
 
 ---
 
@@ -70,8 +76,8 @@ Légende :
 | 4 | Horodatage & intégrité | ⚠️ 4.1 ✅ — 4.2 partiel (journal des changements, motif de correction absent) |
 | 5 | Validation par le formateur | ✅ 5.1 / 5.2 / 5.3 — signature par demi-journée après fermeture, statut, alerte et validation Peda |
 | 6 | Absences et retards | ❌ 0/5 |
-| 7 | Tableaux de bord et suivi | ⚠️ 7.3 partiel (filtre + alerte anomalies) — 7.1 / 7.2 ❌, 7.4 partiel via l'archivage alternant |
-| 8 | Exports et justificatifs | ⚠️ 8.3 partiel (journal en base, non exporté) — 8.1 / 8.2 / 8.4 / 8.5 ❌ |
+| 7 | Tableaux de bord et suivi | ⚠️ 7.2 ✅ (heures prévues / réalisées dans les exports) — 7.3 partiel (filtre + alerte anomalies), 7.1 ❌, 7.4 partiel via l'archivage alternant |
+| 8 | Exports et justificatifs | ✅ 8.1 / 8.2 / 8.4 / 8.5 — 8.3 ⚠️ (journal en base et exportable en CSV, pas d'écran de recherche global ni de rétention) |
 | 9 | Sessions d'examen titre pro | ❌ 0/4 |
 | 10 | Rôles et droits d'accès | ⚠️ 4 rôles internes seulement — pas d'apprenant, pas d'employeur |
 | 11 | Archivage | ❌ 0/4 |
@@ -192,8 +198,12 @@ Légende :
 - **7.1 ❌** Aucun taux d'assiduité (apprenant / groupe / site / période). `pages/peda/DashboardPeda.tsx`
   ne traite que les SA (séquences). Aucune agrégation côté back : `EmargementRepository` n'expose que
   `countsBySeance` (`EmargementRepository.ts:98-117`).
-- **7.2 ❌** Aucun calcul heures prévues / réalisées (le statut demi-journée n'est pas converti en
-  durée ; il faudrait `start_time`/`end_time` × présence).
+- **7.2 ❌ → ✅ FAIT (lot 6)** — Le calcul existe désormais (exports §8) : pour chaque demi-journée,
+  `plannedMinutesOf` prend la durée du créneau de signature et `attendedMinutesOf` la convertit en
+  heures suivies selon le statut (`present` = créneau entier, `late` = heure d'arrivée → fin,
+  `left_early` = début → heure de départ, `absent` / `na` = 0). Les heures sont agrégées par
+  alternant, par séance et par groupe dans les exports CSV/Excel et dans l'attestation. Reste absent
+  un **écran** de suivi (7.1).
 - **7.3 ❌ → ⚠️ PARTIEL (lot 4)** — Pas de liste « feuilles incomplètes / non validées » à l'audit.
   Depuis le lot 4 : filtre `?validation=` sur la liste Peda (en cours / à valider / anomalies /
   validées), alerte avec compteur d'anomalies, et badge de statut dans la liste et le détail. Reste
@@ -206,19 +216,28 @@ Légende :
   sortie ✅. Manquent : statut + **date d'effet** affichés sur la feuille, distinction « rupture qui
   reste en formation », et possibilité d'inclure les archivés dans un export historique.
 
-### 3.8 §8 — Exports et justificatifs — **section entièrement absente**
+### 3.8 §8 — Exports et justificatifs — ✅ couvert depuis le lot 6
 
-- **8.1 ❌** Aucun export PDF (par séance / par apprenant / par groupe) : aucune route, aucun bouton,
-  aucun gabarit.
-- **8.2 ❌** Aucun export Excel/CSV des présences et des heures.
-- **8.3 ❌ → ⚠️ PARTIEL (lot 5)** — Aucun journal d'audit à l'audit (cf. 4.2). Depuis le lot 5,
-  `emargement_history` conserve tous les changements (statut, signatures, validations) avec auteur,
-  horodatage, IP et appareil. **Manquent** : l'export du journal, un écran de recherche global
-  (l'historique n'est visible que séance par séance) et une politique de rétention paramétrable.
-- **8.4 ❌** Aucun modèle PDF paramétrable (charte Disciplina / Région / FSE+).
-- **8.5 ❌** Aucune attestation d'assiduité.
-
-> Réutilisable : `services/PdfService.ts` (pdfkit + puppeteer) et l'export xlsx de `services/KpiService.ts`.
+- **8.1 ❌ → ✅ FAIT (lot 6)** — `GET /api/emargement/seances/:id/pdf` (feuille de la séance),
+  `GET /api/emargement/attestations/:alternantId` (PDF par apprenant) et
+  `GET /api/emargement/sessions/:sessionId/attendance.pdf` (récapitulatif par groupe) ; boutons dans
+  le détail de séance et rendu `EmargementExportService` (pdfkit, signatures intégrées).
+- **8.2 ❌ → ✅ FAIT (lot 6)** — `GET /api/emargement/exports/attendance?format=csv|xlsx`
+  (filtres séance / session / période) : une ligne par alternant × demi-journée, heures prévues et
+  réalisées, et dans le classeur une seconde feuille de synthèse par alternant.
+- **8.3 ⚠️ PARTIEL (lots 5-6)** — `emargement_history` conserve tous les changements (statut,
+  signatures, validations) avec auteur, horodatage, IP et appareil, et
+  `GET /api/emargement/exports/history` les exporte en CSV. **Manquent** : un écran de recherche
+  global (le journal reste consultable séance par séance) et une politique de rétention paramétrable.
+- **8.4 ❌ → ✅ FAIT (lot 6)** — trois chartes au moment de l'export (`?theme=disciplina|region|fse`) :
+  couleur d'accent, bandeau de cofinancement et mentions de pied de page propres à chaque financeur
+  (`services/emargementPdfThemes.ts`). Le contenu du document est identique ; les chartes sont des
+  constantes versionnées, sans écran d'administration.
+- **8.5 ❌ → ✅ FAIT (lot 6)** — attestation d'assiduité par alternant (identité, formation, période,
+  heures prévues / réalisées, taux, détail des séances, zone de signature du service pédagogique).
+- **Exports et données personnelles** : les documents contiennent noms, financeur, statuts et images
+  de signature ; ils sont produits à la demande, par un utilisateur AD/GESTION/PEDA authentifié, et ne
+  sont ni stockés côté serveur ni envoyés par e-mail (cf. `RGPD.md`).
 
 ### 3.9 §9 — Sessions d'examen titre professionnel
 
@@ -319,14 +338,15 @@ Indépendamment du cahier des charges, ces points sont des bugs ou des dettes à
 
 6. Absences justifiées / non justifiées + motif + justificatif (§6.1 / 6.2).
 7. Notifications automatiques apprenant / CFA / employeur + historique + seuil (§6.3–6.5).
-8. Exports PDF (séance / apprenant / groupe), Excel/CSV, attestations (§8.1 / 8.2 / 8.5), en réutilisant
-   `PdfService`.
+8. ~~Exports PDF (séance / apprenant / groupe), Excel/CSV, attestations (§8.1 / 8.2 / 8.5)~~ ✅ **lot 6**
+   (`EmargementExportService`, pdfkit + `ExcelJS`, 5 routes ; voir §6).
 9. Tableaux de bord assiduité + heures prévues/réalisées + feuilles non validées (§7.1–7.3).
    **Traité le 2026-10-30 pour la liste et l'alerte des feuilles non validées** (filtre `?validation=`,
-   statut, anomalies) — voir §6 ; restent les tableaux de bord et les heures.
+   statut, anomalies) — voir §6 ; **heures prévues / réalisées traitées au lot 6** (exports, 7.2) ;
+   restent les tableaux de bord (7.1).
 10. En-tête organisme + logo, titre pro, module/séquence, salle/lieu, financeur (§1.1 / 1.2 / 1.3 / 1.7).
-    **Traité le 2026-10-30 pour l'affichage écran** — voir §6 ; reste la reprise de ces données dans les
-    exports PDF/CSV (point 8).
+    **Traité le 2026-10-30 pour l'affichage écran** — voir §6 ; **reporté dans les exports PDF/CSV au
+    lot 6** (titre pro, module, lieu, financeur, formateur sur la feuille et dans les tableurs).
 
 ### P2 — durcissement
 
@@ -506,3 +526,54 @@ récent au plus ancien.
 
 Reste à faire pour clore §4.2 / §8.3 : motif de correction côté formateur (§10.4), export du journal
 (§8.1 / 8.2), écran de recherche global et rétention paramétrable (§11).
+
+### Lot 6 — exports et justificatifs (§8)
+
+Périmètre : rendre les feuilles d'émargement exploitables hors de l'application (archivage, financeurs,
+justificatifs), et convertir les statuts de demi-journée en heures prévues / réalisées (points **8.1**
+à **8.5** et **7.2**). Aucun stockage serveur, aucun envoi automatique : tous les documents sont
+produits à la demande, par un utilisateur authentifié.
+
+| Exigence | Correctif |
+|---|---|
+| 8.1 Export PDF par séance | `GET /api/emargement/seances/:id/pdf` → `EmargementExportService.seancePdf` : en-tête (session, date longue, titre pro, module, horaires, site/modalité, lieu, formateur, créneaux de signature, état de la feuille), tableau des alternants (statut + heure, horodatage de signature, tracé intégré, financeur) et blocs de signature du formateur par demi-journée (auteur, date, tracé ou mention de validation Peda + motif). |
+| 8.1 Export PDF par apprenant | `GET /api/emargement/attestations/:alternantId?from&to` → `attestation` (service) puis `attestationPdf` : identité, formation, session, financeur, période, heures prévues / réalisées, taux d'assiduité et détail séance par séance, avec zone de signature du service pédagogique. |
+| 8.1 Export PDF par groupe | `GET /api/emargement/sessions/:sessionId/attendance.pdf?from&to` → `groupSummary` (réutilise `exportAttendance` filtré sur la session) puis `groupPdf` : totaux du groupe et une ligne par alternant (séances, absences, heures prévues / réalisées). |
+| 8.2 Export Excel / CSV des présences et heures | `GET /api/emargement/exports/attendance` (`seanceId` / `sessionId` / `from` / `to`, `format=csv` ou `xlsx`) → `exportAttendance` : une ligne par alternant × demi-journée (session, titre pro, module, formateur, site, modalité, financeur, statut, heure, heures prévues / réalisées, signature, validation, état de la feuille) et une synthèse par alternant. CSV : BOM UTF-8 + séparateur `;`, heures décimales à virgule ; XLSX (`ExcelJS`) : feuilles « Présences » (filtre + volets figés) et « Synthèse » (heures + taux). |
+| 8.3 Journal exportable | `GET /api/emargement/exports/history` → `exportHistory` puis `historyCsv` : horodatage, date de séance, session, séance, action, alternant, demi-journée, statut avant → après, heure avant → après, auteur, source, motif. Plafond de 5 000 entrées (`HISTORY_EXPORT_LIMIT`), du plus récent au plus ancien. |
+| 8.4 Modèle PDF paramétrable | Trois chartes choisies à l'export (`theme=disciplina` / `region` / `fse`, défaut `disciplina`) : couleur d'accent, bandeau de cofinancement, libellé de marque et lignes de pied de page (mentions légales + ligne financeur). `services/emargementPdfThemes.ts` ; le contenu du document est identique, seule la charte change. |
+| 8.5 Attestation d'assiduité | Couverte par le PDF « par apprenant » ci-dessus (heures, taux, détail, signature). |
+| 7.2 Heures prévues / réalisées | `plannedMinutesOf` = durée du créneau de signature ; `attendedMinutesOf` convertit le statut : `present` = créneau entier, `late` = heure d'arrivée → fin du créneau, `left_early` = début du créneau → heure de départ, `absent` / `na` = 0. Agrégats par demi-journée, par séance, par alternant et par groupe, utilisés par tous les exports. |
+
+Décisions de conception :
+
+- **pdfkit seul, pas de Chromium** : `PdfService` (puppeteer) sert des documents HTML riches ; une feuille
+  d'émargement est un tableau réglementaire, plus léger et déterministe à dessiner directement avec
+  pdfkit (aucun lancement de navigateur, aucun risque de rendu dépendant de l'environnement). Les
+  signatures (data-URL PNG/JPEG) sont intégrées via `doc.image`.
+- **Mêmes règles que l'écran** : le rendu ne fait aucune requête et ne recalcule rien — il consomme les
+  DTO produits par `EmargementService` (`SeanceDetailDto`, `AttestationDto`, `GroupSummaryDto`,
+  `AttendanceExportDto`, `HistoryExportDto`). L'heure affichée sur la feuille et celle du CSV sont donc
+  identiques par construction.
+- **Surestimer plutôt que nier** : sans heure saisie, un retard ou un départ anticipé compte le créneau
+  entier. Un export ne doit pas retirer des heures à un alternant à cause d'une donnée manquante.
+- **Chartes versionnées, pas de modèle en base** : le cahier des charges demande un modèle paramétrable
+  au sens « choisir la charte du financeur ». Des constantes typées évitent un écran d'administration,
+  une table de configuration et une reprise de données, tout en gardant les mentions légales relues à
+  chaque évolution du code.
+- **Rien n'est conservé côté serveur** : les buffers sont renvoyés en pièce jointe HTTP et jamais écrits
+  sur disque ni envoyés par e-mail. Les noms de fichiers passent par `filename*=UTF-8''` (accents
+  préservés) ; les URL publiques (formateur / QR) ne donnent accès à aucun export.
+
+Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (18 cas) — PDF de séance (en-tête
+`%PDF`, > 1 ko, charte `region`), présences CSV (BOM `efbbbf` sur les octets, séparateur `;`, statut et
+heures `0,02` pour un créneau d'une minute, bloc de synthèse), classeur Excel (signature ZIP `PK`,
+`spreadsheetml`), journal CSV (actions du lot 5 et auteur), attestation PDF et récapitulatif de groupe
+PDF (`theme=fse`), puis refus sans authentification (401) et séance inconnue (404). Les documents ont
+aussi été relus visuellement (rendu `pdftoppm`) : colonne « Après-midi » masquée quand la séance n'a pas
+de créneau, alignements et pieds de page corrects.
+
+Reste à faire pour clore §7 et §8.3 : écran de suivi / tableaux de bord d'assiduité (7.1), écran de
+recherche global du journal (aujourd'hui séance par séance, avec export CSV), politique de rétention
+paramétrable, motif de correction imposé côté formateur (§10.4) et vérification de l'identité du
+signataire (§3.1 / §3.2).

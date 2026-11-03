@@ -1,5 +1,8 @@
 import type { BadgeTone } from '@/components/ui'
 import type { AttemptStatus, QuestionType, QuestionnaireStatus } from '@/types/questionnaire'
+import { downloadBlob } from '@/utils/download'
+
+export { downloadBlob }
 
 export const QUESTIONNAIRE_STATUS: Record<QuestionnaireStatus, { label: string; tone: BadgeTone }> = {
   draft: { label: 'Brouillon', tone: 'neutral' },
@@ -36,15 +39,4 @@ export function formatDuration(start: string | null | undefined, end: string | n
 /** Téléchargement d'un objet en fichier JSON (export questionnaire). */
 export function downloadJson(data: unknown, fileName: string): void {
   downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), fileName)
-}
-
-export function downloadBlob(blob: Blob, fileName: string): void {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = fileName
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  URL.revokeObjectURL(url)
 }

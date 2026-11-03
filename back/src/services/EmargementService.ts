@@ -6,7 +6,12 @@ import { withNoReply } from '../external/google/no-reply';
 import { env } from '../config/env';
 import { tenantTimezone } from '../config/tenant';
 import { EmargementRepository } from '../repositories/mongo/EmargementRepository';
-import { EmargementHistoryRepository, RecordHistoryInput } from '../repositories/mongo/EmargementHistoryRepository';
+import {
+    EmargementHistoryRepository,
+    HISTORY_EXPORT_LIMIT,
+    RecordHistoryInput,
+} from '../repositories/mongo/EmargementHistoryRepository';
+import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
 import { SeanceListFilter, SeanceRepository } from '../repositories/mongo/SeanceRepository';
 import { SessionService } from './SessionService';
 import { UserService } from './UserService';
@@ -182,6 +187,145 @@ export interface SeanceDetailDto extends SeanceDto {
     history: EmargementHistoryDto[];
 }
 
+// ── Exports (§8) ─────────────────────────────────────────────────────────────
+
+/** Filtre commun aux exports de période : une séance, une session, ou des dates. */
+export interface EmargementExportFilter {
+    /** Restreint l'export à une séance (ignoré si absent). */
+    seanceId?: string;
+    sessionId?: string;
+    /** Borne basse incluse, `YYYY-MM-DD`. */
+    from?: string;
+    /** Borne haute incluse, `YYYY-MM-DD`. */
+    to?: string;
+}
+
+/** Une ligne d'export = un alternant × une demi-journée d'une séance. */
+export interface AttendanceExportRow {
+    seanceId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    sessionNom: string;
+    degreeTitle: string | null;
+    module: string | null;
+    formateurName: string;
+    site: SeanceSite;
+    mode: SeanceMode;
+    validationStatus: SeanceValidationStatus;
+    alternantId: string;
+    firstName: string;
+    lastName: string;
+    financeur: string | null;
+    half: EmargementHalf;
+    status: EmargementStatus;
+    statusTime: string | null;
+    signatureMode: EmargementSignatureMode | null;
+    signedAt: string | null;
+    /** Durée du créneau (minutes) : base des heures prévues. */
+    plannedMinutes: number;
+    /** Heures réellement suivies, selon le statut et l'heure éventuelle. */
+    attendedMinutes: number;
+    validation: SeanceValidationDto | null;
+}
+
+/** Synthèse par alternant, second tableau des exports Excel. */
+export interface AttendanceExportSummary {
+    alternantId: string;
+    firstName: string;
+    lastName: string;
+    financeur: string | null;
+    sessions: number;
+    halves: number;
+    absences: number;
+    plannedMinutes: number;
+    attendedMinutes: number;
+}
+
+export interface AttendanceExportDto {
+    generatedAt: string;
+    from: string | null;
+    to: string | null;
+    sessionId: string | null;
+    seanceId: string | null;
+    rows: AttendanceExportRow[];
+    summaries: AttendanceExportSummary[];
+}
+
+/** Une ligne d'export du journal d'audit (append-only, cf. lot 5). */
+export interface HistoryExportRow {
+    at: string;
+    seanceId: string;
+    date: string;
+    sessionNom: string;
+    action: EmargementHistoryAction;
+    alternantName: string | null;
+    half: EmargementHalf | null;
+    fromStatus: EmargementStatus | null;
+    toStatus: EmargementStatus | null;
+    fromStatusTime: string | null;
+    toStatusTime: string | null;
+    source: EmargementHistorySource;
+    actorName: string | null;
+    note: string | null;
+}
+
+export interface HistoryExportDto {
+    generatedAt: string;
+    from: string | null;
+    to: string | null;
+    sessionId: string | null;
+    seanceId: string | null;
+    rows: HistoryExportRow[];
+}
+
+export interface AttestationSeanceDto {
+    seanceId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    module: string | null;
+    validationStatus: SeanceValidationStatus;
+    plannedMinutes: number;
+    attendedMinutes: number;
+    halves: {
+        half: EmargementHalf;
+        status: EmargementStatus;
+        statusTime: string | null;
+        plannedMinutes: number;
+        attendedMinutes: number;
+        validation: SeanceValidationDto | null;
+    }[];
+}
+
+/** Synthèse d'assiduité d'un groupe (session) sur une période — export PDF « par groupe ». */
+export interface GroupSummaryDto {
+    generatedAt: string;
+    sessionId: string;
+    sessionNom: string;
+    degreeTitle: string | null;
+    from: string | null;
+    to: string | null;
+    plannedMinutes: number;
+    attendedMinutes: number;
+    rows: AttendanceExportSummary[];
+}
+
+/** Données d'une attestation d'assiduité (un alternant, une période). */ export interface AttestationDto {
+    generatedAt: string;
+    alternantId: string;
+    firstName: string;
+    lastName: string;
+    financeur: string | null;
+    sessionNom: string;
+    degreeTitle: string | null;
+    from: string | null;
+    to: string | null;
+    plannedMinutes: number;
+    attendedMinutes: number;
+    seances: AttestationSeanceDto[];
+}
+
 export interface FormateurViewDto {
     seance: {
         id: string;
@@ -348,6 +492,44 @@ function applicableHalves(seance: Seance): EmargementHalf[] {
     return seance.afternoon_start ? [...EMARGEMENT_HALVES] : ['morning'];
 }
 
+/** Bornes horaires d'une demi-journée (`null` si la séance n'a pas ce créneau). */
+function halfBounds(seance: Seance, half: EmargementHalf): { start: string; end: string } | null {
+    const start = half === 'morning' ? seance.morning_start : seance.afternoon_start;
+    const end = half === 'morning' ? seance.morning_end : seance.afternoon_end;
+    return start && end ? { start, end } : null;
+}
+
+/** Heures prévues d'une demi-journée : la durée du créneau de signature. */
+function plannedMinutesOf(seance: Seance, half: EmargementHalf): number {
+    const bounds = halfBounds(seance, half);
+    if (!bounds) return 0;
+    return Math.max(0, minutesOfDay(bounds.end) - minutesOfDay(bounds.start));
+}
+
+/**
+ * Heures réalisées d'une demi-journée :
+ * - `present` → tout le créneau ;
+ * - `late` → de l'heure d'arrivée à la fin du créneau ;
+ * - `left_early` → du début du créneau à l'heure de départ ;
+ * - `absent` / `na` → 0.
+ *
+ * Sans heure saisie, une arrivée tardive ou un départ anticipé comptent le
+ * créneau entier : mieux vaut surestimer la présence que de la nier.
+ */
+function attendedMinutesOf(seance: Seance, half: EmargementHalf, record: EmargementRecord | null): number {
+    const planned = plannedMinutesOf(seance, half);
+    if (!record || planned === 0) return 0;
+    const bounds = halfBounds(seance, half)!;
+    if (record.status === 'present') return planned;
+    if (record.status === 'late' && record.status_time) {
+        return Math.max(0, Math.min(planned, minutesOfDay(bounds.end) - minutesOfDay(record.status_time)));
+    }
+    if (record.status === 'left_early' && record.status_time) {
+        return Math.max(0, Math.min(planned, minutesOfDay(record.status_time) - minutesOfDay(bounds.start)));
+    }
+    return 0;
+}
+
 /**
  * Validations stockées, avec repli sur l'ancien champ `signed_at` : les feuilles
  * signées avant le lot 4 n'ont qu'une signature globale, qui valait pour toutes
@@ -406,6 +588,7 @@ export class EmargementService {
         private readonly seances = new SeanceRepository(),
         private readonly emargements = new EmargementRepository(),
         private readonly history = new EmargementHistoryRepository(),
+        private readonly alternants = new AlternantRepository(),
         private readonly sessions = new SessionService(),
         private readonly users = new UserService(),
         private readonly gmailService = new GoogleGmailService(),
@@ -433,6 +616,248 @@ export class EmargementService {
             ...this.toDto(seance, this.countsFrom(records)),
             alternants: this.alternantsWithAttendance(alternants, records, true),
             history: history.map(historyDto),
+        };
+    }
+
+    // ── Exports (§8) ─────────────────────────────────────────────────────────
+
+    /** Séances d'un export : une séance précise, sinon la période / la session demandée. */
+    private async exportSeances(filter: EmargementExportFilter): Promise<Seance[]> {
+        if (filter.seanceId) return [await this.requireSeance(filter.seanceId)];
+        return this.seances.findAll({
+            sessionId: filter.sessionId,
+            from: filter.from,
+            to: filter.to,
+        });
+    }
+
+    /**
+     * Export des présences et des heures : une ligne par alternant × demi-journée,
+     * plus une synthèse par alternant (heures prévues / réalisées, absences).
+     */
+    async exportAttendance(filter: EmargementExportFilter = {}): Promise<AttendanceExportDto> {
+        const seances = await this.exportSeances(filter);
+        const records = await this.emargements.findBySeances(seances.map((s) => s._id));
+        const byKey = new Map(records.map((r) => [`${r.seance_id}:${r.alternant_id}:${r.half}`, r]));
+        const alternantsBySession = new Map<string, Awaited<ReturnType<SessionService['findAlternants']>>>();
+        const now = new Date();
+
+        const rows: AttendanceExportRow[] = [];
+        for (const seance of seances) {
+            let alternants = alternantsBySession.get(seance.session_id);
+            if (!alternants) {
+                alternants = await this.sessions.findAlternants(seance.session_id);
+                alternantsBySession.set(seance.session_id, alternants);
+            }
+            const validations = validationsOf(seance);
+            const validationStatus = this.validationStatus(seance, now);
+            for (const alternant of alternants) {
+                for (const half of applicableHalves(seance)) {
+                    const record = byKey.get(`${seance._id}:${alternant._id}:${half}`) ?? null;
+                    rows.push({
+                        seanceId: seance._id,
+                        date: seance.date,
+                        startTime: seance.start_time,
+                        endTime: seance.end_time,
+                        sessionNom: seance.session_nom,
+                        degreeTitle: seance.degree_title ?? null,
+                        module: seance.module ?? null,
+                        formateurName: seance.formateur_name,
+                        site: seance.site,
+                        mode: seance.mode,
+                        validationStatus,
+                        alternantId: alternant._id,
+                        firstName: alternant.first_name,
+                        lastName: alternant.last_name,
+                        financeur: alternant.financeur ?? null,
+                        half,
+                        status: record?.status ?? 'na',
+                        statusTime: record?.status_time ?? null,
+                        signatureMode: record?.signature_mode ?? null,
+                        signedAt: record ? toIso(record.signed_at) : null,
+                        plannedMinutes: plannedMinutesOf(seance, half),
+                        attendedMinutes: attendedMinutesOf(seance, half, record),
+                        validation: validationDto(validations[half]),
+                    });
+                }
+            }
+        }
+
+        const halfOrder = (half: EmargementHalf) => (half === 'morning' ? 0 : 1);
+        rows.sort(
+            (a, b) =>
+                a.date.localeCompare(b.date) ||
+                a.startTime.localeCompare(b.startTime) ||
+                a.lastName.localeCompare(b.lastName, 'fr') ||
+                a.firstName.localeCompare(b.firstName, 'fr') ||
+                halfOrder(a.half) - halfOrder(b.half),
+        );
+
+        const summaries = new Map<string, AttendanceExportSummary & { seanceIds: Set<string> }>();
+        for (const row of rows) {
+            let summary = summaries.get(row.alternantId);
+            if (!summary) {
+                summary = {
+                    alternantId: row.alternantId,
+                    firstName: row.firstName,
+                    lastName: row.lastName,
+                    financeur: row.financeur,
+                    sessions: 0,
+                    halves: 0,
+                    absences: 0,
+                    plannedMinutes: 0,
+                    attendedMinutes: 0,
+                    seanceIds: new Set<string>(),
+                };
+                summaries.set(row.alternantId, summary);
+            }
+            summary.seanceIds.add(row.seanceId);
+            summary.halves += 1;
+            if (row.status === 'absent') summary.absences += 1;
+            summary.plannedMinutes += row.plannedMinutes;
+            summary.attendedMinutes += row.attendedMinutes;
+        }
+
+        return {
+            generatedAt: new Date().toISOString(),
+            from: filter.from ?? null,
+            to: filter.to ?? null,
+            sessionId: filter.sessionId ?? null,
+            seanceId: filter.seanceId ?? null,
+            rows,
+            summaries: [...summaries.values()]
+                .map(({ seanceIds, ...rest }) => ({ ...rest, sessions: seanceIds.size }))
+                .sort(
+                    (a, b) =>
+                        a.lastName.localeCompare(b.lastName, 'fr') || a.firstName.localeCompare(b.firstName, 'fr'),
+                ),
+        };
+    }
+
+    /** Export du journal append-only (lot 5) : qui a changé quoi, quand et pourquoi. */
+    async exportHistory(filter: EmargementExportFilter = {}): Promise<HistoryExportDto> {
+        const seances = await this.exportSeances(filter);
+        const byId = new Map(seances.map((s) => [s._id, s]));
+        const entries = filter.seanceId
+            ? await this.history.findBySeance(filter.seanceId, HISTORY_EXPORT_LIMIT)
+            : await this.history.findBySeances(seances.map((s) => s._id));
+
+        const rows: HistoryExportRow[] = entries.map((entry) => {
+            const seance = byId.get(entry.seance_id);
+            return {
+                at: toIso(entry.at)!,
+                seanceId: entry.seance_id,
+                date: seance?.date ?? '',
+                sessionNom: seance?.session_nom ?? '',
+                action: entry.action,
+                alternantName: entry.alternant_name ?? null,
+                half: entry.half ?? null,
+                fromStatus: entry.from_status ?? null,
+                toStatus: entry.to_status ?? null,
+                fromStatusTime: entry.from_status_time ?? null,
+                toStatusTime: entry.to_status_time ?? null,
+                source: entry.source,
+                actorName: entry.actor_name ?? null,
+                note: entry.note ?? null,
+            };
+        });
+
+        return {
+            generatedAt: new Date().toISOString(),
+            from: filter.from ?? null,
+            to: filter.to ?? null,
+            sessionId: filter.sessionId ?? null,
+            seanceId: filter.seanceId ?? null,
+            rows,
+        };
+    }
+
+    /**
+     * Synthèse d'un groupe : une ligne par alternant de la session, heures
+     * prévues / réalisées sur la période. Sert le PDF « par groupe » (§8.1).
+     */
+    async groupSummary(sessionId: string, filter: { from?: string; to?: string } = {}): Promise<GroupSummaryDto> {
+        const session = await this.sessions.findById(sessionId);
+        if (!session) throw httpError(404, 'session', 'Session introuvable');
+        const data = await this.exportAttendance({ sessionId, from: filter.from, to: filter.to });
+        const dates = data.rows.map((row) => row.date).sort();
+        return {
+            generatedAt: new Date().toISOString(),
+            sessionId,
+            sessionNom: data.rows[0]?.sessionNom ?? session.nom,
+            degreeTitle: data.rows.find((row) => row.degreeTitle)?.degreeTitle ?? null,
+            from: filter.from ?? dates[0] ?? null,
+            to: filter.to ?? dates[dates.length - 1] ?? null,
+            plannedMinutes: data.summaries.reduce((sum, row) => sum + row.plannedMinutes, 0),
+            attendedMinutes: data.summaries.reduce((sum, row) => sum + row.attendedMinutes, 0),
+            rows: data.summaries,
+        };
+    }
+
+    /**
+     * Attestation d'assiduité d'un alternant : séances de sa session sur la
+     * période, heures prévues / réalisées et statut de validation de chaque
+     * demi-journée. Les alternants archivés restent exportables (historique).
+     */
+    async attestation(alternantId: string, filter: { from?: string; to?: string } = {}): Promise<AttestationDto> {
+        const alternant = await this.alternants.findById(alternantId);
+        if (!alternant) throw httpError(404, 'alternant', 'Alternant introuvable');
+        const sessionId = alternant.session_id ?? alternant.filiz?.class_id ?? null;
+        if (!sessionId) {
+            throw httpError(400, 'session', 'Cet alternant n’est rattaché à aucune session');
+        }
+
+        const seances = await this.seances.findAll({ sessionId, from: filter.from, to: filter.to });
+        const records = await this.emargements.findByAlternant(
+            alternantId,
+            seances.map((s) => s._id),
+        );
+        const byKey = new Map(records.map((r) => [`${r.seance_id}:${r.half}`, r]));
+        const now = new Date();
+
+        const attestationSeances: AttestationSeanceDto[] = seances
+            .slice()
+            .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time))
+            .map((seance) => {
+                const validations = validationsOf(seance);
+                const halves = applicableHalves(seance).map((half) => {
+                    const record = byKey.get(`${seance._id}:${half}`) ?? null;
+                    return {
+                        half,
+                        status: record?.status ?? ('na' as EmargementStatus),
+                        statusTime: record?.status_time ?? null,
+                        plannedMinutes: plannedMinutesOf(seance, half),
+                        attendedMinutes: attendedMinutesOf(seance, half, record),
+                        validation: validationDto(validations[half]),
+                    };
+                });
+                return {
+                    seanceId: seance._id,
+                    date: seance.date,
+                    startTime: seance.start_time,
+                    endTime: seance.end_time,
+                    module: seance.module ?? null,
+                    validationStatus: this.validationStatus(seance, now),
+                    plannedMinutes: halves.reduce((sum, half) => sum + half.plannedMinutes, 0),
+                    attendedMinutes: halves.reduce((sum, half) => sum + half.attendedMinutes, 0),
+                    halves,
+                };
+            });
+
+        const dates = attestationSeances.map((s) => s.date).sort();
+        return {
+            generatedAt: new Date().toISOString(),
+            alternantId: alternant._id,
+            firstName: alternant.first_name,
+            lastName: alternant.last_name,
+            financeur: alternant.financeur ?? null,
+            sessionNom: seances[0]?.session_nom ?? alternant.session ?? '',
+            degreeTitle: seances.find((s) => s.degree_title)?.degree_title ?? null,
+            from: filter.from ?? dates[0] ?? null,
+            to: filter.to ?? dates[dates.length - 1] ?? null,
+            plannedMinutes: attestationSeances.reduce((sum, s) => sum + s.plannedMinutes, 0),
+            attendedMinutes: attestationSeances.reduce((sum, s) => sum + s.attendedMinutes, 0),
+            seances: attestationSeances,
         };
     }
 

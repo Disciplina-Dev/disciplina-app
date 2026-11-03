@@ -988,3 +988,124 @@ describe('API émargement — signature alternant par QR', () => {
         }
     });
 });
+
+describe('API émargement — exports (§8)', () => {
+    it('exporte la feuille en PDF, les présences en CSV/Excel, le journal et une attestation', async () => {
+        const auth = pedaAuth();
+        const { classId, degreeId, alternants } = await seedSessionWithAlternants(1);
+        const tz = tenantTimezone();
+        const seance = await seedSeance({
+            session_id: classId,
+            session_nom: 'Promo export',
+            degree_title: 'Développeur web',
+            module: 'Séquence 1 — Export',
+            morning_start: '00:00',
+            morning_end: '00:01',
+            afternoon_start: null,
+            afternoon_end: null,
+            invite_expires_at: endOfLocalDay(addDaysToDate(localDate(new Date(), tz), 7), tz),
+        });
+        try {
+            const viewUrl = `${API}/api/emargement/formateur/${encodeURIComponent(buildSeanceToken(seance, 'formateur'))}`;
+            const alternantId = alternants[0]._id;
+            const attendance = await fetch(`${viewUrl}/attendance`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId, half: 'morning', status: 'present' }),
+            });
+            expect(attendance.status).toBe(200);
+            const signed = await fetch(`${viewUrl}/attendance/sign`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ alternantId, half: 'morning', signature: SIGNATURE_PNG }),
+            });
+            expect(signed.status).toBe(200);
+
+            // Feuille de séance : vrai PDF, signature de l'alternant incluse.
+            const pdfRes = await fetch(`${API}/api/emargement/seances/${seance._id}/pdf?theme=region`, {
+                headers: { Cookie: auth.cookieHeader },
+            });
+            expect(pdfRes.status).toBe(200);
+            expect(pdfRes.headers.get('content-type')).toContain('application/pdf');
+            const pdf = Buffer.from(await pdfRes.arrayBuffer());
+            expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
+            expect(pdf.length).toBeGreaterThan(1_000);
+
+            // Présences : CSV français (BOM + `;`), une ligne par alternant × demi-journée.
+            const csvRes = await fetch(`${API}/api/emargement/exports/attendance?seanceId=${seance._id}`, {
+                headers: { Cookie: auth.cookieHeader },
+            });
+            expect(csvRes.status).toBe(200);
+            expect(csvRes.headers.get('content-type')).toContain('text/csv');
+            const csvBytes = Buffer.from(await csvRes.arrayBuffer());
+            // BOM UTF-8 : Excel français reconnaît l'encodage sans assistant d'import.
+            expect(csvBytes.subarray(0, 3).toString('hex')).toBe('efbbbf');
+            const csv = csvBytes.toString('utf8');
+            expect(csv).toContain('Demi-journée');
+            expect(csv).toContain(`${alternants[0].first_name} ${alternants[0].last_name}`);
+            expect(csv).toContain('Présent');
+            // Créneau de 1 minute → 0,02 h prévue comme réalisée.
+            expect(csv).toContain('0,02');
+            expect(csv).toContain('Synthèse par alternant');
+
+            // Excel : classeur zippé, deux feuilles.
+            const xlsxRes = await fetch(`${API}/api/emargement/exports/attendance?seanceId=${seance._id}&format=xlsx`, {
+                headers: { Cookie: auth.cookieHeader },
+            });
+            expect(xlsxRes.status).toBe(200);
+            expect(xlsxRes.headers.get('content-type')).toContain('spreadsheetml');
+            const xlsx = Buffer.from(await xlsxRes.arrayBuffer());
+            expect(xlsx.subarray(0, 2).toString()).toBe('PK');
+
+            // Journal d'audit : la saisie et la signature du lot 5 y figurent.
+            const historyRes = await fetch(`${API}/api/emargement/exports/history?seanceId=${seance._id}`, {
+                headers: { Cookie: auth.cookieHeader },
+            });
+            expect(historyRes.status).toBe(200);
+            const history = await historyRes.text();
+            expect(history).toContain('Statut modifié');
+            expect(history).toContain('Signature tracée');
+            expect(history).toContain('Jean Formateur');
+
+            // Attestation d'assiduité : PDF sur la période de la séance.
+            const attestationRes = await fetch(
+                `${API}/api/emargement/attestations/${alternants[0]._id}?from=${seance.date}&to=${seance.date}`,
+                { headers: { Cookie: auth.cookieHeader } },
+            );
+            expect(attestationRes.status).toBe(200);
+            expect(attestationRes.headers.get('content-type')).toContain('application/pdf');
+            const attestation = Buffer.from(await attestationRes.arrayBuffer());
+            expect(attestation.subarray(0, 4).toString()).toBe('%PDF');
+
+            // Récapitulatif du groupe : PDF de la session entière (export « par groupe »).
+            const groupRes = await fetch(
+                `${API}/api/emargement/sessions/${classId}/attendance.pdf?from=${seance.date}&to=${seance.date}&theme=fse`,
+                { headers: { Cookie: auth.cookieHeader } },
+            );
+            expect(groupRes.status).toBe(200);
+            expect(groupRes.headers.get('content-type')).toContain('application/pdf');
+            const group = Buffer.from(await groupRes.arrayBuffer());
+            expect(group.subarray(0, 4).toString()).toBe('%PDF');
+        } finally {
+            await getModels().EmargementHistory.deleteMany({ seance_id: seance._id });
+            await getModels().Emargement.deleteMany({ seance_id: seance._id });
+            await getModels().Seance.deleteOne({ _id: seance._id });
+            await cleanupSession(
+                classId,
+                degreeId,
+                alternants.map((a) => a._id),
+            );
+        }
+    });
+
+    it('refuse les exports sans authentification et les séances inconnues', async () => {
+        const anonymous = await fetch(`${API}/api/emargement/exports/attendance`);
+        expect(anonymous.status).toBe(401);
+
+        const auth = pedaAuth();
+        const missing = await fetch(`${API}/api/emargement/seances/inconnue/pdf`, {
+            headers: { Cookie: auth.cookieHeader },
+        });
+        expect(missing.status).toBe(404);
+    });
+});

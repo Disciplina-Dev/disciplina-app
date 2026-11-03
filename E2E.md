@@ -195,6 +195,15 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Test vitest** : `rest/emargement/__tests__/emargement.test.ts`.
 - **Statut** : _à remplir_
 
+### 3.14 ter Exports et justificatifs d'émargement (#955, §8)
+
+- **Étapes** : (1) Peda → `/peda/emargements/:id` → carte « Exports » : choisir une charte (Disciplina, Région Réunion, FSE+) puis télécharger la feuille d'émargement (PDF), le récapitulatif du groupe (PDF), une attestation d'assiduité par alternant (PDF, sélecteur), les présences en CSV ou en Excel, et le journal d'audit en CSV ; (2) depuis la liste `/peda/emargements`, les boutons « Présences CSV / Excel » exportent la période affichée (filtre À venir / Passées / Toutes) ; (3) ouvrir les fichiers téléchargés : feuille PDF (tableau des présences avec signatures, blocs de signature du formateur, état de la feuille), attestation (identité, formation, période, heures prévues / réalisées, taux, détail des séances, zone de signature), CSV dans Excel français, classeur à deux feuilles (Présences + Synthèse), journal (horodatage, action, auteur, statut avant → après, motif).
+- **Chaîne** : `GET /api/emargement/seances/:id/pdf`, `GET /api/emargement/exports/attendance` (`seanceId` / `sessionId` / `from` / `to`, `format=csv` ou `xlsx`), `GET /api/emargement/exports/history`, `GET /api/emargement/attestations/:alternantId?from&to`, `GET /api/emargement/sessions/:sessionId/attendance.pdf` (`authenticate` + rôle PEDA/AD/GESTION) → `EmargementService` (DTO : heures calculées, validations) → `EmargementExportService` (pdfkit, `ExcelJS`, CSV BOM + `;`) → pièce jointe HTTP.
+- **Résultat attendu** : (1) cinq téléchargements nommés en UTF-8 (`filename*=UTF-8''`), `application/pdf`, `text/csv; charset=utf-8` ou `spreadsheetml` ; (2) PDF de séance : mentions de la charte choisie (couleur + bandeau + pied de page), colonne « Après-midi » masquée quand la séance n'a pas de créneau, tracé des alternants intégré, mention explicite pour une demi-journée validée par le Peda (avec motif) ou non signée à la date d'édition ; (3) heures : `présent` = créneau entier, `en retard` = heure d'arrivée → fin, `parti en avance` = début → heure de départ, `absent` / N/A = 0, heure manquante = créneau entier ; (4) CSV : BOM UTF-8 (les octets `efbbbf` sont présents) et séparateur `;`, heures décimales à virgule ; Excel : feuille « Présences » filtrable + feuille « Synthèse » (heures, taux, absences, séances) ; (5) exports refusés sans session (401) et séance inconnue → 404 ; aucun fichier n'est écrit sur le serveur ni envoyé par e-mail, et les routes publiques (formateur / QR) n'y donnent pas accès.
+- **External** : aucun.
+- **Test vitest** : `rest/emargement/__tests__/emargement.test.ts` (« exporte la feuille en PDF, les présences en CSV/Excel, le journal et une attestation », « refuse les exports sans authentification et les séances inconnues »).
+- **Statut** : _à remplir_
+
 ### 3.15 Notifications & Todos
 
 - **Étapes** : réception de notifications temps réel ; création/consultation de todos.
@@ -268,6 +277,7 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.13 KPI | — | **oui** |
 | 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification`, `saNotification`, `rupture`, `alternant`, `session` | flux `run` complet (drafts) |
 | 3.14 bis Émargement | `emargement` (création + invitation, saisie formateur, QR idempotent, fenêtre fermée, feuille verrouillée) | invitation Gmail |
+| 3.14 ter Exports émargement | `emargement` (PDF séance/attestation/groupe, CSV/Excel, journal) | — |
 | 3.17 MCP péda | `mcp/peda`, `mcp/pedaMasking` | — |
 | 3.15 Notifs/Todos | `authBoundary` (SSE) | flux nominal |
 | 3.16 Admin users | `directory`, `sensitive-fields` | — |
