@@ -1,11 +1,14 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
-import { ClientMeta, EmargementService } from '../../services/EmargementService';
+import { ClientMeta, EmargementExportFilter, EmargementService } from '../../services/EmargementService';
+import { EmargementExportService } from '../../services/EmargementExportService';
+import { parsePdfTheme } from '../../services/emargementPdfThemes';
 import { SEANCE_VALIDATION_STATUSES, SeanceValidationStatus } from '../../types/emargement.types';
 import { isIsoDate } from '../../utils/zonedTime';
 
 const service = new EmargementService();
+const renderer = new EmargementExportService();
 
 /** Erreur métier (`status` posé par httpError) → 4xx + code ; le reste → 500 journalisé. */
 export function sendError(res: Response, error: unknown, context: string): void {
@@ -106,6 +109,133 @@ export async function validate(req: AuthRequest, res: Response): Promise<void> {
         });
     } catch (error) {
         sendError(res, error, 'Emargement validation failed');
+    }
+}
+
+// ── Exports (§8) ─────────────────────────────────────────────────────────────
+
+/** Nom de fichier lisible, sans accents ni espaces (le vrai nom est en UTF-8 dans l'en-tête). */
+function fileSlug(value: string | null | undefined): string {
+    return (
+        (value ?? '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '')
+            .toLowerCase()
+            .slice(0, 60) || 'emargement'
+    );
+}
+
+function sendFile(res: Response, body: Buffer, contentType: string, fileName: string): void {
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`);
+    res.setHeader('Content-Length', String(body.length));
+    res.end(body);
+}
+
+/** Filtres communs aux exports : séance, session, bornes de dates (invalidées si mal formées). */
+function exportFilter(req: AuthRequest): EmargementExportFilter {
+    const seanceId = queryString(req.query.seanceId);
+    const sessionId = queryString(req.query.sessionId);
+    const from = queryString(req.query.from);
+    const to = queryString(req.query.to);
+    return {
+        seanceId,
+        sessionId,
+        from: from && isIsoDate(from) ? from : undefined,
+        to: to && isIsoDate(to) ? to : undefined,
+    };
+}
+
+/** `?format=csv` (défaut) ou `?format=xlsx`. */
+function exportFormat(value: unknown): 'csv' | 'xlsx' {
+    return value === 'xlsx' ? 'xlsx' : 'csv';
+}
+
+/** Feuille d'émargement d'une séance en PDF (charte Disciplina / Région / FSE+). */
+export async function seancePdf(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const seance = await service.get(String(req.params.id));
+        const pdf = await renderer.seancePdf(seance, parsePdfTheme(req.query.theme));
+        sendFile(res, pdf, 'application/pdf', `emargement-${seance.date}-${fileSlug(seance.sessionNom)}.pdf`);
+    } catch (error) {
+        sendError(res, error, 'Emargement seance PDF export failed');
+    }
+}
+
+/** Présences et heures (une ligne par alternant × demi-journée, plus une synthèse). */
+export async function exportAttendance(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const data = await service.exportAttendance(exportFilter(req));
+        const name = `presences-${data.from ?? 'debut'}-${data.to ?? 'fin'}`;
+        if (exportFormat(req.query.format) === 'xlsx') {
+            const buffer = await renderer.attendanceXlsx(data);
+            sendFile(res, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `${name}.xlsx`);
+            return;
+        }
+        const csv = Buffer.from(renderer.attendanceCsv(data), 'utf8');
+        sendFile(res, csv, 'text/csv; charset=utf-8', `${name}.csv`);
+    } catch (error) {
+        sendError(res, error, 'Emargement attendance export failed');
+    }
+}
+
+/** Journal d'audit (changements de statut, signatures, validations) en CSV. */
+export async function exportHistory(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const data = await service.exportHistory(exportFilter(req));
+        const csv = Buffer.from(renderer.historyCsv(data), 'utf8');
+        sendFile(
+            res,
+            csv,
+            'text/csv; charset=utf-8',
+            `journal-emargement-${data.from ?? 'debut'}-${data.to ?? 'fin'}.csv`,
+        );
+    } catch (error) {
+        sendError(res, error, 'Emargement history export failed');
+    }
+}
+
+/** Attestation d'assiduité d'un alternant sur une période. */
+export async function exportAttestation(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const from = queryString(req.query.from);
+        const to = queryString(req.query.to);
+        const attestation = await service.attestation(String(req.params.alternantId), {
+            from: from && isIsoDate(from) ? from : undefined,
+            to: to && isIsoDate(to) ? to : undefined,
+        });
+        const pdf = await renderer.attestationPdf(attestation, parsePdfTheme(req.query.theme));
+        sendFile(
+            res,
+            pdf,
+            'application/pdf',
+            `attestation-${fileSlug(`${attestation.firstName} ${attestation.lastName}`)}-${attestation.from ?? 'debut'}-${attestation.to ?? 'fin'}.pdf`,
+        );
+    } catch (error) {
+        sendError(res, error, 'Emargement attestation export failed');
+    }
+}
+
+/** Récapitulatif d'assiduité d'un groupe (session entière, période optionnelle). */
+export async function exportGroupPdf(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        const from = queryString(req.query.from);
+        const to = queryString(req.query.to);
+        const summary = await service.groupSummary(String(req.params.sessionId), {
+            from: from && isIsoDate(from) ? from : undefined,
+            to: to && isIsoDate(to) ? to : undefined,
+        });
+        const pdf = await renderer.groupPdf(summary, parsePdfTheme(req.query.theme));
+        sendFile(
+            res,
+            pdf,
+            'application/pdf',
+            `assiduite-groupe-${fileSlug(summary.sessionNom)}-${summary.from ?? 'debut'}-${summary.to ?? 'fin'}.pdf`,
+        );
+    } catch (error) {
+        sendError(res, error, 'Emargement group PDF export failed');
     }
 }
 

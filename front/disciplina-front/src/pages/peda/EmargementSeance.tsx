@@ -21,10 +21,24 @@ import {
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
+import Select from '@/components/ui/Select'
 import SeanceFormModal from '@/components/peda/SeanceFormModal'
-import { deleteSeance, fetchSeance, resendInvite, validateSeance } from '@/api/emargement'
+import {
+  deleteSeance,
+  fetchAttendanceExport,
+  fetchAttestation,
+  fetchGroupSummary,
+  fetchHistoryExport,
+  fetchSeance,
+  fetchSeancePdf,
+  resendInvite,
+  validateSeance,
+} from '@/api/emargement'
 import { zonedWallClockToIso } from '@/lib/timezone'
-import type { AlternantAttendance, AttendanceRecord, SeanceDetail } from '@/types/emargement'
+import { toast } from '@/store/toastStore'
+import { downloadBlob } from '@/utils/download'
+import { EMARGEMENT_PDF_THEMES, PDF_THEME_LABELS } from '@/types/emargement'
+import type { AlternantAttendance, AttendanceRecord, EmargementPdfTheme, SeanceDetail } from '@/types/emargement'
 import {
   HALF_LABELS,
   HISTORY_ACTION_LABELS,
@@ -119,6 +133,9 @@ export default function EmargementSeance() {
   const [validating, setValidating] = useState(false)
   const [validationNote, setValidationNote] = useState('')
   const [copied, setCopied] = useState<'formateur' | 'qr' | null>(null)
+  const [theme, setTheme] = useState<EmargementPdfTheme>('disciplina')
+  const [exporting, setExporting] = useState<string | null>(null)
+  const [attestationId, setAttestationId] = useState('')
   const qrRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(() => {
@@ -212,6 +229,19 @@ export default function EmargementSeance() {
       setError(err instanceof Error ? err.message : 'Validation impossible')
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** Téléchargement d'un export : un seul à la fois, erreur remontée en toast. */
+  const runExport = async (key: string, task: () => Promise<{ blob: Blob; fileName: string }>) => {
+    setExporting(key)
+    try {
+      const { blob, fileName } = await task()
+      downloadBlob(blob, fileName)
+    } catch (err) {
+      toast.errorMessage('Export impossible', err instanceof Error ? err.message : undefined)
+    } finally {
+      setExporting(null)
     }
   }
 
@@ -558,6 +588,121 @@ export default function EmargementSeance() {
           </Card>
         </div>
       </div>
+
+      <Card className="mt-5">
+        <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-[var(--ds-text)]">
+          <IconDownload width={16} height={16} className="text-[var(--ds-accent)]" />
+          Exports
+        </h2>
+        <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+          Feuille de séance et attestation en PDF, présences et heures en CSV / Excel, journal d’audit en CSV. La
+          charte choisie s’applique aux PDF.
+        </p>
+
+        <div className="mt-4 grid gap-5 sm:grid-cols-2">
+          <div>
+            <p className="text-[12px] font-semibold text-[var(--ds-text-muted)]">Documents PDF</p>
+            <div className="mt-1.5 max-w-[240px]">
+              <Select
+                label="Charte"
+                options={EMARGEMENT_PDF_THEMES.map((value) => ({ value, label: PDF_THEME_LABELS[value] }))}
+                value={theme}
+                onChange={setTheme}
+                size="sm"
+              />
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<IconDownload width={15} height={15} />}
+                isLoading={exporting === 'sheet'}
+                disabled={exporting !== null}
+                onClick={() => runExport('sheet', () => fetchSeancePdf(seance.id, theme))}
+              >
+                Feuille d’émargement
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<IconDownload width={15} height={15} />}
+                isLoading={exporting === 'group'}
+                disabled={exporting !== null}
+                onClick={() => runExport('group', () => fetchGroupSummary(seance.sessionId, { theme }))}
+              >
+                Récapitulatif du groupe
+              </Button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-end gap-2">
+              <div className="min-w-[200px] flex-1">
+                <Select
+                  label="Attestation d’assiduité"
+                  options={seance.alternants.map((alternant) => ({
+                    value: alternant.id,
+                    label: `${alternant.firstName} ${alternant.lastName}`,
+                  }))}
+                  value={attestationId}
+                  onChange={setAttestationId}
+                  size="sm"
+                  placeholder="Choisir un alternant…"
+                  disabled={seance.alternants.length === 0}
+                />
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<IconDownload width={15} height={15} />}
+                isLoading={exporting === 'attestation'}
+                disabled={!attestationId || exporting !== null}
+                onClick={() => runExport('attestation', () => fetchAttestation(attestationId, { theme }))}
+              >
+                Attestation PDF
+              </Button>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-[12px] font-semibold text-[var(--ds-text-muted)]">Tableurs et journal</p>
+            <p className="mt-1 text-[11px] text-[var(--ds-text-subtle)]">
+              Une ligne par alternant et par demi-journée, heures prévues / réalisées calculées sur les créneaux de
+              signature.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<IconDownload width={15} height={15} />}
+                isLoading={exporting === 'csv'}
+                disabled={exporting !== null}
+                onClick={() => runExport('csv', () => fetchAttendanceExport({ seanceId: seance.id }, 'csv'))}
+              >
+                Présences CSV
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                leftIcon={<IconDownload width={15} height={15} />}
+                isLoading={exporting === 'xlsx'}
+                disabled={exporting !== null}
+                onClick={() => runExport('xlsx', () => fetchAttendanceExport({ seanceId: seance.id }, 'xlsx'))}
+              >
+                Présences Excel
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                leftIcon={<IconDownload width={15} height={15} />}
+                isLoading={exporting === 'history'}
+                disabled={exporting !== null}
+                onClick={() => runExport('history', () => fetchHistoryExport({ seanceId: seance.id }))}
+              >
+                Journal CSV
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <Card className="mt-5">
         <h2 className="flex flex-wrap items-center gap-2 text-[15px] font-bold text-[var(--ds-text)]">

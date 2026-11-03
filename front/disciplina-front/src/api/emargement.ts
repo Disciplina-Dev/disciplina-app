@@ -1,7 +1,10 @@
 import { apiFetch } from '@/api/httpClient'
 import type {
   CreateSeanceInput,
+  EmargementExportFilter,
+  EmargementExportFormat,
   EmargementHalf,
+  EmargementPdfTheme,
   EmargementStatus,
   FormateurView,
   PublicSigning,
@@ -201,4 +204,92 @@ export async function fetchPublicSigning(token: string): Promise<PublicSigning> 
 export async function signByQr(token: string, email: string, signature: string): Promise<QrSignResult> {
   const body = await publicCall<{ result: QrSignResult }>('POST', publicUrl('sign', token), { email, signature })
   return body.result
+}
+
+// ── Exports (§8) ─────────────────────────────────────────────────────────────
+
+export interface DownloadedFile {
+  blob: Blob
+  fileName: string
+}
+
+/** GET binaire : le nom réel du fichier est dans `Content-Disposition` (UTF-8). */
+async function downloadFile(path: string, fallbackName: string): Promise<DownloadedFile> {
+  const res = await apiFetch(`/api/emargement${path}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(typeof body?.error === 'string' ? body.error : `Export impossible (${res.status})`)
+  }
+  const match = /filename\*=UTF-8''([^;]+)/.exec(res.headers.get('Content-Disposition') ?? '')
+  return {
+    blob: await res.blob(),
+    fileName: match ? decodeURIComponent(match[1]) : fallbackName,
+  }
+}
+
+function exportQuery(filter: EmargementExportFilter, extra: Record<string, string> = {}): string {
+  const params = new URLSearchParams()
+  if (filter.seanceId) params.set('seanceId', filter.seanceId)
+  if (filter.sessionId) params.set('sessionId', filter.sessionId)
+  if (filter.from) params.set('from', filter.from)
+  if (filter.to) params.set('to', filter.to)
+  for (const [key, value] of Object.entries(extra)) params.set(key, value)
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
+/** Feuille d'émargement d'une séance (PDF, charte au choix). */
+export function fetchSeancePdf(id: string, theme: EmargementPdfTheme): Promise<DownloadedFile> {
+  return downloadFile(
+    `/seances/${encodeURIComponent(id)}/pdf${exportQuery({}, { theme })}`,
+    'emargement.pdf',
+  )
+}
+
+/** Présences et heures (CSV ou Excel), éventuellement filtrées par séance / session / période. */
+export function fetchAttendanceExport(
+  filter: EmargementExportFilter,
+  format: EmargementExportFormat,
+): Promise<DownloadedFile> {
+  return downloadFile(
+    `/exports/attendance${exportQuery(filter, { format })}`,
+    format === 'xlsx' ? 'presences.xlsx' : 'presences.csv',
+  )
+}
+
+/** Journal d'audit des changements (CSV). */
+export function fetchHistoryExport(filter: EmargementExportFilter): Promise<DownloadedFile> {
+  return downloadFile(`/exports/history${exportQuery(filter)}`, 'journal-emargement.csv')
+}
+
+/** Attestation d'assiduité d'un alternant (PDF). */
+export function fetchAttestation(
+  alternantId: string,
+  options: { from?: string; to?: string; theme?: EmargementPdfTheme } = {},
+): Promise<DownloadedFile> {
+  const extra: Record<string, string> = {}
+  if (options.theme) extra.theme = options.theme
+  return downloadFile(
+    `/attestations/${encodeURIComponent(alternantId)}${exportQuery(
+      { from: options.from, to: options.to },
+      extra,
+    )}`,
+    'attestation-assiduite.pdf',
+  )
+}
+
+/** Récapitulatif d'assiduité d'un groupe (session, période optionnelle) en PDF. */
+export function fetchGroupSummary(
+  sessionId: string,
+  options: { from?: string; to?: string; theme?: EmargementPdfTheme } = {},
+): Promise<DownloadedFile> {
+  const extra: Record<string, string> = {}
+  if (options.theme) extra.theme = options.theme
+  return downloadFile(
+    `/sessions/${encodeURIComponent(sessionId)}/attendance.pdf${exportQuery(
+      { from: options.from, to: options.to },
+      extra,
+    )}`,
+    'assiduite-groupe.pdf',
+  )
 }

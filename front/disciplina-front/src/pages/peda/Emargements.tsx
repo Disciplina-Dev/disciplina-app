@@ -4,6 +4,7 @@ import {
   IconAlert,
   IconCalendar,
   IconCheckCircle,
+  IconDownload,
   IconLoader,
   IconPlus,
   IconQrCode,
@@ -17,7 +18,9 @@ import EmptyState from '@/components/ui/EmptyState'
 import PageHeader from '@/components/ui/PageHeader'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SeanceFormModal from '@/components/peda/SeanceFormModal'
-import { fetchSeances } from '@/api/emargement'
+import { fetchAttendanceExport, fetchSeances } from '@/api/emargement'
+import { toast } from '@/store/toastStore'
+import { downloadBlob } from '@/utils/download'
 import type { Seance, SeanceValidationStatus } from '@/types/emargement'
 import {
   VALIDATION_LABELS,
@@ -66,6 +69,7 @@ export default function Emargements() {
   const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
+  const [exporting, setExporting] = useState<'csv' | 'xlsx' | null>(null)
 
   // Compteur d'anomalies indépendant de la période affichée : une feuille en
   // anomalie est toujours passée, elle disparaîtrait du filtre « À venir ».
@@ -107,6 +111,21 @@ export default function Emargements() {
       alive = false
     }
   }, [range, status, reloadKey])
+
+  /** Période affichée : l'export suit le filtre « À venir / Passées / Toutes ». */
+  const exportFilter = range === 'upcoming' ? { from: localToday() } : range === 'past' ? { to: yesterday() } : {}
+
+  const runExport = async (format: 'csv' | 'xlsx') => {
+    setExporting(format)
+    try {
+      const { blob, fileName } = await fetchAttendanceExport(exportFilter, format)
+      downloadBlob(blob, fileName)
+    } catch (err) {
+      toast.errorMessage('Export impossible', err instanceof Error ? err.message : undefined)
+    } finally {
+      setExporting(null)
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6">
@@ -177,6 +196,28 @@ export default function Emargements() {
             {seances.length} séance{seances.length > 1 ? 's' : ''}
           </span>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<IconDownload width={15} height={15} />}
+            isLoading={exporting === 'csv'}
+            disabled={exporting !== null}
+            onClick={() => runExport('csv')}
+          >
+            Présences CSV
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={<IconDownload width={15} height={15} />}
+            isLoading={exporting === 'xlsx'}
+            disabled={exporting !== null}
+            onClick={() => runExport('xlsx')}
+          >
+            Présences Excel
+          </Button>
+        </div>
       </div>
 
       {error && (

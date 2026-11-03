@@ -34,6 +34,22 @@ export class EmargementRepository {
         return getModels().Emargement.find({ seance_id: seanceId }).lean() as unknown as Promise<EmargementRecord[]>;
     }
 
+    /** Toutes les lignes de plusieurs séances, en une requête (exports de période). */
+    async findBySeances(seanceIds: string[]): Promise<EmargementRecord[]> {
+        if (seanceIds.length === 0) return [];
+        return getModels()
+            .Emargement.find({ seance_id: { $in: seanceIds } })
+            .lean() as unknown as Promise<EmargementRecord[]>;
+    }
+
+    /** Lignes d'un alternant sur un ensemble de séances (attestation d'assiduité). */
+    async findByAlternant(alternantId: string, seanceIds: string[]): Promise<EmargementRecord[]> {
+        if (seanceIds.length === 0) return [];
+        return getModels()
+            .Emargement.find({ alternant_id: alternantId, seance_id: { $in: seanceIds } })
+            .lean() as unknown as Promise<EmargementRecord[]>;
+    }
+
     async findOne(seanceId: string, alternantId: string, half: EmargementHalf): Promise<EmargementRecord | null> {
         return getModels()
             .Emargement.findOne({
