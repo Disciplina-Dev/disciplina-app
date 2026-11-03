@@ -16,3 +16,9 @@ jobs:
 
       - name: Run backend tests
         run: CI=true docker compose -f docker-compose.test.yml up --build --force-recreate --abort-on-container-exit --exit-code-from test-backend
+
+      # Tableau des résultats dans l'onglet « Summary » du run (aussi quand les tests échouent).
+      # Le statut du job reste porté par l'étape précédente.
+      - name: Test summary
+        if: ${{ !cancelled() }}
+        run: node .github/scripts/vitest-summary.mjs back/test-results/vitest.json >> "$GITHUB_STEP_SUMMARY"
