@@ -14,7 +14,10 @@ export default defineConfig({
         // Vitest ≥4 : `poolOptions` supprimé, fichiers séquentiels via fileParallelism.
         // Les tests partagent l'état DB (cf. HOWTOTEST) : jamais de parallélisme.
         fileParallelism: false,
-        reporters: process.env.CI ? ['github-actions', 'verbose'] : ['dot', 'json'],
-        outputFile: './test/output.json',
+        // En CI, le rapport JSON est écrit dans test-results/ (monté hors du conteneur par
+        // docker-compose.test.yml) puis rendu en tableau dans le résumé du run GitHub
+        // par .github/scripts/vitest-summary.mjs.
+        reporters: process.env.CI ? ['github-actions', 'verbose', 'json'] : ['dot', 'json'],
+        outputFile: process.env.CI ? './test-results/vitest.json' : './test/output.json',
     },
 });
