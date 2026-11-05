@@ -32,6 +32,7 @@ const seanceSchema = new Schema<Seance & Document>(
         mode: { type: String, required: true },
         formateur_name: { type: String, required: true },
         formateur_email: { type: String, required: true },
+        formateur_id: { type: String, default: null },
         morning_start: { type: String, required: true },
         morning_end: { type: String, required: true },
         afternoon_start: { type: String, default: null },
@@ -61,5 +62,7 @@ const seanceSchema = new Schema<Seance & Document>(
 
 seanceSchema.index({ date: -1 });
 seanceSchema.index({ session_id: 1, date: -1 });
+seanceSchema.index({ formateur_id: 1, date: -1 });
+seanceSchema.index({ formateur_email: 1, date: -1 });
 
 export const SeanceModel = mongoose.models.Seance || model<Seance & Document>('Seance', seanceSchema);

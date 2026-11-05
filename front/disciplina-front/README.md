@@ -173,6 +173,10 @@ src/
 | Path | Component | Purpose |
 |------|-----------|---------|
 | `/peda` | `SuiviAbsences` | Absence tracking |
+| `/peda/sessions` | `ListeSessions` | Filiz promotions |
+| `/peda/sessions/:id` | `FicheSession` | Promotion detail |
+| `/peda/formateurs` | `ListeFormateurs` | Trainer directory (séances, teaching hours, sessions) |
+| `/peda/formateurs/:id` | `FicheFormateur` | Trainer detail: stats, séance history, change/note journal |
 | `/peda/mail` | `MailTemplates` | Email templates |
 | `/peda/profil` | `ProfilePage` | User profile |
 

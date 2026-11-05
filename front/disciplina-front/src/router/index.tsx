@@ -54,6 +54,8 @@ import ListeAlternants from "@/pages/peda/ListeAlternants";
 import FicheAlternant from "@/pages/peda/FicheAlternant";
 import ListeSessions from "@/pages/peda/ListeSessions";
 import FicheSession from "@/pages/peda/FicheSession";
+import ListeFormateurs from "@/pages/peda/ListeFormateurs";
+import FicheFormateur from "@/pages/peda/FicheFormateur";
 import Ruptures from "@/pages/peda/Ruptures";
 import Emargements from "@/pages/peda/Emargements";
 import EmargementSeance from "@/pages/peda/EmargementSeance";
@@ -221,6 +223,8 @@ export const router = createBrowserRouter([
       { path: "alternants/:id", element: <FicheAlternant />, handle: { crumb: "Fiche alternant" } },
       { path: "sessions", element: <ListeSessions />, handle: { crumb: "Sessions" } },
       { path: "sessions/:id", element: <FicheSession />, handle: { crumb: "Fiche session" } },
+      { path: "formateurs", element: <ListeFormateurs />, handle: { crumb: "Formateurs" } },
+      { path: "formateurs/:id", element: <FicheFormateur />, handle: { crumb: "Fiche formateur" } },
       { path: "ruptures", element: <Ruptures />, handle: { crumb: "Ruptures" } },
       { path: "emargements", element: <Emargements />, handle: { crumb: "Émargements" } },
       { path: "emargements/:id", element: <EmargementSeance />, handle: { crumb: "Feuille d’émargement" } },

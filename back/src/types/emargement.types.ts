@@ -145,6 +145,12 @@ export interface Seance {
     formateur_name: string;
     formateur_email: string;
     /**
+     * Lien vers l'annuaire des formateurs (`formateurs._id`). `null` sur les
+     * séances antérieures à la section Formateurs : elles restent rattachées par
+     * e-mail normalisé dans les statistiques.
+     */
+    formateur_id: string | null;
+    /**
      * Horaires de cours du matin, `HH:mm` locaux : base du calcul des heures
      * prévues / réalisées (la pause déjeuner ne compte pas).
      * `null` sur les séances créées avant le lot 8 (repli sur les créneaux).
@@ -239,6 +245,8 @@ export interface CreateSeanceInput {
     mode: string;
     formateurName: string;
     formateurEmail: string;
+    /** Fiche de l'annuaire sélectionnée (`null` = rattachement par e-mail). */
+    formateurId?: string | null;
     /** Horaires de cours, base du calcul des heures prévues / réalisées. */
     morningClassStart: string;
     morningClassEnd: string;

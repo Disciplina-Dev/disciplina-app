@@ -113,7 +113,7 @@ Légende :
 | 1.3 | ⚠️ PARTIEL | `site` = énumération figée `['Nord','Ouest','Sud','Annemasse']` (`emargement.types.ts:8`) + `mode` `salle\|distanciel` (`:12`). **Ajouté le 2026-10-30** : `location` (libellé libre, salle / adresse / lien visio) affiché sur la feuille à la suite du site et de la modalité. Restent les **sites configurables** (aujourd'hui codés en dur). | Champ `room`/`location` libre ✅ + sites configurables. |
 | 1.4 | ✅ FAIT | `date`, `start_time`, `end_time` (`emargement.types.ts:36-39`). | — |
 | 1.5 | ✅ FAIT | Liste des inscrits lue à la volée (`sessions.findAlternants`, `EmargementService.ts:246`) + snapshot nom/prénom par ligne (`EmargementRepository.upsert`). | — |
-| 1.6 | ✅ FAIT | `formateur_name` (`emargement.types.ts:42`). Attention : texte libre, **non relié à un compte utilisateur** (cf. 3.4). | — |
+| 1.6 | ✅ FAIT | `formateur_name` / `formateur_email` (`emargement.types.ts`) + `formateur_id` : la séance pointe vers l'annuaire `formateurs` (nom et e-mail restent des snapshots sur la feuille, la fiche est créée automatiquement si l'adresse est inconnue). Toujours **non relié à un compte utilisateur** (cf. 3.4) : le formateur ne s'authentifie pas. | — |
 | 1.7 | ✅ FAIT <br>(traité 2026-10-30) | ~~Aucun champ financeur/OPCO sur l'alternant.~~ `Alternant.financeur` (libellé libre, saisi sur la fiche alternant avec suggestions OPCO) est exposé dans `AlternantEmargementDto` et affiché sous le nom de l'alternant sur les feuilles Peda et formateur. Reste à le porter sur les exports (cf. §8). | Ajouter le financeur au dossier alternant ✅ + le porter sur les exports. |
 
 ### 3.2 §2 — Découpage des séances
@@ -160,7 +160,9 @@ Légende :
   autre (cf. 3.2).
 - **3.4 ❌ ABSENT** — Le formateur **ne s'authentifie pas** : il reçoit un lien de capacité par e-mail
   (`EmargementService.ts:662-668`), transmissible, sans login, sans MFA, sans rattachement à un
-  compte (`formateur_name` / `formateur_email` saisis par le Peda).
+  compte utilisateur (`formateur_name` / `formateur_email` saisis par le Peda). Depuis l'annuaire
+  `formateurs` (#955), la séance est bien liée à une fiche (`formateur_id`), mais cette fiche ne donne
+  ni accès ni identité vérifiée : elle reste un référentiel interne au Peda.
 
 ### 3.4 §4 — Horodatage et intégrité
 

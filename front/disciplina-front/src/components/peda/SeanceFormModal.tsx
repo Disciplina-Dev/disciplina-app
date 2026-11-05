@@ -6,6 +6,8 @@ import Select from '@/components/ui/Select'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { createSeance, updateSeance } from '@/api/emargement'
 import { fetchSessions } from '@/api/sessions'
+import FormateurPicker from '@/components/peda/FormateurPicker'
+import type { Formateur } from '@/types/formateur'
 import type { Seance, SeanceMode, SeanceSite } from '@/types/emargement'
 import { SEANCE_SITES } from '@/types/emargement'
 
@@ -49,6 +51,7 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
   const [location, setLocation] = useState(seance?.location ?? '')
   const [formateurName, setFormateurName] = useState(seance?.formateurName ?? '')
   const [formateurEmail, setFormateurEmail] = useState(seance?.formateurEmail ?? '')
+  const [formateurId, setFormateurId] = useState<string | null>(seance?.formateurId ?? null)
   const [morningStart, setMorningStart] = useState(seance?.morningStart ?? '09:00')
   const [morningEnd, setMorningEnd] = useState(seance?.morningEnd ?? '09:15')
   const [hasAfternoon, setHasAfternoon] = useState(
@@ -128,6 +131,7 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
       mode,
       formateurName: formateurName.trim(),
       formateurEmail: formateurEmail.trim(),
+      formateurId,
       morningClassStart,
       morningClassEnd,
       afternoonClassStart: hasAfternoon ? afternoonClassStart : null,
@@ -295,12 +299,34 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
 
           <fieldset className="space-y-3 rounded-[var(--radius-md)] border border-[var(--ds-border)] p-4">
             <legend className="px-1 text-[13px] font-semibold text-[var(--ds-text-muted)]">Formateur</legend>
+            <div className="space-y-1.5">
+              <span className="text-[13px] font-semibold text-[var(--ds-text-muted)]">
+                Formateur existant
+              </span>
+              <FormateurPicker
+                selectedId={formateurId}
+                currentName={formateurName}
+                onSelect={(formateur: Formateur) => {
+                  setFormateurId(formateur.id)
+                  setFormateurName(formateur.name)
+                  setFormateurEmail(formateur.email)
+                }}
+                onClear={() => setFormateurId(null)}
+              />
+              <p className="text-xs text-[var(--ds-text-subtle)]">
+                Sélectionnez une fiche de l’annuaire, ou saisissez un nouveau formateur : sa fiche sera créée
+                automatiquement.
+              </p>
+            </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <InputField
                 id="seance-formateur-nom"
                 label="Nom du formateur"
                 value={formateurName}
-                onChange={(event) => setFormateurName(event.target.value)}
+                onChange={(event) => {
+                  setFormateurName(event.target.value)
+                  setFormateurId(null)
+                }}
                 required
               />
               <InputField
@@ -308,7 +334,10 @@ export default function SeanceFormModal({ seance, onClose, onSaved }: SeanceForm
                 label="E-mail du formateur"
                 type="email"
                 value={formateurEmail}
-                onChange={(event) => setFormateurEmail(event.target.value)}
+                onChange={(event) => {
+                  setFormateurEmail(event.target.value)
+                  setFormateurId(null)
+                }}
                 hint="Recevra le lien de gestion de la feuille."
                 required
               />

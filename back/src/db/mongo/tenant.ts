@@ -18,6 +18,8 @@ import { SessionModel } from './schemas/session.schema';
 import { SeanceModel } from './schemas/seance.schema';
 import { EmargementModel } from './schemas/emargement.schema';
 import { EmargementHistoryModel } from './schemas/emargementHistory.schema';
+import { FormateurModel } from './schemas/formateur.schema';
+import { FormateurHistoryModel } from './schemas/formateurHistory.schema';
 import { AbDriveConfigModel } from './schemas/abDriveConfig.schema';
 import { DriveFolderConfigModel } from './schemas/driveFolderConfig.schema';
 import { QuestionnaireAttemptModel, QuestionnaireModel } from './schemas/questionnaire.schema';
@@ -57,6 +59,8 @@ export function getModels() {
         Seance: modelOn(region, SeanceModel),
         Emargement: modelOn(region, EmargementModel),
         EmargementHistory: modelOn(region, EmargementHistoryModel),
+        Formateur: modelOn(region, FormateurModel),
+        FormateurHistory: modelOn(region, FormateurHistoryModel),
         AbDriveConfig: modelOn(region, AbDriveConfigModel),
         DriveFolderConfig: modelOn(region, DriveFolderConfigModel),
         Questionnaire: modelOn(region, QuestionnaireModel),

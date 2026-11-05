@@ -63,6 +63,7 @@ export default function PedaLayout() {
             <NavItem to="/peda/dashboard" icon={<IconDashboard width={18} height={18} />} label="Tableau de bord" />
             <NavItem to="/peda/alternants" icon={<IconUsers width={18} height={18} />} label="Alternants" />
             <NavItem to="/peda/sessions" icon={<IconTraining width={18} height={18} />} label="Sessions" />
+            <NavItem to="/peda/formateurs" icon={<IconUser width={18} height={18} />} label="Formateurs" />
             <NavItem to="/peda/ruptures" icon={<IconUnlink width={18} height={18} />} label="Ruptures" />
             <NavItem to="/peda/emargements" icon={<IconSignature width={18} height={18} />} label="Émargements" />
             <NavItem to="/peda/assiduite" icon={<IconReport width={18} height={18} />} label="Assiduité" />
