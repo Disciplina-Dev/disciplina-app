@@ -519,6 +519,15 @@ export default function EmargementSeance() {
             >
               {seance.formateurEmail}
             </a>
+            {seance.formateurId && (
+              <Link
+                to={`/peda/formateurs/${seance.formateurId}`}
+                className="mt-1 inline-flex items-center gap-1 text-[12px] font-semibold text-[var(--ds-accent)] no-underline hover:underline"
+              >
+                <IconUser width={13} height={13} />
+                Voir la fiche formateur
+              </Link>
+            )}
             <div className="mt-4 flex flex-col gap-2">
               <Button
                 variant="secondary"

@@ -167,6 +167,8 @@ export interface Seance {
   mode: SeanceMode
   formateurName: string
   formateurEmail: string
+  /** Fiche de l'annuaire liée ; `null` sur les séances antérieures. */
+  formateurId: string | null
   morningStart: string
   morningEnd: string
   afternoonStart: string | null
@@ -276,6 +278,8 @@ export interface CreateSeanceInput {
   mode: SeanceMode
   formateurName: string
   formateurEmail: string
+  /** Fiche de l'annuaire sélectionnée (`null` = rattachement par e-mail). */
+  formateurId?: string | null
   /** Horaires de cours, base des heures prévues / réalisées (pause déjeuner exclue). */
   morningClassStart: string
   morningClassEnd: string

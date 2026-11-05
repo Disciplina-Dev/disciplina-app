@@ -20,7 +20,7 @@ src/
   config/env.ts         Hand-rolled environment validator (exits on invalid/missing vars)
   db/
     mongo/connection.ts Mongoose connection (DB: human_ressources)
-    mongo/schemas/      21 Mongoose schemas (candidates, offers, needs_analysis, séances, émargements…)
+    mongo/schemas/      23 Mongoose schemas (candidates, offers, needs_analysis, séances, émargements, formateurs…)
     mysql/connection.ts MySQL2 connection pool (DB: disciplina)
     mysql/migrations.ts runMysqlMigrations() — auto-applies missing columns at boot
   external/             10 third-party integrations & cross-cutting infrastructure
@@ -49,13 +49,13 @@ src/
   repositories/
     mysql/              18 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,
                         MatchLinkRepository, InterviewAccessRepository, FilizRepository…
-    mongo/              18 repositories: CandidateRepository, OfferRepository, NeedsAnalysisRepository,
-                        SeanceRepository, EmargementRepository…
+    mongo/              20 repositories: CandidateRepository, OfferRepository, NeedsAnalysisRepository,
+                        SeanceRepository, EmargementRepository, FormateurRepository…
   services/             ~30 services: CompaniesService, CompaniesBlacklistService, UserService,
                         CandidateService, OfferService, NeedsAnalysisService, KpiService, PdfService,
                         pagination (cursor pagination helpers)
     mappers/            Snake-case ↔ camelCase mappers for user, company, candidate (MySQL side only)
-  rest/                 22 feature modules + middleware/ + shared/
+  rest/                 23 feature modules + middleware/ + shared/
     auth/               Login, register, Google OAuth
     email/              Gmail email sending + drafts (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
@@ -73,6 +73,7 @@ src/
     notifications/      SSE notification stream
     peda/               Péda: drafts, alternants, sessions, SA (séquences), ruptures (see scheduler/)
     emargement/         Péda: feuilles d'émargement — staff séances + assiduité + exports (§8) + lien formateur / QR alternant publics
+    formateurs/         Péda: annuaire des formateurs — fiches, statistiques d'heures, journal des saisies et notes
     mailTemplates/      Mail templates CRUD
     sectorSettings/     Sector reference settings
     filiz/              Filiz ERP endpoints
@@ -148,7 +149,7 @@ into the companies server.
 | POST | `/api/kpi` | JWT (ADMIN / RESPONSABLE) | Manually upsert one KPI row |
 | POST | `/api/kpi/import` | JWT (ADMIN / RESPONSABLE) | Import KPI data from an uploaded Excel file (`multipart/form-data`, field `file`) |
 | GET · POST | `/api/emargement/seances` | JWT (AD / GESTION / PEDA) | List (filters `from` / `to` / `sessionId` / `validation` = `in_progress` \| `to_validate` \| `anomaly` \| `validated` / `missing=1` = sheets with statuses missing on a closed half) / create a séance → `{ seance, inviteSent }` (`inviteSent: false` when no Google mailbox could send the invite) |
-| GET · PUT · DELETE | `/api/emargement/seances/:id` | JWT (AD / GESTION / PEDA) | Read a séance with attendance (each alternant carries its `presence`: archived / rupture, with effect date), `attendanceProgress` (recorded vs missing per half), per-half signatures and its append-only `history` (status changes, signatures, validations) / update / delete (both refused once a half-day is validated) |
+| GET · PUT · DELETE | `/api/emargement/seances/:id` | JWT (AD / GESTION / PEDA) | Read a séance with attendance (each alternant carries its `presence`: archived / rupture, with effect date), `attendanceProgress` (recorded vs missing per half), per-half signatures and its append-only `history` (status changes, signatures, validations) / update / delete — the update is refused once a half-day is validated (409), the delete always succeeds and purges the sheet with its journal |
 | POST | `/api/emargement/seances/:id/resend` | JWT (AD / GESTION / PEDA) | Re-send the formateur invite (`{rotate: true}` also invalidates the previous link) and extend the link validity (end of J+7) → `{ links, inviteSent }` |
 | POST | `/api/emargement/seances/:id/validate` | JWT (AD / GESTION / PEDA) | Peda override: validate a sheet the formateur will not sign (`{note}` mandatory, stored with validator id + date) — missing halves are recorded as `source: 'peda'`, no drawn signature |
 | GET | `/api/emargement/seances/:id/pdf` | JWT (AD / GESTION / PEDA) | Séance sheet as PDF (`?theme=disciplina` \| `region` \| `fse`): header, attendance table with learner signatures, per-half formateur/Peda validation blocks; generated on demand, never stored |
@@ -158,6 +159,9 @@ into the companies server.
 | GET | `/api/emargement/sessions/:sessionId/attendance.pdf` | JWT (AD / GESTION / PEDA) | Group attendance summary PDF for a session (`from` / `to` / `theme`): group totals + one line per alternant (archive / rupture mention under the name) |
 | GET | `/api/emargement/assiduite` | JWT (AD / GESTION / PEDA) | Attendance dashboard: totals + rows per alternant / session / site (`from` / `to` / `sessionId` / `site`), rate = attended ÷ planned, `missingHalves` = closed halves without a status |
 | GET | `/api/emargement/assiduite/:alternantId` | JWT (AD / GESTION / PEDA) | One learner's attendance (`from` / `to`): totals, `presence` (archive / rupture with effect date) and per-séance detail |
+| GET · POST | `/api/formateurs` | JWT (AD / GESTION / PEDA) | Trainer directory: list with per-fiche counters (séances, planned teaching hours, sessions) / create a fiche (`name` + `email` required, `phone` + `comment` optional) |
+| GET · PUT | `/api/formateurs/:id` | JWT (AD / GESTION / PEDA) | One fiche: contacts, summary, séance history (with per-séance hours and validation state) and append-only change/note journal / update — only changed fields are journalled, duplicate e-mail → 409 `email` |
+| POST | `/api/formateurs/:id/notes` | JWT (AD / GESTION / PEDA) | Append a free-text Peda note to the fiche journal (`{note}`, never editable) |
 | GET | `/api/emargement/formateur/:token` | Link token | Formateur sheet: alternants, statuses, QR link, per-half validation state — rate-limited |
 | PUT | `/api/emargement/formateur/:token/attendance` | Link token | Set one alternant status for a half-day (manual entry, allowed outside the signing window) — refused with 409 `signed` once that half-day is validated |
 | POST | `/api/emargement/formateur/:token/attendance/sign` | Link token | Learner handwritten signature drawn on the formateur's device (PNG data-URL) → `signatureMode: 'handwritten'`; allowed while that half-day is editable |

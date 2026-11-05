@@ -17,8 +17,16 @@ import { SeanceListFilter, SeanceRepository } from '../repositories/mongo/Seance
 import { Alternant, AlternantArchiveReason } from '../types/alternant.types';
 import { Rupture } from '../types/rupture.types';
 import { SessionService } from './SessionService';
+import { FormateurService } from './FormateurService';
 import { UserService } from './UserService';
 import { httpError } from './httpError';
+import {
+    applicableHalves,
+    attendedMinutesOf,
+    plannedMinutesOf,
+    seanceValidationStatus,
+    validationsOf,
+} from './emargementHours';
 import { renderTemplate } from './renderTemplate';
 import { EMARGEMENT_INVITE_BODY, EMARGEMENT_INVITE_SUBJECT } from './emargementInviteTemplate';
 import { buildSeanceToken, parseSeanceToken, SeanceTokenKind, verifySeanceToken } from './emargementTokens';
@@ -208,6 +216,8 @@ export interface SeanceDto {
     mode: SeanceMode;
     formateurName: string;
     formateurEmail: string;
+    /** Fiche de l'annuaire liée ; `null` sur les séances antérieures. */
+    formateurId: string | null;
     morningStart: string;
     morningEnd: string;
     afternoonStart: string | null;
@@ -639,86 +649,6 @@ function normalizeEmail(value: string): string {
     return value.trim().toLowerCase();
 }
 
-/** Demi-journées à valider : l'après-midi n'existe que s'il a un créneau. */
-function applicableHalves(seance: Seance): EmargementHalf[] {
-    return seance.afternoon_start ? [...EMARGEMENT_HALVES] : ['morning'];
-}
-
-/** Bornes horaires d'une demi-journée (`null` si la séance n'a pas ce créneau). */
-function halfBounds(seance: Seance, half: EmargementHalf): { start: string; end: string } | null {
-    const start = half === 'morning' ? seance.morning_start : seance.afternoon_start;
-    const end = half === 'morning' ? seance.morning_end : seance.afternoon_end;
-    return start && end ? { start, end } : null;
-}
-
-/**
- * Horaires de cours d'une demi-journée, qui servent au calcul des heures.
- * Les séances créées avant le lot 8 n'ont pas ces champs : on retombe alors sur
- * le créneau de signature, ce qui reproduit exactement les heures d'avant.
- */
-function classSchedule(seance: Seance, half: EmargementHalf): { start: string; end: string } | null {
-    const start = half === 'morning' ? seance.morning_class_start : seance.afternoon_class_start;
-    const end = half === 'morning' ? seance.morning_class_end : seance.afternoon_class_end;
-    if (start && end) return { start, end };
-    return halfBounds(seance, half);
-}
-
-/** Heures prévues d'une demi-journée : la durée des horaires de cours. */
-function plannedMinutesOf(seance: Seance, half: EmargementHalf): number {
-    const bounds = classSchedule(seance, half);
-    if (!bounds) return 0;
-    return Math.max(0, minutesOfDay(bounds.end) - minutesOfDay(bounds.start));
-}
-
-/**
- * Heures réalisées d'une demi-journée :
- * - `present` → tous les horaires de cours ;
- * - `late` → de l'heure d'arrivée à la fin des cours ;
- * - `left_early` → du début des cours à l'heure de départ ;
- * - `absent` / `na` → 0.
- *
- * Sans heure saisie, une arrivée tardive ou un départ anticipé comptent la
- * demi-journée entière : mieux vaut surestimer la présence que de la nier.
- */
-function attendedMinutesOf(seance: Seance, half: EmargementHalf, record: EmargementRecord | null): number {
-    const planned = plannedMinutesOf(seance, half);
-    if (!record || planned === 0) return 0;
-    const bounds = classSchedule(seance, half)!;
-    if (record.status === 'present') return planned;
-    if (record.status === 'late' && record.status_time) {
-        return Math.max(0, Math.min(planned, minutesOfDay(bounds.end) - minutesOfDay(record.status_time)));
-    }
-    if (record.status === 'left_early' && record.status_time) {
-        return Math.max(0, Math.min(planned, minutesOfDay(record.status_time) - minutesOfDay(bounds.start)));
-    }
-    return 0;
-}
-
-/**
- * Validations stockées, avec repli sur l'ancien champ `signed_at` : les feuilles
- * signées avant le lot 4 n'ont qu'une signature globale, qui valait pour toutes
- * les demi-journées du jour. Aucune migration de données n'est nécessaire.
- */
-function validationsOf(seance: Seance): {
-    morning: SeanceValidation | null;
-    afternoon: SeanceValidation | null;
-} {
-    const stored = seance.validations ?? { morning: null, afternoon: null };
-    if (stored.morning || stored.afternoon) {
-        return { morning: stored.morning ?? null, afternoon: stored.afternoon ?? null };
-    }
-    if (!seance.signed_at) return { morning: null, afternoon: null };
-    const legacy: SeanceValidation = {
-        signed_at: seance.signed_at,
-        signed_by_name: seance.signed_by_name ?? seance.formateur_name,
-        source: 'formateur',
-        signature_image: seance.signature_image ?? null,
-        signed_ip: seance.signed_ip ?? null,
-        signed_user_agent: seance.signed_user_agent ?? null,
-    };
-    return { morning: legacy, afternoon: seance.afternoon_start ? legacy : null };
-}
-
 function validationDto(validation: SeanceValidation | null): SeanceValidationDto | null {
     if (!validation) return null;
     return {
@@ -851,6 +781,7 @@ export class EmargementService {
         private readonly alternants = new AlternantRepository(),
         private readonly ruptures = new RuptureRepository(),
         private readonly sessions = new SessionService(),
+        private readonly formateurs = new FormateurService(),
         private readonly users = new UserService(),
         private readonly gmailService = new GoogleGmailService(),
     ) {}
@@ -1289,6 +1220,17 @@ export class EmargementService {
         const session = await this.sessions.findById(parsed.sessionId);
         if (!session) throw httpError(404, 'session', 'Session introuvable');
 
+        // La fiche formateur est créée à la volée si l'adresse est inconnue : la
+        // séance n'est jamais bloquée par un annuaire incomplet.
+        const formateur = await this.formateurs.resolveForSeance(
+            {
+                id: parsed.formateurId ?? null,
+                name: parsed.formateurName,
+                email: parsed.formateurEmail,
+            },
+            userId,
+        );
+
         const timezone = tenantTimezone();
         const seance = await this.seances.create({
             session_id: parsed.sessionId,
@@ -1305,8 +1247,9 @@ export class EmargementService {
             afternoon_class_end: parsed.afternoonClassEnd ?? null,
             site: parsed.site as SeanceSite,
             mode: parsed.mode as SeanceMode,
-            formateur_name: parsed.formateurName,
-            formateur_email: parsed.formateurEmail,
+            formateur_name: formateur.name,
+            formateur_email: formateur.email,
+            formateur_id: formateur.id,
             morning_start: parsed.morningStart,
             morning_end: parsed.morningEnd,
             afternoon_start: parsed.afternoonStart ?? null,
@@ -1346,7 +1289,7 @@ export class EmargementService {
         return { seance: this.toDto(seance, undefined, links), inviteSent };
     }
 
-    async update(id: string, input: unknown): Promise<SeanceDto> {
+    async update(id: string, input: unknown, userId?: number): Promise<SeanceDto> {
         const current = await this.requireSeance(id);
         if (this.hasAnyValidation(current)) {
             throw httpError(409, 'signed', 'Une feuille dont une demi-journée est validée ne peut plus être modifiée');
@@ -1368,6 +1311,7 @@ export class EmargementService {
             mode: patch.mode ?? current.mode,
             formateurName: patch.formateurName ?? current.formateur_name,
             formateurEmail: patch.formateurEmail ?? current.formateur_email,
+            formateurId: patch.formateurId !== undefined ? patch.formateurId : current.formateur_id,
             morningClassStart: patch.morningClassStart ?? current.morning_class_start ?? effectiveMorningStart,
             morningClassEnd: patch.morningClassEnd ?? current.morning_class_end ?? effectiveMorningEnd,
             afternoonClassStart:
@@ -1397,6 +1341,17 @@ export class EmargementService {
             degreeTitle = session.filiere ?? null;
         }
 
+        // Une séance antérieure à l'annuaire est rattachée à sa première
+        // modification (par e-mail), et une fiche est créée si besoin.
+        const formateur = await this.formateurs.resolveForSeance(
+            {
+                id: merged.formateurId ?? null,
+                name: merged.formateurName,
+                email: merged.formateurEmail,
+            },
+            userId,
+        );
+
         const updated = await this.seances.update(id, {
             session_id: merged.sessionId,
             session_nom: sessionNom,
@@ -1412,8 +1367,9 @@ export class EmargementService {
             afternoon_class_end: merged.afternoonClassEnd ?? null,
             site: merged.site,
             mode: merged.mode,
-            formateur_name: merged.formateurName,
-            formateur_email: merged.formateurEmail,
+            formateur_name: formateur.name,
+            formateur_email: formateur.email,
+            formateur_id: formateur.id,
             morning_start: merged.morningStart,
             morning_end: merged.morningEnd,
             afternoon_start: merged.afternoonStart ?? null,
@@ -1962,6 +1918,7 @@ export class EmargementService {
         const formateurName = requiredString(data.formateurName, 'Le nom du formateur');
         const formateurEmail = requiredString(data.formateurEmail, 'L’e-mail du formateur');
         if (!isEmail(formateurEmail)) throw httpError(400, 'validation', 'L’e-mail du formateur est invalide');
+        const formateurId = optionalLabel(data.formateurId, 'Le formateur', 80);
         const module = optionalLabel(data.module, 'Le module / la séquence');
         const location = optionalLabel(data.location, 'Le lieu');
 
@@ -1974,6 +1931,7 @@ export class EmargementService {
             mode,
             formateurName,
             formateurEmail,
+            formateurId,
             morningClassStart,
             morningClassEnd,
             afternoonClassStart,
@@ -2048,14 +2006,7 @@ export class EmargementService {
 
     /** État affiché dans les listes : en cours, à valider, anomalie, validée. */
     private validationStatus(seance: Seance, now: Date): SeanceValidationStatus {
-        const halves = applicableHalves(seance);
-        const validations = validationsOf(seance);
-        if (halves.every((half) => validations[half])) return 'validated';
-        const allClosed = halves.every((half) => this.windowDto(seance, half, now)?.state === 'closed');
-        if (!allClosed) return 'in_progress';
-        // Tous les créneaux sont fermés mais une demi-journée reste non signée :
-        // tant que le lien court (J+7), le formateur peut encore la signer.
-        return this.isExpired(seance) ? 'anomaly' : 'to_validate';
+        return seanceValidationStatus(seance, now);
     }
 
     /** Demi-journées encore modifiables (statuts, signature manuscrite). */
@@ -2285,6 +2236,7 @@ export class EmargementService {
             mode: seance.mode,
             formateurName: seance.formateur_name,
             formateurEmail: seance.formateur_email,
+            formateurId: seance.formateur_id ?? null,
             morningStart: seance.morning_start,
             morningEnd: seance.morning_end,
             afternoonStart: seance.afternoon_start,

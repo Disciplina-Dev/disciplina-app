@@ -36,7 +36,7 @@ Sources : `front/disciplina-front/src/store/authStore.ts`, `front/disciplina-fro
 |---|---|---|
 | `COMMERCIAL` | `/commercial` | Dashboard, KPI, Analyses de Besoin, portefeuille entreprises, blacklist, sourcing SIRET, relances, todos |
 | `RH` | `/rh` | Candidats (liste/fiche/questionnaire), matching, calendrier, ABs reçues, relances, todos |
-| `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, alternants, sessions, ruptures, émargements, modèles de mail |
+| `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, alternants, sessions, formateurs, ruptures, émargements, modèles de mail |
 | `AD` / `GESTION` | `/admin` | CRUD utilisateurs, config Drive/secteurs |
 | `ENTREPRISE` | `/entreprise` | Remplir Analyse de Besoin, gérer apprentis, RDV, profils matchés |
 | Public (token/signature) | `/booking/:slug`, `/external/matching/:signature`, `/external/interview/:signature`, `/external/authenticate?sig=…`, `/external/cv-import/:signature` — les anciens liens `/public/{match,interview,cv-import}/:signature` (mails pré-migration) sont redirigés vers `/external/authenticate?sig=…` | Parcours invités sans compte |
@@ -213,6 +213,15 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Test vitest** : `rest/emargement/__tests__/emargement.test.ts` (« agrège l’assiduité par alternant, par session et par site sur une période », « liste les feuilles incomplètes et compte les statuts manquants sur les créneaux fermés », « sort les archivés de la feuille, distingue la rupture qui poursuit et les inclut sur demande », « compte une demi-journée non renseignée sans la confondre avec une absence », « calcule les heures sur les horaires de cours, pause déjeuner exclue », « exige les horaires de cours de l’après-midi avec un créneau l’après-midi »).
 - **Statut** : _à remplir_
 
+### 3.14 quinquies Annuaire des formateurs (#955)
+
+- **Étapes** : (1) Peda → `/peda/formateurs` → « Nouveau formateur » : nom et e-mail obligatoires, téléphone et commentaire facultatifs ; (2) cliquer une fiche : résumé (nombre de séances, heures de cours, sessions, période), coordonnées, sessions animées, historique des séances et journal des saisies ; (3) créer une séance depuis `/peda/emargements` → bloc « Formateur » : rechercher un formateur existant (nom ou e-mail) et le sélectionner (nom + e-mail recopiés), ou saisir un nom/e-mail inconnu — la fiche est créée automatiquement à l'enregistrement ; (4) sur la fiche, « Feuille » ouvre directement la feuille d'émargement de la séance ; (5) ajouter une note Peda : elle apparaît en tête du journal, sans modifier les coordonnées.
+- **Chaîne** : `GET|POST /api/formateurs`, `GET|PUT /api/formateurs/:id`, `POST /api/formateurs/:id/notes` (`authenticate` + rôle PEDA/AD/GESTION) → `FormateurService` → `FormateurRepository`/`FormateurHistoryRepository` (Mongo `formateurs` / `formateur_history`) et `SeanceRepository.findByFormateur` / `findAllForStats` ; `formateurId` accepté par `POST|PUT /api/emargement/seances…` → `FormateurService.resolveForSeance` (création automatique si l'e-mail est inconnu).
+- **Résultat attendu** : (1) e-mail normalisé en minuscules, doublon refusé (409 `email`), e-mail invalide ou nom absent → 400 `validation` ; (2) heures affichées = somme des horaires de cours des séances (matin + après-midi, pause déjeuner exclue) ; les séances antérieures à l'annuaire (sans `formateur_id`) sont rattachées par e-mail normalisé et comptent dans les mêmes totaux ; (3) sélectionner une fiche existante lie la séance (le snapshot nom/e-mail de la feuille vient de l'annuaire), saisir une adresse inconnue crée la fiche sans doublon et sans bloquer la séance ; modifier manuellement le nom ou l'e-mail dans le formulaire délie la fiche et repasse par le rattachement par e-mail ; (4) une modification ne journalise que les champs réellement changés (valeur avant → après), une réécriture identique n'ajoute rien, et une note est append-only (jamais modifiable ni supprimable) ; (5) sans session → 401, fiche inconnue → 404, suppression d'une séance ne supprime pas la fiche formateur.
+- **External** : aucun.
+- **Test vitest** : `rest/formateurs/__tests__/formateurs.test.ts`.
+- **Statut** : _à remplir_
+
 ### 3.15 Notifications & Todos
 
 - **Étapes** : réception de notifications temps réel ; création/consultation de todos.
@@ -288,6 +297,7 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.14 bis Émargement | `emargement` (création + invitation, saisie formateur, QR idempotent, fenêtre fermée, feuille verrouillée) | invitation Gmail |
 | 3.14 ter Exports émargement | `emargement` (PDF séance/attestation/groupe, CSV/Excel, journal) | — |
 | 3.14 quater Assiduité émargement | `emargement` (agrégats alternant/groupe/site, fiche alternant, feuilles incomplètes, archivage et export historique) | — |
+| 3.14 quinquies Formateurs | `formateurs` (CRUD, auto-création depuis une séance, statistiques, journal/notes) | — |
 | 3.17 MCP péda | `mcp/peda`, `mcp/pedaMasking` | — |
 | 3.15 Notifs/Todos | `authBoundary` (SSE) | flux nominal |
 | 3.16 Admin users | `directory`, `sensitive-fields` | — |

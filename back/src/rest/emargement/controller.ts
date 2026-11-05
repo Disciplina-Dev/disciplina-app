@@ -94,7 +94,7 @@ export async function create(req: AuthRequest, res: Response): Promise<void> {
 
 export async function update(req: AuthRequest, res: Response): Promise<void> {
     try {
-        res.json({ seance: await service.update(String(req.params.id), req.body) });
+        res.json({ seance: await service.update(String(req.params.id), req.body, req.user?.id) });
     } catch (error) {
         sendError(res, error, 'Emargement update failed');
     }

@@ -40,6 +40,41 @@ export class SeanceRepository {
         return getModels().Seance.findOne({ _id: id }).lean() as unknown as Promise<Seance | null>;
     }
 
+    /**
+     * Séances rattachées à un formateur de l'annuaire : celles liées par
+     * `formateur_id`, plus les séances antérieures (sans lien) dont l'e-mail
+     * normalisé correspond. Les deux ensembles ne se recoupent pas.
+     */
+    async findByFormateur(formateurId: string, email: string): Promise<Seance[]> {
+        return (
+            getModels()
+                .Seance.find({
+                    $or: [
+                        { formateur_id: formateurId },
+                        { formateur_id: null, formateur_email: email.trim().toLowerCase() },
+                    ],
+                })
+                // Les tracés de signature ne servent pas aux statistiques : on les écarte.
+                .select('-signature_image -validations.morning.signature_image -validations.afternoon.signature_image')
+                .sort({ date: -1, start_time: -1 })
+                .lean() as unknown as Promise<Seance[]>
+        );
+    }
+
+    /**
+     * Toutes les séances, sans les tracés de signature : base des compteurs de
+     * l'annuaire (nombre de séances, heures planifiées, sessions animées).
+     * Le volume reste celui d'un centre de formation, la liste des formateurs
+     * étant lue en une passe.
+     */
+    async findAllForStats(): Promise<Seance[]> {
+        return getModels()
+            .Seance.find({})
+            .select('-signature_image -validations.morning.signature_image -validations.afternoon.signature_image')
+            .sort({ date: -1, start_time: -1 })
+            .lean() as unknown as Promise<Seance[]>;
+    }
+
     async create(data: Omit<Seance, '_id' | 'created_at' | 'updated_at'>): Promise<Seance> {
         const now = new Date();
         const doc = new (getModels().Seance)({

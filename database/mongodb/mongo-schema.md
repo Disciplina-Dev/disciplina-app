@@ -399,6 +399,38 @@ SA (séquences d'accompagnement).
 | `poursuit_formation` | boolean | required |
 | `created_at`, `updated_at` | Date | |
 
+## Collection: formateurs
+
+Annuaire des formateurs du Peda (#955). Une fiche par intervenant, partagée par toutes les séances ; le Peda peut la créer depuis la section « Formateurs » ou automatiquement à l'enregistrement d'une séance.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | UUID |
+| `name` | string | required — nom affiché (≤ 120 car.) |
+| `email` | string | required, unique — normalisé en minuscules ; clé de rattachement des séances antérieures à l'annuaire |
+| `phone` | string \| null | téléphone libre (≤ 40 car.) |
+| `comment` | string \| null | commentaire libre du Peda (≤ 2 000 car.) |
+| `created_by` | number \| null | `users.id` (MySQL) de l'auteur de la création |
+| `created_at`, `updated_at` | Date | |
+
+`{ email: 1 }` — unique ; `{ name: 1 }` — tri de l'annuaire.
+
+## Collection: formateur_history
+
+Journal d'une fiche formateur : **append-only**, une ligne par événement (création, modification, note Peda). Aucune entrée n'est modifiée ni supprimée.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | UUID |
+| `formateur_id` | string | required, indexé avec `at` |
+| `action` | enum | `formateur_created` \| `formateur_updated` \| `note` |
+| `changes` | array | diff des champs modifiés (`formateur_updated`) : `{ field: 'name' \| 'email' \| 'phone' \| 'comment', from, to }` ; vide pour une création ou une note |
+| `note` | string \| null | texte libre d'une note Peda (≤ 2 000 car.) |
+| `actor_id`, `actor_name` | number / string \| null | auteur de l'action (`users.id` + nom au moment de l'action) |
+| `at` | Date | horodatage serveur |
+
+`{ formateur_id: 1, at: -1 }` — la fiche lit le journal du plus récent au plus ancien (300 entrées max).
+
 ## Collection: seances
 
 Émargement (#955). Une séance = une demi-journée ou journée de cours d'une promotion Filiz, avec ses horaires de cours (matin / après-midi, pause déjeuner exclue) et ses fenêtres de signature — deux notions distinctes depuis le lot 8 : les heures d'assiduité se calculent sur les horaires de cours, la signature reste bornée aux fenêtres.
@@ -417,7 +449,8 @@ SA (séquences d'accompagnement).
 | `afternoon_class_start`, `afternoon_class_end` | string \| null | horaires de cours de l'après-midi, pause déjeuner exclue (`morning_class_end` ≤ `afternoon_class_start`) ; `null` = séance sans après-midi. Repli sur la fenêtre de l'après-midi |
 | `site` | string | required — `Nord` \| `Ouest` \| `Sud` \| `Annemasse` |
 | `mode` | string | required — `salle` \| `distanciel` |
-| `formateur_name`, `formateur_email` | string | required |
+| `formateur_name`, `formateur_email` | string | required — snapshot au moment de la séance (la feuille reste lisible si l'annuaire change) |
+| `formateur_id` | string \| null | `formateurs._id` de la fiche liée ; `null` sur les séances antérieures à l'annuaire, qui restent rattachées aux statistiques par `formateur_email` normalisé. Indexé avec `date` |
 | `morning_start`, `morning_end` | string | required — fenêtre de signature du matin, bornée à sa demi-journée de cours (`morning_class_start` ≤ `morning_start` < `morning_end` ≤ `morning_class_end`) |
 | `afternoon_start`, `afternoon_end` | string \| null | fenêtre de signature de l'après-midi : mêmes bornes, et obligatoirement accompagnée des horaires de cours de l'après-midi (`null` = séance sans après-midi) |
 | `timezone` | string | required — fuseau IANA du tenant au moment de la création |
