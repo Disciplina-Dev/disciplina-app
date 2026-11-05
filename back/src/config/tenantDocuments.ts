@@ -126,6 +126,7 @@ export const TENANT_DOCUMENTS: Record<Region, TenantDocumentConfig> = {
                 people: [
                     'Lorenzo ENCATASSAMY en qualité de Responsable',
                     'Contact : contact@disciplina-annemasse.fr / 06 73 57 02 44',
+                    'Céline Boyer en qualité de Responsable : boyer.responsable@disciplina-annemasse.fr / 0673 57 02 44'
                 ],
             },
         ],
