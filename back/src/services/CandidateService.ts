@@ -19,6 +19,7 @@ import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { offerZones, candidateZones } from '../utils/zone';
+import { activitySectorFilter, candidateWantsOfferSector } from '../utils/activitySector';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
@@ -400,6 +401,12 @@ export class CandidateService {
         if (offer.criteria?.age_min != null && offer.criteria?.age_max != null && candidateAge != null) {
             if (candidateAge < offer.criteria.age_min || candidateAge > offer.criteria.age_max) return false;
         }
+
+        // Le candidat ne voit proposées que les offres d'un secteur qu'il a
+        // effectivement coché. Un secteur d'offre purement libre (hors
+        // référentiel) est ignoré faute de pouvoir être comparé.
+        const offerSectorFilter = activitySectorFilter(offer.company_infos?.activities);
+        if (!candidateWantsOfferSector(candidate.desired_sectors, offerSectorFilter.keys)) return false;
 
         const offerZoneSet = offerZones(offer);
         const offerCommunes = offer.localisation ?? [];

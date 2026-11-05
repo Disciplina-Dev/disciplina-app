@@ -26,6 +26,7 @@ import { offerTpCodes, positionTpToGql } from './mappers/offer.mapper';
 import { toScheduleSlotGql } from './mappers/needsAnalysis.mapper';
 import { buildMatchingLink } from '../utils/matchingLink';
 import { offerZones, communesForZones, ZONE_TO_TRAINING_SITE } from '../utils/zone';
+import { activitySectorFilter } from '../utils/activitySector';
 import type { Zone } from './mappers/abToOffer';
 
 // Statuts d'un candidat déjà transmis à l'entreprise (vue « proposés »).
@@ -269,7 +270,16 @@ export class OfferService {
         const offer = await this.offerRepository.findById(id);
         if (!offer) return null;
 
-        const buildFilter = async (includeSectors: boolean): Promise<Record<string, any>> => {
+        const offerActivities = offer.company_infos?.activities ?? [];
+        const sectorFilter = activitySectorFilter(offerActivities);
+        // Dès qu'un secteur référencé est porté par l'offre, le filtre est
+        // appliqué sans repli : un candidat qui n'a pas coché ce secteur n'est
+        // jamais proposé (même si aucun candidat ne le souhaite). Seuls les
+        // secteurs entièrement libres (saisis à la main dans l'AB, inconnus du
+        // référentiel candidat) ne peuvent pas être comparés et sont ignorés.
+        const sectorRelaxed = offerActivities.length > 0 && sectorFilter.keys.length === 0;
+
+        const buildFilter = async (): Promise<Record<string, any>> => {
             const baseFilter: Record<string, any> = {};
             // Un candidat en rupture a justement besoin d'être rematché : il doit
             // pouvoir être suggéré au même titre qu'un candidat en recherche (#1010).
@@ -284,13 +294,11 @@ export class OfferService {
                 baseFilter['identity.age'] = { $gte: offer.criteria.age_min, $lte: offer.criteria.age_max };
             }
 
-            // Le secteur d'activité est un critère de matching relâchable : si les
-            // seuls secteurs portés par l'offre sont des secteurs libres (saisis à
-            // la main dans l'AB, donc inconnus du référentiel candidat), aucun
-            // candidat ne peut correspondre. Dans ce cas on relance la recherche
-            // sans ce critère plutôt que de renvoyer une liste vide.
-            if (includeSectors && offer.company_infos?.activities?.length) {
-                baseFilter['desired_sectors'] = { $in: offer.company_infos.activities };
+            // Secteurs effectivement souhaités par le candidat (positif, pas une
+            // simple absence d'exclusion). On interroge toutes les formes
+            // stockables (code enum et libellés historiques).
+            if (sectorFilter.mongoValues.length) {
+                baseFilter['desired_sectors'] = { $in: sectorFilter.mongoValues };
             }
 
             // Filtrage géographique : un candidat n'est suggéré que si sa zone
@@ -367,17 +375,7 @@ export class OfferService {
             return { $and: [baseFilter, ...geoClauses] };
         };
 
-        const hasSectors = Boolean(offer.company_infos?.activities?.length);
-        let sectorRelaxed = false;
-        let candidates = await this.candidateRepository.findByfilter(await buildFilter(true));
-
-        // Secteurs portés par l'offre mais sans aucun candidat correspondant
-        // (typiquement des secteurs libres non référencés) → on relâche le critère.
-        if (hasSectors && candidates.length === 0) {
-            candidates = await this.candidateRepository.findByfilter(await buildFilter(false));
-            sectorRelaxed = true;
-        }
-
+        const candidates = await this.candidateRepository.findByfilter(await buildFilter());
         const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
 
         // Statut CV en direct (source de vérité = fiche candidat) pour les

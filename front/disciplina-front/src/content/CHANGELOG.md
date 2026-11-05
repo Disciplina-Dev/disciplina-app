@@ -42,6 +42,10 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Horaires d'immersion (#1035) : chaque jour activé peut porter deux plages facultatives (matin et après-midi) pour deux shifts le même jour ; toutes les heures restent optionnelles, une fin de matinée ou un début d'après-midi absents ne bloquent pas l'enregistrement, et les créneaux continus existants sont relus sans migration.
 - Annuaire entreprises du tableau de bord RH (#1043) : une ligne par offre — une entreprise portant plusieurs offres apparaît désormais plusieurs fois, avec une colonne « Offre » (statut) et l'historique propre à chaque offre. La liste charge maintenant toutes les analyses de besoins en arrière-plan, ce qui fait réapparaître les entreprises actives anciennes (offres « CV envoyé », « Matché », « En contrat ») qui sortaient de la fenêtre des 500 premières lignes.
 
+### Fixed
+
+- Matching par secteur d'activité (#1066) : une offre ne propose plus que les candidats ayant coché l'un de ses secteurs ; le repli qui affichait tous les candidats quand aucun ne correspondait est supprimé. Le rapprochement compare désormais les secteurs du référentiel en tolérant les codes et libellés historiques (`COMMERCIAL` ≡ « Commerce / Vente »), et s'applique aussi aux « Offres correspondantes » de la fiche candidat. Les secteurs saisis librement dans l'AB restent ignorés faute d'équivalent candidat, avec un avertissement explicite.
+
 ### Security
 
 - Questionnaires internes (#968) : jeton de lien de 256 bits stocké haché, bonnes réponses jamais envoyées au navigateur avant validation, route publique limitée en débit ; RGPD : passages supprimés avec le candidat, invitation jamais commencée purgée à expiration, `tab_switch_count` jamais transmis au MCP.
