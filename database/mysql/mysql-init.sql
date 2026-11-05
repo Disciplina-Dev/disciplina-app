@@ -88,6 +88,34 @@ CREATE TABLE IF NOT EXISTS `booking_settings` (
   CONSTRAINT `fk_booking_settings_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- Blocage de dates dans l'agenda d'un RH (« Congés », « Séminaire »…).
+-- Une ligne = un jour :
+--   * `kind = 'BLOCK'` : le jour n'est plus proposé sur la page de réservation.
+--     `user_id NULL` = blocage « pour tout le monde » (tous les RH), sinon
+--     blocage « pour moi » uniquement.
+--   * `kind = 'OPEN'` : dérogation personnelle (« me rendre disponible ») qui
+--     annule un blocage global pour ce seul utilisateur.
+-- `scope_key` matérialise la portée ('ALL' ou 'U<user_id>') pour n'autoriser
+-- qu'une ligne par jour et par portée (MySQL n'indexe pas les NULL d'une clé
+-- unique ; une colonne générée est impossible ici, MySQL interdisant qu'une
+-- colonne générée dépende d'une colonne de clé étrangère).
+CREATE TABLE IF NOT EXISTS `calendar_day_blocks` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `day` date NOT NULL,
+  `user_id` int DEFAULT NULL,
+  `kind` enum('BLOCK','OPEN') NOT NULL DEFAULT 'BLOCK',
+  `reason` varchar(255) NOT NULL,
+  `created_by` int DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `scope_key` varchar(16) NOT NULL,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `uniq_calendar_day_blocks_scope_day` (`scope_key`,`day`),
+  KEY `idx_calendar_day_blocks_day` (`day`),
+  KEY `idx_calendar_day_blocks_user` (`user_id`),
+  CONSTRAINT `fk_calendar_day_blocks_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `fk_calendar_day_blocks_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 
 -- Référentiel hiérarchique des secteurs : région > secteur > commune (adjacency
 -- list, parcours via WITH RECURSIVE). Seed en fin de fichier (base fraîche) ; le
@@ -487,6 +515,7 @@ CREATE TABLE disciplina_annemasse.permissions LIKE disciplina.permissions;
 CREATE TABLE disciplina_annemasse.roles LIKE disciplina.roles;
 CREATE TABLE disciplina_annemasse.users LIKE disciplina.users;
 CREATE TABLE disciplina_annemasse.booking_settings LIKE disciplina.booking_settings;
+CREATE TABLE disciplina_annemasse.calendar_day_blocks LIKE disciplina.calendar_day_blocks;
 CREATE TABLE disciplina_annemasse.companies LIKE disciplina.companies;
 CREATE TABLE disciplina_annemasse.company_conflict LIKE disciplina.company_conflict;
 CREATE TABLE disciplina_annemasse.companies_blacklist LIKE disciplina.companies_blacklist;
@@ -515,6 +544,10 @@ ALTER TABLE disciplina_annemasse.users
 
 ALTER TABLE disciplina_annemasse.booking_settings
   ADD CONSTRAINT fk_booking_settings_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.calendar_day_blocks
+  ADD CONSTRAINT fk_calendar_day_blocks_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT fk_calendar_day_blocks_created_by FOREIGN KEY (created_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL ON UPDATE CASCADE;
 
 ALTER TABLE disciplina_annemasse.companies
   ADD CONSTRAINT fk_companies_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON UPDATE CASCADE;

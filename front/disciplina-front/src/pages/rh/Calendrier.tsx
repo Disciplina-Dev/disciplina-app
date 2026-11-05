@@ -1,10 +1,11 @@
 import { useSectors } from '@/hooks/useSectors'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
-import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconMail, IconMapPin, IconPlus, IconRepeat, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
+import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconLock, IconMail, IconMapPin, IconPlus, IconRepeat, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
 import {
   fetchMyBookingSettings, updateMyBookingSettings, bookingPublicUrl,
-  type BookingSettings, type WorkingHours,
+  fetchDayBlocks, createDayBlock, releaseDayBlock, deleteDayBlock,
+  type BookingSettings, type WorkingHours, type DayBlock, type DayBlockScope,
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
 import { apiFetch } from '@/api/httpClient'
@@ -129,6 +130,26 @@ function toTimeInput(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+/** « Lundi 12 novembre 2026 » à partir d'une date locale `YYYY-MM-DD`. */
+function formatBlockDay(day: string): string {
+  const label = new Date(`${day}T12:00:00`).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+/** Le jour est-il bloqué pour moi ? (blocage perso, ou blocage global non dérogé) */
+function blocksMe(blocks: DayBlock[]): boolean {
+  return blocks.some((b) => b.scope === 'SELF' || !b.releasedForMe)
+}
+
+/** Infobulle listant les blocages d'un jour (portée, motif, auteur). */
+function blocksTitle(blocks: DayBlock[]): string {
+  return blocks
+    .map((b) => `${b.scope === 'ALL' ? 'Tout le monde' : 'Moi'} — ${b.reason}${b.releasedForMe ? ' (disponible pour moi)' : ''}${b.createdByName ? ` · ${b.createdByName}` : ''}`)
+    .join('\n')
+}
+
 /** Layout des events d'un jour en colonnes pour gérer les chevauchements. */
 interface PositionedEvent { event: OwnedEvent; col: number; cols: number }
 function layoutDay(events: OwnedEvent[]): PositionedEvent[] {
@@ -181,6 +202,10 @@ export default function Calendrier() {
   const [detail, setDetail] = useState<OwnedEvent | null>(null)
   const [editing, setEditing] = useState<{ event?: CalendarEvent; ownerId?: number; start?: Date; end?: Date } | null>(null)
   const [showBooking, setShowBooking] = useState(false)
+  // Blocage de dates de l'agenda (pour soi ou pour tout le monde).
+  const [showBlocks, setShowBlocks] = useState(false)
+  const [blocks, setBlocks] = useState<DayBlock[]>([])
+  const [blocksVersion, setBlocksVersion] = useState(0)
   // Candidat à créer depuis un entretien marqué « arrivé » (pré-rempli puis redirige vers sa fiche).
   const [createFromEvent, setCreateFromEvent] = useState<CalendarEvent | null>(null)
   const navigate = useNavigate()
@@ -277,6 +302,26 @@ export default function Calendrier() {
   }, [range.min, range.max, visibleKey, selfId])
 
   useEffect(() => { void load() }, [load])
+
+  // Blocages de dates sur la plage affichée (les miens + ceux « pour tout le monde »).
+  const blocksFrom = toDateInput(range.min)
+  const blocksTo = toDateInput(range.max)
+  useEffect(() => {
+    let cancelled = false
+    fetchDayBlocks(blocksFrom, blocksTo)
+      .then((list) => { if (!cancelled) setBlocks(list) })
+      .catch(() => { if (!cancelled) setBlocks([]) })
+    return () => { cancelled = true }
+  }, [blocksFrom, blocksTo, blocksVersion])
+
+  const blocksByDay = useMemo(() => {
+    const map = new Map<string, DayBlock[]>()
+    for (const b of blocks) {
+      const list = map.get(b.day)
+      if (list) list.push(b); else map.set(b.day, [b])
+    }
+    return map
+  }, [blocks])
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, OwnedEvent[]>()
@@ -416,6 +461,9 @@ export default function Calendrier() {
               <IconChevronRight width={18} height={18} />
             </button>
           </div>
+          <button onClick={() => setShowBlocks(true)} className="flex items-center gap-1.5 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
+            <IconLock width={16} height={16} /> Bloquer des dates
+          </button>
           <button onClick={() => setShowBooking(true)} className="flex items-center gap-1.5 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
             <IconShare width={16} height={16} /> Partager mon agenda
           </button>
@@ -555,8 +603,8 @@ export default function Calendrier() {
               </div>
             )}
             {view === 'month'
-              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} highlightedIds={matchedIds} />
-              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} highlightedIds={matchedIds} />}
+              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} highlightedIds={matchedIds} blocksByDay={blocksByDay} />
+              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} highlightedIds={matchedIds} blocksByDay={blocksByDay} />}
           </div>
           </div>
         </div>
@@ -598,6 +646,12 @@ export default function Calendrier() {
         />
       )}
       {showBooking && <BookingSettingsModal onClose={() => setShowBooking(false)} />}
+      {showBlocks && (
+        <DayBlocksModal
+          onClose={() => setShowBlocks(false)}
+          onChanged={() => setBlocksVersion((v) => v + 1)}
+        />
+      )}
     </div>
   )
 }
@@ -821,6 +875,9 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                   )
                 })}
               </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
+                Les dates bloquées via « Bloquer des dates » ne sont jamais proposées, même si le jour est ouvert ci-dessus.
+              </p>
             </div>
 
             {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
@@ -838,6 +895,183 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
 }
 
 const inputCls = 'w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple'
+
+/**
+ * Blocage de dates : le jour n'est plus proposé sur la page de réservation,
+ * quelles que soient les disponibilités hebdomadaires.
+ * - « Pour moi » : seul mon agenda partagé est bloqué.
+ * - « Pour tout le monde » : blocage pour tous les RH ; annulable « pour moi »
+ *   (dérogation personnelle) ou « pour tout le monde ».
+ */
+function DayBlocksModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+  const [blocks, setBlocks] = useState<DayBlock[] | null>(null)
+  const [day, setDay] = useState(() => toDateInput(new Date()))
+  const [scope, setScope] = useState<DayBlockScope>('SELF')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  // Blocage « tout le monde » dont on est en train de choisir la portée d'annulation.
+  const [releasing, setReleasing] = useState<number | null>(null)
+
+  useEffect(() => {
+    fetchDayBlocks()
+      .then(setBlocks)
+      .catch((e) => { setErr(e instanceof Error ? e.message : 'Erreur'); setBlocks([]) })
+  }, [])
+
+  const apply = (list: DayBlock[]) => { setBlocks(list); onChanged() }
+
+  const run = async (fn: () => Promise<DayBlock[]>) => {
+    setBusy(true); setErr(null)
+    try { apply(await fn()); setReleasing(null) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erreur') }
+    finally { setBusy(false) }
+  }
+
+  const submit = async () => {
+    if (!reason.trim()) { setErr('Motif requis'); return }
+    setBusy(true); setErr(null)
+    try {
+      apply(await createDayBlock({ day, scope, reason: reason.trim() }))
+      setReason('')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const smallBtn = 'rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-[12px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)] disabled:opacity-60'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-[17px] font-extrabold text-[var(--ds-text)]">
+            <IconLock width={18} height={18} className="text-purple" /> Bloquer des dates
+          </h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]" aria-label="Fermer">
+            <IconClose width={18} height={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Nouveau blocage */}
+          <div className="rounded-xl border border-[var(--ds-border)] p-3">
+            <Field label="Date à bloquer">
+              <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className={inputCls} />
+            </Field>
+            <div className="mt-3">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Portée</p>
+              <SegmentedControl
+                label="Portée du blocage"
+                tone="purple"
+                size="sm"
+                value={scope}
+                onChange={setScope}
+                options={[
+                  { value: 'SELF' as DayBlockScope, label: 'Pour moi' },
+                  { value: 'ALL' as DayBlockScope, label: 'Pour tout le monde' },
+                ]}
+              />
+            </div>
+            <Field label="Motif" className="mt-3">
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={255}
+                placeholder="Congés, séminaire, jour férié…"
+                className={inputCls}
+              />
+            </Field>
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
+              « Pour moi » ne bloque que votre agenda partagé ; « pour tout le monde » s'applique à tous les RH.
+              Un jour bloqué n'est jamais proposé sur la page de réservation, quelles que soient les disponibilités hebdomadaires.
+            </p>
+            {err && <p className="mt-2 text-[12px] text-[var(--ds-danger)]">{err}</p>}
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={submit}
+                disabled={busy || !reason.trim()}
+                className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-purple-dark disabled:opacity-60"
+              >
+                {busy ? <IconLoader width={15} height={15} className="animate-spin" /> : <IconLock width={15} height={15} />}
+                Bloquer ce jour
+              </button>
+            </div>
+          </div>
+
+          {/* Blocages existants */}
+          <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Jours bloqués</p>
+            {blocks === null ? (
+              <div className="flex justify-center py-6"><IconLoader width={22} height={22} className="animate-spin text-purple" /></div>
+            ) : blocks.length === 0 ? (
+              <p className="py-2 text-[12px] text-[var(--ds-text-subtle)]">Aucune date bloquée.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {blocks.map((b) => {
+                  const global = b.scope === 'ALL'
+                  // Blocage perso le même jour : « pour moi » n'aurait rien à rouvrir.
+                  const blockedForMe = blocks.some((x) => x.scope === 'SELF' && x.day === b.day)
+                  return (
+                    <li key={b.id} className="rounded-xl border border-[var(--ds-border)] px-3 py-2">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-bold text-[var(--ds-text)]">{formatBlockDay(b.day)}</p>
+                          <p className="truncate text-[12px] text-[var(--ds-text-muted)]">{b.reason}</p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
+                            <span className={`rounded px-1.5 py-0.5 font-bold ${global ? 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)]' : 'bg-purple-light text-purple'}`}>
+                              {global ? 'Tout le monde' : 'Moi'}
+                            </span>
+                            {global && b.releasedForMe && (
+                              <span className="rounded bg-[var(--ds-success-bg)] px-1.5 py-0.5 font-bold text-[var(--ds-success)]">Disponible pour moi</span>
+                            )}
+                            {b.createdByName && <span>· {b.createdByName}</span>}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {global ? (
+                            b.releasedForMe ? (
+                              <button onClick={() => run(() => releaseDayBlock(b.id))} disabled={busy} className={smallBtn}>
+                                Me re-bloquer
+                              </button>
+                            ) : (
+                              <button onClick={() => setReleasing(releasing === b.id ? null : b.id)} className={smallBtn}>
+                                Annuler…
+                              </button>
+                            )
+                          ) : (
+                            <button onClick={() => run(() => deleteDayBlock(b.id))} disabled={busy} className={smallBtn}>
+                              Débloquer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {global && !b.releasedForMe && releasing === b.id && (
+                        <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 border-t border-[var(--ds-border)] pt-2">
+                          <span className="mr-auto text-[11px] font-semibold text-[var(--ds-text-subtle)]">Rendre disponible :</span>
+                          {!blockedForMe && (
+                            <button onClick={() => run(() => releaseDayBlock(b.id))} disabled={busy} className={smallBtn}>
+                              pour moi
+                            </button>
+                          )}
+                          <button onClick={() => run(() => deleteDayBlock(b.id))} disabled={busy} className={`${smallBtn} border-[var(--ds-danger)]/40 text-[var(--ds-danger)]`}>
+                            pour tout le monde
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const CUSTOM_LOCATION = '__custom'
 
@@ -920,9 +1154,10 @@ function Field({ label, className, children }: { label: string; className?: stri
   )
 }
 
-function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, highlightedIds }: {
+function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, highlightedIds, blocksByDay }: {
   cells: Date[]; cursorMonth: number; today: Date
   eventsByDay: Map<string, OwnedEvent[]>; onEvent: (e: OwnedEvent) => void; highlightedIds?: Set<string>
+  blocksByDay?: Map<string, DayBlock[]>
 }) {
   return (
     <>
@@ -936,11 +1171,24 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, highlighte
           const inMonth = day.getMonth() === cursorMonth
           const isToday = sameDay(day, today)
           const dayEvents = eventsByDay.get(day.toDateString()) ?? []
+          const dayBlocks = blocksByDay?.get(toDateInput(day)) ?? []
+          const isBlocked = blocksMe(dayBlocks)
           return (
-            <div key={day.toISOString()} className={`flex flex-col gap-1 overflow-hidden border-b border-r border-[var(--ds-border)] p-1.5 ${inMonth ? 'bg-[var(--ds-surface)]' : 'bg-[var(--ds-surface-sunken)]'}`}>
-              <span className={`mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-bold ${isToday ? 'bg-purple text-white' : inMonth ? 'text-[var(--ds-text-muted)]' : 'text-[var(--ds-text-subtle)]'}`}>
-                {day.getDate()}
-              </span>
+            <div
+              key={day.toISOString()}
+              title={dayBlocks.length ? blocksTitle(dayBlocks) : undefined}
+              className={`flex flex-col gap-1 overflow-hidden border-b border-r border-[var(--ds-border)] p-1.5 ${isBlocked ? 'bg-[var(--ds-danger-bg)]/40' : inMonth ? 'bg-[var(--ds-surface)]' : 'bg-[var(--ds-surface-sunken)]'}`}
+            >
+              <div className="mb-0.5 flex items-center gap-1">
+                <span className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${isToday ? 'bg-purple text-white' : inMonth ? 'text-[var(--ds-text-muted)]' : 'text-[var(--ds-text-subtle)]'}`}>
+                  {day.getDate()}
+                </span>
+                {isBlocked && (
+                  <span className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--ds-danger)]">
+                    <IconLock width={9} height={9} /> Bloqué
+                  </span>
+                )}
+              </div>
               <div className="flex flex-col gap-1 overflow-hidden">
                 {dayEvents.slice(0, 3).map((e) => {
                   const hex = displayHex(e)
@@ -965,9 +1213,10 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, highlighte
   )
 }
 
-function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds }: {
+function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds, blocksByDay }: {
   days: Date[]; today: Date; eventsByDay: Map<string, OwnedEvent[]>
   onEvent: (e: OwnedEvent) => void; onSlot: (start: Date) => void; highlightedIds?: Set<string>
+  blocksByDay?: Map<string, DayBlock[]>
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 7.5 * HOUR_PX }, [])
@@ -979,10 +1228,21 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds }:
         <div />
         {days.map((d) => {
           const isToday = sameDay(d, today)
+          const dayBlocks = blocksByDay?.get(toDateInput(d)) ?? []
+          const isBlocked = blocksMe(dayBlocks)
           return (
-            <div key={d.toISOString()} className="border-l border-[var(--ds-border)] py-2 text-center">
+            <div
+              key={d.toISOString()}
+              title={dayBlocks.length ? blocksTitle(dayBlocks) : undefined}
+              className={`border-l border-[var(--ds-border)] py-2 text-center ${isBlocked ? 'bg-[var(--ds-danger-bg)]/40' : ''}`}
+            >
               <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">{WEEKDAYS[mondayIndex(d)]}</div>
               <div className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold ${isToday ? 'bg-purple text-white' : 'text-[var(--ds-text-muted)]'}`}>{d.getDate()}</div>
+              {isBlocked && (
+                <div className="mt-0.5 flex items-center justify-center gap-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--ds-danger)]">
+                  <IconLock width={9} height={9} /> Bloqué
+                </div>
+              )}
             </div>
           )
         })}
@@ -1004,8 +1264,9 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds }:
           {days.map((day) => {
             const dayEvents = (eventsByDay.get(day.toDateString()) ?? []).filter((e) => !e.allDay)
             const positioned = layoutDay(dayEvents)
+            const dayBlocked = blocksMe(blocksByDay?.get(toDateInput(day)) ?? [])
             return (
-              <div key={day.toISOString()} className="relative border-l border-[var(--ds-border)]" style={{ height: HOURS.length * HOUR_PX }}>
+              <div key={day.toISOString()} className={`relative border-l border-[var(--ds-border)] ${dayBlocked ? 'bg-[var(--ds-danger-bg)]/25' : ''}`} style={{ height: HOURS.length * HOUR_PX }}>
                 {/* Hour lines + click-to-create */}
                 {HOURS.map((h) => (
                   <div key={h} onClick={() => onSlot(new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, 0))}
