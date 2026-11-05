@@ -9,9 +9,11 @@ Aucun code modifié. Toutes les constats sont référencés `fichier:ligne` et o
 
 > **Statut d'application.** L'audit est né en lecture seule, mais le **Lot 1 (`TZ-*`) est
 > maintenant implémenté** : `TZ-01` à `TZ-05`, `TZ-07` et `TZ-08` sont corrigés, `TZ-06` est acté
-> hors périmètre. Le détail des correctifs est en §4.1.a et §7 ; le reste du document décrit
-> l'état **antérieur** à correction et sert de référence pour les lots 2 (`ID-*`) et 3 (`GEO-*`),
-> qui restent ouverts.
+> hors périmètre. Le détail des correctifs est en §4.1.a et §7. Les **documents PDF du Lot 2**
+> (`ID-01`, `ID-02`, `ID-05`, `ID-06`) sont également corrigés : identité légale, contacts, mandat
+> et catalogue sont désormais résolus par tenant (§4.2.a). Les autres `ID-*` restent ouverts.
+> Le reste du document décrit l'état **antérieur** à correction et sert de référence pour les
+> lots 2 (`ID-*`) et 3 (`GEO-*`).
 
 
 Légende sévérité :
@@ -171,6 +173,11 @@ Vérifié négativement : la règle attrape les 10 occurrences du code d'origine
 ### 4.2 `ID-*` — Identité légale, documents, URLs (Lot 2)
 
 #### 4.2.a Documents PDF
+
+> **Corrigé (documents PDF)** : `back/src/config/tenantDocuments.ts` porte l'identité légale, les
+> contacts et les pièces jointes par tenant ; `PdfService` (pied de page, page « Contacts ») et
+> `DocuSealService` (mandat + catalogue) les résolvent via l'ALS. `ID-01`, `ID-02`, `ID-05` et
+> `ID-06` ne décrivent donc plus l'état courant.
 
 | ID | Sév. | Emplacement | Valeur en dur | Impact Annemasse |
 |---|---|---|---|---|
