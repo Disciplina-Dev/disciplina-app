@@ -200,6 +200,27 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Blocage de dates dans l'agenda d'un RH : une ligne par jour et par
+        // portée (NULL = tout le monde). `kind = 'OPEN'` = dérogation personnelle
+        // qui annule un blocage global pour un seul utilisateur.
+        table: 'calendar_day_blocks',
+        ddl: `CREATE TABLE IF NOT EXISTS calendar_day_blocks (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            day DATE NOT NULL,
+            user_id INT DEFAULT NULL,
+            kind ENUM('BLOCK','OPEN') NOT NULL DEFAULT 'BLOCK',
+            reason VARCHAR(255) NOT NULL,
+            created_by INT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            scope_key VARCHAR(16) NOT NULL,
+            UNIQUE KEY uniq_calendar_day_blocks_scope_day (scope_key, day),
+            INDEX idx_calendar_day_blocks_day (day),
+            INDEX idx_calendar_day_blocks_user (user_id),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+        )`,
+    },
+    {
         // Public booking ("Calendly"-style) settings per RH/responsable.
         table: 'booking_settings',
         ddl: `CREATE TABLE IF NOT EXISTS booking_settings (

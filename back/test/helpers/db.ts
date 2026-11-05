@@ -22,6 +22,7 @@ const CLEARED_TABLES = [
     // Mongo `kpis`, vidés via dropMongo().
     'todos',
     'todo_groups',
+    'calendar_day_blocks',
     'user_sectors',
     'users',
     'refresh_tokens',

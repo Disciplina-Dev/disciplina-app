@@ -36,6 +36,22 @@ export interface Slot {
   end: string;
 }
 
+/** Portée d'un blocage de date : un seul RH, ou tout le monde. */
+export type DayBlockScope = 'SELF' | 'ALL';
+
+/** Jour bloqué dans l'agenda (un jour = une entrée). */
+export interface DayBlock {
+  id: number;
+  /** Date locale `YYYY-MM-DD`. */
+  day: string;
+  scope: DayBlockScope;
+  reason: string;
+  createdByName: string | null;
+  createdAt: string;
+  /** Blocage « tout le monde » dont l'utilisateur courant s'est rendu disponible. */
+  releasedForMe?: boolean;
+}
+
 async function bookFetch(path: string, init?: RequestInit): Promise<Response> {
   const res = await apiFetch(`/api/booking${path}`, {
     ...init,
@@ -60,6 +76,34 @@ export async function fetchMyBookingSettings(): Promise<BookingSettings> {
 export async function updateMyBookingSettings(patch: BookingSettingsPatch): Promise<BookingSettings> {
   const res = await bookFetch('/settings', { method: 'PUT', body: JSON.stringify(patch) });
   return ((await res.json()) as { settings: BookingSettings }).settings;
+}
+
+// ── Blocage de dates (espace RH) ──────────────────────────────────────────
+/** Blocages visibles : les miens + ceux « pour tout le monde » (filtrables par plage). */
+export async function fetchDayBlocks(from?: string, to?: string): Promise<DayBlock[]> {
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  const res = await bookFetch(`/blocks${qs ? `?${qs}` : ''}`);
+  return ((await res.json()) as { blocks: DayBlock[] }).blocks;
+}
+
+export async function createDayBlock(input: { day: string; scope: DayBlockScope; reason: string }): Promise<DayBlock[]> {
+  const res = await bookFetch('/blocks', { method: 'POST', body: JSON.stringify(input) });
+  return ((await res.json()) as { blocks: DayBlock[] }).blocks;
+}
+
+/** « Me rendre disponible » sur un blocage « tout le monde » (bascule). */
+export async function releaseDayBlock(id: number): Promise<DayBlock[]> {
+  const res = await bookFetch(`/blocks/${id}/release`, { method: 'POST' });
+  return ((await res.json()) as { blocks: DayBlock[] }).blocks;
+}
+
+/** Annule un blocage : le mien, ou un blocage « tout le monde » pour tous. */
+export async function deleteDayBlock(id: number): Promise<DayBlock[]> {
+  const res = await bookFetch(`/blocks/${id}`, { method: 'DELETE' });
+  return ((await res.json()) as { blocks: DayBlock[] }).blocks;
 }
 
 // ── Page publique (sans authentification) ─────────────────────────────────
