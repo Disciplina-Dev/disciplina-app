@@ -500,7 +500,8 @@ export default function CompanyDirectory({
 }: CompanyDirectoryProps) {
   const navigate = useNavigate();
   // En espace commercial, une ligne ouvre la fiche entreprise du portefeuille ;
-  // en RH, elle ouvre le matching de l'analyse de besoin.
+  // en RH, elle ouvre le matching de l'analyse de besoin dans un nouvel onglet :
+  // l'annuaire reste ouvert et le tableau de bord courant n'est pas quitté.
   const openRow = (analysis: NeedsAnalysis) => {
     if (mode === 'commercial') {
       const companyId = analysis.companyInfos?.id;
@@ -509,7 +510,7 @@ export default function CompanyDirectory({
       navigate(`/commercial/portefeuille/${companyId}${slug ? `/${slug}` : ''}`);
       return;
     }
-    navigate(`/rh/matching?needsAnalysis=${analysis.id}`);
+    window.open(`/rh/matching?needsAnalysis=${encodeURIComponent(analysis.id)}`, '_blank', 'noopener,noreferrer');
   };
   // Annuaire complet : toutes les AB sont chargées page après page, car la recherche
   // et les filtres s'appliquent côté client. L'ancien plafond de 500 lignes (triées
@@ -1141,7 +1142,7 @@ export default function CompanyDirectory({
                         key={directoryRowKey(row)}
                         onClick={() => { if (openable) openRow(analysis); }}
                         className={`${openable ? 'cursor-pointer' : ''} transition hover:bg-[var(--ds-surface-sunken)]`}
-                        title={openable ? (mode === 'commercial' ? 'Ouvrir la fiche entreprise' : 'Ouvrir le matching') : undefined}
+                        title={openable ? (mode === 'commercial' ? 'Ouvrir la fiche entreprise' : 'Ouvrir le matching dans un nouvel onglet') : undefined}
                       >
                         <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">
                           <span className="flex items-center gap-2">
