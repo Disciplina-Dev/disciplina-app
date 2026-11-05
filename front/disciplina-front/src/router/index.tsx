@@ -32,6 +32,7 @@ import RelanceCommercial from "@/pages/commercial/RelanceCommercial";
 import ListeNoire from "@/pages/commercial/ListeNoire";
 import QuarantineCompany from "@/pages/commercial/QuarantineCompany";
 import AbDriveConfig from "@/pages/commercial/AbDriveConfig";
+import SuiviEntreprise from "@/pages/commercial/SuiviEntreprise";
 
 import RHLayout from "@/components/layout/RHLayout";
 import DashboardRH from "@/pages/rh/DashboardRH";
@@ -122,6 +123,7 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin", element: <ListeAB />, handle: { crumb: "Analyses de besoin" } },
       { path: "analyses-besoin/nouvelle", element: <CreateAB />, handle: { crumb: "Nouvelle analyse" } },
       { path: "portefeuille", element: <PortefeuilleEntreprises />, handle: { crumb: "Portefeuille" } },
+      { path: "suivi-entreprise", element: <SuiviEntreprise />, handle: { crumb: "Suivi entreprise" } },
       {
         path: "portefeuille/:id/:slug?",
         element: <EntreprisePage />,
