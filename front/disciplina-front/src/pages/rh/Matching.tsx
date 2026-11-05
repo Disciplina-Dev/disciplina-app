@@ -1462,8 +1462,8 @@ function MatchingSection({
         <div className="mb-3 flex items-start gap-2 rounded-xl bg-[var(--ds-warning-bg)] border border-[var(--ds-warning)] px-4 py-3 text-xs text-[var(--ds-warning)]">
           <IconAlert width={14} height={14} className="mt-0.5 shrink-0 text-[var(--ds-warning)]" />
           <span>
-            Aucun candidat ne correspond au(x) secteur(s) d'activité de cette offre&nbsp;: ce critère a été ignoré
-            pour afficher des résultats.
+            Secteur(s) d'activité non reconnu(s) dans le référentiel candidat&nbsp;: ce critère n'a pas pu être
+            appliqué.
           </span>
         </div>
       )}
