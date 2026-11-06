@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router-dom'
 import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal'
 import {
   fetchCalendarEvents, fetchCalendarUsers, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
-  setEventAttendance,
+  setEventAttendance, reportCalendarEvent,
   CalendarNotConnectedError, calendarHex,
   type CalendarEvent, type CalendarEventInput, type CalendarUser, type Attendance,
 } from '@/api/calendar'
@@ -1443,6 +1443,11 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
   const [savingAtt, setSavingAtt] = useState<Attendance | null>(null)
   const [attErr, setAttErr] = useState<string | null>(null)
   const isPast = new Date(event.end).getTime() < Date.now()
+  // « Reporté » d'un entretien : on demande d'abord la nouvelle date/heure, puis on déplace le créneau.
+  const [rescheduling, setRescheduling] = useState(false)
+  const [newDate, setNewDate] = useState(() => toDateInput(new Date(event.start)))
+  const [newStart, setNewStart] = useState(() => toTimeInput(new Date(event.start)))
+  const [newEnd, setNewEnd] = useState(() => toTimeInput(new Date(event.end)))
 
   const mark = async (status: Attendance) => {
     setSavingAtt(status); setAttErr(null)
@@ -1451,6 +1456,24 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
       onAttendance(updated)
       // « Arrivé » (entretien uniquement) → création du candidat pré-rempli puis redirection vers sa fiche.
       if (status === 'arrived' && event.isInterview) onArrived(updated)
+    } catch (e) {
+      setAttErr(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setSavingAtt(null)
+    }
+  }
+
+  const confirmReport = async () => {
+    setAttErr(null)
+    if (!newDate || !newStart || !newEnd) { setAttErr('Date et heures requises'); return }
+    const start = localToISO(newDate, newStart)
+    const end = localToISO(newDate, newEnd)
+    if (new Date(end) <= new Date(start)) { setAttErr('La fin doit suivre le début'); return }
+    setSavingAtt('postponed')
+    try {
+      const updated = await reportCalendarEvent(event.id, start, end, event.ownerId)
+      onAttendance(updated)
+      setRescheduling(false)
     } catch (e) {
       setAttErr(e instanceof Error ? e.message : 'Erreur')
     } finally {
@@ -1498,7 +1521,9 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]'}`}>
               {savingAtt === 'noshow' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserRemove width={14} height={14} />} Pas venu
             </button>
-            <button onClick={() => mark('postponed')} disabled={savingAtt !== null}
+            <button
+              onClick={() => (event.isInterview ? setRescheduling((v) => !v) : mark('postponed'))}
+              disabled={savingAtt !== null}
               style={event.attendance === 'postponed' ? { borderColor: '#60207E', backgroundColor: '#60207E14', color: '#60207E' } : undefined}
               className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance !== 'postponed' ? 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]' : ''}`}>
               {savingAtt === 'postponed' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconRepeat width={14} height={14} />} Reporté
@@ -1509,6 +1534,28 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
               {savingAtt === 'declined' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconClose width={14} height={14} />} Décliné
             </button>
           </div>
+          {/* Report d'un entretien : le créneau est réellement déplacé à la nouvelle date/heure choisie. */}
+          {rescheduling && event.isInterview && (
+            <div className="mt-3 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] p-3">
+              <p className="mb-2 text-[12px] font-semibold text-[var(--ds-text-muted)]">Nouvelle date et heure de l’entretien</p>
+              <div className="flex gap-2">
+                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} disabled={savingAtt !== null}
+                  className="flex-1 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+                <input type="time" value={newStart} onChange={(e) => setNewStart(e.target.value)} disabled={savingAtt !== null}
+                  className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
+                <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} disabled={savingAtt !== null}
+                  className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
+              </div>
+              <div className="mt-2 flex items-center justify-end gap-2">
+                <button onClick={() => setRescheduling(false)} disabled={savingAtt !== null}
+                  className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] disabled:opacity-60">Annuler</button>
+                <button onClick={confirmReport} disabled={savingAtt !== null}
+                  className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-1.5 text-[12px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
+                  {savingAtt === 'postponed' && <IconLoader width={13} height={13} className="animate-spin" />} Déplacer et marquer reporté
+                </button>
+              </div>
+            </div>
+          )}
           {event.isInterview && event.attendance === 'noshow' && (
             <p className="mt-2 text-[12px] text-[var(--ds-text-subtle)]">Un mail de proposition de rendez-vous a été envoyé.</p>
           )}
