@@ -55,6 +55,7 @@ Stores complete candidate profiles including identity, education, support system
 | transport_means | string | — | How candidate commutes |
 | psh_referral_request | bool | — | Person with disabilities support request |
 | description | string | — | Free-text candidate summary (recruiter context for manual matching; text-indexed, used for candidatesPage search) |
+| description_source | string | — | enum: auto, manual. `auto` = résumé déterministe régénéré à chaque mise à jour du dossier ; `manual` = texte saisi par un RH (ou résumé IA validé), jamais écrasé par la génération automatique |
 
 ### Embedded object: education
 

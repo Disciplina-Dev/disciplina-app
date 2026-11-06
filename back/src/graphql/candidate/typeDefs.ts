@@ -172,6 +172,7 @@ export const typeDefs = gql`
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
         description: String
+        descriptionSource: String
         avatarUpdatedAt: String
         driveAvatarFileId: String
     }
@@ -407,6 +408,9 @@ export const typeDefs = gql`
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
         description: String
+        # "auto" : résumé régénéré automatiquement ; "manual" : texte RH protégé.
+        # Un texte qui diffère de l'existant est considéré comme manuel par défaut.
+        descriptionSource: String
     }
 
     input EducationInput {
