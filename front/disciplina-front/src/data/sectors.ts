@@ -52,7 +52,7 @@ export const SECTOR_LABELS: Record<string, string> = {
   [Sector.NONE]: 'Aucun',
 }
 
-/** Secteurs historiques, proposés aux TP commerciaux (CC, NTC, REM) et à CADGA. */
+/** Secteurs historiques, proposés aux TP commerciaux (CC, NTC, REM). */
 export const COMMERCE_SECTORS: Sector[] = [
   Sector.BOULANGERIE,
   Sector.RESTAURATION,
@@ -73,7 +73,7 @@ export const COMMERCE_SECTORS: Sector[] = [
   Sector.BAZAR,
 ]
 
-/** Secteurs propres au TP Assistant(e) de Direction (AD), triés alphabétiquement. */
+/** Secteurs des TP administratifs (AD et CADGA), triés alphabétiquement. */
 export const AD_SECTORS: Sector[] = [
   Sector.ASSOCIATION,
   Sector.AUTO,
