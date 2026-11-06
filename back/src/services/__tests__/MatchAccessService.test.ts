@@ -92,6 +92,11 @@ describe('MatchAccessService', () => {
         expect(row?.external_email).toBe(`company-${suffix}@test.local`);
         expect(row?.status).toBe('SENDING');
         expect(session.link).toContain(`/external/authenticate?sig=${session.signature}`);
+
+        // #1074 : une fois proposé à l'entreprise, le candidat doit passer en
+        // SEND (« déjà envoyé ») et ne plus rester dans la liste « à envoyer ».
+        const offer = await new OfferRepository().findById(offerId);
+        expect(offer?.matching?.candidates?.[0].status).toBe(MatchedCandidateStatus.SEND);
     });
 
     it('passes cc recipients through to the session credentials (mail only, not stored)', async () => {
