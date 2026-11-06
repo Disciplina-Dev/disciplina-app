@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { SireneService } from '../../external/insee/sirene.service';
+import { EntreprisesSearchService } from '../../external/entreprises/entreprises.service';
+import { EntrepriseSearchCriteria } from '../../external/entreprises/types';
 import { GeocodageService } from '../../external/insee/geocodage.service';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
 import { SourcingService } from '../../services/SourcingService';
@@ -12,11 +14,94 @@ import { CompanyWithSalePerson, SirenSearchResult, BlacklistedCompanyInfo } from
 import { logger } from '../../external/logger';
 
 const sireneService = new SireneService();
+const entreprisesSearchService = new EntreprisesSearchService();
 const geocodageService = new GeocodageService();
 const companyRepository = new CompanyRepository();
 const sourcingService = new SourcingService();
 const userService = new UserService();
 const companiesBlacklistService = new CompaniesBlacklistService();
+
+/** Paramètres servis par l'API Recherche d'entreprises (dirigeant, géo large, situation admin).
+ *  `activitePrincipaleUniteLegale` et `categorieEntreprise` restent routés Sirene quand ils sont
+ *  seuls (comportement historique) : la bascule n'a lieu que si un critère discriminant ci-dessous
+ *  est présent, le NAF historique étant repris comme filtre dans ce cas. */
+const ENTREPRISES_ONLY_PARAMS = new Set([
+    'denomination',
+    'commune',
+    'codePostal',
+    'codeCommune',
+    'departement',
+    'region',
+    'nomDirigeant',
+    'prenomDirigeant',
+    'etatAdministratif',
+    'activitePrincipale',
+    'trancheEffectif',
+]);
+
+function buildEntrepriseCriteria(criteria: SireneCriterion[]): EntrepriseSearchCriteria {
+    const get = (name: string): string | null => {
+        const found = criteria.find((c) => c.paramName === name);
+        const value = found?.value.trim();
+        return value ? value : null;
+    };
+    const queryParts = [get('denomination'), get('commune'), get('libelleCommuneEtablissement')].filter(
+        (p): p is string => p !== null,
+    );
+    // Le préfixe départemental historique (`974*`, `74*`) devient un filtre département.
+    const codeCommuneRaw = get('codeCommune') ?? get('codeCommuneEtablissement');
+    let codeCommune: string | null = null;
+    let departement = get('departement');
+    if (!departement && codeCommuneRaw) {
+        if (/^[0-9A-Z]{2,3}\*$/.test(codeCommuneRaw)) {
+            departement = codeCommuneRaw.replace('*', '');
+        } else {
+            codeCommune = codeCommuneRaw;
+        }
+    }
+    const etatRaw = get('etatAdministratif');
+    // L'API Entreprises raisonne au niveau unité légale (A/C) ; un `F` établissement
+    // hérité du vocabulaire Sirene équivaut à une unité cessée pour ce filtre.
+    const etatAdministratif = etatRaw === 'F' ? 'C' : etatRaw;
+    return {
+        query: queryParts.length > 0 ? queryParts.join(' ') : null,
+        codeCommune,
+        codePostal: get('codePostal') ?? get('codePostalEtablissement'),
+        departement,
+        region: get('region'),
+        nomPersonne: get('nomDirigeant'),
+        prenomsPersonne: get('prenomDirigeant'),
+        etatAdministratif,
+        activitePrincipale: get('activitePrincipale') ?? get('activitePrincipaleUniteLegale'),
+        categorieEntreprise: get('categorieEntreprise'),
+        trancheEffectif: get('trancheEffectif'),
+    };
+}
+
+function validateEntrepriseCriteria(criteria: EntrepriseSearchCriteria): string | null {
+    if (criteria.codePostal && !/^\d{5}$/.test(criteria.codePostal)) {
+        return 'codePostal must be a 5-digit string';
+    }
+    if (criteria.departement && !/^[0-9A-Z]{2,3}$/.test(criteria.departement)) {
+        return 'departement must be a 2-3 character code (e.g. 974, 74)';
+    }
+    if (criteria.region && !/^\d{2}$/.test(criteria.region)) {
+        return 'region must be a 2-digit code (e.g. 04, 84)';
+    }
+    if (criteria.etatAdministratif && !['A', 'C'].includes(criteria.etatAdministratif)) {
+        return 'etatAdministratif must be A (En activité) or C (Cessée)';
+    }
+    return null;
+}
+
+async function searchViaEntreprises(criteria: SireneCriterion[], offset: number) {
+    const entrepriseCriteria = buildEntrepriseCriteria(criteria);
+    const validationError = validateEntrepriseCriteria(entrepriseCriteria);
+    if (validationError) {
+        throw new Error(validationError);
+    }
+    return entreprisesSearchService.search(entrepriseCriteria, offset);
+}
 
 export async function companiesByMulticriteria(req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -40,7 +125,10 @@ export async function companiesByMulticriteria(req: AuthRequest, res: Response):
         }
         logger.info({ userId: req.user?.id, criteria, offset }, 'Sourcing: recherche commerciaux multicritère');
 
-        const result = await sireneService.searchEstablishments(criteria as SireneCriterion[], offset);
+        const useEntreprises = (criteria as SireneCriterion[]).some((c) => ENTREPRISES_ONLY_PARAMS.has(c.paramName));
+        const result = useEntreprises
+            ? await searchViaEntreprises(criteria as SireneCriterion[], offset)
+            : await sireneService.searchEstablishments(criteria as SireneCriterion[], offset);
 
         const checks = await Promise.all(
             result.etablissements.map((e) => companyRepository.findBySiret(`${e.siret.slice(0, 9)}%`)),

@@ -24,4 +24,30 @@ export class PedaDraftHistoryRepository {
         );
         return (result as unknown as { affectedRows: number }).affectedRows > 0;
     }
+
+    /**
+     * RGPD : efface l'adresse du destinataire après `days` jours. La ligne (et sa `dedup_key`) est
+     * conservée, sinon les cases encore cochées dans le Sheet régénéreraient des brouillons.
+     */
+    async anonymizeOlderThan(days: number): Promise<number> {
+        const result = await query<{ affectedRows: number }>(
+            `UPDATE peda_draft_history SET recipient = ''
+             WHERE recipient <> '' AND created_at < NOW() - INTERVAL ? DAY`,
+            [days],
+        );
+        return (result as unknown as { affectedRows: number }).affectedRows;
+    }
+
+    /** Volume de brouillons générés par niveau et par mois (agrégat, sans destinataire). */
+    async countByLevelAndMonth(year: number): Promise<Array<{ level: string; month: number; count: number }>> {
+        const rows = await query<Array<{ level: string; month: number; count: number }>>(
+            `SELECT level, MONTH(created_at) AS month, COUNT(*) AS count
+             FROM peda_draft_history
+             WHERE YEAR(created_at) = ?
+             GROUP BY level, MONTH(created_at)
+             ORDER BY month, level`,
+            [year],
+        );
+        return rows.map((r) => ({ level: r.level, month: Number(r.month), count: Number(r.count) }));
+    }
 }

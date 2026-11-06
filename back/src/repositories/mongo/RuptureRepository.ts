@@ -21,6 +21,15 @@ export class RuptureRepository {
             .lean();
     }
 
+    async findByYear(year: number): Promise<Rupture[]> {
+        const start = new Date(Date.UTC(year, 0, 1));
+        const end = new Date(Date.UTC(year + 1, 0, 1));
+        return getModels()
+            .Rupture.find({ date_rupture: { $gte: start, $lt: end } })
+            .sort({ date_rupture: 1 })
+            .lean();
+    }
+
     async create(data: Omit<Rupture, '_id' | 'created_at' | 'updated_at'>): Promise<Rupture> {
         const now = new Date();
         const doc = new (getModels().Rupture)({

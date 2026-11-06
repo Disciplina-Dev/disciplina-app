@@ -80,7 +80,7 @@ export const CANDIDATE_TEMPLATES: Record<TitleProfessionalType, CandidateTemplat
     ]),
   },
 
-  [TitleProfessionalType.SA]: {
+  [TitleProfessionalType.CADGA]: {
     hasEnglishLevel: false,
     schoolLevels: [
       { value: SchoolLevel.CAP_BEP_WITH_1Y_EXP, label: "CAP / BEP avec 1 an d'expérience professionnelle" },
@@ -183,7 +183,7 @@ export const ALL_DESIRED_SECTORS: string[] = Array.from(
 
 export const TP_TYPE_LABELS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.CC]: 'Conseiller Commercial',
-  [TitleProfessionalType.SA]: 'SA',
+  [TitleProfessionalType.CADGA]: "Chargé d'accueil et de gestion administrative",
   [TitleProfessionalType.AD]: 'Assistante de Direction',
   [TitleProfessionalType.NTC]: 'Négociateur technico-commercial',
   [TitleProfessionalType.REM]: "Responsable d'établissement Marchand",

@@ -11,6 +11,9 @@ import { getRegion } from '../db/tenant';
 export const SECTORS = ['Nord-Est', 'Ouest', 'Sud'] as const;
 export type Sector = (typeof SECTORS)[number];
 
+/** Secteur par défaut des entreprises hors tenant Annemasse. */
+export const DEFAULT_SECTOR: Sector = 'Nord-Est';
+
 /**
  * Secteurs entreprise du tenant Annemasse (Haute-Savoie) : les 6 secteurs
  * opérationnels du référentiel communes (cf. ZONE_TO_COMMUNES dans

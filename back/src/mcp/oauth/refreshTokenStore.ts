@@ -38,6 +38,23 @@ export class McpOAuthRefreshTokenStore {
         );
     }
 
+    /** Jeton déjà révoqué (rotation ou révocation explicite) : sa présentation signale un rejeu / vol. */
+    async findRevokedByHash(clientId: string, tokenHash: string): Promise<McpOAuthRefreshTokenRow | null> {
+        const rows = await query<McpOAuthRefreshTokenRow[]>(
+            'SELECT * FROM mcp_oauth_refresh_tokens WHERE client_id = ? AND token_hash = ? AND revoked_at IS NOT NULL',
+            [clientId, tokenHash],
+        );
+        return rows.length > 0 ? rows[0] : null;
+    }
+
+    /** Révoque toute la famille (utilisateur × client) : réponse à un rejeu de refresh token. */
+    async revokeAllForUser(clientId: string, userId: number): Promise<void> {
+        await query(
+            'UPDATE mcp_oauth_refresh_tokens SET revoked_at = NOW() WHERE client_id = ? AND user_id = ? AND revoked_at IS NULL',
+            [clientId, userId],
+        );
+    }
+
     // Purge des lignes expirées / révoquées depuis `graceDays` jours : sans elle
     // la table croît d'une ligne à chaque rotation de refresh token.
     async deleteExpired(graceDays: number): Promise<number> {

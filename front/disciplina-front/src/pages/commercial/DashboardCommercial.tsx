@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { IconChart, IconPhone, IconPlus, IconUsers } from '@/components/ui/icons'
 import {
@@ -14,12 +15,10 @@ import { toast } from '@/store/toastStore'
 import { KpiProfilView } from '@/pages/commercial/CommercialKpiProfil'
 
 import { useCurrentUser, Permission } from '@/store/authStore'
-import { useRegionStore } from '@/store/regionStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { useContactLogStats } from '@/graphql/hooks'
 import {
   fetchKpiUsers,
-  kpiSitesForRegion,
   type KpiAnnualSummary,
   type KpiImportResult,
   type KpiMetricColumn,
@@ -29,7 +28,7 @@ import {
   type KpiSource,
   type KpiWeeklyDetail,
 } from '@/api/kpi'
-import { KPI_STATUS_METRICS, SITE_LABELS, emptyMetrics } from '@/features/kpi/config'
+import { KPI_STATUS_METRICS, emptyMetrics } from '@/features/kpi/config'
 import { useKpiDashboard } from '@/features/kpi/useKpiDashboard'
 import KpiSummaryCards from '@/features/kpi/components/KpiSummaryCards'
 import KpiTable from '@/features/kpi/components/KpiTable'
@@ -106,13 +105,11 @@ function ContactStatsSection() {
 
 function KpiDashboard() {
   const currentYear = new Date().getFullYear()
-  const region = useRegionStore((s) => s.region)
-  // Sites KPI selon le tenant : NORD/OUEST/SUD (Réunion) ou les 6 secteurs
-  // opérationnels (Annemasse).
-  const sites = useMemo(() => kpiSitesForRegion(region), [region])
+  // Sites KPI selon le tenant : NORD/OUEST/SUD (Réunion) ou ANNEMASSE.
+  const { kpiSites: sites, labelOf } = useSectors()
 
   const [year, setYear] = useState(currentYear)
-  const [site, setSite] = useState<KpiSite>('NORD')
+  const [site, setSite] = useState<KpiSite>('')
   // Secteur effectif : repli sur le premier secteur du référentiel courant
   // quand le tenant change (ex. NORD → ANNEMASSE).
   const effectiveSite = sites.includes(site) ? site : sites[0]
@@ -228,8 +225,8 @@ function KpiDashboard() {
           title="Tableau de bord commercial"
           description={
             selectedUserId != null && viewSummary?.users[0]
-              ? `${viewSummary.users[0].userName} — secteur ${SITE_LABELS[effectiveSite]}, ${year}.`
-              : `Résultats annuels par commercial — secteur ${SITE_LABELS[effectiveSite]}, ${year}.`
+              ? `${viewSummary.users[0].userName} — secteur ${labelOf(effectiveSite)}, ${year}.`
+              : `Résultats annuels par commercial — secteur ${labelOf(effectiveSite)}, ${year}.`
           }
           actions={
             isEditableSource && (
@@ -271,7 +268,7 @@ function KpiDashboard() {
             label="Secteur"
             value={effectiveSite}
             onChange={selectSite}
-            options={sites.map((s) => ({ value: s, label: SITE_LABELS[s] }))}
+            options={sites.map((s) => ({ value: s, label: labelOf(s) }))}
           />
         </div>
 

@@ -1,13 +1,16 @@
 import { NeedsAnalysisService } from '../../services/NeedsAnalysisService';
+import { GraphQLError } from 'graphql';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { UserService } from '../../services/UserService';
 import { ANNEMASSE_DRIVE_SECTOR, regionFromSector, sectorFromRegion } from '../../utils/sector';
 import { getRegion } from '../../db/tenant';
+import { sectorService } from '../../services/SectorService';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
 import { encodeNeedsAnalysisCursor } from '../../repositories/mongo/NeedsAnalysisRepository';
 import { toNeedsAnalysis } from '../../services/mappers/needsAnalysis.mapper';
 import { OfferAbFilter, AbStatus } from '../../types/offer.types';
+import { CompanyIndicator } from '../../types/needsAnalysisNoSql.types';
 import {
     abDriveConfigService,
     abDriveConfigToGql,
@@ -60,19 +63,28 @@ export const resolvers = {
                         : null;
                     let drive: InstanceType<typeof GoogleDriveService> | null = null;
                     if (tokens) {
-                        drive = GoogleDriveService.fromTokens(
-                            tokens,
-                            async (refreshed) => {
-                                if (creatorId) await userService.updateGoogleTokens(Number(creatorId), refreshed.access_token ?? null, refreshed.refresh_token ?? null);
-                            },
-                        );
+                        drive = GoogleDriveService.fromTokens(tokens, async (refreshed) => {
+                            if (creatorId)
+                                await userService.updateGoogleTokens(
+                                    Number(creatorId),
+                                    refreshed.access_token ?? null,
+                                    refreshed.refresh_token ?? null,
+                                );
+                        });
                     } else {
                         const fallback = await userService.findFirstGoogleConnectedUser([JobRole.COMMERCIAL]);
                         if (fallback?.oauthToken) {
                             drive = GoogleDriveService.fromTokens(
-                                { access_token: fallback.oauthToken, refresh_token: fallback.refreshToken ?? undefined },
+                                {
+                                    access_token: fallback.oauthToken,
+                                    refresh_token: fallback.refreshToken ?? undefined,
+                                },
                                 async (refreshed) => {
-                                    await userService.updateGoogleTokens(Number(fallback.id), refreshed.access_token ?? null, refreshed.refresh_token ?? null);
+                                    await userService.updateGoogleTokens(
+                                        Number(fallback.id),
+                                        refreshed.access_token ?? null,
+                                        refreshed.refresh_token ?? null,
+                                    );
                                 },
                             );
                         }
@@ -165,6 +177,12 @@ export const resolvers = {
         updateAbDriveConfig: async (_: unknown, { input }: { input: any }, context: any) => {
             authGuard(context.user, Permission.RESPONSABLE);
             const sectorFolders: Record<string, string> = {};
+            const folders: { sector: string }[] = input.sectorFolders ?? [];
+            const known = await Promise.all(folders.map((f) => sectorService.findByLabel(f.sector)));
+            const unknown = folders.find((__, i) => !known[i]);
+            if (unknown) {
+                throw new GraphQLError(`Unknown sector: ${unknown.sector}`, { extensions: { code: 'BAD_USER_INPUT' } });
+            }
             for (const f of input.sectorFolders ?? []) {
                 const folderId = (f.folderId ?? '').trim();
                 if (folderId) sectorFolders[abFolderKey(f.sector, f.kind as AbFolderKind)] = folderId;
@@ -193,6 +211,44 @@ export const resolvers = {
                 }
             }
             return needsAnalysisService.setRelanceDisabled(id, disabled);
+        },
+        setNeedsAnalysisMatchingVisibility: async (
+            _: unknown,
+            { id, visible }: { id: string; visible: boolean },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            if (context.user.role === JobRole.COMMERCIAL) {
+                const existing = await needsAnalysisService.findById(id);
+                if (existing?.salerInfo?.id && existing.salerInfo.id !== context.user.id) {
+                    throw new Error('Forbidden: You can only change matching visibility on your own needs analyses');
+                }
+            }
+            return needsAnalysisService.setMatchingVisibility(id, visible);
+        },
+        updateNeedsAnalysisIndicator: async (
+            _: unknown,
+            { id, indicator }: { id: string; indicator?: CompanyIndicator | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.setIndicator(id, indicator ?? null);
+        },
+        updateNeedsAnalysisTracking: async (
+            _: unknown,
+            { id, franceTravail, koann }: { id: string; franceTravail?: string | null; koann?: string | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.setTrackingRefs(id, franceTravail, koann);
+        },
+        updateNeedsAnalysisActivationDate: async (
+            _: unknown,
+            { id, lastActiveAt }: { id: string; lastActiveAt?: string | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL, JobRole.RH]);
+            return needsAnalysisService.setActivationDate(id, lastActiveAt ?? null);
         },
     },
 };

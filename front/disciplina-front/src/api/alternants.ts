@@ -175,6 +175,15 @@ const CREATE_SEQUENCE = gql`
   ${SEQUENCE_FIELDS}
 `
 
+const RESCHEDULE_SEQUENCE = gql`
+  mutation RescheduleSequence($id: ID!, $prevueLe: String!) {
+    rescheduleSequence(id: $id, prevueLe: $prevueLe) {
+      ...SequenceFields
+    }
+  }
+  ${SEQUENCE_FIELDS}
+`
+
 const UPDATE_CONTACTS = gql`
   mutation UpdateSequenceContacts($id: ID!, $contacts: AlternantSequenceContactsInput!) {
     updateSequenceContacts(id: $id, contacts: $contacts) {
@@ -312,6 +321,12 @@ export async function unarchiveAlternant(id: string): Promise<Alternant | null> 
 export async function createSequence(alternantId: string, prevueLe: string): Promise<AlternantSequence> {
   const res = await pedaGraphqlClient.mutation(CREATE_SEQUENCE, { alternantId, prevueLe })
   return unwrap<{ createSequence: AlternantSequence }>(res).createSequence
+}
+
+/** Replanifie une SA en attente (déplace sa date prévue et les SA suivantes). */
+export async function rescheduleSequence(id: string, prevueLe: string): Promise<AlternantSequence | null> {
+  const res = await pedaGraphqlClient.mutation(RESCHEDULE_SEQUENCE, { id, prevueLe })
+  return unwrap<{ rescheduleSequence: AlternantSequence | null }>(res).rescheduleSequence
 }
 
 export async function updateSequenceContacts(id: string, contacts: Partial<SequenceContacts>): Promise<AlternantSequence | null> {

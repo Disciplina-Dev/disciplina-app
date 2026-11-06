@@ -1,7 +1,10 @@
 import { apiFetch } from '@/api/httpClient';
 import type { Region } from '@/store/regionStore';
 
-export type KpiSite = 'NORD' | 'OUEST' | 'SUD' | AnnemasseKpiSite;
+/** Code de secteur du référentiel (NORD/OUEST/SUD, ANNEMASSE…) : les sites viennent de `useSectors().kpiSites`. */
+export type KpiSite = string;
+
+/** Repli tant que le référentiel n'est pas chargé. */
 export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
 
 /** Site KPI unique du tenant Annemasse (pilotage à la maille du tenant). */
@@ -15,7 +18,7 @@ export function kpiSitesForRegion(region: Region | null | undefined): KpiSite[] 
 }
 
 /** Libellés d'affichage des sites KPI. */
-export const KPI_SITE_LABELS: Record<KpiSite, string> = {
+export const KPI_SITE_LABELS: Record<string, string> = {
   NORD: 'Nord-Est',
   OUEST: 'Ouest',
   SUD: 'Sud',

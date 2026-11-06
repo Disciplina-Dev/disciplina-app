@@ -1,15 +1,14 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
+import { searchNeedle } from './searchRegex';
 import { Session } from '../../types/session.types';
 
 export class SessionRepository {
     async findAll(search?: string): Promise<Session[]> {
-        const filter = search?.trim()
+        const needle = search?.trim() ? searchNeedle(search) : '';
+        const filter = needle
             ? {
-                  $or: [
-                      { nom: { $regex: search.trim(), $options: 'i' } },
-                      { filiere: { $regex: search.trim(), $options: 'i' } },
-                  ],
+                  $or: [{ nom: { $regex: needle, $options: 'i' } }, { filiere: { $regex: needle, $options: 'i' } }],
               }
             : {};
         return getModels().Session.find(filter).sort({ date_debut: 1 }).lean();

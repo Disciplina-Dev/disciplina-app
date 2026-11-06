@@ -1,5 +1,6 @@
 import { getModels } from '../../db/mongo/tenant';
 import { Offer, OfferAbFilter, AbStatus } from '../../types/offer.types';
+import { expandTpFilter } from '../../types/candidate.types';
 import {
     ImmersionConclusion,
     InterviewConclusion,
@@ -31,7 +32,7 @@ function resetProposal(candidate: MatchingCandidate): MatchingCandidate {
 function buildOfferAbMongoFilter(filter: OfferAbFilter): Record<string, unknown> {
     const mongo: Record<string, unknown> = {};
     if (filter.statuses?.length) mongo['matching.status'] = { $in: filter.statuses };
-    if (filter.desiredTp?.length) mongo['desired_tp.tp_type'] = { $in: filter.desiredTp };
+    if (filter.desiredTp?.length) mongo['desired_tp.tp_type'] = { $in: expandTpFilter(filter.desiredTp) };
     if (filter.sectors?.length) mongo['company_infos.activities'] = { $in: filter.sectors };
     if (filter.localisations?.length) mongo['localisation'] = { $in: filter.localisations };
     if (filter.search) {

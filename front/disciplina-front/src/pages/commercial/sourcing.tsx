@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { CompanyWithSalePerson } from "@/types/entreprise";
 import { IconArrowRight, IconCheck, IconClock, IconClose, IconCompany, IconCopy, IconExternalLink, IconMail, IconPhone, IconSearch, IconWarning } from '@/components/ui/icons'
 import { apiFetch } from "@/api/httpClient";
@@ -102,6 +102,52 @@ function legalFormShort(code: string | null): string {
   return LEGAL_FORMS[code] || code;
 }
 
+const REGIONS: Array<{ code: string; label: string }> = [
+  { code: "84", label: "Auvergne-Rhône-Alpes" },
+  { code: "27", label: "Bourgogne-Franche-Comté" },
+  { code: "53", label: "Bretagne" },
+  { code: "24", label: "Centre-Val de Loire" },
+  { code: "94", label: "Corse" },
+  { code: "44", label: "Grand Est" },
+  { code: "01", label: "Guadeloupe" },
+  { code: "03", label: "Guyane" },
+  { code: "32", label: "Hauts-de-France" },
+  { code: "11", label: "Île-de-France" },
+  { code: "02", label: "Martinique" },
+  { code: "06", label: "Mayotte" },
+  { code: "28", label: "Normandie" },
+  { code: "75", label: "Nouvelle-Aquitaine" },
+  { code: "76", label: "Occitanie" },
+  { code: "52", label: "Pays de la Loire" },
+  { code: "93", label: "Provence-Alpes-Côte d'Azur" },
+  { code: "04", label: "La Réunion" },
+];
+
+const CATEGORIES_ENTREPRISE: Array<{ code: string; label: string }> = [
+  { code: "PME", label: "PME" },
+  { code: "ETI", label: "ETI (intermédiaire)" },
+  { code: "GE", label: "GE (grande entreprise)" },
+];
+
+const TRANCHES_EFFECTIF: Array<{ code: string; label: string }> = [
+  { code: "NN", label: "Non employeur" },
+  { code: "00", label: "0 salarié" },
+  { code: "01", label: "1-2 salariés" },
+  { code: "02", label: "3-5 salariés" },
+  { code: "03", label: "6-9 salariés" },
+  { code: "11", label: "10-19 salariés" },
+  { code: "12", label: "20-49 salariés" },
+  { code: "21", label: "50-99 salariés" },
+  { code: "22", label: "100-199 salariés" },
+  { code: "31", label: "200-249 salariés" },
+  { code: "32", label: "250-499 salariés" },
+  { code: "41", label: "500-999 salariés" },
+  { code: "42", label: "1 000-1 999 salariés" },
+  { code: "51", label: "2 000-4 999 salariés" },
+  { code: "52", label: "5 000-9 999 salariés" },
+  { code: "53", label: "10 000+ salariés" },
+];
+
 async function fetchCompaniesByCriteria(
   criteria: SireneCriterion[],
   offset = 0,
@@ -119,20 +165,65 @@ async function fetchCompaniesByCriteria(
   return (await res.json()) as SireneListResult;
 }
 
-function buildCriteria(commune: string, naf: string, deptPrefix: string | null): SireneCriterion[] {
+export interface MulticriteriaFilters {
+  commune: string;
+  naf: string;
+  deptPrefix: string | null;
+  denomination: string;
+  codePostal: string;
+  departement: string;
+  region: string;
+  dirigeantNom: string;
+  dirigeantPrenom: string;
+  etatAdministratif: string;
+  categorie: string;
+  tranche: string;
+}
+
+function buildCriteria(filters: MulticriteriaFilters): SireneCriterion[] {
   const criteria: SireneCriterion[] = [];
-  if (commune.trim()) {
+  const commune = filters.commune.trim();
+  const naf = filters.naf.trim();
+  if (commune) {
     criteria.push({
       paramName: "libelleCommuneEtablissement",
-      value: denormalizeCommune(commune.trim()),
+      value: denormalizeCommune(commune),
     });
   }
-  if (naf.trim()) {
-    criteria.push({ paramName: "activitePrincipaleUniteLegale", value: naf.trim() });
+  if (naf) {
+    criteria.push({ paramName: "activitePrincipaleUniteLegale", value: naf });
   }
   // Filtre départemental : 974* (La Réunion) ou 74* (Haute-Savoie / Annemasse).
-  if (deptPrefix) {
-    criteria.push({ paramName: "codeCommuneEtablissement", value: deptPrefix });
+  if (filters.deptPrefix) {
+    criteria.push({ paramName: "codeCommuneEtablissement", value: filters.deptPrefix });
+  }
+  // Filtres servis par l'API Recherche d'entreprises (voient la bascule backend).
+  if (filters.denomination.trim()) {
+    criteria.push({ paramName: "denomination", value: filters.denomination.trim() });
+  }
+  if (filters.codePostal.trim()) {
+    criteria.push({ paramName: "codePostal", value: filters.codePostal.trim() });
+  }
+  if (filters.departement.trim()) {
+    criteria.push({ paramName: "departement", value: filters.departement.trim() });
+  }
+  if (filters.region.trim()) {
+    criteria.push({ paramName: "region", value: filters.region.trim() });
+  }
+  if (filters.dirigeantNom.trim()) {
+    criteria.push({ paramName: "nomDirigeant", value: filters.dirigeantNom.trim() });
+  }
+  if (filters.dirigeantPrenom.trim()) {
+    criteria.push({ paramName: "prenomDirigeant", value: filters.dirigeantPrenom.trim() });
+  }
+  if (filters.etatAdministratif.trim()) {
+    criteria.push({ paramName: "etatAdministratif", value: filters.etatAdministratif.trim() });
+  }
+  if (filters.categorie.trim()) {
+    criteria.push({ paramName: "categorieEntreprise", value: filters.categorie.trim() });
+  }
+  if (filters.tranche.trim()) {
+    criteria.push({ paramName: "trancheEffectif", value: filters.tranche.trim() });
   }
   return criteria;
 }
@@ -360,6 +451,36 @@ function ResultCard({
                 {legalShort}
               </span>
             </div>
+          </div>
+        )}
+        {data.dirigeants && (
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px] col-span-full">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+              Dirigeant(e)s
+            </span>
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)]">
+              {data.dirigeants}
+            </p>
+          </div>
+        )}
+        {data.trancheEffectifs && (
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px]">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+              Effectif salarié
+            </span>
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)] font-mono">
+              {data.trancheEffectifs}
+            </p>
+          </div>
+        )}
+        {data.activitePrincipale && (
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px]">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+              Activité principale (NAF)
+            </span>
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)] font-mono">
+              {data.activitePrincipale}
+            </p>
           </div>
         )}
       </div>
@@ -693,29 +814,66 @@ function ModeTab({
 }
 
 function MulticriteriaSearchBar({
-  communeValue,
-  onCommuneChange,
+  filters,
+  onFiltersChange,
   communeOptions,
-  nafValue,
-  onNafChange,
   isLocalOnly,
   onIsLocalOnlyChange,
   localLabel,
   onSubmit,
   busy,
 }: {
-  communeValue: string;
-  onCommuneChange: (v: string) => void;
+  filters: MulticriteriaFilters;
+  onFiltersChange: (f: MulticriteriaFilters) => void;
   communeOptions: string[];
-  nafValue: string;
-  onNafChange: (v: string) => void;
   isLocalOnly: boolean;
   onIsLocalOnlyChange: (v: boolean) => void;
   localLabel: string;
   onSubmit: () => void;
   busy: boolean;
 }) {
-  const hasValue = !!(communeValue.trim() || nafValue.trim() || isLocalOnly);
+  const set = (patch: Partial<MulticriteriaFilters>) => onFiltersChange({ ...filters, ...patch });
+  const hasValue = !!(
+    filters.commune.trim() ||
+    filters.naf.trim() ||
+    isLocalOnly ||
+    filters.denomination.trim() ||
+    filters.codePostal.trim() ||
+    filters.departement.trim() ||
+    filters.region.trim() ||
+    filters.dirigeantNom.trim() ||
+    filters.dirigeantPrenom.trim() ||
+    filters.etatAdministratif.trim() ||
+    filters.categorie.trim() ||
+    filters.tranche.trim()
+  );
+  const clear = () => {
+    onFiltersChange({
+      commune: "",
+      naf: "",
+      deptPrefix: null,
+      denomination: "",
+      codePostal: "",
+      departement: "",
+      region: "",
+      dirigeantNom: "",
+      dirigeantPrenom: "",
+      etatAdministratif: "",
+      categorie: "",
+      tranche: "",
+    });
+    onIsLocalOnlyChange(false);
+  };
+  const selectClass =
+    "flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] cursor-pointer";
+  const inputClass =
+    "flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal";
+  const rowClass = "flex items-center gap-2.5";
+  const iconHidden = (
+    <span className="flex text-[var(--ds-text-subtle)] flex-shrink-0 invisible">
+      <IconSearch className="w-5 h-5" />
+    </span>
+  );
   return (
     <form
       className="flex flex-col gap-3 bg-[var(--ds-surface)] border-[1.5px] border-[var(--ds-border)] rounded-[14px] p-4 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
@@ -724,14 +882,85 @@ function MulticriteriaSearchBar({
         onSubmit();
       }}
     >
-      <div className="flex items-center gap-2.5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+        Entreprise
+      </p>
+      <div className={rowClass}>
+        <span className="flex text-[var(--ds-text-subtle)] flex-shrink-0">
+          <IconSearch className="w-5 h-5" />
+        </span>
+        <input
+          className={inputClass}
+          placeholder="Nom, enseigne ou mot-clé"
+          value={filters.denomination}
+          onChange={(e) => set({ denomination: e.target.value })}
+        />
+      </div>
+      <div className={rowClass}>
+        {iconHidden}
+        <select
+          className={selectClass}
+          value={filters.naf}
+          onChange={(e) => set({ naf: e.target.value })}
+        >
+          <option value="">Tous secteurs (NAF)</option>
+          {NAF_CODES.map((n) => (
+            <option key={n.id} value={n.id}>
+              {n.id}: -- {n.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
+        <select
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.categorie}
+          onChange={(e) => set({ categorie: e.target.value })}
+          aria-label="Taille d'entreprise"
+        >
+          <option value="">Taille : toutes</option>
+          {CATEGORIES_ENTREPRISE.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.tranche}
+          onChange={(e) => set({ tranche: e.target.value })}
+          aria-label="Tranche d'effectif"
+        >
+          <option value="">Effectif : tous</option>
+          {TRANCHES_EFFECTIF.map((t) => (
+            <option key={t.code} value={t.code}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.etatAdministratif}
+          onChange={(e) => set({ etatAdministratif: e.target.value })}
+          aria-label="Situation administrative"
+        >
+          <option value="">En activité + cessées</option>
+          <option value="A">En activité</option>
+          <option value="C">Cessée</option>
+        </select>
+      </div>
+
+      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)] mt-1">
+        Zone géographique
+      </p>
+      <div className={rowClass}>
         <span className="flex text-[var(--ds-text-subtle)] flex-shrink-0">
           <IconSearch className="w-5 h-5" />
         </span>
         <select
-          className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] cursor-pointer"
-          value={communeValue}
-          onChange={(e) => onCommuneChange(e.target.value)}
+          className={selectClass}
+          value={filters.commune}
+          onChange={(e) => set({ commune: e.target.value })}
         >
           <option value="">Sélectionnez une commune</option>
           {communeOptions.map((commune) => (
@@ -744,23 +973,51 @@ function MulticriteriaSearchBar({
           ))}
         </select>
       </div>
-
-      <div className="flex items-center gap-2.5">
-        <span className="flex text-[var(--ds-text-subtle)] flex-shrink-0 invisible">
-          <IconSearch className="w-5 h-5" />
-        </span>
+      <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          inputMode="numeric"
+          placeholder="Code postal (ex. 97400)"
+          value={filters.codePostal}
+          onChange={(e) => set({ codePostal: e.target.value })}
+        />
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          placeholder="Département (ex. 974)"
+          value={filters.departement}
+          onChange={(e) => set({ departement: e.target.value })}
+        />
         <select
-          className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] cursor-pointer"
-          value={nafValue}
-          onChange={(e) => onNafChange(e.target.value)}
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.region}
+          onChange={(e) => set({ region: e.target.value })}
+          aria-label="Région"
         >
-          <option value="">Tous secteurs (NAF)</option>
-          {NAF_CODES.map((n) => (
-            <option key={n.id} value={n.id}>
-              {n.id}: -- {n.label}
+          <option value="">Région : toutes</option>
+          {REGIONS.map((r) => (
+            <option key={r.code} value={r.code}>
+              {r.label}
             </option>
           ))}
         </select>
+      </div>
+
+      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)] mt-1">
+        Dirigeant
+      </p>
+      <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          placeholder="Nom du dirigeant"
+          value={filters.dirigeantNom}
+          onChange={(e) => set({ dirigeantNom: e.target.value })}
+        />
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          placeholder="Prénom du dirigeant"
+          value={filters.dirigeantPrenom}
+          onChange={(e) => set({ dirigeantPrenom: e.target.value })}
+        />
       </div>
 
       <div className="flex items-center justify-between gap-3">
@@ -779,11 +1036,7 @@ function MulticriteriaSearchBar({
           <button
             type="button"
             className="flex border-0 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] w-[28px] h-[28px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)] transition-colors"
-            onClick={() => {
-              onCommuneChange("");
-              onNafChange("");
-              onIsLocalOnlyChange(false);
-            }}
+            onClick={clear}
             aria-label="Effacer"
           >
             <IconClose className="w-4 h-4" />
@@ -969,10 +1222,26 @@ export default function Sourcing() {
   const isAnnemasse = region === "annemasse";
   const communeOptions = isAnnemasse ? ANNEMASSE_COMMUNES : REUNION_COMMUNES;
   const localLabel = isAnnemasse ? "Entreprise Haut-Savoyarde" : "Entreprise Réunionaise";
-  const [communeQuery, setCommuneQuery] = useState("");
-  const [nafCode, setNafCode] = useState("");
+  const [multiFilters, setMultiFilters] = useState<Omit<MulticriteriaFilters, "deptPrefix">>({
+    commune: "",
+    naf: "",
+    denomination: "",
+    codePostal: "",
+    departement: "",
+    region: "",
+    dirigeantNom: "",
+    dirigeantPrenom: "",
+    etatAdministratif: "",
+    categorie: "",
+    tranche: "",
+  });
   const [isLocalOnly, setIsLocalOnly] = useState(false);
   const deptPrefix = isLocalOnly ? (isAnnemasse ? "74*" : "974*") : null;
+  // Identité stable pour les dépendances des callbacks de pagination.
+  const filtersWithDept: MulticriteriaFilters = useMemo(
+    () => ({ ...multiFilters, deptPrefix }),
+    [multiFilters, deptPrefix],
+  );
   const [communeView, setCommuneView] = useState<CommuneView>("empty");
   const [communeResult, setCommuneResult] = useState<SireneListResult | null>(
     null,
@@ -1000,7 +1269,19 @@ export default function Sourcing() {
   // Changement de tenant : la commune sélectionnée appartient à l'autre
   // référentiel — on repart d'une recherche vide.
   useEffect(() => {
-    setCommuneQuery("");
+    setMultiFilters({
+      commune: "",
+      naf: "",
+      denomination: "",
+      codePostal: "",
+      departement: "",
+      region: "",
+      dirigeantNom: "",
+      dirigeantPrenom: "",
+      etatAdministratif: "",
+      categorie: "",
+      tranche: "",
+    });
     setIsLocalOnly(false);
     setCommuneView("empty");
     setCommuneResult(null);
@@ -1060,7 +1341,7 @@ export default function Sourcing() {
 
   const runCommune = useCallback(
     async () => {
-      const criteria = buildCriteria(communeQuery, nafCode, deptPrefix);
+      const criteria = buildCriteria(filtersWithDept);
       if (criteria.length === 0) return;
       setCommuneView("loading");
       setOffsetHistory([]);
@@ -1074,13 +1355,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, deptPrefix],
+    [filtersWithDept],
   );
 
   const loadNextPage = useCallback(
     async () => {
       if (!communeResult) return;
-      const criteria = buildCriteria(communeQuery, nafCode, deptPrefix);
+      const criteria = buildCriteria(filtersWithDept);
       if (criteria.length === 0) return;
       const nextOffset =
         communeResult.header.offset + communeResult.etablissements.length;
@@ -1096,13 +1377,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, deptPrefix, communeResult],
+    [filtersWithDept, communeResult],
   );
 
   const loadPrevPage = useCallback(
     async () => {
       if (!communeResult || offsetHistory.length === 0) return;
-      const criteria = buildCriteria(communeQuery, nafCode, deptPrefix);
+      const criteria = buildCriteria(filtersWithDept);
       if (criteria.length === 0) return;
       const prevOffset = offsetHistory[offsetHistory.length - 1];
       setOffsetHistory((h) => h.slice(0, -1));
@@ -1117,7 +1398,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, deptPrefix, communeResult, offsetHistory],
+    [filtersWithDept, communeResult, offsetHistory],
   );
 
   const submit = () => run(query);
@@ -1308,21 +1589,26 @@ export default function Sourcing() {
           <div>
             <div className="mb-6">
               <MulticriteriaSearchBar
-                communeValue={communeQuery}
-                onCommuneChange={(v) => {
-                  setCommuneQuery(v);
+                filters={filtersWithDept}
+                onFiltersChange={(f) => {
+                  setMultiFilters({
+                    commune: f.commune,
+                    naf: f.naf,
+                    denomination: f.denomination,
+                    codePostal: f.codePostal,
+                    departement: f.departement,
+                    region: f.region,
+                    dirigeantNom: f.dirigeantNom,
+                    dirigeantPrenom: f.dirigeantPrenom,
+                    etatAdministratif: f.etatAdministratif,
+                    categorie: f.categorie,
+                    tranche: f.tranche,
+                  });
                   if (communeView !== "empty") setCommuneView("empty");
                   setContacts(null);
                   setSelectedCommune(null);
                 }}
                 communeOptions={communeOptions}
-                nafValue={nafCode}
-                onNafChange={(v) => {
-                  setNafCode(v);
-                  if (communeView !== "empty") setCommuneView("empty");
-                  setContacts(null);
-                  setSelectedCommune(null);
-                }}
                 isLocalOnly={isLocalOnly}
                 onIsLocalOnlyChange={(v) => {
                   setIsLocalOnly(v);
@@ -1344,7 +1630,9 @@ export default function Sourcing() {
                   Recherche multicritère
                 </h3>
                 <p className="text-[14.5px] text-[var(--ds-text-subtle)] mt-[9px] leading-[1.55]">
-                  Sélectionnez une commune et/ou un secteur d'activité (NAF) pour lister les établissements enregistrés dans le registre INSEE.
+                  Combinez nom, secteur (NAF), taille, effectif, situation administrative, zone
+                  géographique (commune, code postal, département, région) et dirigeant pour lister
+                  les établissements du registre national.
                 </p>
               </div>
             )}

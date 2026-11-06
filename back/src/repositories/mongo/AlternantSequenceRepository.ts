@@ -7,8 +7,45 @@ export class AlternantSequenceRepository {
         return getModels().AlternantSequence.find({ alternant_id: alternantId }).sort({ numero: 1 }).lean();
     }
 
+    async findByAlternantIds(alternantIds: string[]): Promise<AlternantSequence[]> {
+        if (alternantIds.length === 0) return [];
+        return getModels()
+            .AlternantSequence.find({ alternant_id: { $in: alternantIds } })
+            .sort({ prevue_le: 1 })
+            .lean();
+    }
+
+    /** SA en attente, non archivées, dont la date prévue est dans [from, to[ (bornes optionnelles). */
+    async findPendingInRange(from: Date | null, to: Date | null): Promise<AlternantSequence[]> {
+        const range: Record<string, Date> = {};
+        if (from) range.$gte = from;
+        if (to) range.$lt = to;
+        return getModels()
+            .AlternantSequence.find({ status: 'pending', archived_at: null, prevue_le: range })
+            .sort({ prevue_le: 1 })
+            .lean();
+    }
+
     async findById(id: string): Promise<AlternantSequence | null> {
         return getModels().AlternantSequence.findOne({ _id: id }).lean();
+    }
+
+    async findByIds(ids: string[]): Promise<AlternantSequence[]> {
+        if (ids.length === 0) return [];
+        return getModels().AlternantSequence.find({ _id: { $in: ids } }).lean();
+    }
+
+    /** Enregistre (ou retire si `eventId` est null) l'id d'événement Google d'un utilisateur. */
+    async setGoogleEventId(id: string, userId: number, eventId: string | null): Promise<void> {
+        const current = await this.findById(id);
+        if (!current) return;
+        const map: Record<string, string> = { ...(current.google_event_ids ?? {}) };
+        if (eventId) map[String(userId)] = eventId;
+        else delete map[String(userId)];
+        await getModels().AlternantSequence.updateOne(
+            { _id: id },
+            { $set: { google_event_ids: map, updated_at: new Date() } },
+        );
     }
 
     async nextNumero(alternantId: string): Promise<number> {
@@ -85,6 +122,43 @@ export class AlternantSequenceRepository {
             })),
         );
         return later.length;
+    }
+
+    /**
+     * SA en attente entrées dans la fenêtre « En cours » et pas encore notifiées.
+     * Fenêtre alignée sur le dashboard Peda : [startOfToday, startOfToday + 14 jours[.
+     */
+    async findSoonUnnotified(startOfToday: Date, soonUpper: Date): Promise<AlternantSequence[]> {
+        return getModels()
+            .AlternantSequence.find({
+                status: 'pending',
+                archived_at: null,
+                prevue_le: { $gte: startOfToday, $lt: soonUpper },
+                soon_notified_at: null,
+            })
+            .lean();
+    }
+
+    /** SA en attente dont la date prévue est dépassée et pas encore notifiées. */
+    async findLateUnnotified(startOfToday: Date): Promise<AlternantSequence[]> {
+        return getModels()
+            .AlternantSequence.find({
+                status: 'pending',
+                archived_at: null,
+                prevue_le: { $lt: startOfToday },
+                late_notified_at: null,
+            })
+            .lean();
+    }
+
+    /** Marque la notification « SA en cours » comme émise (dédup scheduler). */
+    async markSoonNotified(id: string, at: Date): Promise<void> {
+        await getModels().AlternantSequence.updateOne({ _id: id }, { $set: { soon_notified_at: at } });
+    }
+
+    /** Marque la notification « SA en retard » comme émise (dédup scheduler). */
+    async markLateNotified(id: string, at: Date): Promise<void> {
+        await getModels().AlternantSequence.updateOne({ _id: id }, { $set: { late_notified_at: at } });
     }
 
     /** Supprime toutes les SA d'un alternant (ex. perte d'entreprise). */

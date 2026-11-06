@@ -3,6 +3,16 @@ description: Read-only performance review of the current diff (vs main) — N+1 
 mode: subagent
 permission:
   edit: deny
+  bash:
+    "*": deny
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git status*": allow
+    "ls*": allow
+    "grep*": allow
+    "rg*": allow
+    "jq*": allow
 ---
 
 You are a performance reviewer for the `disciplina-app` monorepo (Node/TypeScript backend with MySQL + MongoDB, React 19 + urql frontend).

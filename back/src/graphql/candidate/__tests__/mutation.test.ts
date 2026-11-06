@@ -446,7 +446,7 @@ describe('GraphQL candidate mutations', () => {
                 body: JSON.stringify({
                     query: `mutation($id: String!, $input: UpdateCandidateInput!) {
                         updateCandidate(id: $id, input: $input) {
-                            id status contractOfferId contractCompanyId contractCompanyName contractStartDate
+                            id status contractOfferId contractCompanyId contractCompanyName contractStartDate contractTrialEndDate contractSessionId contractSessionName
                         }
                     }`,
                     variables: {
@@ -457,6 +457,9 @@ describe('GraphQL candidate mutations', () => {
                             contractCompanyId: 42,
                             contractCompanyName: `Entreprise ${suffix}`,
                             contractStartDate: '2026-10-01',
+                            contractTrialEndDate: '2026-12-03',
+                            contractSessionId: 'session-1',
+                            contractSessionName: `Session ${suffix}`,
                         },
                     },
                 }),
@@ -470,6 +473,9 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.contractCompanyId).toBe(42);
             expect(json.data.updateCandidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
             expect(json.data.updateCandidate.contractStartDate).toContain('2026-10-01');
+            expect(json.data.updateCandidate.contractTrialEndDate).toContain('2026-12-03');
+            expect(json.data.updateCandidate.contractSessionId).toBe('session-1');
+            expect(json.data.updateCandidate.contractSessionName).toBe(`Session ${suffix}`);
 
             // Verify persisted via a follow-up query
             const verify = await fetch(ENDPOINT, {
@@ -480,13 +486,16 @@ describe('GraphQL candidate mutations', () => {
                     'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
-                    query: `query($id: String!) { candidate(id: $id) { contractCompanyName contractStartDate } }`,
+                    query: `query($id: String!) { candidate(id: $id) { contractCompanyName contractStartDate contractTrialEndDate contractSessionId contractSessionName } }`,
                     variables: { id: seeded._id },
                 }),
             });
             const vjson = await verify.json();
             expect(vjson.data.candidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
             expect(vjson.data.candidate.contractStartDate).toContain('2026-10-01');
+            expect(vjson.data.candidate.contractTrialEndDate).toContain('2026-12-03');
+            expect(vjson.data.candidate.contractSessionId).toBe('session-1');
+            expect(vjson.data.candidate.contractSessionName).toBe(`Session ${suffix}`);
         });
 
         it('syncs linked offer status to CONTRACT when moving to CONTRACT', async () => {

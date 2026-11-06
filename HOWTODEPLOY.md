@@ -144,6 +144,17 @@ The MCP endpoint also acts as an OAuth 2.1 authorization server so Claude.ai
   - `/.well-known/oauth-protected-resource/api/mcp`
   - `/register` `/authorize` `/token` `/revoke`
 
+**Environment variables (`back/.env`)**
+
+| Variable | Role |
+|---|---|
+| `MCP_API_KEY` | Static bearer key (≥ 32 chars). Anonymous ADMIN access: **ignored in production** unless `MCP_STATIC_KEY_ENABLED=true` |
+| `MCP_STATIC_KEY_ENABLED` | Set to `true` to allow the static key in production (OAuth stays active regardless) |
+| `MCP_JWT_SECRET` | Signs OAuth access tokens, distinct from `JWT_SECRET` (empty = fallback to `JWT_SECRET`). Setting it logs out running MCP sessions |
+| `MCP_OAUTH_ISSUER_URL` | Public HTTPS issuer URL |
+
+Per-user quotas apply (1000 calls / 2000 records per 24 h, alert at 80 %); access log `mcp_audit_log` is purged after 365 days. See `MCP_RGPD_AUDIT.md`.
+
 **Caddy requirement (one-time, on the Mac mini)**
 
 Caddy must route the OAuth root paths to the backend (`127.0.0.1:4000`). If Caddy
@@ -197,3 +208,28 @@ The databases must be running and the backend stopped. A JSON copy of everything
 removed is written to `scripts/backups/` (it contains personal data). The script
 does not touch DocuSeal, Drive or `companies_blacklist`, so a later Digiforma
 import can re-create deleted companies.
+
+### Sectors referential audit (manual, before dropping the legacy columns)
+
+`scripts/audit_sectors.py` is a **read-only** check of the sectors migration (#992). The
+application no longer writes the legacy label columns (`companies`, `company_conflict`,
+`companies_blacklist` `.sector` and `users.sectors`): labels are derived from `sector_id`,
+`company_sectors` and `user_sectors`. Run it on **each tenant** after deploying that
+release and **before** any `DROP COLUMN` of those columns. It reports, per tenant:
+
+- rows with a legacy label but no `sector_id` / `company_sectors` / `user_sectors` link;
+- labels that match no sector of the referential (e.g. leftover `Nord-Est` on Annemasse).
+
+Exit code `0` = safe to drop, `1` = gaps found (the rows are listed), `2` = referential
+missing (start the backend once so the migration seeds it). It never writes.
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml run --rm --no-deps \
+  -v "$PWD/scripts:/app" startup-script python -u audit_sectors.py --tenant reunion
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml run --rm --no-deps \
+  -v "$PWD/scripts:/app" startup-script python -u audit_sectors.py --tenant annemasse
+```
+
+The backend startup migration backfills the missing links from the legacy labels
+(only for rows without a link), so restarting the backend once and re-running the audit
+fixes most gaps. Take `./scripts/backup-db.sh` before the `DROP COLUMN` itself.

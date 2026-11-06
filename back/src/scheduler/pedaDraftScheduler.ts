@@ -1,4 +1,5 @@
 import { PedaDraftService } from '../services/PedaDraftService';
+import { PedaDraftHistoryRepository } from '../repositories/mysql/PedaDraftHistoryRepository';
 import { PedaService, PEDA_DRAFT_LAST_RUN_KEY } from '../services/PedaService';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { runForAllRegions, getRegion } from '../db/tenant';
@@ -6,6 +7,7 @@ import { tenantTimezone } from '../config/tenant';
 import { logger } from '../external/logger';
 
 const TICK_MS = 60_000;
+const RECIPIENT_RETENTION_DAYS = 365;
 
 // Heure locale du tenant : l'heure configurée (`peda_draft_hour`) est une heure
 // murale réglée par chaque site, donc calculée dans le fuseau de sa région.
@@ -37,6 +39,7 @@ export function startPedaDraftScheduler(): NodeJS.Timeout {
     const pedaService = new PedaService();
     const settingsRepo = new AppSettingsRepository();
     const draftService = new PedaDraftService();
+    const historyRepo = new PedaDraftHistoryRepository();
     let running = false;
 
     const tick = async () => {
@@ -54,6 +57,7 @@ export function startPedaDraftScheduler(): NodeJS.Timeout {
                     // Marqué avant exécution : une erreur ne doit pas faire re-tourner le job chaque minute.
                     await settingsRepo.set(PEDA_DRAFT_LAST_RUN_KEY, date);
                     logger.info({ region, date, time, configuredHour }, 'peda-draft: lancement du job quotidien');
+                    await historyRepo.anonymizeOlderThan(RECIPIENT_RETENTION_DAYS);
                     await draftService.runForAllPedas();
                 } catch (err) {
                     logger.error({ err, region }, 'peda-draft: tick du scheduler en erreur');

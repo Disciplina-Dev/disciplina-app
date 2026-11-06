@@ -60,3 +60,68 @@ export async function runDraftJobNow(): Promise<PedaDraftRunReport> {
   const res = await pedaFetch('/run', { method: 'POST' })
   return ((await res.json()) as { report: PedaDraftRunReport }).report
 }
+
+// ── Agenda Google du Peda (synchronisé avec les SA) ──────────────────────────
+
+export interface PedaCalendarEvent {
+  id: string
+  summary: string
+  description?: string
+  location?: string
+  /** ISO datetime (événement horaire) ou YYYY-MM-DD (journée entière). */
+  start: string
+  end: string
+  allDay: boolean
+  colorId?: string
+  htmlLink?: string
+  /** Renseigné si l'événement est une SA (séquence d'accompagnement). */
+  saSequenceId?: string
+  /** Id de l'alternant de la SA (pour ouvrir sa fiche). */
+  saAlternantId?: string
+}
+
+export interface PedaCalendarReport {
+  connected: boolean
+  created: number
+  updated: number
+  deleted: number
+  rescheduled: number
+  failed: number
+}
+
+/** Le compte Google du Peda n'est pas connecté (ou ses jetons sont expirés). */
+export class PedaCalendarNotConnectedError extends Error {}
+
+async function pedaCalendarFetch(path: string, init?: RequestInit): Promise<Response> {
+  const res = await apiFetch(`/api/peda/calendar${path}`, init)
+  if (res.status === 409) throw new PedaCalendarNotConnectedError('Google Calendar non connecté')
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.error ?? `Requête calendrier Peda échouée (${res.status})`)
+  }
+  return res
+}
+
+/**
+ * Lit l'agenda du Peda connecté sur la plage : le backend réconcilie d'abord
+ * les changements faits dans Google, puis pousse l'état des SA vers Google.
+ */
+export async function fetchPedaCalendarEvents(
+  timeMin: Date,
+  timeMax: Date,
+): Promise<{ events: PedaCalendarEvent[]; report: PedaCalendarReport }> {
+  const params = new URLSearchParams({ timeMin: timeMin.toISOString(), timeMax: timeMax.toISOString() })
+  const res = await pedaCalendarFetch(`/events?${params}`)
+  return res.json()
+}
+
+/** Réconcilie Google → app puis repousse l'état des SA sur la fenêtre donnée. */
+export async function reconcilePedaCalendar(
+  timeMin: Date,
+  timeMax: Date,
+): Promise<PedaCalendarReport> {
+  // La lecture GET réconcilie d'abord les changements faits dans Google puis
+  // repousse l'état des SA : c'est le seul point d'entrée qui fait le pull.
+  const { report } = await fetchPedaCalendarEvents(timeMin, timeMax)
+  return report
+}

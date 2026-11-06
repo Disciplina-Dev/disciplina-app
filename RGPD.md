@@ -1067,6 +1067,6 @@ const html = `
 - [x] Audit trails (company_history, candidate_history, offer_history)
 - [x] CSRF double-submit cookie
 - [x] Redaction des PII dans les logs (email, téléphone, N° SS, dates naissance)
-- [x] Ollama hébergé localement (pas de transfert IA vers le cloud)
+- [x] Ollama hébergé localement (pas de transfert IA vers le cloud) — **hors serveur MCP** : le MCP expose des données à un LLM tiers, voir [`MCP_RGPD_AUDIT.md`](MCP_RGPD_AUDIT.md) et [`rgpd/registre-mcp.md`](rgpd/registre-mcp.md)
 - [x] Webhooks vérifiés par HMAC (ClassMarker, DocuSeal, YouSign)
 - [x] CSP et HSTS activés en production

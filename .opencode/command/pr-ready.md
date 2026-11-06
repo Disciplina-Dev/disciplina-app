@@ -4,7 +4,7 @@ description: Run backend/frontend verify + security/convention/performance/depen
 
 Assess whether the current branch is ready to merge into `main`. Do the following:
 
-1. Load and run the `verify-backend` skill and the `verify-frontend` skill (lint + build + backend tests, lint + build for front). Note pass/fail for each step.
+1. Run the steps of `.claude/skills/verify-backend/SKILL.md` and `.claude/skills/verify-frontend/SKILL.md` (read them first; lint + build + backend tests, lint + build for front). Note pass/fail for each step.
 2. In parallel, launch these 4 subagents against `git diff main...HEAD`:
    - `security-reviewer`
    - `convention-checker`

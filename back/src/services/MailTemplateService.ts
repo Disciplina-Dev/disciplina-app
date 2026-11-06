@@ -14,6 +14,7 @@ import { AB_RELANCE_SUBJECT, AB_RELANCE_BODY } from './abRelanceTemplate';
 import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
 import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
 import { INTERVIEW_INVITATION_SUBJECT, INTERVIEW_INVITATION_BODY } from './interviewInvitationTemplate';
+import { TEST_FAILURE_REDIRECTION_SUBJECT, TEST_FAILURE_REDIRECTION_BODY } from './testFailureRedirectionTemplate';
 import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
@@ -67,6 +68,9 @@ export const PROPOSITION_CANDIDAT_SEEDED_KEY = 'proposition_candidat_template_se
 
 /** Clé app_settings : le modèle « Invitation entretien » a déjà été semé une fois. */
 export const INTERVIEW_INVITATION_SEEDED_KEY = 'interview_invitation_template_seeded';
+
+/** Clé app_settings : le modèle « Redirection test non réussi » a déjà été semé une fois. */
+export const TEST_FAILURE_REDIRECTION_SEEDED_KEY = 'test_failure_redirection_template_seeded';
 
 /** Clé app_settings : les modèles « sans code » (matching + entretien) ont été rafraîchis. */
 export const NO_CODE_RH_TEMPLATES_V2_KEY = 'mails_no_code_rh_templates_v2';
@@ -491,6 +495,35 @@ export class MailTemplateService {
             logger.info('external-link: modèle système semé');
         }
         await settings.set(EXTERNAL_LINK_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Redirection test non réussi » (scope rh,
+     * kind `test_failure_redirection`) au premier démarrage. Idempotent via
+     * flag app_settings ET vérification d'existence.
+     */
+    async seedTestFailureRedirectionDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(TEST_FAILURE_REDIRECTION_SEEDED_KEY)) return;
+
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'test_failure_redirection' }))) {
+            const now = new Date();
+            await getModels().MailTemplate.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Redirection test non réussi',
+                subject: TEST_FAILURE_REDIRECTION_SUBJECT,
+                body: TEST_FAILURE_REDIRECTION_BODY,
+                peda_level: null,
+                kind: 'test_failure_redirection',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('test-failure-redirection: modèle système semé');
+        }
+        await settings.set(TEST_FAILURE_REDIRECTION_SEEDED_KEY, '1');
     }
 
     async remove(userId: number, id: string): Promise<void> {

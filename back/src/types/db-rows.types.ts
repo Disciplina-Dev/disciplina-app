@@ -30,6 +30,7 @@ export interface CompaniesRow {
     email: string | null;
     address: string | null;
     sector: string | null;
+    sector_id: number | null;
     main_activity: string | null;
     siret: string | null;
     siren: string | null;
@@ -73,6 +74,7 @@ export interface CompanyConflictRow {
     email: string | null;
     address: string | null;
     sector: string | null;
+    sector_id: number | null;
     main_activity: string | null;
     siret: string | null;
     idcc: string | null;

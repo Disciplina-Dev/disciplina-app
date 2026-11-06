@@ -5,6 +5,8 @@ export const RH_KPI_COLUMNS = [
   'interviews_placed',
   'interviews_attended',
   'interviews_noshow',
+  'interviews_postponed',
+  'interviews_declined',
   'immersions',
   'contracts',
   'ruptures',
@@ -36,9 +38,9 @@ export function emptyRhMetrics(): RhKpiMetrics {
   return Object.fromEntries(RH_KPI_COLUMNS.map((c) => [c, 0])) as RhKpiMetrics;
 }
 
-/** Entretiens « à venir » = placés non encore résolus (ni venus, ni absents). Jamais négatif. */
+/** Entretiens « à venir » = placés non encore résolus (ni venus, ni absents, ni reportés, ni déclinés). Jamais négatif. */
 export function upcoming(m: RhKpiMetrics): number {
-  return Math.max(0, m.interviews_placed - m.interviews_attended - m.interviews_noshow);
+  return Math.max(0, m.interviews_placed - m.interviews_attended - m.interviews_noshow - m.interviews_postponed - m.interviews_declined);
 }
 
 /** Additionne plusieurs jeux de métriques. */

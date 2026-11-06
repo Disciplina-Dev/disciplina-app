@@ -5,7 +5,7 @@ import { apiFetch } from '@/api/httpClient'
 const API_BASE = import.meta.env.VITE_API_URL
 
 export type NotificationLevel = 'info' | 'success' | 'warning' | 'error'
-export type NotificationCategory = 'candidate' | 'company'
+export type NotificationCategory = 'candidate' | 'company' | 'peda'
 
 export interface AppNotification {
   id: string

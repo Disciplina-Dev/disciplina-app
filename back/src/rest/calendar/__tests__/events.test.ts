@@ -27,7 +27,14 @@ describe('GET /api/calendar/events sector access', () => {
                     oauth ? 'some-token' : null,
                 ],
             );
-            return (result as any).insertId;
+            const userId = (result as any).insertId;
+            if (sectors.length > 0) {
+                await conn.execute(
+                    `INSERT INTO user_sectors (user_id, sector_id) SELECT ?, id FROM sectors WHERE level IN ('region', 'sector') AND label IN (${sectors.map(() => '?').join(', ')})`,
+                    [userId, ...sectors],
+                );
+            }
+            return userId;
         } finally {
             conn.release();
         }

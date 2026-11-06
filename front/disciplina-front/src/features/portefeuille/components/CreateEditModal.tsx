@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors'
 import { useState } from 'react'
 import { IconArrowRight, IconCheck, IconClose, IconCompany, IconWarning } from '@/components/ui/icons'
 import { useForm, type SubmitHandler } from 'react-hook-form'
@@ -5,10 +6,7 @@ import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import { STATUS_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
 import {
   ALL_COMPANY_SECTEURS,
-  companySecteursForRegion,
-  defaultCompanySecteurForRegion,
 } from '@/constants/secteurs'
-import { useRegionStore } from '@/store/regionStore'
 
 import type { AppUser } from '@/store/authStore'
 import { fullName } from '@/store/authStore'
@@ -86,9 +84,7 @@ export default function CreateEditModal({ initial, prefillSiret, currentUser, on
       ? currentUser.id
       : String(initial?.proprietaire_id ?? currentUser.id)
 
-  const region = useRegionStore((s) => s.region)
-  const secteurOptions = companySecteursForRegion(region)
-  const secteurFallback = defaultCompanySecteurForRegion(region)
+  const { companySectors: secteurOptions, defaultCompanySector: secteurFallback } = useSectors()
 
   const { register, handleSubmit, setValue, watch, getValues, formState: { errors, isSubmitting } } = useForm<FormValues>({
     defaultValues: {

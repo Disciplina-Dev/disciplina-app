@@ -5,7 +5,13 @@ import {
     CandidateSearchField,
     CandidateStats,
 } from '../repositories/mongo/CandidateRepository';
-import { Candidate, CandidateRelanceEntry, CandidateStatus } from '../types/candidate.types';
+import {
+    Candidate,
+    CandidateRelanceEntry,
+    CandidateStatus,
+    normalizeTpCode,
+    normalizeTpCodes,
+} from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
 import { getModels } from '../db/mongo/tenant';
@@ -52,6 +58,15 @@ export class CandidateService {
     ): Promise<Candidate[]> {
         const candidates = await this.repository.findPage(first, after, search, filters, searchField);
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
+    }
+
+    /** Lecture pure (MCP) : sans `refreshAvailability`, donc sans écriture ni notification. */
+    async findByIdReadOnly(id: string): Promise<Candidate | null> {
+        return this.repository.findById(id);
+    }
+
+    async findPageReadOnly(first: number, after?: string, search?: string): Promise<Candidate[]> {
+        return this.repository.findPage(first, after, search);
     }
 
     async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
@@ -167,6 +182,8 @@ export class CandidateService {
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {
+        // Rétro-compat : un client existant peut encore envoyer l'ancien code « SA ».
+        if (data.tp_types) data.tp_types = normalizeTpCodes(data.tp_types) as Candidate['tp_types'];
         if (data.identity && !data.identity.description) {
             data.identity.description = buildCandidateSummary(data as Candidate);
         }
@@ -194,6 +211,8 @@ export class CandidateService {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
+        // Rétro-compat : un client existant peut encore envoyer l'ancien code « SA ».
+        if (data.tp_types) data.tp_types = normalizeTpCodes(data.tp_types) as Candidate['tp_types'];
         const existing = await this.repository.findById(id);
         // L'accord immersion suit le statut : coché à l'entrée en immersion, décoché
         // dès qu'on en sort (fin, rejet, contrat, retour en recherche). Évite qu'un
@@ -367,7 +386,8 @@ export class CandidateService {
 
     private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {
         const offerTps = offerTpCodes(offer);
-        const candidateTps = candidate.tp_types ?? [];
+        // Les fiches legacy portent encore « SA » : normaliser avant comparaison.
+        const candidateTps = (candidate.tp_types ?? []).map(normalizeTpCode);
         if (offerTps.length && !offerTps.some((tp) => candidateTps.includes(tp))) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
         if (offer.criteria?.has_vehicle && !candidate.identity.has_vehicle) return false;

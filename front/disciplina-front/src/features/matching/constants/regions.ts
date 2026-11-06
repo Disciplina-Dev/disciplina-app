@@ -1,6 +1,6 @@
 import { Localisation } from './jobEnums'
-import { SECTEUR_LABELS, SECTEUR_KEY_BY_LABEL } from '@/constants/secteurs'
-import type { Secteur, SecteurKey } from '@/constants/secteurs'
+import { SECTEUR_LABELS } from '@/constants/secteurs'
+import type { SecteurKey } from '@/constants/secteurs'
 import type { Region as TenantRegion } from '@/store/regionStore'
 
 export type Region = SecteurKey
@@ -39,8 +39,6 @@ export const REGION_COMMUNES: Record<Region, Localisation[]> = {
     Localisation.PETIT_ILE,
   ],
 }
-
-export const SECTOR_TO_REGION: Record<Secteur, Region> = SECTEUR_KEY_BY_LABEL
 
 export const REGION_LABELS: Record<Region, string> = SECTEUR_LABELS
 
@@ -176,6 +174,14 @@ export const ALL_COMMUNE_SECTIONS: CommuneSection[] = [
     options: [...(ANNEMASSE_REGION_COMMUNES[r] as unknown as string[])],
   })),
 ]
+
+/**
+ * Communes revendiquées par plusieurs secteurs : le référentiel (arbre, un seul
+ * parent par commune) ne les place que sous l'un d'eux, on rajoute les autres.
+ */
+export const SHARED_COMMUNES_BY_SECTION: Record<string, string[]> = {
+  GENEVE_FRONTIERE: ['BONS_EN_CHABLAIS'],
+}
 
 const REUNION_SECTION_KEYS: string[] = [...REUNION_REGION_KEYS]
 const ANNEMASSE_SECTION_KEYS: string[] = [...ANNEMASSE_REGION_KEYS]

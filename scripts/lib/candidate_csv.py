@@ -17,7 +17,9 @@ from lib.company_csv import remove_accents
 
 # -- Enums ------------------------------------------------------------------------
 
-TP_ENUM = ("AD", "CC", "NTC", "REM", "SA")
+TP_ENUM = ("AD", "CC", "NTC", "REM", "CADGA", "SA")
+# « SA » (Secrétaire Assistant) est l'ancien code du TP désormais nommé CADGA.
+LEGACY_TP = {"SA": "CADGA"}
 DEFAULT_TP = "CC"
 
 TRAINING_SITES = {
@@ -227,6 +229,7 @@ def parse_formation(raw, default_tp=DEFAULT_TP):
                 found.append(tp)
     if not found:
         found = [default_tp]
+    found = list(dict.fromkeys(LEGACY_TP.get(tp, tp) for tp in found))
     formation_type = "SECRETARIAT" if found[0] == "AD" else "VENTE"
     return found[0], found, formation_type
 

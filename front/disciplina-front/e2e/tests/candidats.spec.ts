@@ -25,6 +25,7 @@ test.describe('3.3 Candidats', () => {
         await expect(page.getByLabel('Nom et prénom *')).toBeVisible();
         await expect(page.getByLabel('Email *')).toBeVisible();
         await expect(page.getByLabel('Téléphone *')).toBeVisible();
+        await expect(page.getByRole('group', { name: 'Type(s) TP *' })).toBeVisible();
         await expect(page.getByRole('button', { name: /Créer le candidat/ })).toBeVisible();
     });
 

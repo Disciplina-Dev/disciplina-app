@@ -60,18 +60,18 @@ query GetCompanies {
 
 INSERT_QUERY = """
     INSERT INTO companies (
-        user_id, legal_referent, name, phone, email, address, sector,
+        user_id, legal_referent, name, phone, email, address, sector_id,
         main_activity, siret, idcc, ape, notes, conclusion, status, relance_date
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ) VALUES (%s, %s, %s, %s, %s, %s, (SELECT id FROM sectors WHERE level = 'sector' AND label = %s LIMIT 1), %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 UPDATABLE_FIELDS = ("name", "phone", "email", "address", "main_activity", "idcc", "ape")
 
 CONFLICT_INSERT_QUERY = """
     INSERT INTO company_conflict (
-        user_id, legal_referent, name, phone, email, address, sector,
+        user_id, legal_referent, name, phone, email, address, sector_id,
         main_activity, siret, idcc, ape, notes, conclusion, candidate_user_ids
-    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    ) VALUES (%s, %s, %s, %s, %s, %s, (SELECT id FROM sectors WHERE level = 'sector' AND label = %s LIMIT 1), %s, %s, %s, %s, %s, %s, %s)
 """
 
 CREATE_COMPANY_CONFLICT_TABLE = """
@@ -84,6 +84,7 @@ CREATE_COMPANY_CONFLICT_TABLE = """
         phone VARCHAR(50) DEFAULT NULL,
         email VARCHAR(255) DEFAULT NULL,
         address VARCHAR(255) DEFAULT NULL,
+        sector_id INT DEFAULT NULL,
         sector VARCHAR(255) DEFAULT NULL,
         main_activity VARCHAR(255) DEFAULT NULL,
         siret CHAR(14) DEFAULT NULL,
@@ -392,6 +393,12 @@ def insert_company(cursor, dig_company, effective_user):
         "À Réfléchir",
         None,
     ))
+    # Liaison multi-secteur (company_sectors) : le libellé lu en dérive.
+    cursor.execute(
+        "INSERT IGNORE INTO company_sectors (company_id, sector_id) "
+        "SELECT id, sector_id FROM companies WHERE id = %s AND sector_id IS NOT NULL",
+        (cursor.lastrowid,),
+    )
 
 
 def update_company_fields(cursor, company_id, diff):

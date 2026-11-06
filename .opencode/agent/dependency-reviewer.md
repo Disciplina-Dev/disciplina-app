@@ -3,6 +3,19 @@ description: Read-only supply-chain review of new/changed dependencies in back/p
 mode: subagent
 permission:
   edit: deny
+  bash:
+    "*": deny
+    "git diff*": allow
+    "git log*": allow
+    "git show*": allow
+    "git status*": allow
+    "ls*": allow
+    "grep*": allow
+    "rg*": allow
+    "jq*": allow
+    "npm audit*": allow
+    "npm ls*": allow
+    "npm view*": allow
 ---
 
 You are a dependency/supply-chain reviewer for the `disciplina-app` monorepo. Two independent `package.json` files matter: `back/package.json` and `front/disciplina-front/package.json` — there is no root package.json.

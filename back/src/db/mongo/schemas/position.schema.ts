@@ -1,11 +1,16 @@
 import { Schema } from 'mongoose';
 import { Position, TrainingDomain } from '../../../types/needsAnalysisNoSql.types';
 import { Localisation } from '../../../types/matching.types';
-import { TitleProfessionalType } from '../../../types/candidate.types';
+import { LEGACY_TP_SA, TitleProfessionalType } from '../../../types/candidate.types';
 import { criteriaSchema } from './matching.schema';
 
 const positionTpSchemaDefinition = {
-    tp_type: { type: String, enum: Object.values(TitleProfessionalType), default: null },
+    // « SA » reste accepté pour les documents legacy écrits avant le renommage.
+    tp_type: {
+        type: String,
+        enum: [...Object.values(TitleProfessionalType), LEGACY_TP_SA],
+        default: null,
+    },
     missions: { type: [String], default: [] },
     description_missions: { type: [String], default: [] },
     other_missions: { type: String, default: null },

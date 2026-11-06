@@ -402,6 +402,19 @@ Failing tests emit `::error file=...,line=...::` annotations via Vitest's built-
 
 ---
 
+## MCP tests
+
+`back/src/mcp/__tests__/` follows the same component rules (real app, real DBs, mock only `src/external/*`):
+
+- `peda.test.ts` — the 12 péda tools: consent via `candidate_id`, excluded fields absent, pagination
+- `pedaMasking.test.ts` — `PEDA_MIN_GROUP` masking, complementary masking (no subtraction leak), notification redaction
+- `tools.test.ts`, `serialize.test.ts` — candidate/offer tools, SSN masking
+- `limits.test.ts` — quotas and rate limit; `retention.test.ts` — purge of audit/OAuth data; `oauth.test.ts` — OAuth 2.1 flow
+
+Péda seed data for manual checks: `python scripts/seed_annemasse_peda_data.py`.
+
+---
+
 ## Out of scope of this guide
 
 - **Pure unit tests** for mappers and pure helpers (`services/mappers/`, `external/crypto/signers.ts`). They are valuable but tiny; write them inline next to the file with the same Vitest runner, no setup needed.

@@ -12,7 +12,8 @@ hook_should_skip && exit 0
 
 CHANGED=$(hook_changed_files)
 
-BACK_SRC=$(echo "$CHANGED" | grep -E '^back/src/(services|graphql|rest|repositories)/.*\.ts$' | grep -vE '\.(test|spec)\.ts$' || true)
+BACK_SRC=$(echo "$CHANGED" | grep -E '^back/src/(services|graphql|rest|repositories|mcp)/.*\.ts$' | grep -vE '\.(test|spec)\.ts$' || true)
+BACK_SRC=$(echo "$BACK_SRC" | grep -vE '/__tests__/' || true)
 BACK_TEST=$(echo "$CHANGED" | grep -E '^back/test/|^back/src/.*/__tests__/.*\.(test|spec)\.ts$' || true)
 
 FRONT_SRC=$(echo "$CHANGED" | grep -E '^front/disciplina-front/src/(features|store)/.*\.(ts|tsx)$' | grep -vE '\.(test|spec)\.(ts|tsx)$' || true)

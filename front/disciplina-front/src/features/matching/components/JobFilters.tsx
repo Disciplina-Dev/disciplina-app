@@ -4,8 +4,7 @@ import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
 import { OfferStatus, DesiredTP, Sector, Localisation, formatEnumLabel } from '../constants/jobEnums'
 import { JOB_STATUS_LABELS } from '@/constants/jobStatus'
-import { communeSectionsForRegion } from '../constants/regions'
-import { useRegionStore } from '@/store/regionStore'
+import { useSectors } from '@/hooks/useSectors'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 
 interface Props {
@@ -127,9 +126,8 @@ function useTenantCommuneSections(): {
   allCommunes: Localisation[]
   sections: { key: string; communes: Localisation[]; label: string }[]
 } {
-  const region = useRegionStore((s) => s.region)
+  const { communeSections: shared } = useSectors()
   return useMemo(() => {
-    const shared = communeSectionsForRegion(region)
     return {
       allCommunes: shared.flatMap((s) => s.options) as Localisation[],
       sections: shared.map((s) => ({
@@ -138,7 +136,7 @@ function useTenantCommuneSections(): {
         label: s.label,
       })),
     }
-  }, [region])
+  }, [shared])
 }
 
 function RegionMultiSelectContent({

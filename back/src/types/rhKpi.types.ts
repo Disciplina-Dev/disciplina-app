@@ -3,6 +3,8 @@ export const RH_KPI_COLUMNS = [
     'interviews_placed',
     'interviews_attended',
     'interviews_noshow',
+    'interviews_postponed',
+    'interviews_declined',
     'immersions',
     'contracts',
     'ruptures',

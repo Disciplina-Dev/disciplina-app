@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
+import { searchNeedle } from './searchRegex';
 import { Alternant } from '../../types/alternant.types';
 
 export class AlternantRepository {
@@ -11,7 +12,7 @@ export class AlternantRepository {
     async findAll(search?: string, includeArchived = false): Promise<Alternant[]> {
         const clauses: Record<string, unknown>[] = [];
         if (search?.trim()) {
-            const needle = search.trim();
+            const needle = searchNeedle(search);
             clauses.push({
                 $or: [
                     { first_name: { $regex: needle, $options: 'i' } },
@@ -29,7 +30,7 @@ export class AlternantRepository {
     async count(search?: string, includeArchived = false): Promise<number> {
         const clauses: Record<string, unknown>[] = [];
         if (search?.trim()) {
-            const needle = search.trim();
+            const needle = searchNeedle(search);
             clauses.push({
                 $or: [
                     { first_name: { $regex: needle, $options: 'i' } },

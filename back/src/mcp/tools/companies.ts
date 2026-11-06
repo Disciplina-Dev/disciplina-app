@@ -9,6 +9,7 @@ import { toBlacklistedCompany, toCompanyConflict, toRelanceHistory } from '../..
 import { toolResult } from '../serialize';
 import { currentMcpUser } from '../context';
 import { readTool } from '../tool';
+import { MAX_PAGE_SIZE } from '../limits';
 import { mcpToolScope } from '../rbac';
 import { JobRole, Permission } from '../../types/user.types';
 import { decodeCursor } from '../../services/pagination';
@@ -55,7 +56,7 @@ export function registerCompanyTools(server: McpServer): void {
         'Liste / recherche les fiches entreprises (nom, SIRET…). Pagination cursor-based.',
         {
             search: z.string().optional().describe('Terme de recherche (nom, siret)'),
-            first: z.number().int().positive().max(200).optional().describe('Nombre max (défaut 50)'),
+            first: z.number().int().positive().max(MAX_PAGE_SIZE).optional().describe('Nombre max (défaut 50)'),
             after: z.string().optional().describe('Cursor de pagination'),
         },
         COMPANY_SCOPE,
@@ -105,7 +106,7 @@ export function registerCompanyTools(server: McpServer): void {
         'Liste des entreprises blacklistées (avec motif).',
         {
             search: z.string().optional(),
-            first: z.number().int().positive().max(200).optional(),
+            first: z.number().int().positive().max(MAX_PAGE_SIZE).optional(),
             after: z.string().optional(),
         },
         COMPANY_SCOPE,
@@ -124,7 +125,7 @@ export function registerCompanyTools(server: McpServer): void {
         {
             search: z.string().optional(),
             conflictType: z.string().optional().describe('Type de conflit'),
-            first: z.number().int().positive().max(200).optional(),
+            first: z.number().int().positive().max(MAX_PAGE_SIZE).optional(),
             after: z.string().optional(),
         },
         CONFLICT_SCOPE,

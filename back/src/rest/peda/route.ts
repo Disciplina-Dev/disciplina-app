@@ -10,6 +10,7 @@ import {
     runNow,
     downloadSequencePdf,
 } from './controller';
+import { getCalendarEvents, syncCalendar } from './calendar';
 
 export const router: Router = Router();
 
@@ -30,3 +31,7 @@ router.post('/run', ...access, runNow);
 
 // Document de SA (#888) : export PDF
 router.get('/alternant-sequences/:id/pdf', ...access, downloadSequencePdf);
+
+// Agenda Google du Peda : lecture réconciliée + synchronisation des SA
+router.get('/calendar/events', ...access, getCalendarEvents);
+router.post('/calendar/sync', ...access, json, syncCalendar);

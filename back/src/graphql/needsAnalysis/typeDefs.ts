@@ -99,6 +99,8 @@ export const typeDefs = gql`
         CC
         NTC
         REM
+        CADGA
+        # Legacy : ancien code du TP CADGA, conservé pour les clients existants.
         SA
     }
 
@@ -163,6 +165,15 @@ export const typeDefs = gql`
         NON_RENSEIGNE
         ADMINISTRATION_PUBLIQUE
         ADMINISTRATION_PRIVEE
+    }
+
+    # Pastille couleur du suivi entreprise (annuaire du tableau de bord RH).
+    enum CompanyIndicator {
+        WHITE
+        YELLOW
+        GREEN
+        ORANGE
+        RED
     }
 
     type CompanyInfos {
@@ -290,8 +301,17 @@ export const typeDefs = gql`
         status: NeedsAnalysisStatus!
         abStatus: AbStatus!
         isRelanceDisabled: Boolean!
+        # Brouillon rendu visible dans le matching sans envoi en signature
+        # (affiché « Non envoyée », matché comme une AB non signée).
+        isVisibleInMatching: Boolean!
         administrationType: AdministrationType!
         tags: [String!]
+        # Pastille couleur manuelle du suivi entreprise. Null = automatique
+        # (immersion en cours → vert, mandat signé → jaune, sinon blanc).
+        companyIndicator: CompanyIndicator
+        # Suivi entreprise (annuaire RH) : références libres éditables inline.
+        franceTravail: String
+        koann: String
         createdAt: String
         updatedAt: String
         # Date du dernier passage au statut effectif ACTIVE (création puis
@@ -323,6 +343,7 @@ export const typeDefs = gql`
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus
         tags: [String!]
+        isVisibleInMatching: Boolean
     }
 
     type AbDriveFolder {
@@ -406,5 +427,17 @@ export const typeDefs = gql`
         updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
         # Désactive/réactive la relance automatique de signature (non destructif, garde l'AB et ses offres).
         setAbRelanceDisabled(id: ID!, disabled: Boolean!): NeedsAnalysis!
+        # Rend un brouillon visible dans le matching (crée ses offres, sans envoi
+        # en signature) ou l'en retire (supprime ses offres). Réservé aux AB BROUILLON.
+        setNeedsAnalysisMatchingVisibility(id: ID!, visible: Boolean!): NeedsAnalysis!
+        # Pose la pastille couleur manuelle du suivi entreprise (annuaire RH) ;
+        # indicator à null la réinitialise à la couleur automatique dérivée.
+        updateNeedsAnalysisIndicator(id: ID!, indicator: CompanyIndicator): NeedsAnalysis!
+        # Met à jour les références libres du suivi entreprise (annuaire RH).
+        # Un champ omis est conservé, une chaîne vide l'efface (null).
+        updateNeedsAnalysisTracking(id: ID!, franceTravail: String, koann: String): NeedsAnalysis!
+        # Corrige manuellement la date d'activation affichée dans l'annuaire.
+        # Chaîne vide / null l'efface (repli sur la date de création).
+        updateNeedsAnalysisActivationDate(id: ID!, lastActiveAt: String): NeedsAnalysis!
     }
 `;

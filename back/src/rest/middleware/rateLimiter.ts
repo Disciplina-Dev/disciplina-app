@@ -83,3 +83,35 @@ export const mcpRateLimiter = rateLimit({
     legacyHeaders: false,
     message: RATE_LIMIT_MESSAGE,
 });
+
+// Saisie des identifiants sur la page de consentement OAuth MCP (POST /authorize) :
+// vecteur de brute-force du mot de passe CRM (RGPD Art. 32). Seuls les échecs comptent
+// (succès = 302) ; le plafond du SDK (100 / 15 min) est trop lâche pour un mot de passe.
+const consentLimiterBase = {
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    requestWasSuccessful: (_req: unknown, res: { statusCode: number }) => res.statusCode === 302,
+    message: RATE_LIMIT_MESSAGE,
+    skip: () => env.E2E_DISABLE_LOGIN_RATE_LIMIT,
+};
+
+/** Par IP : coupe le brute-force depuis une source. */
+export const mcpConsentIpLimiter = rateLimit(consentLimiterBase);
+
+/**
+ * Par compte (e-mail + région), toutes IP confondues : coupe le brute-force distribué.
+ * Contrepartie assumée : quelqu'un peut verrouiller 15 min la connexion MCP d'un collègue.
+ */
+export const mcpConsentAccountLimiter = rateLimit({
+    ...consentLimiterBase,
+    keyGenerator: (req) => {
+        const body = (req.body ?? {}) as { email?: unknown; region?: unknown };
+        const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+        const region = typeof body.region === 'string' ? body.region : '';
+        return `mcp-consent:${region}:${email}`;
+    },
+    validate: { keyGeneratorIpFallback: false },
+});

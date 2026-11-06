@@ -6,8 +6,8 @@ import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import { STATUS_VALUES } from '@/types/entreprise'
-import { ALL_COMPANY_SECTEURS, companySecteursForRegion } from '@/constants/secteurs'
-import { useRegionStore } from '@/store/regionStore'
+import { ALL_COMPANY_SECTEURS } from '@/constants/secteurs'
+import { useSectors } from '@/hooks/useSectors'
 import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
@@ -46,6 +46,7 @@ const STATUS_CONFIG: Record<EntrepriseStatus, { bg: string; text: string; dot: s
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
   BROUILLON:            { bg: 'bg-[var(--ds-surface-sunken)]',   text: 'text-[var(--ds-text-muted)]',   label: 'Brouillon' },
+  NON_ENVOYEE:          { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'Non envoyée' },
   EN_ATTENTE_SIGNATURE: { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'En attente de signature' },
   SIGNE:                { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  label: 'Signé' },
   EXPIRE:               { bg: 'bg-[var(--ds-danger-bg)]',    text: 'text-[var(--ds-danger)]',    label: 'Expiré' },
@@ -147,8 +148,7 @@ export default function EntreprisePage() {
   const [banOpen, setBanOpen] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
   const [contactRefresh, setContactRefresh] = useState(0)
-  const region = useRegionStore((s) => s.region)
-  const secteurOptions = companySecteursForRegion(region)
+  const { companySectors: secteurOptions } = useSectors()
 
   const stateEntreprise = location.state?.entreprise as Entreprise | undefined
   const baseEntreprise: Entreprise | undefined =
@@ -622,7 +622,9 @@ export default function EntreprisePage() {
             {abList.length > 0 && (
               <ul className="space-y-2">
                 {abList.map((ab: any) => {
-                  const badge = STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']
+                  const badge = ab.status === 'BROUILLON' && ab.isVisibleInMatching
+                    ? STATUS_BADGE['NON_ENVOYEE']
+                    : (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON'])
                   const isSelected = selectedAbIds.has(ab.id)
                   return (
                     <li

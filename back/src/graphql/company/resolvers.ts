@@ -15,6 +15,7 @@ import { logger } from '../../external/logger';
 import { getRegion } from '../../db/tenant';
 import {
     DEFAULT_ANNEMASSE_COMPANY_SECTOR,
+    DEFAULT_SECTOR,
     sanitizeCompanySectors,
 } from '../../utils/sector';
 
@@ -60,7 +61,6 @@ interface CompanyConflictInput {
     userId?: number | null;
 }
 
-const DEFAULT_SECTOR = 'Nord-Est';
 const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
 const DEFAULT_STATUS = 'À Réfléchir';
 

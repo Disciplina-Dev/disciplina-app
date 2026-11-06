@@ -5,7 +5,34 @@ export enum TitleProfessionalType {
     CC = 'CC',
     NTC = 'NTC',
     REM = 'REM',
-    SA = 'SA',
+    CADGA = 'CADGA',
+}
+
+/** Ancien code du TP « Secrétaire Assistant », renommé « Chargé d'accueil et de gestion administrative ». */
+export const LEGACY_TP_SA = 'SA';
+
+/** Normalise un code TP legacy (« SA ») vers son code actuel (« CADGA »). */
+export function normalizeTpCode(code: string): string {
+    return code === LEGACY_TP_SA ? TitleProfessionalType.CADGA : code;
+}
+
+/** Normalise une liste de codes TP legacy vers les codes actuels. */
+export function normalizeTpCodes(codes: readonly string[]): string[] {
+    return codes.map(normalizeTpCode);
+}
+
+/**
+ * Étend un filtre TP à ses valeurs legacy stockées en base : un filtre « CADGA »
+ * doit aussi matcher les anciens documents portant encore « SA ».
+ */
+export function expandTpFilter(codes: readonly string[]): string[] {
+    const expanded = new Set<string>();
+    for (const code of codes) {
+        const normalized = normalizeTpCode(code);
+        expanded.add(normalized);
+        if (normalized === TitleProfessionalType.CADGA) expanded.add(LEGACY_TP_SA);
+    }
+    return [...expanded];
 }
 
 export enum CandidateStatus {
@@ -244,6 +271,12 @@ export interface CandidateRelanceEntry {
     answer?: string; // 'oui' | 'non' (relance disponibilité uniquement)
 }
 
+export interface ImmersionScheduleSlot {
+    day?: string | null;
+    start_hour?: string | null;
+    end_hour?: string | null;
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -263,11 +296,16 @@ export interface Candidate {
     immersion_end_date?: Date;
     immersion_company_id?: number; // entreprise d'immersion (réf MySQL companies)
     immersion_company_name?: string; // snapshot du nom au moment du choix
+    immersion_convention_number?: string; // numéro de convention d'immersion (saisie libre)
+    immersion_schedule?: ImmersionScheduleSlot[]; // horaires d'immersion (créneaux par jour)
     immersion_end_notified_at?: Date; // date d'émission de la notif « immersion terminée » (dédup)
     contract_offer_id?: string; // offre (Mongo offers) liée au contrat signé
     contract_company_id?: number; // entreprise du contrat (réf MySQL companies)
     contract_company_name?: string; // snapshot du nom au moment du choix
     contract_start_date?: Date;
+    contract_trial_end_date?: Date; // fin de période d'essai (45 jours ouvrés depuis le début, éditable)
+    contract_session_id?: string; // session pédagogique (réf Mongo sessions)
+    contract_session_name?: string; // snapshot du nom au moment du choix
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;

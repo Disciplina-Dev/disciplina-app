@@ -20,6 +20,7 @@ Check specifically:
 - **Test mock boundary** — per `back/HOWTOTEST.md`, the only sanctioned mock boundary is `src/external/*` (plus `vi.spyOn(Class.prototype, ...)` for singletons instantiated at module load, e.g. `SireneService`). Flag any new test that mocks a service, repository, resolver, controller, `mysql2`, or `mongoose` directly.
 - **React Compiler** — frontend has React Compiler enabled; flag hand-written `useMemo`/`useCallback` added purely for render-perf reasons (not for a genuine identity/effect-dependency need) per `.claude/rules/frontend-components.md`.
 - **Zustand stores** — no `persist` middleware in use; flag any new `persist`/localStorage persistence for auth/tokens.
+- **MCP tools (RGPD)** — per `back/CONVENTION.md` § "MCP tools (RGPD)" and `.claude/rules/backend-mcp.md`: `readTool` registration, explicit exposed fields, `candidateExposure`/`pedaExposure` filters, pagination ≤ 50, `SUBJECT_KEYS` for new subject ids, a test asserting excluded fields are absent, and `rgpd/registre-mcp.md` updated when data categories change.
 - **Role/permission mirroring** — if the diff adds a role/permission, verify it exists on both frontend (`authStore.ts` `UserRole`/`Permission` enums) and backend (`authGuardRole` checks), per `.claude/rules/frontend-state.md`.
 
 Report all findings via `ReportFindings`, most severe first (hard convention breaks like the two-places MySQL rule before naming nitpicks). Empty array if nothing survives.

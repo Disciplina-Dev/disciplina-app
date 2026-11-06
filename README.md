@@ -188,8 +188,8 @@ disciplina-app/
 │   ├── src/
 │   │   ├── rest/         REST routes — 21 feature modules (auth, email, relance, booking…)
 │   │   ├── graphql/      4 Apollo Servers (companies, candidates, offers, needs-analysis)
-│   │   ├── mcp/          MCP server (POST /api/mcp)
-│   │   ├── scheduler/    Background jobs (pedagogical drafts)
+│   │   ├── mcp/          MCP server (POST /api/mcp) — 45 read-only tools (incl. 12 péda), RGPD filters
+│   │   ├── scheduler/    Background jobs (pedagogical drafts, SA notifications, end of immersion)
 │   │   ├── services/     Business logic layer
 │   │   ├── repositories/ MySQL & MongoDB data access
 │   │   └── external/     10 integrations — Google, crypto, logger, insee, yousign, ollama…

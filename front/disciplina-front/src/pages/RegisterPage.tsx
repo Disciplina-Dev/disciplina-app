@@ -5,16 +5,14 @@ import InputField from '@/components/ui/InputField'
 import PasswordInput from '@/components/ui/PasswordInput'
 import PasswordStrength from '@/components/ui/PasswordStrength'
 import { UserRole, Permission } from '@/store/authStore'
-import { useRegionStore } from '@/store/regionStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
-import { userSecteursForRegion } from '@/constants/secteurs'
+import { useSectors } from '@/hooks/useSectors'
 import { apiJson } from '@/api/httpClient'
 
 export default function RegisterPage() {
   const { connectGoogle, isLoading: googleLoading } = useGoogleOAuthPopup()
-  const region = useRegionStore((s) => s.region)
   // Secteurs assignables selon le tenant (Annemasse : 6 opérationnels).
-  const secteurOptions = userSecteursForRegion(region)
+  const { userSectors: secteurOptions } = useSectors()
   const [fetching, setFetching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 

@@ -10,7 +10,8 @@ export const DRIVE_FOLDER_CONFIG_ID = 'drive_folders';
 export interface DriveFolderConfigDoc {
     _id: string;
     root_folder_id?: string;
-    // Clé = TitleProfessionalType (AD, CC, NTC, REM, SA), valeur = folder id Drive.
+    // Clé = TitleProfessionalType (AD, CC, NTC, REM, CADGA), valeur = folder id Drive.
+    // Les clés legacy « SA_REGION » restent lues en fallback pour CADGA.
     tp_folders: Record<string, string>;
     updated_at: Date;
 }

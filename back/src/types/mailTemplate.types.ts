@@ -19,6 +19,7 @@ export function isPedaLevel(value: unknown): value is PedaLevel {
  * `ab_relance`   = relance automatique d'une AB non signée après 2 semaines (scope commercial).
  * `proposition_candidat` = mail d'invitation à la sélection de candidats (scope rh).
  * `interview_invitation`  = mail d'invitation à la réservation d'un créneau d'entretien (scope rh).
+ * `test_failure_redirection` = mail de redirection après un test non réussi (scope rh).
  */
 export const MAIL_TEMPLATE_KINDS = [
     'ab_signature',
@@ -26,6 +27,7 @@ export const MAIL_TEMPLATE_KINDS = [
     'proposition_candidat',
     'external_link',
     'interview_invitation',
+    'test_failure_redirection',
 ] as const;
 export type MailTemplateKind = (typeof MAIL_TEMPLATE_KINDS)[number];
 

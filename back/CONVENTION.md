@@ -202,9 +202,17 @@ external/
   SIRET against `GET /api-sirene/3.11/siret/{siret}`. Throws `'SIRET not found'` (404),
   `'Invalid INSEE API key'` (401), or `'Rate limit exceeded'` (429).
 - `SireneService.searchEstablishments(criteria: SireneCriterion[], offset?: number): Promise<SireneListResult>`
-  — multi-criteria search (`siren`, `libelleCommuneEtablissement`, `activitePrincipaleUniteLegale`
-  are the only accepted `paramName`s), paginates with a 140ms delay between INSEE requests, filters
-  to active establishments (`etatAdministratif !== 'F'`), caps results at 20.
+  — multi-criteria search (`siren`, `libelleCommuneEtablissement`, `activitePrincipaleUniteLegale`,
+  `codeCommuneEtablissement`, `codePostalEtablissement`, `etatAdministratifEtablissement`,
+  `denominationUniteLegale`, `categorieEntreprise` are the accepted `paramName`s), paginates with a
+  140ms delay between INSEE requests, filters to active establishments (`etatAdministratif !== 'F'`)
+  unless the caller filters explicitly on `etatAdministratifEtablissement`, caps results at 20.
+- `EntreprisesSearchService.search(criteria: EntrepriseSearchCriteria, offset?: number)`
+  (`external/entreprises/`, no API key — open data) — backs `POST /api/sourcing/multicriteria` when a
+  dirigeant (`nomDirigeant`, `prenomDirigeant`), geo (`denomination`, `commune`, `codePostal`,
+  `departement`, `region`) or situation-admin (`etatAdministratif` A/C, `activitePrincipale`,
+  `trancheEffectif`) criterion is present; maps unités légales + `matching_etablissements` onto
+  `SireneEtablissement` (extra optionals `dirigeants`, `trancheEffectifs`, `activitePrincipale`).
 - Env: `INSEE_API_KEY` (optional — `external/insee/` is the only place it should be read).
 - Used by `CompaniesService.create()` (SIRET validation) and `rest/sourcing/controller.ts`
   (search-by-SIREN, multicriteria search).
@@ -224,7 +232,7 @@ external/
 - Callers import from the specific module file (`external/google/oauth-client`, `external/google/gmail.service`, etc.). No barrels under `external/google/` — they hide where the code lives. (`crypto/` and `logger/` keep their barrels because the public surface is genuinely one bag of small helpers.)
 - Type and interface declarations for an `external/<integration>/` module always live in `<integration>/types.ts` — not next to the class that uses them.
 - Service classes are prefixed with `Google` (e.g. `GoogleDriveService`, `GoogleGmailService`, `GoogleOAuthClient`) to make the integration boundary obvious at call sites.
-- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. The redirect URI lives in `env.GOOGLE_REDIRECT_URI`, not in source.
+- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?, region?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. Credentials are per-tenant (`credentialsFor(region)`: `GOOGLE_ANNEMASSE_*` with fallback to the shared `GOOGLE_*` client); the redirect URI lives in env, not in source. The region defaults to `getRegion()` (ALS) — call sites must run under the right tenant, and the OAuth `state` carries the region so `exchangeCode` uses the same GCP client that generated the consent URL.
 - When a Google API call may refresh tokens, callers pass a refresh handler that persists the new tokens via `userService.updateGoogleTokens`. The convention helper at the top of each call site is `persistRefreshedTokens(userId)`.
 - Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
 - The logger is a singleton; never instantiate `pino()` outside `external/logger/`.
@@ -432,7 +440,7 @@ The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table 
 
 ### Google OAuth code patterns
 
-- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. The redirect URI lives in `env.GOOGLE_REDIRECT_URI`, not in source.
+- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?, region?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. Credentials are per-tenant (`credentialsFor(region)`: `GOOGLE_ANNEMASSE_*` with fallback to the shared `GOOGLE_*` client); the redirect URI lives in env, not in source. The region defaults to `getRegion()` (ALS) — call sites must run under the right tenant, and the OAuth `state` carries the region so `exchangeCode` uses the same GCP client that generated the consent URL.
 - When a Google API call may refresh tokens, callers pass a refresh handler that persists the new tokens via `userService.updateGoogleTokens`. The convention helper at the top of each call site is `persistRefreshedTokens(userId)`.
 - Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
 
@@ -618,6 +626,20 @@ Pre-commit hooks run Prettier and basic hygiene checks on staged files at `git c
 - Two `.env` files loaded at startup (root `../.env` + `back/.env`) — see [`README.md`](./README.md#environment) for complete setup
 - All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons). The ban holds for application code; `src/mcp/` is the sole exception, because the MCP SDK's `registerTool` only accepts a Zod raw shape. See `docs/AUDIT.md` §4.1 — the exception is currently inconsistent (three zod versions coexist).
 - Exported as `export const env = data` (typed object)
+
+## MCP tools (RGPD)
+
+Every new tool in `src/mcp/tools/` must (see `MCP_RGPD_AUDIT.md`):
+- be registered through `readTool` (scope check, audit log `mcp_audit_log`, daily quota) — never `server.registerTool` directly
+- declare its exposed fields explicitly (no spreading a domain object); no Art. 9 data (health/handicap), no `emergency_contact`, no free-form personal emails/names unless justified
+- apply the `ai_processing` consent filter (`mcp/candidateExposure.ts`) for anything returning candidate data
+- for péda data (alternants/sessions/ruptures), go through `mcp/pedaExposure.ts`: consent via `candidate_id`, `« Prénom N. »` label, counts masked below `PEDA_MIN_GROUP`
+- aggregates must not leak masked cells by subtraction (complementary masking, see `pedaExposure.ts`)
+- `list_notifications` redacts `peda`/`candidate` notifications (`misc.ts` `redactPersonalNotification`); new free-text notification types must be added there
+- new subject ids go in `SUBJECT_KEYS` (`mcp/auditStore.ts`) so the audit log records them
+- update `rgpd/registre-mcp.md` when exposed data categories change
+- paginate lists (`MAX_PAGE_SIZE` = 50) and use read-only service variants (no side effects)
+- have a test asserting excluded fields are absent
 
 ## Testing
 

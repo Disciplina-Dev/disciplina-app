@@ -6,6 +6,7 @@ import { CandidateService } from '../../services/CandidateService';
 import { CompaniesBlacklistService } from '../../services/CompaniesBlacklistService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { CompanyRepository } from '../../repositories/mysql/CompanyRepository';
+import { DAILY_CALL_LIMIT } from '../limits';
 import { encodeCursor } from '../../services/pagination';
 import { CandidateStatus, TitleProfessionalType } from '../../types/candidate.types';
 
@@ -53,7 +54,7 @@ describe('MCP tools (static admin key)', () => {
                 'kpi_weekly_detail',
             ]),
         );
-        expect(names).toHaveLength(33);
+        expect(names).toHaveLength(45);
     });
 
     it('masks the SSN and serializes dates as ISO strings on get_candidate', async () => {
@@ -72,7 +73,7 @@ describe('MCP tools (static admin key)', () => {
             consentments: {
                 data_processing: true,
                 data_sharing: false,
-                ai_processing: false,
+                ai_processing: true,
                 photo_processing: false,
                 consent_date: new Date('2026-01-02T03:04:05.000Z'),
                 consent_version: '1',
@@ -150,9 +151,10 @@ describe('MCP tools (static admin key)', () => {
         const entries = await callTool<any[]>('list_offer_history', { offerId });
         expect(entries).toHaveLength(2);
         expect(entries[0].text).toBe('Relance faite');
-        expect(entries[0].firstName).toBe('Jean');
         expect(typeof entries[0].createdAt).toBe('string');
-        expect(entries[1].ownerEmail).toBeNull();
+        expect(entries[0]).not.toHaveProperty('firstName');
+        expect(entries[0]).not.toHaveProperty('lastName');
+        expect(entries[0]).not.toHaveProperty('ownerEmail');
     });
 
     it('list_company_conflicts is callable by an admin', async () => {
@@ -174,5 +176,106 @@ describe('MCP tools (static admin key)', () => {
         expect(Array.isArray(monthly.months)).toBe(true);
         const weekly = await callTool('kpi_weekly_detail', { year, site: 'NORD' });
         expect(Array.isArray(weekly.weeks)).toBe(true);
+    });
+    it('rejects a page size above the MCP cap', async () => {
+        const parsed = await rpc('tools/call', { name: 'search_candidates', arguments: { first: 51 } });
+        expect(parsed.error ?? parsed.result?.isError).toBeTruthy();
+    });
+
+    it('journalise chaque appel (outil, fiche, volume) sans PII', async () => {
+        await callTool('list_users');
+        await callTool('get_company', { id: 424242 }).catch(() => undefined);
+        const [rows] = await pool.query<any[]>('SELECT * FROM mcp_audit_log ORDER BY id');
+        const listUsers = rows.find((r) => r.tool === 'list_users');
+        expect(listUsers).toMatchObject({ user_id: 0, status: 'ok', client_id: null });
+        const company = rows.find((r) => r.tool === 'get_company');
+        expect(company?.subject_ref).toBe('id:424242');
+        expect(company?.args_hash).toHaveLength(32);
+    });
+
+    it('bloque les appels au-delà du quota quotidien', async () => {
+        const values = Array.from({ length: DAILY_CALL_LIMIT }, () => "(0, 'list_users', 'h', 1, 'ok')").join(',');
+        await pool.query(`INSERT INTO mcp_audit_log (user_id, tool, args_hash, result_count, status) VALUES ${values}`);
+        const parsed = await rpc('tools/call', { name: 'list_users', arguments: {} });
+        expect(parsed.result.isError).toBe(true);
+        expect(parsed.result.content[0].text).toContain('Quota');
+        const [rows] = await pool.query<any[]>("SELECT COUNT(*) AS n FROM mcp_audit_log WHERE status = 'quota'");
+        expect(Number(rows[0].n)).toBe(1);
+    });
+    it('ne renvoie pas un candidat sans consentement ai_processing', async () => {
+        const id = `cand-noconsent-${Date.now()}`;
+        await new CandidateService().create({
+            _id: id,
+            candidate_id: id,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: 'Sans Consentement', email: `${id}@test.local`, phone: '0692000004' } as any,
+            consentments: {
+                data_processing: true,
+                data_sharing: true,
+                ai_processing: false,
+                photo_processing: true,
+                consent_date: new Date(),
+                consent_version: '1',
+            },
+        } as any);
+
+        expect(await callTool('get_candidate', { id })).toBeNull();
+        expect(await callTool('get_candidate_by_email', { email: `${id}@test.local` })).toBeNull();
+        expect(await callTool('list_candidate_history', { candidateId: id })).toBeNull();
+        const list = await callTool<any[]>('search_candidates', { search: 'Sans Consentement' });
+        expect(list).toHaveLength(0);
+    });
+
+    it("retire santé, contact d'urgence, réponses de tests et photo sans consentement photo", async () => {
+        const id = `cand-redact-${Date.now()}`;
+        await new CandidateService().create({
+            _id: id,
+            candidate_id: id,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: 'Candidat Redact',
+                email: `${id}@test.local`,
+                phone: '0692000005',
+                psh_referral_request: true,
+            } as any,
+            emergency_contact: { full_name: 'Tiers Urgence', phone: '0692999999' },
+            synthesis: { special_needs: 'amenagement', pedagogical_recommendations: { psh_specific_support: true } },
+            classmarker: { percentage: 80, questions: [{ question: 'Q?', user_response: 'secret' }] },
+            photo_link: 'https://photo.test/p.png',
+            consentments: {
+                data_processing: true,
+                data_sharing: false,
+                ai_processing: true,
+                photo_processing: false,
+                consent_date: new Date(),
+                consent_version: '1',
+            },
+        } as any);
+
+        const candidate = await callTool('get_candidate', { id });
+        const json = JSON.stringify(candidate);
+        for (const leaked of [
+            'psh_',
+            'special_needs',
+            'emergency_contact',
+            'Tiers Urgence',
+            'user_response',
+            'photo.test',
+        ]) {
+            expect(json).not.toContain(leaked);
+        }
+        expect(candidate.classmarker.percentage).toBe(80);
+    });
+    it('pagine list_offers et list_needs_analysis', async () => {
+        for (const tool of ['list_offers', 'list_needs_analysis']) {
+            const page = await callTool(tool);
+            expect(page).toMatchObject({ total: expect.any(Number), offset: 0 });
+            expect(Array.isArray(page.items)).toBe(true);
+            expect(page.items.length).toBeLessThanOrEqual(50);
+            const rejected = await rpc('tools/call', { name: tool, arguments: { first: 51 } });
+            expect(rejected.error ?? rejected.result?.isError).toBeTruthy();
+        }
     });
 });

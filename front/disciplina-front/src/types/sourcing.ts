@@ -21,6 +21,12 @@ export interface SireneEtablissement {
   nomPrenom: string | null;
   adresse: SireneAdresse;
   alreadyExists?: boolean;
+  /** Dirigeants (API Recherche d'entreprises, données publiques RNE). */
+  dirigeants?: string | null;
+  /** Tranche d'effectif salarié. */
+  trancheEffectifs?: string | null;
+  /** Activité principale NAF. */
+  activitePrincipale?: string | null;
 }
 
 export interface BlacklistedCompanyInfo {

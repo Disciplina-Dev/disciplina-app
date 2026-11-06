@@ -76,6 +76,16 @@ export class McpOAuthClientStore implements OAuthRegisteredClientsStore {
         return registered;
     }
 
+    // Rétention (RGPD Art. 5.1.e) : clients jamais utilisés / sans consentement depuis `days` jours.
+    async deleteInactive(days: number): Promise<number> {
+        const result = await query<{ affectedRows: number }>(
+            `DELETE FROM mcp_oauth_clients
+             WHERE COALESCE(last_used_at, created_at) < NOW() - INTERVAL ? DAY`,
+            [days],
+        );
+        return result.affectedRows;
+    }
+
     // Mémorise le dernier utilisateur (et sa région) ayant autorisé ce client :
     // sert de traçabilité (qui a accordé l'accès à quel tenant) sans bloquer de
     // session — chaque refresh token porte sa propre identité.

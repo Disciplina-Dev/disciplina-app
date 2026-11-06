@@ -12,19 +12,14 @@ import {
     AdministrationType,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
-import { ZONE_TO_COMMUNES, Zone } from './abToOffer';
+import { normalizeTpCode, TitleProfessionalType } from '../../types/candidate.types';
+import { Zone } from './abToOffer';
+import { COMMUNE_TO_ZONE } from '../../utils/zone';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
 
 // Domaine (unions de string) et document Mongo (enums) partagent des valeurs identiques :
 // les casts `as unknown as` traversent la frontière sans conversion de valeur.
-
-const COMMUNE_TO_ZONE = new Map<string, Zone>();
-for (const [zone, communes] of Object.entries(ZONE_TO_COMMUNES)) {
-    for (const commune of communes) {
-        COMMUNE_TO_ZONE.set(commune, zone as Zone);
-    }
-}
 
 export function zoneFromCommunes(communes: string[] | undefined, fallback: Zone): Zone {
     const first = communes?.[0];
@@ -53,8 +48,9 @@ export function toScheduleSlotGql(slot: any) {
 }
 
 function buildPositionTp(tp: any): PositionTp {
+    const rawTpType = tp.tp_type ?? tp.tpType ?? null;
     return {
-        tp_type: tp.tp_type ?? tp.tpType ?? null,
+        tp_type: rawTpType ? (normalizeTpCode(rawTpType) as TitleProfessionalType) : null,
         missions: tp.missions ?? [],
         description_missions: tp.description_missions ?? tp.descriptionMissions ?? [],
         other_missions: tp.other_missions ?? tp.otherMissions ?? null,
@@ -168,6 +164,7 @@ export function toNeedsAnalysisDocument(
         signature_request_id: data.yousignSignatureRequestID ?? null,
         status: data.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: data.tags ?? [],
+        is_visible_in_matching: data.isVisibleInMatching ?? false,
         administration_type: data.administrationType ?? AdministrationType.NON_RENSEIGNE,
         created_at: data.createdAt ? new Date(data.createdAt) : now,
         updated_at: now,
@@ -179,7 +176,7 @@ export function toNeedsAnalysisDocument(
 
 function toGqlPositionTp(tp: PositionTp) {
     return {
-        tpType: tp.tp_type ?? null,
+        tpType: tp.tp_type ? normalizeTpCode(tp.tp_type) : null,
         missions: tp.missions ?? [],
         descriptionMissions: tp.description_missions ?? [],
         otherDescriptionMissions: tp.other_description_missions ?? null,
@@ -249,7 +246,7 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
                             email: doc.referents.legal_referents.email ?? null,
                             function: doc.referents.legal_referents.function ?? null,
                         }
-                      : null
+                      : null;
                   const recruit = doc.referents.recruitment_referents
                       ? {
                             name: doc.referents.recruitment_referents.name ?? null,
@@ -257,20 +254,20 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
                             email: doc.referents.recruitment_referents.email ?? null,
                             function: doc.referents.recruitment_referents.function ?? null,
                         }
-                      : null
-                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
-                  const actuallySame = !hasRecruit || (
-                      (recruit?.name ?? null) === (legal?.name ?? null) &&
-                      (recruit?.phone ?? null) === (legal?.phone ?? null) &&
-                      (recruit?.email ?? null) === (legal?.email ?? null) &&
-                      (recruit?.function ?? null) === (legal?.function ?? null)
-                  )
-                  const isSame = actuallySame ? (doc.referents.is_same ?? actuallySame) : false
+                      : null;
+                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function);
+                  const actuallySame =
+                      !hasRecruit ||
+                      ((recruit?.name ?? null) === (legal?.name ?? null) &&
+                          (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+                          (recruit?.email ?? null) === (legal?.email ?? null) &&
+                          (recruit?.function ?? null) === (legal?.function ?? null));
+                  const isSame = actuallySame ? (doc.referents.is_same ?? actuallySame) : false;
                   return {
                       isSame,
                       legalReferents: legal,
                       recruitmentReferents: recruit,
-                  }
+                  };
               })()
             : null,
         positionsCount: positions.reduce((sum, p) => sum + (p.count ?? 1), 0),
@@ -285,6 +282,14 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         signedAt: doc.signed_at ? new Date(doc.signed_at).toISOString() : null,
         status: doc.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: doc.tags ?? [],
+        isVisibleInMatching: !!(doc as any).is_visible_in_matching,
+        // Pastille manuelle : absente (`null`) = couleur automatique côté front.
+        // Volontairement non repris dans `toNeedsAnalysisDocument` : la mise à
+        // jour générique `update()` ne doit jamais réinitialiser ce champ.
+        // Idem pour `france_travail` / `koann` (suivi annuaire RH, mutations dédiées).
+        companyIndicator: (doc as any).company_indicator ?? null,
+        franceTravail: (doc as any).france_travail ?? null,
+        koann: (doc as any).koann ?? null,
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
         updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
         lastActiveAt: doc.last_active_at ? new Date(doc.last_active_at).toISOString() : null,

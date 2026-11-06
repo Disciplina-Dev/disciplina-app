@@ -48,6 +48,13 @@ const alternantSequenceSchema = new Schema<AlternantSequence & Document>(
         contacts: { type: contactsSchema, default: () => ({}) },
         auto_generated: { type: Boolean, default: false },
         document: { type: documentSchema, default: null },
+        // Horodatages d'envoi des notifs « SA en cours » / « SA en retard » :
+        // évitent de re-notifier chaque jour une fois l'échéance atteinte (dédup scheduler).
+        soon_notified_at: { type: Date, default: null },
+        late_notified_at: { type: Date, default: null },
+        // Événements Google Calendar par utilisateur Peda (id user → id event) :
+        // permet de mettre à jour/supprimer l'événement sans re-scanner l'agenda.
+        google_event_ids: { type: Schema.Types.Mixed, default: {} },
         archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },

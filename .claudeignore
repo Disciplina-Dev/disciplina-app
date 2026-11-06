@@ -12,3 +12,9 @@ database/mysql/data/
 ollama-data/
 graphify-out/
 docs/
+.env
+.env.*
+back/.env
+back/.env.*
+!.env.example
+!back/.env.back.example

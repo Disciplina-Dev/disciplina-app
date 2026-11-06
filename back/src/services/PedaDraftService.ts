@@ -163,7 +163,7 @@ export class PedaDraftService {
                 logger.error({ err, userId: config.user_id }, 'peda-draft: échec pour un Peda');
             }
         }
-        logger.info(report, 'peda-draft: exécution terminée');
+        logger.info({ ...report, details: undefined }, 'peda-draft: exécution terminée');
         return report;
     }
 
@@ -183,7 +183,7 @@ export class PedaDraftService {
             addDetail(report, "Échec de l'exécution (voir les logs serveur).");
             logger.error({ err, userId }, 'peda-draft: échec pour un Peda');
         }
-        logger.info(report, 'peda-draft: exécution manuelle terminée');
+        logger.info({ ...report, details: undefined }, 'peda-draft: exécution manuelle terminée');
         return report;
     }
 
@@ -298,10 +298,7 @@ export class PedaDraftService {
                                 ? `${prenom} ${nom} (${tab}) : aucune adresse trouvée dans la cellule « ${rawMail} » (ni texte, ni formule, ni lien).`
                                 : `${prenom} ${nom} (${tab}) : adresse mail absente du Sheet.`,
                         );
-                        logger.warn(
-                            { userId, tab, nom, prenom, rawMail },
-                            'peda-draft: case cochée, mail inexploitable',
-                        );
+                        logger.warn({ userId, tab }, 'peda-draft: case cochée, mail inexploitable');
                         continue;
                     }
                     const template = await templateFor(level);
@@ -331,10 +328,7 @@ export class PedaDraftService {
                         report.errors++;
                         const reason = (err as Error).message || 'erreur inconnue';
                         addDetail(report, `${prenom} ${nom} (${tab}) : brouillon Gmail refusé — ${reason}.`);
-                        logger.error(
-                            { err, userId, tab, nom, prenom, col, mail },
-                            'peda-draft: création du brouillon échouée',
-                        );
+                        logger.error({ err, userId, tab, col }, 'peda-draft: création du brouillon échouée');
                     }
                 }
             }

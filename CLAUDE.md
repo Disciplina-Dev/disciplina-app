@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Structure
 
 Polyrepo, no root package.json:
-- `back/` — Node.js + TypeScript, Express + 4 Apollo GraphQL servers + MCP server (`src/mcp/`, `POST /api/mcp`)
+- `back/` — Node.js + TypeScript, Express + 4 Apollo GraphQL servers + MCP server (`src/mcp/`, `POST /api/mcp`, 45 read-only tools incl. péda)
 - `front/disciplina-front/` — React 19 + Vite + TypeScript + Tailwind v4 + urql + Zustand + React Router v7
 - `database/` — MySQL (`database/mysql/`) and MongoDB (`database/mongodb/`) init scripts, seeds, migrations
 - `scripts/` — Python 3.12+ data import/seed scripts (`startup.py` is the Docker seed entrypoint)
@@ -48,6 +48,7 @@ Frontend (`front/disciplina-front/`):
 
 - `console.*` is banned in `back/src` — use the `logger` singleton from `external/logger/`, error logging as `{ err: error }`
 - `zod` is banned in backend application code except inside `src/mcp/` (required by the MCP SDK)
+- MCP tools expose personal data to a third-party LLM: register via `readTool`, filter through `candidateExposure.ts` / `pedaExposure.ts`, keep `rgpd/registre-mcp.md` in sync — see `back/CONVENTION.md` § MCP tools (RGPD), `MCP_RGPD_AUDIT.md`, `.claude/rules/backend-mcp.md`
 - Named exports only; the sole default export is the MySQL connection pool
 - MySQL domain types are camelCase (converted at repository); MongoDB domain types stay snake_case (converted at resolver) — this asymmetry is intentional, not a bug
 - New MySQL columns must be added in **two places**: `database/mysql/mysql-init.sql` and `REQUIRED_COLUMNS` in `back/src/db/mysql/migrations.ts` — the init script only runs on fresh volumes, the migrations file backfills existing ones

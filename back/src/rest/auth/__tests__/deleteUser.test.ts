@@ -121,6 +121,15 @@ describe('DELETE /api/auth/users/:id — detach path (no replacement)', () => {
             'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, NOW() + INTERVAL 1 DAY)',
             [target, 'deadbeef'],
         );
+        await rawInsert(
+            'INSERT INTO mcp_oauth_refresh_tokens (client_id, user_id, token_hash, expires_at) VALUES (?, ?, ?, NOW() + INTERVAL 1 DAY)',
+            ['mcp-client-del', target, 'cafebabe'],
+        );
+        await rawInsert('INSERT INTO mcp_oauth_clients (client_id, redirect_uris, user_id) VALUES (?, ?, ?)', [
+            'mcp-client-del',
+            '[]',
+            target,
+        ]);
 
         await NeedsAnalysisModel.create({ _id: 'na-1', saler_info: { id: target, email: 'depart@test.com' } });
         await OfferModel.create({ _id: 'off-1', needs_analysis_id: 'na-1', saler_info: { id: target, email: 'depart@test.com' } });
@@ -164,6 +173,11 @@ describe('DELETE /api/auth/users/:id — detach path (no replacement)', () => {
         expect(settings.n).toBe(0);
         const [[tokens]] = await pool.query<any[]>('SELECT COUNT(*) AS n FROM refresh_tokens WHERE user_id = ?', [target]);
         expect(tokens.n).toBe(0);
+        const [[mcpTokens]] = await pool.query<any[]>('SELECT COUNT(*) AS n FROM mcp_oauth_refresh_tokens WHERE user_id = ?', [target]);
+        expect(mcpTokens.n).toBe(0);
+        const [[mcpClient]] = await pool.query<any[]>('SELECT user_id FROM mcp_oauth_clients WHERE client_id = ?', ['mcp-client-del']);
+        expect(mcpClient.user_id).toBeNull();
+        await pool.query("DELETE FROM mcp_oauth_clients WHERE client_id = 'mcp-client-del'");
 
         // Mongo : saler_info retiré, notifications purgées.
         const na = await NeedsAnalysisModel.findById('na-1').lean();

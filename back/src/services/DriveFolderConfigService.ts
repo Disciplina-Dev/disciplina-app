@@ -1,6 +1,6 @@
 import { env } from '../config/env';
 import { getRegion } from '../db/tenant';
-import { TitleProfessionalType, TrainingSite } from '../types/candidate.types';
+import { LEGACY_TP_SA, TitleProfessionalType, TrainingSite, normalizeTpCode } from '../types/candidate.types';
 import {
     DriveFolderConfig,
     DriveFolderConfigRepository,
@@ -37,7 +37,8 @@ const ENV_TP_FOLDER_IDS: Record<TitleProfessionalType, string | undefined> = {
     [TitleProfessionalType.CC]: env.DRIVE_CANDIDATS_NORD_CC_FOLDER_ID,
     [TitleProfessionalType.NTC]: env.DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID,
     [TitleProfessionalType.REM]: env.DRIVE_CANDIDATS_NORD_REM_FOLDER_ID,
-    [TitleProfessionalType.SA]: env.DRIVE_CANDIDATS_NORD_SA_FOLDER_ID,
+    [TitleProfessionalType.CADGA]:
+        env.DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID ?? env.DRIVE_CANDIDATS_NORD_SA_FOLDER_ID,
 };
 
 export class DriveFolderConfigService {
@@ -76,12 +77,18 @@ export class DriveFolderConfigService {
             region ?? (trainingSite ? SITE_TO_REGION[trainingSite as TrainingSite] : undefined) ?? tenantDefault;
 
         if (tp && resolvedRegion) {
-            const id = config.tpFolders[driveFolderKey(tp, resolvedRegion)];
+            const normalizedTp = normalizeTpCode(tp);
+            const id = config.tpFolders[driveFolderKey(normalizedTp, resolvedRegion)];
             if (id) return id;
+            // Rétro-compat : configuration enregistrée avant le renommage (« SA_NORD »…).
+            if (normalizedTp === TitleProfessionalType.CADGA) {
+                const legacyId = config.tpFolders[driveFolderKey(LEGACY_TP_SA, resolvedRegion)];
+                if (legacyId) return legacyId;
+            }
         }
         if (config.rootFolderId) return config.rootFolderId;
 
-        const envTp = tp ? ENV_TP_FOLDER_IDS[tp as TitleProfessionalType] : undefined;
+        const envTp = tp ? ENV_TP_FOLDER_IDS[normalizeTpCode(tp) as TitleProfessionalType] : undefined;
         return envTp || env.DRIVE_CANDIDATS_NORD_FOLDER_ID;
     }
 }

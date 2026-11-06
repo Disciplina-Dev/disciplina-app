@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { IconCalendar, IconCompany, IconExternalLink, IconEye, IconHash, IconInstitution, IconJob, IconMapPin } from '@/components/ui/icons'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
-import { AB_STATUS_BADGE } from '@/features/abEntreprise/components/ABDetailContent'
+import { abStatusBadge } from '@/types/needsAnalysis'
 import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatCommune } from '@/data/reunionCommunes'
@@ -31,7 +31,7 @@ function tpLabel(tp?: string | null): string {
 
 export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
   const [showAbDetail, setShowAbDetail] = useState(false)
-  const badge = AB_STATUS_BADGE[analysis.status ?? 'BROUILLON'] ?? AB_STATUS_BADGE['BROUILLON']
+  const badge = abStatusBadge(analysis.status, analysis.isVisibleInMatching)
   const isSigned = analysis.status === 'SIGNE'
   const positions = analysis.positions ?? []
   const communes = [...new Set(positions.flatMap((p) => p.localisation ?? []))]

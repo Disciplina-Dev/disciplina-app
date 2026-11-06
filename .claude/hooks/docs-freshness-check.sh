@@ -2,7 +2,7 @@
 # Stop hook (advisory) : si un changement touche ce qu'un doc vivant décrit
 # (schéma DB, scripts npm, setup de tests, nouveau fichier de couche) sans que
 # ce doc soit touché, le signale sur stderr. Ne bloque pas.
-# Docs surveillés : CLAUDE.md, back/CONVENTION.md, back/HOWTOTEST.md.
+# Docs surveillés : CLAUDE.md, back/CONVENTION.md, back/HOWTOTEST.md, rgpd/registre-mcp.md.
 set -uo pipefail
 INPUT="$(cat)"
 ROOT="$(git rev-parse --show-toplevel)"
@@ -33,6 +33,13 @@ TESTSETUP=$(echo "$CHANGED" | grep -E '^back/(test/helpers/|vitest\.config\.ts)'
 if [ -n "$TESTSETUP" ] && [ -z "$DOCS_TOUCHED" ]; then
     REMINDERS="${REMINDERS}
 - Setup de tests modifié (${TESTSETUP}) sans HOWTOTEST.md touché."
+fi
+
+MCPTOOLS=$(echo "$CHANGED" | grep -E '^back/src/mcp/(tools/|.*Exposure\.ts)' | grep -vE '/__tests__/' || true)
+REGISTRE=$(echo "$CHANGED" | grep -E '^(rgpd/registre-mcp\.md|MCP_RGPD_AUDIT\.md)$' || true)
+if [ -n "$MCPTOOLS" ] && [ -z "$REGISTRE" ]; then
+    REMINDERS="${REMINDERS}
+- Outils/exposition MCP modifiés (${MCPTOOLS}) sans rgpd/registre-mcp.md ni MCP_RGPD_AUDIT.md touché — vérifie catégories de données exposées, nombre d'outils et périmètre."
 fi
 
 # Fichiers de couche back nouvellement créés (non suivis par git).

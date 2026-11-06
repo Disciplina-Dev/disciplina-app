@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { offerGraphqlClient } from '@/graphql/client'
 import { GET_OFFER_COMPANY_INFO } from '@/graphql/queries'
 import { useNeedsAnalysis } from '@/graphql/hooks'
+import { abStatusLabel } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
@@ -193,7 +194,7 @@ export default function CompanyInfoModal({ offerId, needsAnalysisId, onClose }: 
               <Row label="Méthode de recrutement" value={lbl(ab.recruitmentMethod)} />
               <Row label="Période d'immersion" value={lbl(ab.immersionPeriod)} />
               <Row label="Jours de formation possibles" value={formatTrainingDays(ab.trainingDays)} />
-              <Row label="Statut AB" value={lbl(ab.status)} />
+              <Row label="Statut AB" value={abStatusLabel(ab.status, ab.isVisibleInMatching)} />
             </Section>
           )}
         </div>

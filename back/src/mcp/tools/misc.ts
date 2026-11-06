@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SectorSettingsService } from '../../services/SectorSettingsService';
 import { NotificationService } from '../../services/NotificationService';
+import type { Notification } from '../../types/notification.types';
 import { UserService } from '../../services/UserService';
 import { toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { toolResult } from '../serialize';
@@ -55,7 +56,17 @@ export function registerMiscTools(server: McpServer): void {
             if (!me || (me.permission !== Permission.ADMIN && userId !== me.id)) {
                 return { content: [{ type: 'text', text: PERMISSION_DENIED_MSG }], isError: true };
             }
-            return toolResult(await notifications.listForUser(userId));
+            return toolResult((await notifications.listForUser(userId)).map(redactPersonalNotification));
         },
     );
+}
+
+// Les notifications `peda` (alternants) et `candidate` embarquent un nom dans title/message/link :
+// on ne les envoie pas au LLM tiers (pas de filtre de consentement possible sur du texte libre).
+const PERSONAL_CATEGORIES: Notification['category'][] = ['peda', 'candidate'];
+
+function redactPersonalNotification(n: Notification): Notification {
+    if (!PERSONAL_CATEGORIES.includes(n.category)) return n;
+    const { message: _message, link: _link, ...rest } = n;
+    return { ...rest, title: '[contenu masqué : donnée personnelle]' };
 }

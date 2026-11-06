@@ -1,6 +1,7 @@
 import { SectorSettingsRepository, SectorSettingRow } from '../repositories/mysql/SectorSettingsRepository';
 import { isSector, userSectorsForTenant } from '../utils/sector';
 import { getRegion } from '../db/tenant';
+import { sectorService } from './SectorService';
 
 export class SectorSettingsService {
     private repo = new SectorSettingsRepository();
@@ -23,6 +24,7 @@ export class SectorSettingsService {
             if (!isSector(sector)) continue;
             await this.repo.upsert(sector, String(location ?? '').slice(0, 255));
         }
+        sectorService.invalidate();
         return this.list();
     }
 }

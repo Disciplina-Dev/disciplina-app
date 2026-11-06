@@ -3,7 +3,7 @@ import { ActivityEventRow, KpiActivityRepository, LiveCallsRow, LiveStatusRow } 
 import { KpiRepository } from '../repositories/mongo/KpiRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 
-import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, ALL_KPI_SITES, kpiSitesForTenant } from '../types/kpi.types';
+import { KpiRow, KpiSite, KpiUpsertInput, KpiMetricColumn, KPI_METRIC_COLUMNS, ALL_KPI_SITES, KPI_SITES, KPI_SITE_LABELS, kpiSitesForTenant } from '../types/kpi.types';
 import { SECTORS, ANNEMASSE_COMPANY_SECTORS } from '../utils/sector';
 import { getRegion } from '../db/tenant';
 import { logger } from '../external/logger';
@@ -197,11 +197,9 @@ const NAME_COLUMN_TERMINATORS = /^(total|global|comparatif|ecart|evolution)/;
 const NAME_COLUMN_IGNORED = /^(immersion|non employe)/;
 
 /** companies.sector (libellé) → site KPI Réunion. */
-const LIVE_SECTOR_TO_SITE: Record<string, KpiSite> = {
-    'Nord-Est': 'NORD',
-    Ouest: 'OUEST',
-    Sud: 'SUD',
-};
+const LIVE_SECTOR_TO_SITE: Record<string, KpiSite> = Object.fromEntries(
+    KPI_SITES.map((site) => [KPI_SITE_LABELS[site], site]),
+);
 
 /**
  * Secteurs entreprise rattachés au site KPI unique Annemasse : les 6 secteurs
@@ -209,11 +207,6 @@ const LIVE_SECTOR_TO_SITE: Record<string, KpiSite> = {
  * « Nord-Est » avant la compression mono-secteur).
  */
 const ANNEMASSE_LIVE_SECTORS = new Set<string>([...SECTORS, ...ANNEMASSE_COMPANY_SECTORS]);
-
-/** site KPI → companies.sector (libellé). */
-const SITE_TO_LIVE_SECTOR: Record<string, string> = Object.fromEntries(
-    Object.entries(LIVE_SECTOR_TO_SITE).map(([sector, site]) => [site, sector]),
-);
 
 /** companies.status → compteur KPI. « Fermé » alimente nbre_ent_ferme. */
 const LIVE_STATUS_TO_COLUMN: Record<string, KpiMetricColumn> = {
@@ -361,7 +354,7 @@ export class KpiService {
         // Site unique Annemasse : l'activité couvre tous les secteurs entreprise
         // du tenant (6 opérationnels + libellés historiques).
         const sectors: string | string[] =
-            site === 'ANNEMASSE' ? [...ANNEMASSE_LIVE_SECTORS] : (SITE_TO_LIVE_SECTOR[site] ?? '');
+            site === 'ANNEMASSE' ? [...ANNEMASSE_LIVE_SECTORS] : (KPI_SITE_LABELS[site as KpiSite] ?? '');
         if (!sectors || sectors.length === 0)
             throw new Error(`Invalid site '${site}', expected one of ${ALL_KPI_SITES.join(', ')}`);
 

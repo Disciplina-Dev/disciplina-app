@@ -13,4 +13,6 @@ export interface McpUser {
     permission: Permission;
     sectors: string[] | null;
     region: Region;
+    /** client OAuth ayant émis le token (absent pour la clé statique) — journal d'audit. */
+    clientId?: string;
 }

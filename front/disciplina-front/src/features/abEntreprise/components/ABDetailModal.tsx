@@ -1,22 +1,16 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { IconBell, IconBellOff, IconCalendar, IconClose, IconHash, IconJob, IconTaskList, IconUsers } from '@/components/ui/icons'
+import { IconBell, IconBellOff, IconCalendar, IconClose, IconEye, IconHash, IconJob, IconTaskList, IconUsers } from '@/components/ui/icons'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
-import { useNeedsAnalysis, useDeleteNeedsAnalysis, useSetAbRelanceDisabled } from '@/graphql/hooks'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useSetAbRelanceDisabled, useSetNeedsAnalysisMatchingVisibility } from '@/graphql/hooks'
 import { formatCommune } from '@/data/reunionCommunes'
 import { formatTrainingDays } from '@/utils/trainingDays'
 import { formatScheduleSlots } from '@/utils/schedule'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import { abStatusBadge } from '@/types/needsAnalysis'
 import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
-
-const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  BROUILLON:            { bg: 'bg-[var(--ds-surface-sunken)]',   text: 'text-[var(--ds-text-muted)]',   label: 'Brouillon' },
-  EN_ATTENTE_SIGNATURE: { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'En attente de signature' },
-  SIGNE:                { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  label: 'Signé' },
-  EXPIRE:               { bg: 'bg-[var(--ds-danger-bg)]',    text: 'text-[var(--ds-danger)]',    label: 'Expiré' },
-}
 
 const LABELS: Record<string, Record<string, string>> = {
   localisation:       { ...SECTEUR_LABELS },
@@ -61,9 +55,10 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
   const result = useNeedsAnalysis(id)
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
   const { setAbRelanceDisabled, result: relanceResult } = useSetAbRelanceDisabled()
+  const { setMatchingVisibility, result: matchingVisibilityResult } = useSetNeedsAnalysisMatchingVisibility()
   const [confirmDelete, setConfirmDelete] = useState(false)
   const ab = result.data?.needsAnalysis
-  const badge = ab ? (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']) : null
+  const badge = ab ? abStatusBadge(ab.status, ab.isVisibleInMatching) : null
   const trainingDaysDisplay = formatTrainingDays(ab?.trainingDays)
 
   const handleDelete = async () => {
@@ -76,6 +71,12 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
     if (!ab) return
     const disabled = !ab.isRelanceDisabled
     const res = await setAbRelanceDisabled(id, disabled)
+    if (!res.error) result.refetch()
+  }
+
+  const handleToggleMatchingVisibility = async () => {
+    if (!ab) return
+    const res = await setMatchingVisibility(id, !ab.isVisibleInMatching)
     if (!res.error) result.refetch()
   }
 
@@ -267,6 +268,36 @@ export default function ABDetailModal({ id, onClose, onDelete, onEdit, onDuplica
             {ab.yousignSignatureRequestID && (
               <Section icon={<IconHash className="h-3.5 w-3.5" />} title="Signature électronique">
                 <Row label="Référence" value={ab.yousignSignatureRequestID} />
+              </Section>
+            )}
+
+            {ab.status === 'BROUILLON' && (
+              <Section icon={<IconEye className="h-3.5 w-3.5" />} title="Matching">
+                <div className="flex flex-col gap-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <p className={`text-sm font-medium ${ab.isVisibleInMatching ? 'text-[var(--ds-warning)]' : 'text-[var(--ds-text-muted)]'}`}>
+                      {ab.isVisibleInMatching ? 'Non envoyée — visible dans le matching' : 'Brouillon — invisible dans le matching'}
+                    </p>
+                    <p className="text-xs text-[var(--ds-text-subtle)] leading-relaxed">
+                      {ab.isVisibleInMatching
+                        ? 'Ses offres sont matchables comme celles d’une AB non signée, sans envoi en signature.'
+                        : 'Publiez ce brouillon pour le matcher sans l’envoyer en signature.'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleToggleMatchingVisibility}
+                    disabled={matchingVisibilityResult.fetching}
+                    className={`inline-flex items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50 shrink-0 self-start sm:self-center ${ab.isVisibleInMatching ? 'border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] focus-visible:ring-blue' : 'border-[var(--ds-accent)] bg-[var(--ds-surface)] text-[var(--ds-accent)] hover:bg-[var(--ds-accent-soft)] focus-visible:ring-blue'}`}
+                  >
+                    <IconEye className="h-3.5 w-3.5" />
+                    {matchingVisibilityResult.fetching
+                      ? '…'
+                      : ab.isVisibleInMatching
+                        ? 'Retirer du matching'
+                        : 'Publier dans le matching'}
+                  </button>
+                </div>
               </Section>
             )}
 

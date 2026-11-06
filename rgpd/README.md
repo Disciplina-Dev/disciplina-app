@@ -5,7 +5,8 @@ Point d'entrée des éléments de conformité RGPD du projet.
 ## Audit
 
 L'audit de conformité et la liste des failles identifiées se trouvent dans
-[`RGPD.md`](../RGPD.md) à la racine du dépôt.
+[`RGPD.md`](../RGPD.md) à la racine du dépôt. L'audit du serveur MCP est dans
+[`MCP_RGPD_AUDIT.md`](../MCP_RGPD_AUDIT.md).
 
 ## Corpus légal
 

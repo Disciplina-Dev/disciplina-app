@@ -39,6 +39,7 @@ import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
+import { startSaNotificationScheduler } from './scheduler/saNotificationScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
 import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
@@ -120,7 +121,7 @@ export async function createApp(): Promise<express.Express> {
     // Les endpoints OAuth MCP sont à la racine de l'issuer et sont consommés par
     // claude.ai web depuis une iframe sandbox (Origin: null) : le contrôle
     // d'origine CORS y est inapplicable et bloquerait le POST /authorize (500).
-    // Le consentement reste protégé par MCP_API_KEY centrée sur le serveur.
+    // Le consentement est protégé par le login CRM (email + mot de passe) de la page /authorize.
     app.use((req: Request, res: Response, next: NextFunction) => {
         if (isMcpOAuthPath(req.path)) {
             return next();
@@ -283,6 +284,9 @@ export async function startServer(): Promise<http.Server> {
         .seedInterviewInvitationDefault()
         .catch((err) => logger.error({ err }, 'interview-invitation: seed du modèle système échoué'));
     mailTemplateService
+        .seedTestFailureRedirectionDefault()
+        .catch((err) => logger.error({ err }, 'test-failure-redirection: seed du modèle système échoué'));
+    mailTemplateService
         .refreshNoCodeRHTemplates()
         .catch((err) => logger.error({ err }, 'mail-template: refresh des modèles sans code échoué'));
     mailTemplateService
@@ -300,6 +304,7 @@ export async function startServer(): Promise<http.Server> {
 
     startPedaDraftScheduler();
     startImmersionEndScheduler();
+    startSaNotificationScheduler();
     startUnavailableExpiryScheduler();
     startAbSignatureRelanceScheduler();
     startExpiredAccessScheduler();

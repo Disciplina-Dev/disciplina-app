@@ -114,6 +114,8 @@ export const typeDefs = gql`
         CC
         NTC
         REM
+        CADGA
+        # Legacy : ancien code du TP CADGA, conservé pour les clients existants.
         SA
     }
 
@@ -178,6 +180,7 @@ export const typeDefs = gql`
         comment: String
         cvWebview: String
         hasCv: Boolean
+        isRupture: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -201,6 +204,7 @@ export const typeDefs = gql`
         comment: String
         cvWebview: String
         hasCv: Boolean
+        isRupture: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
