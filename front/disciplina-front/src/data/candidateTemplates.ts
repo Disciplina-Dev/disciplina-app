@@ -22,7 +22,8 @@ export interface CandidateTemplate {
 
 const COMMERCIAL_SECTORS = COMMERCE_SECTORS
 
-const ADMIN_SECTORS = COMMERCE_SECTORS
+// Les TP administratifs (CADGA, AD) partagent les secteurs de l'AD.
+const ADMIN_SECTORS = AD_SECTORS
 
 const COMMERCIAL_SKILLS = [
   'Accueil physique',
