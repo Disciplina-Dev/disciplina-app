@@ -734,6 +734,110 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.identity.transportMeans).toBe('Car');
         });
 
+        it('protège une description manuelle lors d’une mise à jour partielle', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-manual-desc-${suffix}`,
+                candidate_id: `update-manual-desc-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Noah ${suffix}`,
+                    email: `noah-${suffix}@test.local`,
+                    phone: '0100000088',
+                    description: 'Résumé personnalisé par le RH.',
+                    description_source: 'manual',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) {
+                                id identity { description descriptionSource }
+                            }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: { status: CandidateStatus.NOT_SEEKING },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.identity.description).toBe('Résumé personnalisé par le RH.');
+            expect(json.data.updateCandidate.identity.descriptionSource).toBe('manual');
+        });
+
+        it('transmet descriptionSource au service (« Régénérer » repasse en auto)', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-desc-source-${suffix}`,
+                candidate_id: `update-desc-source-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Léa ${suffix}`,
+                    email: `lea-${suffix}@test.local`,
+                    phone: '0100000089',
+                    description: 'Résumé personnalisé par le RH.',
+                    description_source: 'manual',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) {
+                                id identity { description descriptionSource }
+                            }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            identity: {
+                                fullName: `Léa ${suffix}`,
+                                email: `lea-${suffix}@test.local`,
+                                phone: '0100000089',
+                                description: 'Résumé régénéré depuis la fiche.',
+                                descriptionSource: 'auto',
+                            },
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.identity.description).toBe('Résumé régénéré depuis la fiche.');
+            expect(json.data.updateCandidate.identity.descriptionSource).toBe('auto');
+        });
+
         it('rejects update when the new email is already used by another candidate', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
