@@ -1066,7 +1066,7 @@ function PreselectedCandidatesSection({
   )
 }
 
-// ─── To-Send Candidates Section (ACCEPTED, SEND) ─────────────────────────────
+// ─── To-Send Candidates Section (ACCEPTED) ───────────────────────────────────
 
 function ToSendCandidatesSection({
   candidates,
@@ -1129,7 +1129,7 @@ function ToSendCandidatesSection({
   )
 }
 
-// ─── Already-Sent Candidates Section (REFUSED, INTERVIEW, IMMERSING) ─────────
+// ─── Already-Sent Candidates Section (SEND, REFUSED, CONTRACT, INTERVIEW, IMMERSING) ─
 
 function AlreadySentCandidatesSection({
   candidates,
@@ -1616,9 +1616,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   ]
   const toSendStatuses: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.ACCEPTED,
-    MatchedCandidateStatus.SEND,
   ]
   const alreadySentStatuses: MatchedCandidateStatus[] = [
+    MatchedCandidateStatus.SEND,
     MatchedCandidateStatus.REFUSED,
     MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
