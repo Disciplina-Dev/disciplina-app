@@ -3,6 +3,7 @@ import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
 import {
     GoogleCalendarService,
+    CalendarEvent,
     CalendarEventInput,
     Attendance,
     ATTENDANCES,
@@ -28,6 +29,10 @@ const rhKpiService = new RhKpiService();
  * « décliné » (interviews_declined). Le venu peut aussi venir de la création
  * d'un dossier candidat (cf. resolver createCandidate), les deux sont
  * cumulatifs (l'un n'exclut pas l'autre).
+ *
+ * Un même email d'invité ne compte qu'une fois : seul son premier rendez-vous
+ * (par date de début) alimente les KPI, pour ne pas cumuler deux catégories de
+ * présence pour un même candidat (cf. `isFirstMeetingForEmail`).
  */
 export const ATTENDANCE_KPI_COLUMN: Record<Attendance, string> = {
     arrived: 'interviews_attended',
@@ -200,8 +205,10 @@ function parseEventInput(body: unknown, res: Response): CalendarEventInput | nul
         }
     }
     // Nom/prénom de l'invité : optionnels (créneaux historiques sans ces champs), simples libellés de recherche.
-    const attendeeFirstName = typeof b.attendeeFirstName === 'string' ? b.attendeeFirstName.trim() || undefined : undefined;
-    const attendeeLastName = typeof b.attendeeLastName === 'string' ? b.attendeeLastName.trim() || undefined : undefined;
+    const attendeeFirstName =
+        typeof b.attendeeFirstName === 'string' ? b.attendeeFirstName.trim() || undefined : undefined;
+    const attendeeLastName =
+        typeof b.attendeeLastName === 'string' ? b.attendeeLastName.trim() || undefined : undefined;
     return {
         summary,
         start,
@@ -265,9 +272,15 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
     // KPI attribués à l'acteur (celui qui saisit), pas au propriétaire du calendrier.
     const actor = await userService.findById(Number(req.user.id));
     try {
-        const event = await calendarForUser(owner).createEvent(input);
+        const calendar = calendarForUser(owner);
+        // KPI « entretien placé » : seulement si c'est le premier rendez-vous de cet invité
+        // (un même email ne compte qu'une fois, cf. isFirstMeetingForEmail).
+        const countsForKpi = input.isInterview
+            ? await rhKpiService.isFirstMeetingForEmail(calendar, input.attendeeEmail, input.start)
+            : false;
+        const event = await calendar.createEvent(input);
         // KPI : un entretien placé compte au bucket de sa date de début, dans le secteur de l'acteur.
-        if (input.isInterview && actor) {
+        if (countsForKpi && actor) {
             await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(input.start), {
                 interviews_placed: 1,
             });
@@ -308,10 +321,19 @@ export async function setAttendance(req: AuthRequest, res: Response): Promise<vo
         const before = await calendar.getEvent(req.params.id as string);
         const event = await calendar.setAttendance(req.params.id as string, status);
         // KPI : venu / pas venu / reporté / décliné (tout créneau, entretien ou non), attribué à l'acteur.
+        // Seul le premier rendez-vous d'un même invité compte, pour ne pas cumuler deux catégories.
         if (actor) {
             const delta = attendanceDelta(before.attendance, status);
             if (Object.keys(delta).length) {
-                await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(event.start), delta);
+                const countsForKpi = await rhKpiService.isFirstMeetingForEmail(
+                    calendar,
+                    before.attendeeEmail,
+                    before.start,
+                    before.id,
+                );
+                if (countsForKpi) {
+                    await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(event.start), delta);
+                }
             }
         }
         // « Pas venu » (entretien uniquement) : on envoie une relance avec le lien de réservation, si on a l'email.
@@ -346,16 +368,23 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
         // KPI : rééquilibre le compteur « entretiens placés » si le flag ou la date a changé (acteur).
         const dayMoved = dayKey(before.start) !== dayKey(input.start);
         const toggled = before.isInterview !== input.isInterview;
-        if (actor) {
+        if (actor && (dayMoved || toggled)) {
+            // Seul le premier rendez-vous d'un même invité porte des KPI (cf. createEvent).
+            const countsForKpi = await rhKpiService.isFirstMeetingForEmail(
+                calendar,
+                before.attendeeEmail,
+                before.start,
+                before.id,
+            );
             const sector = primarySector(actor.sectors);
-            if ((before.isInterview || input.isInterview) && (dayMoved || toggled)) {
+            if (countsForKpi && (before.isInterview || input.isInterview)) {
                 if (before.isInterview)
                     await rhKpiService.bump(actor.id, sector, new Date(before.start), { interviews_placed: -1 });
                 if (input.isInterview)
                     await rhKpiService.bump(actor.id, sector, new Date(input.start), { interviews_placed: 1 });
             }
             // KPI : un déplacement de date déplace aussi les compteurs de présence (tout créneau).
-            if (dayMoved && before.attendance) {
+            if (countsForKpi && dayMoved && before.attendance) {
                 const popped = ATTENDANCE_KPI_COLUMN[before.attendance];
                 await rhKpiService.bump(actor.id, sector, new Date(before.start), { [popped]: -1 });
                 await rhKpiService.bump(actor.id, sector, new Date(input.start), { [popped]: 1 });
@@ -377,6 +406,7 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
         const before = await calendar.getEvent(req.params.id as string);
         await calendar.deleteEvent(req.params.id as string);
         // KPI : on retire les compteurs portés par ce créneau (placé pour les entretiens, présence pour tous), acteur.
+        // Seul le premier rendez-vous d'un même invité porte des KPI (cf. createEvent).
         if (actor) {
             const delta: Record<string, number> = {};
             if (before.isInterview) delta.interviews_placed = -1;
@@ -385,11 +415,99 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
                 if (col) delta[col] = -1;
             }
             if (Object.keys(delta).length) {
-                await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(before.start), delta);
+                const countsForKpi = await rhKpiService.isFirstMeetingForEmail(
+                    calendar,
+                    before.attendeeEmail,
+                    before.start,
+                    before.id,
+                );
+                if (countsForKpi) {
+                    await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(before.start), delta);
+                }
             }
         }
         res.status(204).end();
     } catch (error) {
         await replyCalendarError(res, error, owner.id, 'Échec de suppression du créneau');
+    }
+}
+
+/** Reconstruit l'input complet d'un événement existant (le PATCH Google remplace les champs fournis). */
+function toCalendarEventInput(event: CalendarEvent, start: string, end: string): CalendarEventInput {
+    return {
+        summary: event.summary,
+        description: event.description,
+        location: event.location,
+        start,
+        end,
+        allDay: event.allDay,
+        colorId: event.colorId,
+        meetingLink: event.meetingLink,
+        attendeeEmail: event.attendeeEmail,
+        attendeeFirstName: event.attendeeFirstName,
+        attendeeLastName: event.attendeeLastName,
+        isInterview: event.isInterview,
+        saSequenceId: event.saSequenceId,
+        saAlternantId: event.saAlternantId,
+    };
+}
+
+/**
+ * PATCH /api/calendar/events/:id/report — body { start, end } (ISO).
+ * « Reporté » d'un entretien : le créneau est réellement déplacé à la nouvelle
+ * date/heure demandée et marqué reporté en une seule écriture. Le KPI « entretien
+ * placé » suit le déplacement et le compteur « reportés » est crédité au bucket
+ * de la nouvelle date.
+ */
+export async function reportEvent(req: AuthRequest, res: Response): Promise<void> {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const start = typeof b.start === 'string' ? b.start : '';
+    const end = typeof b.end === 'string' ? b.end : '';
+    if (
+        !start ||
+        !end ||
+        Number.isNaN(Date.parse(start)) ||
+        Number.isNaN(Date.parse(end)) ||
+        Date.parse(end) <= Date.parse(start)
+    ) {
+        res.status(400).json({ error: 'Nouvelle plage horaire invalide (start et end ISO requis, end après start)' });
+        return;
+    }
+    const owner = await resolveOwner(req, res);
+    if (!owner) return;
+    const actor = await userService.findById(Number(req.user.id));
+    const calendar = calendarForUser(owner);
+    try {
+        const before = await calendar.getEvent(req.params.id as string);
+        if (!before.isInterview) {
+            res.status(400).json({ error: 'Seul un entretien peut être reporté' });
+            return;
+        }
+        const event = await calendar.updateEvent(req.params.id as string, {
+            ...toCalendarEventInput(before, start, end),
+            attendance: 'postponed',
+        });
+        // Seul le premier rendez-vous d'un même invité porte des KPI (cf. createEvent).
+        if (
+            actor &&
+            (await rhKpiService.isFirstMeetingForEmail(calendar, before.attendeeEmail, before.start, before.id))
+        ) {
+            const sector = primarySector(actor.sectors);
+            const dayMoved = dayKey(before.start) !== dayKey(event.start);
+            if (dayMoved) {
+                await rhKpiService.bump(actor.id, sector, new Date(before.start), { interviews_placed: -1 });
+                await rhKpiService.bump(actor.id, sector, new Date(event.start), { interviews_placed: 1 });
+                const popped = before.attendance ? ATTENDANCE_KPI_COLUMN[before.attendance] : undefined;
+                if (popped) {
+                    await rhKpiService.bump(actor.id, sector, new Date(before.start), { [popped]: -1 });
+                }
+            }
+            if (dayMoved || before.attendance !== 'postponed') {
+                await rhKpiService.bump(actor.id, sector, new Date(event.start), { interviews_postponed: 1 });
+            }
+        }
+        res.json({ event });
+    } catch (error) {
+        await replyCalendarError(res, error, owner.id, 'Échec du report du créneau');
     }
 }

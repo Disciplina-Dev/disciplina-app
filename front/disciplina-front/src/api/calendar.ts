@@ -134,3 +134,12 @@ export async function setEventAttendance(id: string, status: Attendance, ownerId
   const res = await calFetch(`/events/${id}/attendance${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
   return ((await res.json()) as { event: CalendarEvent }).event;
 }
+
+/**
+ * « Reporté » d'un entretien : déplace le créneau à la nouvelle date/heure (`start`/`end`
+ * ISO) puis le marque reporté côté serveur.
+ */
+export async function reportCalendarEvent(id: string, start: string, end: string, ownerId?: number): Promise<CalendarEvent> {
+  const res = await calFetch(`/events/${id}/report${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify({ start, end }) });
+  return ((await res.json()) as { event: CalendarEvent }).event;
+}
