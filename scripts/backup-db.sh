@@ -16,6 +16,11 @@ load_env() {
 MYSQL_ROOT_PASSWORD="$(load_env MYSQL_ROOT_PASSWORD)"
 MONGO_ROOT_USERNAME="$(load_env MONGO_ROOT_USERNAME)"
 MONGO_ROOT_PASSWORD="$(load_env MONGO_ROOT_PASSWORD)"
+# Tenant Annemasse : mêmes conteneurs, bases distinctes (défaut = .env.example).
+MYSQL_ANNEMASSE_DATABASE="$(load_env MYSQL_ANNEMASSE_DATABASE)"
+MYSQL_ANNEMASSE_DATABASE="${MYSQL_ANNEMASSE_DATABASE:-disciplina_annemasse}"
+MONGO_ANNEMASSE_DATABASE="$(load_env MONGO_ANNEMASSE_DATABASE)"
+MONGO_ANNEMASSE_DATABASE="${MONGO_ANNEMASSE_DATABASE:-disciplina_annemasse}"
 
 DATE=$(date +%Y-%m-%d_%H%M%S)
 mkdir -p backups
@@ -32,7 +37,21 @@ docker compose exec -T nosql-db mongodump \
   --authenticationDatabase admin --db human_ressources --archive > "$MONGO_DUMP"
 echo "[$(date -Iseconds)] MongoDB dump done: $MONGO_DUMP ($(du -h "$MONGO_DUMP" | cut -f1))"
 
+# Nommage backup_annemasse_* : volontairement hors des globs backup_mysql_* /
+# backup_mongo_* utilisés par deploy.sh pour retrouver le dump du tenant Réunion.
+MYSQL_ANNEMASSE_DUMP="backups/backup_annemasse_mysql_${DATE}.sql"
+docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_ANNEMASSE_DATABASE" > "$MYSQL_ANNEMASSE_DUMP"
+echo "[$(date -Iseconds)] MySQL Annemasse dump done: $MYSQL_ANNEMASSE_DUMP ($(du -h "$MYSQL_ANNEMASSE_DUMP" | cut -f1))"
+
+MONGO_ANNEMASSE_DUMP="backups/backup_annemasse_mongo_${DATE}.archive"
+docker compose exec -T nosql-db mongodump \
+  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  --authenticationDatabase admin --db "$MONGO_ANNEMASSE_DATABASE" --archive > "$MONGO_ANNEMASSE_DUMP"
+echo "[$(date -Iseconds)] MongoDB Annemasse dump done: $MONGO_ANNEMASSE_DUMP ($(du -h "$MONGO_ANNEMASSE_DUMP" | cut -f1))"
+
 find backups -name 'backup_mysql_*.sql' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_mongo_*.archive' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_annemasse_mysql_*.sql' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_annemasse_mongo_*.archive' -mtime "+${RETENTION_DAYS}" -delete
 
 echo "[$(date -Iseconds)] Backup finished, rotation applied (retention: ${RETENTION_DAYS}d)"
