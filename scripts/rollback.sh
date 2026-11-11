@@ -53,6 +53,10 @@ done
 load_env() {
     grep -E "^${1}=" .env | tail -1 | cut -d= -f2-
 }
+# Clé facultative : absente de .env → vide (grep=1 ferait sinon échouer pipefail).
+load_env_opt() {
+    grep -E "^${1}=" .env | tail -1 | cut -d= -f2- || true
+}
 
 curl_sc() {
     curl -s --max-time 3 -o /dev/null -w '%{http_code}' "$1" 2>/dev/null || true
@@ -79,6 +83,8 @@ section "1/6 Référence de rollback"
 PREV_HEAD=""
 MYSQL_DUMP=""
 MONGO_DUMP=""
+MYSQL_ANNEMASSE_DUMP=""
+MONGO_ANNEMASSE_DUMP=""
 if [[ -n "$TARGET_REF" ]]; then
     REF="$TARGET_REF"
     log "  --ref fourni : ${REF}"
@@ -94,7 +100,12 @@ fi
 git rev-parse --verify --quiet "$REF" >/dev/null || die "référence invalide : $REF"
 [[ -n "$MYSQL_DUMP" && -f "$MYSQL_DUMP" ]] || MYSQL_DUMP=""
 [[ -n "$MONGO_DUMP" && -f "$MONGO_DUMP" ]] || MONGO_DUMP=""
-if [[ -z "$MYSQL_DUMP" && -z "$MONGO_DUMP" ]]; then
+[[ -n "$MYSQL_ANNEMASSE_DUMP" && -f "$MYSQL_ANNEMASSE_DUMP" ]] || MYSQL_ANNEMASSE_DUMP=""
+[[ -n "$MONGO_ANNEMASSE_DUMP" && -f "$MONGO_ANNEMASSE_DUMP" ]] || MONGO_ANNEMASSE_DUMP=""
+if [[ -z "$MYSQL_ANNEMASSE_DUMP" || -z "$MONGO_ANNEMASSE_DUMP" ]]; then
+    warn "dump(s) Annemasse absent(s) de l'état (état antérieur à GDPR_INF_01.1 ?) : tenant Annemasse non restauré"
+fi
+if [[ -z "$MYSQL_DUMP" && -z "$MONGO_DUMP" && -z "$MYSQL_ANNEMASSE_DUMP" && -z "$MONGO_ANNEMASSE_DUMP" ]]; then
     warn "aucun dump retrouvé (état : réf=${REF}, mysql='${MYSQL_DUMP}', mongo='${MONGO_DUMP}')"
     confirm "Continuer quand même (restauration DB ignorée) ?" || die "annulé"
 fi
@@ -116,6 +127,8 @@ fi
 log "  Restauration des bases depuis :"
 [[ -n "$MYSQL_DUMP" ]] && log "    MySQL   → $MYSQL_DUMP ($(du -h "$MYSQL_DUMP" | cut -f1))"
 [[ -n "$MONGO_DUMP" ]] && log "    MongoDB → $MONGO_DUMP ($(du -h "$MONGO_DUMP" | cut -f1))"
+[[ -n "$MYSQL_ANNEMASSE_DUMP" ]] && log "    MySQL Annemasse   → $MYSQL_ANNEMASSE_DUMP ($(du -h "$MYSQL_ANNEMASSE_DUMP" | cut -f1))"
+[[ -n "$MONGO_ANNEMASSE_DUMP" ]] && log "    MongoDB Annemasse → $MONGO_ANNEMASSE_DUMP ($(du -h "$MONGO_ANNEMASSE_DUMP" | cut -f1))"
 log "  Code : retour sur $REF"
 confirm "Exécuter ce rollback (DESTRUCTIF pour le contenu actuel des bases) ?" || die "annulé"
 
@@ -124,6 +137,10 @@ section "3/6 Restauration des bases de données"
 MYSQL_ROOT_PASSWORD="$(load_env MYSQL_ROOT_PASSWORD)"
 MONGO_ROOT_USERNAME="$(load_env MONGO_ROOT_USERNAME)"
 MONGO_ROOT_PASSWORD="$(load_env MONGO_ROOT_PASSWORD)"
+MYSQL_ANNEMASSE_DATABASE="$(load_env_opt MYSQL_ANNEMASSE_DATABASE)"
+MYSQL_ANNEMASSE_DATABASE="${MYSQL_ANNEMASSE_DATABASE:-disciplina_annemasse}"
+MONGO_ANNEMASSE_DATABASE="$(load_env_opt MONGO_ANNEMASSE_DATABASE)"
+MONGO_ANNEMASSE_DATABASE="${MONGO_ANNEMASSE_DATABASE:-disciplina_annemasse}"
 
 run docker compose stop backend
 
@@ -156,6 +173,36 @@ else
     warn "pas de dump MongoDB : ignore"
 fi
 
+if [[ -n "$MYSQL_ANNEMASSE_DUMP" ]]; then
+    log "  restauration MySQL Annemasse ($MYSQL_ANNEMASSE_DUMP) ..."
+    if (( DRY )); then
+        log "  $ docker compose exec -T -e MYSQL_PWD=*** sql-db mysql -h127.0.0.1 -uroot $MYSQL_ANNEMASSE_DATABASE < $MYSQL_ANNEMASSE_DUMP"
+    else
+        docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+            mysql -h127.0.0.1 -uroot "$MYSQL_ANNEMASSE_DATABASE" < "$MYSQL_ANNEMASSE_DUMP"
+    fi
+    log "  OK MySQL Annemasse restauré"
+else
+    warn "pas de dump MySQL Annemasse : ignore"
+fi
+
+if [[ -n "$MONGO_ANNEMASSE_DUMP" ]]; then
+    log "  restauration MongoDB Annemasse ($MONGO_ANNEMASSE_DUMP) ..."
+    gzip_opt=()
+    if gzip -t "$MONGO_ANNEMASSE_DUMP" 2>/dev/null; then gzip_opt=(--gzip); fi
+    if (( DRY )); then
+        log "  $ docker compose exec -T nosql-db mongorestore --archive${gzip_opt[0]:+ --gzip} --drop --nsInclude '$MONGO_ANNEMASSE_DATABASE.*' < $MONGO_ANNEMASSE_DUMP"
+    else
+        docker compose exec -T nosql-db \
+            mongorestore --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+            --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop \
+            --nsInclude "${MONGO_ANNEMASSE_DATABASE}.*" < "$MONGO_ANNEMASSE_DUMP"
+    fi
+    log "  OK MongoDB Annemasse restauré"
+else
+    warn "pas de dump MongoDB Annemasse : ignore"
+fi
+
 section "4/6 Redémarrage du backend (base restaurée)"
 run docker compose start backend
 
@@ -173,5 +220,6 @@ fi
 section "6/6 Résumé du rollback"
 log "  HEAD actuel : $(git rev-parse HEAD 2>/dev/null || echo N/A)"
 log "  Bases restaurées : MySQL=$([[ -n "$MYSQL_DUMP" ]] && echo oui || echo non) MongoDB=$([[ -n "$MONGO_DUMP" ]] && echo oui || echo non)"
+log "  Annemasse restauré : MySQL=$([[ -n "$MYSQL_ANNEMASSE_DUMP" ]] && echo oui || echo non) MongoDB=$([[ -n "$MONGO_ANNEMASSE_DUMP" ]] && echo oui || echo non)"
 log "  Les dumps restent dans backups/ pour archive."
 exit 0

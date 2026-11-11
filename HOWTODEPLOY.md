@@ -38,12 +38,20 @@ cd disciplina-app
 ./scripts/backup-db.sh
 ```
 
-Verify the two dumps exist before continuing:
+The script dumps **both tenants** (4 files per run). Verify they all exist
+before continuing:
 
 ```bash
 ls -lh backups/
-# backup_mysql_<DATE>.sql  +  backup_mongo_<DATE>.archive
+# La Réunion: backup_mysql_<DATE>.sql           + backup_mongo_<DATE>.archive
+# Annemasse:  backup_annemasse_mysql_<DATE>.sql + backup_annemasse_mongo_<DATE>.archive
 ```
+
+Annemasse database names come from `MYSQL_ANNEMASSE_DATABASE` /
+`MONGO_ANNEMASSE_DATABASE` in the root `.env` (default `disciplina_annemasse`).
+The `backup_annemasse_*` prefix is deliberate: `deploy.sh` finds the Réunion
+dumps with the `backup_mysql_*` / `backup_mongo_*` globs and must not pick up
+Annemasse files. `deploy.sh` records all four paths in `scripts/.deploy-state`.
 
 > Known gap: dumps live on the same disk as the databases — no off-machine
 > storage yet (tracked as `DB-5` in `BACKLOG.md`).
@@ -98,6 +106,10 @@ docker compose -f docker-compose.test.yml up --build --force-recreate \
 ## 5. Rollback
 
 If something goes wrong, restore the pre-deploy backup and revert the code.
+`./scripts/rollback.sh` does all of this and restores **both tenants** (Réunion
+and Annemasse) from the dumps recorded in `scripts/.deploy-state`; if the state
+file predates the Annemasse backup it warns and skips Annemasse. Manual
+procedure:
 
 ```bash
 # 1. Stop the backend so it cannot write into a half-restored database
@@ -111,6 +123,14 @@ docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina 
 docker compose exec -T nosql-db mongorestore \
   --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
   --authenticationDatabase admin --archive < backups/backup_mongo_<DATE>.archive
+
+# 3b. Restore the Annemasse tenant (MySQL + MongoDB)
+docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina_annemasse \
+  < backups/backup_annemasse_mysql_<DATE>.sql
+docker compose exec -T nosql-db mongorestore \
+  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  --authenticationDatabase admin --archive --drop --nsInclude 'disciplina_annemasse.*' \
+  < backups/backup_annemasse_mongo_<DATE>.archive
 
 # 4. Restart the backend
 docker compose start backend
