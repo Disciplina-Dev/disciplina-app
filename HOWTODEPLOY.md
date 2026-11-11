@@ -246,3 +246,27 @@ docker compose -f docker-compose.yaml -f docker-compose.prod.yaml run --rm --no-
 The backend startup migration backfills the missing links from the legacy labels
 (only for rows without a link), so restarting the backend once and re-running the audit
 fixes most gaps. Take `./scripts/backup-db.sh` before the `DROP COLUMN` itself.
+
+### Resource sizing and sampling (manual, run on the prod machine)
+
+Two **read-only** scripts quantify what the stack really uses, to size the target server
+(see `INFRA_MIGRATION_STUDY.md`). Neither writes to the databases.
+
+- `scripts/infra-specs.sh` — one-shot snapshot: CPU/RAM/disk of the host, Docker limits,
+  per-container usage, data directory sizes, MySQL/MongoDB logical sizes.
+  `./scripts/infra-specs.sh | tee infra-specs-$(date +%F).txt`
+- `scripts/docker-stats-sampler.sh` — records `docker stats` once a minute into `stats/`
+  (30-day retention, resource numbers only, git-ignored). `report` prints average / peak
+  per container and the peak of the whole stack.
+
+Install the sampler on the Mac mini (same procedure as the backup job):
+
+```bash
+cp scripts/launchd/com.disciplina.stats.plist ~/Library/LaunchAgents/
+# edit ABSOLUTE/PATH/TO and YOUR_USER in the copied plist, then:
+launchctl load ~/Library/LaunchAgents/com.disciplina.stats.plist
+./scripts/docker-stats-sampler.sh report     # after a few working days
+```
+
+Limits: one sample per minute misses spikes shorter than that (PDF generation, AI calls);
+on Docker Desktop the memory limit shown is the VM size, not the Mac's RAM.
