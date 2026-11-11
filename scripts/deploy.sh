@@ -184,11 +184,19 @@ else
     [[ -n "$MONGO_DUMP" && -s "$MONGO_DUMP" ]] || die "dump MongoDB récent introuvable/vide dans ${BACKUP_DIR}/"
     log "  MySQL   → ${MYSQL_DUMP} ($(du -h "$MYSQL_DUMP" | cut -f1))"
     log "  MongoDB → ${MONGO_DUMP} ($(du -h "$MONGO_DUMP" | cut -f1))"
+    MYSQL_ANNEMASSE_DUMP="$(ls -t ${BACKUP_DIR}/backup_annemasse_mysql_*.sql      2>/dev/null | head -1 || true)"
+    MONGO_ANNEMASSE_DUMP="$(ls -t ${BACKUP_DIR}/backup_annemasse_mongo_*.archive 2>/dev/null | head -1 || true)"
+    [[ -n "$MYSQL_ANNEMASSE_DUMP" && -s "$MYSQL_ANNEMASSE_DUMP" ]] || die "dump MySQL Annemasse récent introuvable/vide dans ${BACKUP_DIR}/"
+    [[ -n "$MONGO_ANNEMASSE_DUMP" && -s "$MONGO_ANNEMASSE_DUMP" ]] || die "dump MongoDB Annemasse récent introuvable/vide dans ${BACKUP_DIR}/"
+    log "  MySQL Annemasse   → ${MYSQL_ANNEMASSE_DUMP} ($(du -h "$MYSQL_ANNEMASSE_DUMP" | cut -f1))"
+    log "  MongoDB Annemasse → ${MONGO_ANNEMASSE_DUMP} ($(du -h "$MONGO_ANNEMASSE_DUMP" | cut -f1))"
     if (( ! DRY )); then
         cat > "$STATE_FILE" <<EOF
 PREV_HEAD=$PREV_HEAD
 MYSQL_DUMP=$MYSQL_DUMP
 MONGO_DUMP=$MONGO_DUMP
+MYSQL_ANNEMASSE_DUMP=$MYSQL_ANNEMASSE_DUMP
+MONGO_ANNEMASSE_DUMP=$MONGO_ANNEMASSE_DUMP
 DEPLOYED_AT=$(date -Iseconds)
 EOF
         log "  état enregistré : $STATE_FILE"
@@ -272,6 +280,7 @@ log "  HEAD déployé      : $(git rev-parse HEAD 2>/dev/null || echo N/A)"
 log "  HEAD précédent    : ${PREV_HEAD}"
 if [[ "$SKIP_BACKUP" == "0" ]]; then
     log "  Backups           : ${MYSQL_DUMP} | ${MONGO_DUMP}"
+    log "  Backups Annemasse : ${MYSQL_ANNEMASSE_DUMP} | ${MONGO_ANNEMASSE_DUMP}"
 else
     log "  Backups           : PASSÉES (--skip-backup)"
 fi
