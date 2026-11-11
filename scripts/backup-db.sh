@@ -13,13 +13,17 @@ cd "$REPO_ROOT"
 load_env() {
     grep -E "^${1}=" .env | tail -1 | cut -d= -f2-
 }
+# Clé facultative : absente de .env → vide (grep=1 ferait sinon échouer pipefail).
+load_env_opt() {
+    grep -E "^${1}=" .env | tail -1 | cut -d= -f2- || true
+}
 MYSQL_ROOT_PASSWORD="$(load_env MYSQL_ROOT_PASSWORD)"
 MONGO_ROOT_USERNAME="$(load_env MONGO_ROOT_USERNAME)"
 MONGO_ROOT_PASSWORD="$(load_env MONGO_ROOT_PASSWORD)"
 # Tenant Annemasse : mêmes conteneurs, bases distinctes (défaut = .env.example).
-MYSQL_ANNEMASSE_DATABASE="$(load_env MYSQL_ANNEMASSE_DATABASE)"
+MYSQL_ANNEMASSE_DATABASE="$(load_env_opt MYSQL_ANNEMASSE_DATABASE)"
 MYSQL_ANNEMASSE_DATABASE="${MYSQL_ANNEMASSE_DATABASE:-disciplina_annemasse}"
-MONGO_ANNEMASSE_DATABASE="$(load_env MONGO_ANNEMASSE_DATABASE)"
+MONGO_ANNEMASSE_DATABASE="$(load_env_opt MONGO_ANNEMASSE_DATABASE)"
 MONGO_ANNEMASSE_DATABASE="${MONGO_ANNEMASSE_DATABASE:-disciplina_annemasse}"
 
 DATE=$(date +%Y-%m-%d_%H%M%S)
