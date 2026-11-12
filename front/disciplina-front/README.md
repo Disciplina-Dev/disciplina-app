@@ -38,7 +38,8 @@ src/
   components/
     layout/             Role-specific layouts with sidebar navigation:
                         AdminLayout, AppLayout, AuthLayout, CommercialLayout,
-                        EntrepriseLayout, PedaLayout, RHLayout, Sidebar, Footer
+                        EntrepriseLayout, FormateurLayout, PedaLayout, RHLayout,
+                        Sidebar, Footer
     ui/                 Atomic design system: Button, InputField, PasswordInput,
                         MultiSelectField, AddressAutocomplete, RichTextEditor,
                         SignaturePad, MailModal, RouteBreadcrumb
@@ -73,6 +74,7 @@ src/
                         CreateAB, Sourcing, ListeNoire, RelanceCommercial…
     entreprise/         DashboardEntreprise, FormulaireAB, GestionApprentis,
                         GestionRDV, ProfilsMatches
+    formateur/          DashboardFormateur — prochaine séance et compteurs
     admin/              AdminUsers
     peda/               SuiviAbsences
     profile/            ProfilePage
@@ -92,7 +94,8 @@ src/
     usePersistedListView.ts List view preference
     useStaffDirectory.ts Staff directory
   types/                TypeScript types: candidate, entreprise, needsAnalysis,
-                        classmarker, relance, sourcing, pagination, companyMapper
+                        classmarker, relance, sourcing, pagination, companyMapper,
+                        emargement, formateur
   constants/            Label maps, status enums, colors
   data/                 Static data: NAF codes, Reunion communes, sectors,
                         candidate templates, mock data
@@ -189,6 +192,14 @@ src/
 | `/entreprise/apprentis` | `GestionApprentis` | Manage apprentices |
 | `/entreprise/rendez-vous` | `GestionRDV` | Manage appointments |
 | `/entreprise/profils` | `ProfilsMatches` | Matched profiles |
+
+### Formateur (`/formateur`) — Role: FORMATEUR
+
+Comptes créés par le Peda depuis la fiche formateur (`/peda/formateurs/:id`), connexion par la page d'accueil comme le reste du staff. Un formateur n'est jamais staff : `ProtectedRoute` le renvoie dans cet espace dès qu'une route interne est demandée, et le backend refuse son jeton (403) sur toutes les routes gardées par `authenticate()`.
+
+| Path | Component | Purpose |
+|------|-----------|---------|
+| `/formateur` | `DashboardFormateur` | Prochaine séance (aujourd'hui inclus) et compteurs séances à venir / passées |
 
 ## Commands
 

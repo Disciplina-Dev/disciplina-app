@@ -15,6 +15,13 @@ export interface Formateur {
     phone: string | null;
     /** Commentaire libre du Peda (consignes, disponibilités…). */
     comment: string | null;
+    /**
+     * Compte `users` donnant accès à l'espace formateur (`JobRole.FORMATEUR`).
+     * `null` = fiche sans accès : le formateur n'existe que comme contact.
+     * Unicité vérifiée côté service (pas d'index unique : Mongo n'accepte qu'un
+     * seul `null` par index unique non sparse).
+     */
+    user_id: number | null;
     created_by: number | null;
     created_at: Date | string;
     updated_at: Date | string;
@@ -30,7 +37,15 @@ export interface FormateurChange {
     to: string | null;
 }
 
-export const FORMATEUR_HISTORY_ACTIONS = ['formateur_created', 'formateur_updated', 'note'] as const;
+export const FORMATEUR_HISTORY_ACTIONS = [
+    'formateur_created',
+    'formateur_updated',
+    'note',
+    'formateur_deleted',
+    'account_created',
+    'account_password_reset',
+    'account_deleted',
+] as const;
 export type FormateurHistoryAction = (typeof FORMATEUR_HISTORY_ACTIONS)[number];
 
 /**

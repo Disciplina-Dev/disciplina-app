@@ -4,6 +4,13 @@ export enum JobRole {
     PEDA = 'PEDA',
     AD = 'AD',
     GESTION = 'GESTION',
+    /**
+     * Intervenant externe : accès au seul espace `/formateur`, sans aucune
+     * permission staff (EMPLOYEE par défaut). Volontairement absent de
+     * `STAFF_ROLES` : `authenticate()` le refuse, `authenticateAny()` l'accepte
+     * pour `/api/auth/me`, `/api/auth/logout` et son propre espace.
+     */
+    FORMATEUR = 'FORMATEUR',
 }
 
 export enum Permission {

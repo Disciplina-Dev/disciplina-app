@@ -55,7 +55,7 @@ src/
                         CandidateService, OfferService, NeedsAnalysisService, KpiService, PdfService,
                         pagination (cursor pagination helpers)
     mappers/            Snake-case ↔ camelCase mappers for user, company, candidate (MySQL side only)
-  rest/                 23 feature modules + middleware/ + shared/
+  rest/                 24 feature modules + middleware/ + shared/
     auth/               Login, register, Google OAuth
     email/              Gmail email sending + drafts (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
@@ -73,7 +73,8 @@ src/
     notifications/      SSE notification stream
     peda/               Péda: drafts, alternants, sessions, SA (séquences), ruptures (see scheduler/)
     emargement/         Péda: feuilles d'émargement — staff séances + assiduité + exports (§8) + lien formateur / QR alternant publics
-    formateurs/         Péda: annuaire des formateurs — fiches, statistiques d'heures, journal des saisies et notes
+    formateurs/         Péda: annuaire des formateurs — fiches, statistiques d'heures, journal des saisies et notes + gestion du compte de connexion à l'espace formateur
+    formateur/          Espace formateur (`FORMATEUR` only): `GET /me` — prochaine séance et compteurs, résolus par la session
     mailTemplates/      Mail templates CRUD
     sectorSettings/     Sector reference settings
     filiz/              Filiz ERP endpoints
@@ -162,6 +163,9 @@ into the companies server.
 | GET · POST | `/api/formateurs` | JWT (AD / GESTION / PEDA) | Trainer directory: list with per-fiche counters (séances, planned teaching hours, sessions) / create a fiche (`name` + `email` required, `phone` + `comment` optional) |
 | GET · PUT | `/api/formateurs/:id` | JWT (AD / GESTION / PEDA) | One fiche: contacts, summary, séance history (with per-séance hours and validation state) and append-only change/note journal / update — only changed fields are journalled, duplicate e-mail → 409 `email` |
 | POST | `/api/formateurs/:id/notes` | JWT (AD / GESTION / PEDA) | Append a free-text Peda note to the fiche journal (`{note}`, never editable) |
+| DELETE | `/api/formateurs/:id` | JWT (AD / GESTION / PEDA) | Delete the fiche: its `FORMATEUR` account is soft-deleted (sessions revoked), séances are unlinked (`formateur_id → null`, e-mail fallback resumes) and the journal is kept; 204 |
+| POST · PUT · DELETE | `/api/formateurs/:id/account` | JWT (AD / GESTION / PEDA) | Login account of the fiche (`users` row, role `FORMATEUR`, permission `EMPLOYEE`): create (`{password}`, min 12 chars + lower + upper + digit) / reset the password (revokes every refresh token of the account) / revoke access (soft delete, the fiche stays) |
+| GET | `/api/formateur/me` | JWT (`FORMATEUR` only) | Formateur home: fiche resolved from the session (`req.user.id`, never a client-supplied id), next séance (today included, tenant timezone) and upcoming/past séance counters. A `FORMATEUR` token is refused (403) on every staff route — `authenticate()` only lists staff roles, `authenticateAny()` opens `/api/auth/me` and `/api/auth/logout` to both families — and rejected outright by the four GraphQL servers (`jwtContext`) and by MCP (`mcpAuth`, OAuth consent), where a permission-only guard would otherwise grant `EMPLOYEE`-level access |
 | GET | `/api/emargement/formateur/:token` | Link token | Formateur sheet: alternants, statuses, QR link, per-half validation state — rate-limited |
 | PUT | `/api/emargement/formateur/:token/attendance` | Link token | Set one alternant status for a half-day (manual entry, allowed outside the signing window) — refused with 409 `signed` once that half-day is validated |
 | POST | `/api/emargement/formateur/:token/attendance/sign` | Link token | Learner handwritten signature drawn on the formateur's device (PNG data-URL) → `signatureMode: 'handwritten'`; allowed while that half-day is editable |

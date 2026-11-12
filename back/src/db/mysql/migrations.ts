@@ -721,6 +721,11 @@ export async function runMysqlMigrations(
     // Rôle guest JWT (2026-08-27) : identifie les sessions externes signées.
     await dbQuery("INSERT IGNORE INTO roles (id, name) VALUES (6, 'EXTERNAL_GUEST')");
 
+    // Rôle formateur (2026-11-12) : intervenant externe, accès au seul espace
+    // `/formateur`. mysql-init.sql ne joue que sur un volume neuf — cette ligne
+    // est aussi rejouée sur la base annemasse (runMysqlMigrations y tourne).
+    await dbQuery("INSERT IGNORE INTO roles (id, name) VALUES (7, 'FORMATEUR')");
+
     // Ajout des colonnes role_id / permission_id si absentes.
     const roleIdCol = await dbQuery<{ count: number }[]>(
         "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role_id'",

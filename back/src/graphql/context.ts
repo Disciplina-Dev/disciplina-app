@@ -4,6 +4,7 @@ import { isCsrfValid } from '../rest/middleware/csrf';
 import { env } from '../config/env';
 import { syncWithRegion } from '../db/tenant';
 import { isRegion } from '../types/tenant';
+import { JobRole } from '../types/user.types';
 
 export async function jwtContext({ req }: { req: any }) {
     const token = req.cookies?.[ACCESS_TOKEN_COOKIE];
@@ -11,6 +12,12 @@ export async function jwtContext({ req }: { req: any }) {
 
     const user = verifyAccessToken(token);
     if (!user) return { user: null };
+
+    // Un formateur est un contact externe : son jeton n'ouvre aucun des quatre
+    // serveurs GraphQL. `authGuard` accorde EMPLOYEE au niveau de permission le
+    // plus bas, et le rôle n'y est qu'un secours — sans ce refus explicite, un
+    // compte formateur lirait candidats, entreprises et analyses de besoin.
+    if (user.role === JobRole.FORMATEUR) return { user: null };
 
     // Toute requête GraphQL est un POST : la vérif CSRF s'applique dès qu'un
     // cookie d'auth est présent (double-submit cookie, cf. rest/middleware/csrf.ts).

@@ -14,8 +14,14 @@ formateur du Peda.
 
 > **Nature du document.** C'est un audit **avant réalisation** : il constate l'existant, mesure
 > l'écart avec la demande, propose une architecture et liste les décisions à arbitrer. Aucun code
-> n'est modifié. Contrairement à `AUDIT_EMARGEMENT.md`, il n'y a pas encore de « journal des lots » :
-> cette section s'ouvrira au premier lot livré.
+> n'est modifié. Contrairement à `AUDIT_EMARGEMENT.md`, il n'y avait pas encore de « journal des
+> lots » : il est **ouvert au §11** depuis le premier lot livré.
+>
+> **Mise à jour du 2026-11-12.** Le lot 1 (identité + coquille + accueil) est livré, et **D1 a été
+> inversée** : l'identité passe par un **compte `users` avec `JobRole.FORMATEUR`** (option B), pas
+> par une signature portée par la fiche. Les §3.1 et §5.1 décrivent encore l'option A : elles sont
+> conservées comme trace de l'arbitrage, la conception retenue est au **§3.1 bis** et le détail du
+> lot au **§11**.
 
 > **Verdict.** La demande est **réalisable sans refonte**, mais elle bute sur un point qui n'existe
 > pas encore : **le formateur n'a aucune identité applicative**. Aujourd'hui il ne possède qu'un
@@ -118,21 +124,25 @@ connexion**.
 
 | # | Exigence | État | Socle existant | Manque |
 |---|---|---|---|---|
-| 1 | Identité formateur (accès à un espace personnel) | ❌ ABSENT | Motif guest + révocation (`external_access`) | Signature sur la fiche, e-mail d'accès, session longue, refresh, révocation, journal de connexion |
-| 2 | « Prochain créneau » | ⚠️ PARTIEL | `findByFormateur`, dates locales | Endpoint « prochaine séance », page d'accueil, lien émargement |
+| 1 | Identité formateur (accès à un espace personnel) | ⚠️ PARTIEL (lot 1) | Compte `users` `JobRole.FORMATEUR` (id 7), login mot de passe, cookies staff, refresh tokens ; espace `/formateur` + `GET /api/formateur/me` ; gestion du compte depuis la fiche Peda | Session longue dédiée côté formateur (aujourd'hui : cookies staff partagés, 15 min + refresh), cookies dédiés, journal de connexion |
+| 2 | « Prochain créneau » | ⚠️ PARTIEL (lot 1) | `findByFormateur`, dates locales ; `GET /api/formateur/me` renvoie la prochaine séance (aujourd'hui inclus, fuseau du tenant) et les compteurs, affichés sur `/formateur` | Lien d'émargement depuis l'espace, vue détaillée du créneau |
 | 3 | Calendrier des séances | ⚠️ PARTIEL | Séances datées ; grille mois existante côté Peda (Google) | Vue calendrier locale (pas Google), agrégation séances + indispos |
 | 4 | Indisponibilités déclarées par le formateur | ❌ ABSENT | — | Collection, CRUD, UI calendrier |
 | 5 | Blocage de l'affectation sur un jour indisponible | ❌ ABSENT | `resolveForSeance`, formulaire de séance | Contrôle serveur à la création **et** à la modification, retour 409, contournement Peda journalisé |
 | 6 | « Mes séances » filtrable (passées / à venir) | ⚠️ PARTIEL | Liste complète des séances de la fiche | Endpoint filtré/paginé, onglets, filtres date/session, lien émargement |
 | 7 | « Mes documents » sur Drive | ❌ ABSENT | `GoogleDriveService` complet, `multer` | Métadonnées, upload/download proxifiés, quotas, erreurs Drive |
 | 8 | Section Peda de liaison Drive | ❌ ABSENT | Motif « config en base » (`DriveFolderConfig`) | Choix du compte de stockage, navigation des dossiers, test, alerte de reconnexion |
-| 9 | Lien avec la fiche formateur Peda | ✅ FAIT (socle) | Fiche + stats + journal | Ajout des indispos, documents, accès, prochaine séance, boutons « envoyer/révoquer l'accès » |
+| 9 | Lien avec la fiche formateur Peda | ✅ FAIT (socle) | Fiche + stats + journal | Ajout des indispos, documents, accès (le bloc « accès » est livré au lot 1), prochaine séance, boutons « envoyer/révoquer l'accès » |
 
 ---
 
 ## 3. Détail par exigence
 
 ### 3.1 Identité — **écart majeur**
+
+> ⚠️ **Section historique.** L'option A ci-dessous a été écartée le 2026-11-12 au profit de
+> l'option B (voir **§3.1 bis** et la décision D1 au §6). Elle reste ici pour garder la trace de
+> l'arbitrage.
 
 Trois options ont été évaluées.
 
@@ -173,6 +183,44 @@ pas** (15 min, pas de refresh). Il faut :
 La région ne peut pas être relue depuis l'URL (l'espace n'a pas de signature dans le chemin) : elle
 doit donc être **embarquée dans le JWT** et synchronisée par le middleware, sur le modèle de
 `authenticate()` (`isRegion(payload.region)`).
+
+### 3.1 bis Identité — **conception retenue (option B, lot 1)**
+
+Le formateur est un **compte `users` ordinaire** avec un rôle dédié, comme l'option B le proposait.
+Le raisonnement qui a fait basculer D1 :
+
+- l'exploitant veut **gérer les accès depuis la fiche** et **transmettre les identifiants** : un mot
+  de passe réinitialisable en un clic est plus simple à opérer qu'un lien magique à renvoyer et à
+  faire expirer ;
+- le socle `UserService` (bcrypt, rotation des refresh tokens, CSRF, `authGuardRole`) est déjà audité
+  et testé — l'option A aurait dupliqué cette mécanique (sessions, cookie dédié, middleware, page
+  d'échange) pour un bénéfice incertain ;
+- les deux objections de l'option B sont traitées explicitement : le rôle est **exclu de
+  l'annuaire** (`UserService.findAll` filtre `FORMATEUR`, donc `/api/auth/users`,
+  `/api/auth/directory` et l'annuaire MCP) et **aucune route staff ne l'accepte** — `authenticate()`
+  ne liste que les rôles staff, `authenticateAny()` n'ouvre que `/api/auth/me`, `/api/auth/logout`
+  et `/api/formateur/*` — et les **serveurs GraphQL** (`jwtContext`) comme **MCP** (`mcpAuth`,
+  consentement OAuth) le refusent explicitement : leurs gardes raisonnent d'abord en permission, et
+  `EMPLOYEE` y ouvrirait tout le CRM.
+
+Mise en œuvre :
+
+- `JobRole.FORMATEUR` (`roles.id = 7`, seedé dans `mysql-init.sql` **et** `migrations.ts`),
+  permission `EMPLOYEE` ;
+- compte créé depuis `POST /api/formateurs/:id/account` avec l'e-mail de la fiche (normalisé) et le
+  nom scindé au premier espace (`first_name` / `last_name`) ; e-mail renommé ou mot de passe
+  réinitialisé depuis la même fiche, sessions révoquées à chaque réinitialisation ;
+- `formateurs.user_id` porte le lien fiche ↔ compte (index non unique, unicité tenue par le
+  service) ; un compte sans fiche reçoit 403 `no_formateur`, et l'espace résout toujours la fiche
+  par `req.user.id`, jamais par un identifiant reçu du client ;
+- suppression d'un compte = soft delete `users` + révocation des sessions ; l'adresse reste occupée,
+  donc `UserService.register` **réactive** la ligne supprimée au lieu de buter sur l'unicité ;
+- suppression d'une fiche = compte désactivé, `seances.formateur_id` remis à `null` (le rattachement
+  par e-mail reprend la main), journal `formateur_history` conservé, entrée `formateur_deleted`.
+
+Reste ouvert de l'option A, à reprendre si le besoin apparaît : **cookies dédiés** (B3, un formateur
+et un staff sur le même navigateur se marchent aujourd'hui dessus), journal de connexion, révocation
+globale « tous les appareils » en un clic (la réinitialisation de mot de passe la réalise de fait).
 
 ### 3.2 Prochain créneau et 3.6 Mes séances
 
@@ -321,6 +369,9 @@ sans nouveau mécanisme de journal.
 
 ### 5.1 Identité et sessions
 
+> ⚠️ **Non retenu.** Décrit l'option A ; la conception livrée est celle du **§3.1 bis** (compte
+> `users` + `JobRole.FORMATEUR`, cookies staff existants) et du **§11**.
+
 ```
 Peda : POST /api/formateurs/:id/access        → génère/renouvelle access_signature, envoie l'e-mail
 Formateur : GET  /formateur/acces?sig=…       → page d'atterrissage (route publique)
@@ -447,10 +498,16 @@ Nouvelle organisation de `/peda/formateurs/:id` :
 
 > **Acté le 2026-11-06** : **D1 = signature sur la fiche** (pas de compte `users`) et **D3 = blocage
 > + override Peda journalisé**. Ces deux décisions ferment le chemin critique de L1 et L3.
+>
+> **Révision du 2026-11-12** : **D1 est inversée → option B (compte `users` avec
+> `JobRole.FORMATEUR`)**. Motifs : gestion des accès depuis la fiche Peda, identifiants transmis et
+> réinitialisés par l'exploitant, réutilisation du socle d'authentification existant ; les deux
+> écarts redoutés (annuaire staff, routes staff) sont fermés par `UserService.findAll` et par
+> `authenticate`/`authenticateAny`. D3 reste inchangée.
 
 | # | Question | Options | Recommandation |
 |---|---|---|---|
-| D1 | Identité du formateur | A. signature sur la fiche · B. compte `users` avec `JobRole.FORMATEUR` | **✅ A acté** (§3.1) |
+| D1 | Identité du formateur | A. signature sur la fiche · B. compte `users` avec `JobRole.FORMATEUR` | **✅ B acté le 2026-11-12** (§3.1 bis, §11) — A abandonnée |
 | D2 | Cookies | partagés `disc_at` · dédiés `disc_fat` | **dédiés** (isolation staff/guest) |
 | D3 | Indisponibilité : blocage ou avertissement | blocage strict · avertissement + override journalisé | **✅ blocage + override Peda journalisé** |
 | D4 | Granularité | journée · demi-journée | **journée** (conforme à la demande) ; demi-journée en option ultérieure |
@@ -492,6 +549,10 @@ Nouvelle organisation de `/peda/formateurs/:id` :
 Chemin critique : **L1 → L3** (l'indisponibilité n'a de sens qu'avec une identité) et
 **L4 → L5** (pas de documents sans destination). L2 peut avancer en parallèle de L4.
 
+> **Avancement.** **L1 est livré** sous une forme réduite (compte `users` au lieu de la signature
+> d'accès, cookies staff au lieu de cookies dédiés) : voir le journal des lots au **§11**. Les lots
+> L2 à L6 restent à faire.
+
 ---
 
 ## 9. Impacts documentation, tests et conventions
@@ -527,13 +588,66 @@ nommés, types domaine Mongo en snake_case, colonnes MySQL en double (`mysql-ini
 - **Gestion des remplacements** (proposer un autre formateur disponible en cas de conflit).
 - **Signature électronique des interventions** (contrats, conventions).
 - **Application mobile native** : l'espace est web, responsive.
-- **MFA** pour les formateurs : improbable à court terme, le lien magique en tient lieu.
+- **MFA** pour les formateurs : improbable à court terme ; le mot de passe de 12 caractères en tient
+  lieu.
 - **Exposition MCP** des documents ou indisponibilités : aucun besoin exprimé, et toute exposition
   imposerait le passage par `pedaExposure.ts`.
 
 ---
 
+## 11. Journal des lots
+
+### Lot 1 — Identité, coquille et accueil (#1185, livré le 2026-11-12)
+
+**Périmètre livré** — une version réduite de L1 : l'identité repose sur un compte `users` (D1
+inversée) et la coquille se limite à un accueil, sans calendrier, documents ni indisponibilités.
+
+| Domaine | Livré |
+|---|---|
+| Base | `roles` id 7 `FORMATEUR` (`mysql-init.sql` + `INSERT IGNORE` dans `migrations.ts`) ; `formateurs.user_id` (index non unique) |
+| Backend auth | `JobRole.FORMATEUR` ; `authenticateWith` refactoré, `authenticate` reste staff-only, `authenticateAny` pour `/api/auth/me` et `/api/auth/logout` ; refus explicite du rôle dans `jwtContext` (GraphQL) et `mcpAuth` + consentement OAuth (MCP), dont les gardes raisonnent d'abord en permission |
+| Backend comptes | `UserService.register` (réactivation d'une ligne soft-deleted sur le même e-mail), `revokeAllSessions`, `passwordPolicyViolations` exporté, `findAll` exclut les formateurs |
+| Backend fiche | `FormateurService.createAccount` / `resetAccountPassword` / `deleteAccount` / `remove`, synchro e-mail + `first_name`/`last_name`, `dashboardForUser` ; `FormateurRepository.findByUserId`/`delete`, `SeanceRepository.unlinkFormateur` |
+| Backend routes | `DELETE /api/formateurs/:id`, `POST · PUT · DELETE /api/formateurs/:id/account`, `GET /api/formateur/me` (`authenticateAny` + `requireRoles('FORMATEUR')`) |
+| Journal fiche | actions `formateur_deleted`, `account_created`, `account_password_reset`, `account_deleted` |
+| Front | `UserRole.FORMATEUR`, redirection login, `ProtectedRoute` (blocage dur + repli), `FormateurLayout`, `pages/formateur/DashboardFormateur.tsx`, `api/formateurApp.ts`, arbre `/formateur`, carte d'accès + zone de suppression sur `FicheFormateur` |
+| Tests | `rest/formateurs/__tests__/formateurAccount.test.ts` (8 tests : création, mot de passe faible, unicité, synchro e-mail/nom, exclusion de l'annuaire, cloisonnement, tableau de bord, cycle de vie) |
+| Docs | `CHANGELOG.md` + copie front, `mongo-schema.md`, `RGPD.md`, `E2E.md` §3.14 sexies, `back/README.md`, `front/disciplina-front/README.md` |
+
+**Décisions prises pendant le lot**
+
+- Le mot de passe est **saisi par le Peda** et transmis hors application (pas d'e-mail d'invitation
+  dans ce lot) ; la réinitialisation révoque toutes les sessions du compte.
+- `formateurs.user_id` n'est **pas** unique en base : Mongo n'accepte qu'un seul `null` par index
+  unique non sparse. L'unicité est tenue par `createAccount` (409 `account_exists`).
+- La suppression d'une fiche **conserve** `formateur_history` et **délie** les séances ; sans cela
+  elles garderaient un `formateur_id` orphelin invisible des compteurs.
+- Les formateurs sont **exclus de `UserService.findAll`** plutôt que filtrés dans chaque appelant :
+  `/api/auth/users`, `/api/auth/directory` et l'annuaire MCP se corrigent d'un coup.
+- Le rôle est **refusé explicitement** par `jwtContext` et par `mcpAuth` (et par le consentement
+  OAuth MCP) : ces gardes accordent l'accès sur la permission avant le rôle, si bien qu'un compte
+  `EMPLOYEE` aurait lu tout le CRM malgré son rôle. Le mot de passe d'un formateur ne peut pas non
+  plus servir à accorder un consentement MCP.
+- Le retour à la vie d'un compte supprimé est **limité aux comptes formateurs** : l'admin qui crée
+  un utilisateur sur une adresse déjà portée par un ancien collaborateur supprimé garde l'ancien
+  comportement (409), pour ne pas changer silencieusement l'identité et le rôle sous le même id.
+
+**Reste à faire (L1 complet et suites)**
+
+- Cookies dédiés au formateur (B3) : aujourd'hui un formateur et un staff sur le même navigateur se
+  déconnectent mutuellement ; l'audit recommande `disc_fat`/`disc_frt`/`disc_fcsrf`.
+- Journal de connexion formateur et bouton « déconnecter tous les appareils » explicite (la
+  réinitialisation de mot de passe le fait déjà, sans le dire).
+- L2 (mes séances paginées), L3 (calendrier + indisponibilités + blocage), L4/L5 (Drive + documents),
+  L6 (finitions).
+
+---
+
 ## Annexe — Fichiers à créer ou modifier
+
+> **État au 2026-11-12.** Le lot 1 n'a **pas** créé `FormateurAppService`, `formateurSession.schema`
+> ni `formateurAccessTemplate` : l'identité passe par `UserService` (voir §11). Les fichiers de la
+> liste restent la cible des lots L2 à L5.
 
 **Créer**
 

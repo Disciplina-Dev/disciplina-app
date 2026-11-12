@@ -1,23 +1,9 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
-import { logger } from '../../external/logger';
 import { FormateurService } from '../../services/FormateurService';
+import { sendError } from '../shared/sendError';
 
 const service = new FormateurService();
-
-/** Erreur métier (`status` posé par httpError) → 4xx + code ; le reste → 500 journalisé. */
-function sendError(res: Response, error: unknown, context: string): void {
-    const err = error as Error & { status?: number; code?: string };
-    if (typeof err.status === 'number' && err.status < 500) {
-        res.status(err.status).json({ error: err.message, code: err.code });
-        return;
-    }
-    logger.error({ err: error }, context);
-    res.status(typeof err.status === 'number' ? err.status : 500).json({
-        error: 'Une erreur interne est survenue',
-        code: err.code ?? 'internal',
-    });
-}
 
 export async function list(_req: AuthRequest, res: Response): Promise<void> {
     try {
@@ -56,5 +42,38 @@ export async function addNote(req: AuthRequest, res: Response): Promise<void> {
         res.status(201).json({ formateur: await service.addNote(String(req.params.id), req.body, req.user?.id) });
     } catch (error) {
         sendError(res, error, 'Formateur note failed');
+    }
+}
+
+export async function createAccount(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        res.status(201).json({ formateur: await service.createAccount(String(req.params.id), req.body, req.user.id) });
+    } catch (error) {
+        sendError(res, error, 'Formateur account creation failed');
+    }
+}
+
+export async function resetAccountPassword(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        res.json({ formateur: await service.resetAccountPassword(String(req.params.id), req.body, req.user.id) });
+    } catch (error) {
+        sendError(res, error, 'Formateur password reset failed');
+    }
+}
+
+export async function deleteAccount(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        res.json({ formateur: await service.deleteAccount(String(req.params.id), req.user.id) });
+    } catch (error) {
+        sendError(res, error, 'Formateur account deletion failed');
+    }
+}
+
+export async function remove(req: AuthRequest, res: Response): Promise<void> {
+    try {
+        await service.remove(String(req.params.id), req.user.id);
+        res.status(204).end();
+    } catch (error) {
+        sendError(res, error, 'Formateur deletion failed');
     }
 }

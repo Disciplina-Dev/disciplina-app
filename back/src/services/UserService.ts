@@ -22,6 +22,7 @@ const ROLE_TO_ID: Record<JobRole, number> = {
     [JobRole.PEDA]: 3,
     [JobRole.AD]: 4,
     [JobRole.GESTION]: 5,
+    [JobRole.FORMATEUR]: 7,
 };
 
 const PERMISSION_TO_ID: Record<Permission, number> = {
@@ -43,6 +44,14 @@ function passwordViolations(password: string): string[] {
     if (!/[A-Z]/.test(password)) violations.push('une majuscule');
     if (!/[0-9]/.test(password)) violations.push('un chiffre');
     return violations;
+}
+
+/**
+ * Règles de mot de passe communes à tous les comptes créés par le staff
+ * (`users`, comptes formateurs). Renvoie les manques, vide si conforme.
+ */
+export function passwordPolicyViolations(password: string): string[] {
+    return passwordViolations(password);
 }
 
 /** Convertit un JobRole enum en id base. */
@@ -99,6 +108,16 @@ export class UserService {
         return row ? this.decryptUserTokens(toUser(row)) : null;
     }
 
+    /**
+     * Recherche par e-mail, comptes supprimés compris. Une suppression étant un
+     * soft delete, l'adresse reste occupée par la contrainte d'unicité : c'est ce
+     * contrôle-là qu'il faut interroger avant de réutiliser une adresse.
+     */
+    async findByEmailIncludingDeleted(email: string): Promise<User | null> {
+        const row = await this.userRepository.findByEmailIncludingDeleted(email);
+        return row ? toUser(row) : null;
+    }
+
     async findById(id: number): Promise<User | null> {
         const row = await this.userRepository.findById(id);
         return row ? this.decryptUserTokens(toUser(row)) : null;
@@ -119,9 +138,17 @@ export class UserService {
         });
     }
 
+    /**
+     * Annuaire **staff** : les comptes formateurs en sont exclus. Ils vivent sur
+     * `users` (connexion par mot de passe, rotation de refresh token) mais ne
+     * sont pas des collègues : ils se gèrent depuis la fiche formateur du Peda,
+     * pas depuis l'administration des utilisateurs ni l'annuaire d'affichage.
+     */
     async findAll(): Promise<User[]> {
         const rows = await this.userRepository.findAll();
-        return rows.map((user: UserRow) => this.decryptUserTokens(toUser(user)));
+        return rows
+            .map((user: UserRow) => this.decryptUserTokens(toUser(user)))
+            .filter((user) => user.role !== JobRole.FORMATEUR);
     }
 
     /** Met à jour les secteurs assignés à un user (valeurs filtrées en amont). */
@@ -242,6 +269,34 @@ export class UserService {
         }
 
         const hashedPassword = await bcrypt.hash(passwordPlain, SALT_ROUNDS);
+        const flatSectors = sectors && sectors.length > 0 ? JSON.stringify(sectors) : null;
+
+        // `users.email` est unique et une suppression est un soft delete : la
+        // ligne d'un compte supprimé occupe encore l'adresse. On la réactive
+        // (nouvelle identité, nouveau mot de passe) au lieu de buter sur la
+        // contrainte — c'est le cas d'un formateur recréé après suppression.
+        const restored = await this.userRepository.findByEmailIncludingDeleted(email);
+        if (restored) {
+            // On ne réactive que le compte supprimé d'un formateur, pour une
+            // nouvelle création de compte formateur (fiche recréée) : ressusciter
+            // la ligne d'un ancien collaborateur changerait son identité et son
+            // rôle sous le même id, sans que l'admin l'ait demandé.
+            if (roleId !== ROLE_TO_ID[JobRole.FORMATEUR] || restored.role_id !== roleId) {
+                throw new Error('User already exists');
+            }
+            await this.userRepository.restore(restored.id, {
+                email,
+                first_name: firstName,
+                last_name: lastName,
+                password: hashedPassword,
+                role_id: roleId,
+                permission_id: permissionId,
+            });
+            const revived = await this.userRepository.findById(restored.id);
+            if (!revived) throw new Error('Failed to create user');
+            logger.info({ userId: restored.id, roleId }, 'User: compte supprimé réactivé');
+            return toUser(revived);
+        }
 
         const userToCreate: Omit<UserRow, 'id'> = {
             email,
@@ -250,7 +305,7 @@ export class UserService {
             password: hashedPassword,
             role_id: roleId,
             permission_id: permissionId,
-            sectors: sectors && sectors.length > 0 ? JSON.stringify(sectors) : null,
+            sectors: flatSectors,
             oauth_token: null,
             refresh_token: null,
         };
@@ -262,6 +317,15 @@ export class UserService {
         }
 
         return toUser(created);
+    }
+
+    /**
+     * Révoque toutes les sessions d'un compte (tous appareils). Utilisé quand un
+     * mot de passe est réinitialisé par un tiers : la session volée doit mourir
+     * avec l'ancien secret.
+     */
+    async revokeAllSessions(userId: number): Promise<void> {
+        await this.refreshTokenRepository.revokeAllForUser(userId);
     }
 
     async login(

@@ -410,21 +410,22 @@ Annuaire des formateurs du Peda (#955). Une fiche par intervenant, partagée par
 | `email` | string | required, unique — normalisé en minuscules ; clé de rattachement des séances antérieures à l'annuaire |
 | `phone` | string \| null | téléphone libre (≤ 40 car.) |
 | `comment` | string \| null | commentaire libre du Peda (≤ 2 000 car.) |
+| `user_id` | number \| null | `users.id` (MySQL) du compte de connexion rattaché (`JobRole.FORMATEUR`) ; `null` = fiche sans accès. Unicité tenue par `FormateurService.createAccount` (pas d'index unique : Mongo n'accepte qu'un seul `null` par index unique non sparse) |
 | `created_by` | number \| null | `users.id` (MySQL) de l'auteur de la création |
 | `created_at`, `updated_at` | Date | |
 
-`{ email: 1 }` — unique ; `{ name: 1 }` — tri de l'annuaire.
+`{ email: 1 }` — unique ; `{ name: 1 }` — tri de l'annuaire ; `{ user_id: 1 }` — résolution de l'espace formateur (`GET /api/formateur/me`).
 
 ## Collection: formateur_history
 
-Journal d'une fiche formateur : **append-only**, une ligne par événement (création, modification, note Peda). Aucune entrée n'est modifiée ni supprimée.
+Journal d'une fiche formateur : **append-only**, une ligne par événement (création, modification, note Peda, gestion du compte de connexion). Aucune entrée n'est modifiée ni supprimée — le journal survit à la suppression de la fiche.
 
 | Field | Type | Notes |
 |-------|------|-------|
 | `_id` | string | UUID |
 | `formateur_id` | string | required, indexé avec `at` |
-| `action` | enum | `formateur_created` \| `formateur_updated` \| `note` |
-| `changes` | array | diff des champs modifiés (`formateur_updated`) : `{ field: 'name' \| 'email' \| 'phone' \| 'comment', from, to }` ; vide pour une création ou une note |
+| `action` | enum | `formateur_created` \| `formateur_updated` \| `note` \| `formateur_deleted` \| `account_created` \| `account_password_reset` \| `account_deleted` |
+| `changes` | array | diff des champs modifiés (`formateur_updated`) : `{ field: 'name' \| 'email' \| 'phone' \| 'comment', from, to }` ; vide pour une création, une note ou une action de compte |
 | `note` | string \| null | texte libre d'une note Peda (≤ 2 000 car.) |
 | `actor_id`, `actor_name` | number / string \| null | auteur de l'action (`users.id` + nom au moment de l'action) |
 | `at` | Date | horodatage serveur |
@@ -450,7 +451,7 @@ Journal d'une fiche formateur : **append-only**, une ligne par événement (cré
 | `site` | string | required — `Nord` \| `Ouest` \| `Sud` \| `Annemasse` |
 | `mode` | string | required — `salle` \| `distanciel` |
 | `formateur_name`, `formateur_email` | string | required — snapshot au moment de la séance (la feuille reste lisible si l'annuaire change) |
-| `formateur_id` | string \| null | `formateurs._id` de la fiche liée ; `null` sur les séances antérieures à l'annuaire, qui restent rattachées aux statistiques par `formateur_email` normalisé. Indexé avec `date` |
+| `formateur_id` | string \| null | `formateurs._id` de la fiche liée ; `null` sur les séances antérieures à l'annuaire, qui restent rattachées aux statistiques par `formateur_email` normalisé, et sur les séances déliées par la suppression d'une fiche (le rattachement par e-mail reprend alors la main). Indexé avec `date` |
 | `morning_start`, `morning_end` | string | required — fenêtre de signature du matin, bornée à sa demi-journée de cours (`morning_class_start` ≤ `morning_start` < `morning_end` ≤ `morning_class_end`) |
 | `afternoon_start`, `afternoon_end` | string \| null | fenêtre de signature de l'après-midi : mêmes bornes, et obligatoirement accompagnée des horaires de cours de l'après-midi (`null` = séance sans après-midi) |
 | `timezone` | string | required — fuseau IANA du tenant au moment de la création |

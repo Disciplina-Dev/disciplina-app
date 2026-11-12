@@ -410,13 +410,21 @@ The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table 
 
 ### Role-based access
 
-- Four roles: `ADMIN`, `RESPONSABLE`, `COMMERCIAL`, `RH` (or `ENTREPRISE` in some frontend code)
-- `ADMIN` role bypasses all role checks
+- Five job roles: `COMMERCIAL`, `RH`, `PEDA`, `AD`, `GESTION`, plus `FORMATEUR` (`roles.id = 7`) —
+  an **external contact**, never staff: no permission beyond `EMPLOYEE`, no entry in
+  `/api/auth/users`, `/api/auth/directory` or the MCP directory (`UserService.findAll` filters it).
+- `ADMIN` permission bypasses all role checks (permission level), not `JobRole.AD`.
 - GraphQL: `authGuard(context.user, [Role.XXX])` at resolver level (call at the very first line of each protected resolver)
 - REST: inline checks like `if (req.user?.role !== 'ADMIN')` before executing protected logic, or
   the `requireRoles(...roles)` middleware from `rest/middleware/roleGuard.ts` chained after
   `authenticate` (e.g. `[authenticate, requireRoles('ADMIN', 'RESPONSABLE')]` — see
   `rest/kpi/route.ts`)
+- Two auth middlewares: `authenticate` (staff roles only — a `FORMATEUR` token gets 403, which is
+  what every staff route wants) and `authenticateAny` (staff + `FORMATEUR`, for `/api/auth/me`,
+  `/api/auth/logout` and `rest/formateur/`). Anything opened by `authenticateAny` must chain
+  `requireRoles` to close the perimeter. `jwtContext` (GraphQL) and `mcpAuth` refuse the
+  `FORMATEUR` role outright: a permission-only guard would otherwise grant it `EMPLOYEE`-level
+  access to the whole CRM.
 
 ### Candidate consent checks
 

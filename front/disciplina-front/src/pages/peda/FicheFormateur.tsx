@@ -1,21 +1,33 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  IconAlert,
   IconArrowLeft,
   IconClock,
   IconEdit,
   IconHistory,
+  IconKey,
   IconLoader,
+  IconLock,
   IconMail,
   IconPhone,
   IconSignature,
   IconTraining,
+  IconTrash,
   IconUser,
 } from '@/components/ui/icons'
-import { addFormateurNote, fetchFormateur } from '@/api/formateurs'
+import {
+  addFormateurNote,
+  createFormateurAccount,
+  deleteFormateur,
+  deleteFormateurAccount,
+  fetchFormateur,
+  resetFormateurPassword,
+} from '@/api/formateurs'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card, { CardHeader } from '@/components/ui/Card'
+import PasswordInput from '@/components/ui/PasswordInput'
 import FormateurModal from '@/components/peda/FormateurModal'
 import { formatDay, formatMinutes, formatTimestamp, VALIDATION_LABELS, VALIDATION_TONES } from '@/utils/emargement'
 import type { FormateurChangeField, FormateurDetail, FormateurHistoryEntry } from '@/types/formateur'
@@ -31,12 +43,20 @@ const ACTION_LABELS: Record<FormateurHistoryEntry['action'], string> = {
   formateur_created: 'Fiche créée',
   formateur_updated: 'Fiche modifiée',
   note: 'Note du Peda',
+  formateur_deleted: 'Fiche supprimée',
+  account_created: 'Accès créé',
+  account_password_reset: 'Mot de passe réinitialisé',
+  account_deleted: 'Accès retiré',
 }
 
-const ACTION_TONES: Record<FormateurHistoryEntry['action'], 'success' | 'accent' | 'purple'> = {
+const ACTION_TONES: Record<FormateurHistoryEntry['action'], 'success' | 'accent' | 'purple' | 'danger'> = {
   formateur_created: 'success',
   formateur_updated: 'accent',
   note: 'purple',
+  formateur_deleted: 'danger',
+  account_created: 'success',
+  account_password_reset: 'accent',
+  account_deleted: 'danger',
 }
 
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
@@ -77,6 +97,15 @@ export default function FicheFormateur() {
   const [note, setNote] = useState('')
   const [noteError, setNoteError] = useState<string | null>(null)
   const [savingNote, setSavingNote] = useState(false)
+  // Compte de connexion : `accountMode` ouvre soit le formulaire de mot de passe
+  // (création ou réinitialisation), soit l'étape de retrait de l'accès.
+  const [accountPassword, setAccountPassword] = useState('')
+  const [accountMode, setAccountMode] = useState<'idle' | 'password' | 'remove'>('idle')
+  const [accountError, setAccountError] = useState<string | null>(null)
+  const [accountSaving, setAccountSaving] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -112,6 +141,61 @@ export default function FicheFormateur() {
       setNoteError(err instanceof Error ? err.message : 'Ajout de la note impossible')
     } finally {
       setSavingNote(false)
+    }
+  }
+
+  /**
+   * Crée le compte de connexion, ou réinitialise son mot de passe. Une seule
+   * action côté API en moins : `POST` sans compte, `PUT` avec — le backend
+   * refuse de toute façon la mauvaise branche.
+   */
+  async function handleAccountPassword(event: React.FormEvent) {
+    event.preventDefault()
+    if (!formateur) return
+    if (accountPassword.length < 12) {
+      return setAccountError('Le mot de passe doit contenir au moins 12 caractères.')
+    }
+    const hasAccount = formateur.account.userId !== null
+    setAccountSaving(true)
+    setAccountError(null)
+    try {
+      const saved = hasAccount
+        ? await resetFormateurPassword(formateur.id, accountPassword)
+        : await createFormateurAccount(formateur.id, accountPassword)
+      setFormateur(saved)
+      setAccountPassword('')
+      setAccountMode('idle')
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : 'Enregistrement du mot de passe impossible')
+    } finally {
+      setAccountSaving(false)
+    }
+  }
+
+  async function handleRemoveAccount() {
+    if (!formateur) return
+    setAccountSaving(true)
+    setAccountError(null)
+    try {
+      setFormateur(await deleteFormateurAccount(formateur.id))
+      setAccountMode('idle')
+    } catch (err) {
+      setAccountError(err instanceof Error ? err.message : 'Retrait de l’accès impossible')
+    } finally {
+      setAccountSaving(false)
+    }
+  }
+
+  async function handleDeleteFormateur() {
+    if (!formateur) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await deleteFormateur(formateur.id)
+      navigate('/peda/formateurs')
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Suppression impossible')
+      setDeleting(false)
     }
   }
 
@@ -234,6 +318,138 @@ export default function FicheFormateur() {
                 </dd>
               </div>
             </dl>
+          </Card>
+
+          <Card>
+            <CardHeader
+              title="Accès à l’espace formateur"
+              description={
+                formateur.account.userId !== null
+                  ? 'Compte de connexion actif.'
+                  : 'Aucun compte : ce formateur n’a pas encore d’accès.'
+              }
+              actions={<IconLock width={18} height={18} className="text-[var(--ds-text-subtle)]" />}
+            />
+
+            {accountError && (
+              <p className="mb-3 rounded-[var(--radius-md)] bg-[var(--ds-danger-bg)] px-3 py-2 text-[12px] font-medium text-[var(--ds-danger)]">
+                {accountError}
+              </p>
+            )}
+
+            {/* Aucun compte : on le crée d'ici, avec l'e-mail de la fiche. */}
+            {formateur.account.userId === null && (
+              <form onSubmit={handleAccountPassword} className="space-y-2">
+                <p className="text-[13px] text-[var(--ds-text-muted)]">
+                  Le formateur se connectera sur la page d’accueil avec{' '}
+                  <span className="font-semibold text-[var(--ds-text)]">{formateur.email}</span>.
+                </p>
+                <PasswordInput
+                  id="formateur-account-password"
+                  label="Mot de passe"
+                  value={accountPassword}
+                  onChange={(event) => setAccountPassword(event.target.value)}
+                  autoComplete="new-password"
+                />
+                <p className="text-[12px] text-[var(--ds-text-subtle)]">
+                  12 caractères minimum, avec majuscule, minuscule et chiffre.
+                </p>
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm" isLoading={accountSaving} loadingLabel="Création">
+                    Créer le compte
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {formateur.account.userId !== null && (
+              <div className="space-y-3">
+                <p className="text-[13px] text-[var(--ds-text-muted)]">
+                  Connexion sur la page d’accueil avec{' '}
+                  <span className="font-semibold text-[var(--ds-text)]">{formateur.email}</span>.
+                </p>
+
+                {accountMode === 'password' && (
+                  <form onSubmit={handleAccountPassword} className="space-y-2">
+                    <PasswordInput
+                      id="formateur-account-new-password"
+                      label="Nouveau mot de passe"
+                      value={accountPassword}
+                      onChange={(event) => setAccountPassword(event.target.value)}
+                      autoComplete="new-password"
+                    />
+                    <p className="text-[12px] text-[var(--ds-text-subtle)]">
+                      12 caractères minimum, avec majuscule, minuscule et chiffre. Les appareils déjà
+                      connectés seront déconnectés.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setAccountMode('idle')
+                          setAccountPassword('')
+                          setAccountError(null)
+                        }}
+                      >
+                        Annuler
+                      </Button>
+                      <Button type="submit" size="sm" isLoading={accountSaving} loadingLabel="Enregistrement">
+                        Enregistrer
+                      </Button>
+                    </div>
+                  </form>
+                )}
+
+                {accountMode === 'remove' && (
+                  <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--ds-danger)]/40 bg-[var(--ds-danger-bg)] px-3 py-2.5">
+                    <p className="text-[12px] font-medium text-[var(--ds-danger)]">
+                      Retirer l’accès ferme immédiatement les sessions en cours. La fiche reste en place.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="ghost" onClick={() => setAccountMode('idle')}>
+                        Annuler
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={handleRemoveAccount}
+                        isLoading={accountSaving}
+                        loadingLabel="Retrait"
+                      >
+                        Retirer l’accès
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {accountMode === 'idle' && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      leftIcon={<IconKey width={15} height={15} />}
+                      onClick={() => {
+                        setAccountMode('password')
+                        setAccountError(null)
+                      }}
+                    >
+                      Mot de passe
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setAccountMode('remove')
+                        setAccountError(null)
+                      }}
+                    >
+                      Retirer l’accès
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           <Card>
@@ -388,6 +604,55 @@ export default function FicheFormateur() {
           </Card>
         </div>
       </div>
+
+      {/* Zone de suppression : la fiche et son compte d'accès disparaissent,
+          les séances gardent le nom et l'e-mail saisis au moment des faits. */}
+      <Card className="mt-6 border-[var(--ds-danger)]/40">
+        <CardHeader
+          title="Supprimer la fiche"
+          description="Le compte d’accès est désactivé, la fiche et ses rattachements sont retirés. Les feuilles d’émargement déjà signées restent intactes."
+          actions={<IconTrash width={18} height={18} className="text-[var(--ds-danger)]" />}
+        />
+        {deleteError && (
+          <p className="mb-3 rounded-[var(--radius-md)] bg-[var(--ds-danger-bg)] px-3 py-2 text-[12px] font-medium text-[var(--ds-danger)]">
+            {deleteError}
+          </p>
+        )}
+        {confirmDelete ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--ds-danger)]/40 bg-[var(--ds-danger-bg)] px-3 py-2.5">
+            <p className="flex items-center gap-2 text-[12px] font-medium text-[var(--ds-danger)]">
+              <IconAlert width={15} height={15} />
+              Confirmer la suppression de « {formateur.name} » ?
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={handleDeleteFormateur}
+                isLoading={deleting}
+                loadingLabel="Suppression"
+              >
+                Supprimer définitivement
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            size="sm"
+            variant="danger"
+            leftIcon={<IconTrash width={15} height={15} />}
+            onClick={() => {
+              setConfirmDelete(true)
+              setDeleteError(null)
+            }}
+          >
+            Supprimer la fiche
+          </Button>
+        )}
+      </Card>
 
       {editing && (
         <FormateurModal

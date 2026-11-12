@@ -38,6 +38,7 @@ import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
 import { router as formateursRouter } from './rest/formateurs/route';
+import { router as formateurRouter } from './rest/formateur/route';
 import { router as emargementRouter } from './rest/emargement/route';
 import { router as emargementPublicRouter } from './rest/emargement/public.route';
 import { router as questionnaireRouter } from './rest/questionnaire/route';
@@ -180,6 +181,7 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
     app.use('/api/formateurs', formateursRouter);
+    app.use('/api/formateur', formateurRouter);
     // Public d'abord : les liens formateur/QR ne doivent jamais passer par l'auth.
     app.use('/api/emargement', emargementPublicRouter);
     app.use('/api/emargement', emargementRouter);

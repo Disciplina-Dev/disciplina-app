@@ -11,7 +11,11 @@ import {
 import { Seance, SeanceMode, SeanceSite, SeanceValidationStatus } from '../types/emargement.types';
 import { plannedMinutesOfSeance, seanceValidationStatus } from './emargementHours';
 import { httpError } from './httpError';
-import { UserService } from './UserService';
+import { passwordPolicyViolations, permissionToId, roleToId, UserService } from './UserService';
+import { UserDeletionError, UserDeletionService } from './UserDeletionService';
+import { JobRole, Permission } from '../types/user.types';
+import { localDate } from '../utils/zonedTime';
+import { tenantTimezone } from '../config/tenant';
 
 const NAME_MAX = 120;
 const EMAIL_MAX = 200;
@@ -47,7 +51,22 @@ export interface FormateurDto {
     comment: string | null;
     createdAt: string;
     updatedAt: string;
+    /** Accès à l'espace formateur. `userId: null` = fiche sans compte. */
+    account: FormateurAccountDto;
     stats: FormateurStatsDto;
+}
+
+export interface FormateurAccountDto {
+    userId: number | null;
+}
+
+/** Accueil de l'espace formateur : la prochaine séance et deux compteurs. */
+export interface FormateurDashboardDto {
+    formateur: { id: string; name: string; email: string };
+    /** Première séance dont la date est aujourd'hui ou plus tard (fuseau du tenant). */
+    nextSeance: FormateurSeanceDto | null;
+    upcomingSeanceCount: number;
+    pastSeanceCount: number;
 }
 
 /** Une séance de l'historique d'un formateur. */
@@ -128,6 +147,29 @@ function toIso(value: Date | string): string {
     return new Date(value).toISOString();
 }
 
+/**
+ * `users` porte un prénom et un nom séparés, la fiche un nom libre. On coupe au
+ * premier espace : « Jean Dupont » → Jean / Dupont. Les noms composés restent
+ * entiers côté nom de famille.
+ */
+function splitName(name: string): { firstName: string; lastName: string } {
+    const parts = name.trim().split(/\s+/);
+    const firstName = parts.shift() ?? name.trim();
+    return { firstName, lastName: parts.join(' ') };
+}
+
+/** Mot de passe d'un compte formateur : mêmes règles que les comptes créés par un admin. */
+function requiredPassword(value: unknown): string {
+    if (typeof value !== 'string' || !value) {
+        throw httpError(400, 'validation', 'Le mot de passe est requis');
+    }
+    const violations = passwordPolicyViolations(value);
+    if (violations.length > 0) {
+        throw httpError(400, 'validation', `Mot de passe trop faible : il faut ${violations.join(', ')}.`);
+    }
+    return value;
+}
+
 function seanceDto(seance: Seance, now: Date): FormateurSeanceDto {
     return {
         id: seance._id,
@@ -196,6 +238,7 @@ export class FormateurService {
         private readonly history = new FormateurHistoryRepository(),
         private readonly seances = new SeanceRepository(),
         private readonly users = new UserService(),
+        private readonly userDeletion = new UserDeletionService(),
     ) {}
 
     /** Annuaire complet avec les compteurs de chaque fiche. */
@@ -245,6 +288,7 @@ export class FormateurService {
             email: data.email,
             phone: data.phone,
             comment: data.comment,
+            user_id: null,
             created_by: userId ?? null,
         });
         await this.record(formateur._id, 'formateur_created', [], null, userId);
@@ -259,11 +303,27 @@ export class FormateurService {
             if (existing && existing._id !== formateur._id) {
                 throw httpError(409, 'email', 'Un formateur utilise déjà cet e-mail');
             }
+            // Le compte de connexion porte le même e-mail : on refuse le
+            // changement s'il est déjà pris par un autre compte, avant d'écrire
+            // quoi que ce soit (sinon fiche et compte divergeraient). La
+            // recherche inclut les comptes supprimés : leur adresse reste
+            // occupée par la contrainte d'unicité de `users.email`.
+            if (formateur.user_id != null) {
+                const clash = await this.users.findByEmailIncludingDeleted(data.email);
+                if (clash && clash.id !== formateur.user_id) {
+                    throw httpError(409, 'email', 'Un compte utilise déjà cet e-mail');
+                }
+            }
         }
 
         const changes = this.diff(formateur, data);
         if (changes.length > 0) {
             await this.formateurs.update(formateur._id, data);
+            // Le compte de connexion suit la fiche : même e-mail, mêmes nom et prénom.
+            if (formateur.user_id != null && (data.email !== formateur.email || data.name !== formateur.name)) {
+                const { firstName, lastName } = splitName(data.name);
+                await this.users.updateUser(formateur.user_id, { email: data.email, firstName, lastName });
+            }
             await this.record(formateur._id, 'formateur_updated', changes, null, userId);
         }
         return this.get(formateur._id);
@@ -276,6 +336,119 @@ export class FormateurService {
         if (!note) throw httpError(400, 'validation', 'La note est requise');
         await this.record(formateur._id, 'note', [], note, userId);
         return this.get(formateur._id);
+    }
+
+    // ── Compte de connexion (espace formateur) ──────────────────────────
+    //
+    // Le formateur se connecte par la page de login comme le staff, mais son
+    // compte est créé, réinitialisé et supprimé depuis la fiche : il n'apparaît
+    // ni dans l'administration des utilisateurs, ni dans l'annuaire.
+
+    /** Crée le compte `users` (rôle FORMATEUR, permission EMPLOYEE) de la fiche. */
+    async createAccount(id: string, input: unknown, userId: number): Promise<FormateurDetailDto> {
+        const formateur = await this.requireFormateur(id);
+        if (formateur.user_id != null) {
+            throw httpError(409, 'account_exists', 'Ce formateur a déjà un compte');
+        }
+        const password = requiredPassword((input as Record<string, unknown> | null)?.password);
+        const { firstName, lastName } = splitName(formateur.name);
+
+        let accountId: number;
+        try {
+            const account = await this.users.register(
+                formateur.email,
+                firstName,
+                lastName,
+                password,
+                roleToId(JobRole.FORMATEUR),
+                permissionToId(Permission.EMPLOYEE),
+            );
+            accountId = account.id;
+        } catch (error) {
+            if (error instanceof Error && error.message === 'User already exists') {
+                throw httpError(409, 'email', 'Un compte utilise déjà cet e-mail');
+            }
+            throw error;
+        }
+
+        await this.formateurs.update(formateur._id, { user_id: accountId });
+        await this.record(formateur._id, 'account_created', [], null, userId);
+        return this.get(formateur._id);
+    }
+
+    /**
+     * Réinitialise le mot de passe du compte et révoque ses sessions : un mot de
+     * passe changé par un tiers doit fermer les appareils déjà connectés.
+     */
+    async resetAccountPassword(id: string, input: unknown, userId: number): Promise<FormateurDetailDto> {
+        const formateur = await this.requireFormateur(id);
+        if (formateur.user_id == null) throw httpError(404, 'no_account', 'Ce formateur n’a pas de compte');
+        const password = requiredPassword((input as Record<string, unknown> | null)?.password);
+        const account = await this.users.updateUser(formateur.user_id, { passwordPlain: password });
+        if (!account) throw httpError(404, 'no_account', 'Compte introuvable');
+        await this.users.revokeAllSessions(formateur.user_id);
+        await this.record(formateur._id, 'account_password_reset', [], null, userId);
+        return this.get(formateur._id);
+    }
+
+    /** Retire l'accès : le compte est soft-deleted, la fiche reste. */
+    async deleteAccount(id: string, userId: number): Promise<FormateurDetailDto> {
+        const formateur = await this.requireFormateur(id);
+        if (formateur.user_id == null) throw httpError(404, 'no_account', 'Ce formateur n’a pas de compte');
+        await this.deleteUserAccount(formateur.user_id, userId);
+        await this.formateurs.update(formateur._id, { user_id: null });
+        await this.record(formateur._id, 'account_deleted', [], null, userId);
+        return this.get(formateur._id);
+    }
+
+    /**
+     * Supprime la fiche : compte de connexion d'abord (soft delete `users`), puis
+     * la fiche elle-même. Le journal (`formateur_history`) est conservé comme
+     * trace des saisies, et les séances sont déliées pour que leur rattachement
+     * par e-mail reprenne la main si une fiche est recréée.
+     */
+    async remove(id: string, userId: number): Promise<void> {
+        const formateur = await this.requireFormateur(id);
+        if (formateur.user_id != null) {
+            await this.deleteUserAccount(formateur.user_id, userId);
+        }
+        await this.seances.unlinkFormateur(formateur._id);
+        await this.record(formateur._id, 'formateur_deleted', [], `Fiche supprimée (${formateur.email})`, userId);
+        await this.formateurs.delete(formateur._id);
+    }
+
+    /**
+     * Accueil de l'espace formateur, résolu par le compte de connexion — jamais
+     * par un identifiant reçu du client. Un compte sans fiche rattachée est
+     * refusé (403) : c'est le garde-fou qui empêche un formateur d'atteindre les
+     * données d'un autre.
+     */
+    async dashboardForUser(userId: number): Promise<FormateurDashboardDto> {
+        const formateur = await this.formateurs.findByUserId(userId);
+        if (!formateur) {
+            throw httpError(403, 'no_formateur', 'Aucune fiche formateur n’est rattachée à ce compte');
+        }
+        const seances = await this.seances.findByFormateur(formateur._id, formateur.email);
+        const now = new Date();
+        const today = localDate(now, tenantTimezone());
+        const upcoming = seances
+            .filter((seance) => seance.date >= today)
+            .sort((a, b) => a.date.localeCompare(b.date) || a.start_time.localeCompare(b.start_time));
+        return {
+            formateur: { id: formateur._id, name: formateur.name, email: formateur.email },
+            nextSeance: upcoming[0] ? seanceDto(upcoming[0], now) : null,
+            upcomingSeanceCount: upcoming.length,
+            pastSeanceCount: seances.length - upcoming.length,
+        };
+    }
+
+    private async deleteUserAccount(targetUserId: number, actorUserId: number): Promise<void> {
+        try {
+            await this.userDeletion.deleteUser(actorUserId, targetUserId);
+        } catch (error) {
+            if (error instanceof UserDeletionError) throw httpError(error.status, 'account', error.message);
+            throw error;
+        }
     }
 
     /**
@@ -299,6 +472,7 @@ export class FormateurService {
             email,
             phone: null,
             comment: null,
+            user_id: null,
             created_by: userId ?? null,
         });
         await this.record(formateur._id, 'formateur_created', [], null, userId);
@@ -314,6 +488,7 @@ export class FormateurService {
             comment: formateur.comment ?? null,
             createdAt: toIso(formateur.created_at),
             updatedAt: toIso(formateur.updated_at),
+            account: { userId: formateur.user_id ?? null },
             stats: statsOf(seances),
         };
     }

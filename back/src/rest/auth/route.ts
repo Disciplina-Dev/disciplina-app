@@ -15,15 +15,17 @@ import {
     updateUser,
     deleteUser,
 } from './controller';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authenticateAny } from '../middleware/auth';
 import { loginRateLimiter } from '../middleware/rateLimiter';
 
 export const router: Router = express.Router();
 
 router.post('/login', loginRateLimiter, express.json(), login);
 router.post('/refresh', loginRateLimiter, refresh);
-router.post('/logout', authenticate, logout);
-router.get('/me', authenticate, me);
+// Identité et déconnexion : communes au staff et aux formateurs (le reste de
+// l'espace formateur a son propre routeur, gardé par requireRoles('FORMATEUR')).
+router.post('/logout', authenticateAny, logout);
+router.get('/me', authenticateAny, me);
 router.post('/register', loginRateLimiter, express.json(), authenticate, register);
 router.get('/users', authenticate, listUsers);
 router.get('/directory', authenticate, listDirectory);

@@ -41,6 +41,10 @@ function resolveMcpOAuthUser(userId: number, region: Region, clientId: string): 
         const row = await new UserRepository().findById(userId);
         if (!row) return null;
         const user: User = toUser(row);
+        // MCP expose l'intégralité du CRM : un compte formateur n'y a pas sa
+        // place, même si le consentement OAuth a été accordé avec ses
+        // identifiants (le consentement refuse déjà ce cas, ceci est le garde-fou).
+        if (user.role === JobRole.FORMATEUR) return null;
         return { id: user.id, role: user.role, permission: user.permission, sectors: user.sectors, region, clientId };
     });
 }

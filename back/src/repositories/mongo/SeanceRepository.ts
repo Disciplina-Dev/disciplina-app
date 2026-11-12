@@ -75,6 +75,20 @@ export class SeanceRepository {
             .lean() as unknown as Promise<Seance[]>;
     }
 
+    /**
+     * Délie les séances d'une fiche supprimée : le snapshot `formateur_email`
+     * reste, donc le rattachement par e-mail reprend la main si la fiche est
+     * recréée. Sans cela, ces séances garderaient un `formateur_id` orphelin et
+     * disparaîtraient des compteurs du nouvel annuaire.
+     */
+    async unlinkFormateur(formateurId: string): Promise<number> {
+        const result = await getModels().Seance.updateMany(
+            { formateur_id: formateurId },
+            { $set: { formateur_id: null } },
+        );
+        return result.modifiedCount ?? 0;
+    }
+
     async create(data: Omit<Seance, '_id' | 'created_at' | 'updated_at'>): Promise<Seance> {
         const now = new Date();
         const doc = new (getModels().Seance)({

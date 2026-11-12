@@ -74,6 +74,46 @@ export class UserRepository {
         return result.length > 0 ? result[0] : null;
     }
 
+    /** Recherche par e-mail, comptes supprimés compris (réutilisation d'une adresse). */
+    async findByEmailIncludingDeleted(email: string): Promise<UserRowJoined | null> {
+        const result = await query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.email = ? LIMIT 1`,
+            [email],
+        );
+        return result.length > 0 ? result[0] : null;
+    }
+
+    /**
+     * Réactive un compte soft-deleted sur le même e-mail : nouvelle identité,
+     * nouveau mot de passe (déjà haché), rôles réaffectés. Les jetons Google et
+     * les secteurs de l'ancienne vie sont remis à zéro.
+     */
+    async restore(
+        id: number,
+        fields: Pick<UserRow, 'email' | 'first_name' | 'last_name' | 'password' | 'role_id' | 'permission_id'>,
+    ): Promise<void> {
+        await query(
+            `UPDATE users SET is_deleted = 0, deleted_at = NULL, email = ?, first_name = ?, last_name = ?,
+                    password = ?, role_id = ?, permission_id = ?, sectors = NULL,
+                    oauth_token = NULL, refresh_token = NULL, is_interviewer = 0
+             WHERE id = ?`,
+            [
+                fields.email,
+                fields.first_name,
+                fields.last_name,
+                fields.password,
+                fields.role_id,
+                fields.permission_id,
+                id,
+            ],
+        );
+        // Les secteurs vivent dans `user_sectors` depuis la migration (la colonne
+        // JSON `users.sectors` n'est plus lue) : remettre la colonne à NULL ne
+        // suffit pas, sinon le compte réactivé hérite des habilitations de sa
+        // vie précédente.
+        await this.syncUserSectors(id, []);
+    }
+
     async findByRoleId(roleId: number): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ? AND ${USER_ACTIVE}`,

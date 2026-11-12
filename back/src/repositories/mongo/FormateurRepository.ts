@@ -22,6 +22,11 @@ export class FormateurRepository {
             .lean() as unknown as Promise<Formateur | null>;
     }
 
+    /** Fiche rattachée à un compte `users` (résolution de l'espace formateur). */
+    async findByUserId(userId: number): Promise<Formateur | null> {
+        return getModels().Formateur.findOne({ user_id: userId }).lean() as unknown as Promise<Formateur | null>;
+    }
+
     async create(data: Omit<Formateur, '_id' | 'created_at' | 'updated_at'>): Promise<Formateur> {
         const now = new Date();
         const doc = new (getModels().Formateur)({
@@ -45,5 +50,16 @@ export class FormateurRepository {
                 { returnDocument: 'after', runValidators: true, context: 'query' },
             )
             .lean() as unknown as Promise<Formateur | null>;
+    }
+
+    /**
+     * Suppression physique de la fiche. Le journal (`formateur_history`) est
+     * conservé : c'est la trace des saisies, elle survit à la fiche. Les séances
+     * sont déliées en amont (`SeanceRepository.unlinkFormateur`) pour que le
+     * rattachement par e-mail reprenne la main.
+     */
+    async delete(id: string): Promise<boolean> {
+        const result = await getModels().Formateur.deleteOne({ _id: id });
+        return result.deletedCount > 0;
     }
 }

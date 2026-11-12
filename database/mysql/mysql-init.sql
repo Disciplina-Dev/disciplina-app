@@ -36,7 +36,8 @@ INSERT IGNORE INTO `roles` (`id`, `name`) VALUES
   (3, 'PEDA'),
   (4, 'AD'),
   (5, 'GESTION'),
-  (6, 'EXTERNAL_GUEST');
+  (6, 'EXTERNAL_GUEST'),
+  (7, 'FORMATEUR');
 
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int NOT NULL AUTO_INCREMENT,

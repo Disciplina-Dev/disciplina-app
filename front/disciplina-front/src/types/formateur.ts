@@ -2,7 +2,7 @@
  * Référentiel des formateurs du Peda. Une fiche est partagée par toutes les
  * séances ; les séances antérieures à l'annuaire restent rattachées par e-mail.
  */
-import type { SeanceValidationStatus } from './emargement'
+import type { SeanceMode, SeanceSite, SeanceValidationStatus } from './emargement'
 
 export interface FormateurSessionStat {
   id: string
@@ -22,6 +22,11 @@ export interface FormateurStats {
   sessions: FormateurSessionStat[]
 }
 
+export interface FormateurAccount {
+  /** Compte `users` lié, `null` tant que l'accès n'a pas été créé. */
+  userId: number | null
+}
+
 export interface Formateur {
   id: string
   name: string
@@ -30,6 +35,7 @@ export interface Formateur {
   comment: string | null
   createdAt: string
   updatedAt: string
+  account: FormateurAccount
   stats: FormateurStats
 }
 
@@ -41,7 +47,14 @@ export interface FormateurChange {
   to: string | null
 }
 
-export type FormateurHistoryAction = 'formateur_created' | 'formateur_updated' | 'note'
+export type FormateurHistoryAction =
+  | 'formateur_created'
+  | 'formateur_updated'
+  | 'note'
+  | 'formateur_deleted'
+  | 'account_created'
+  | 'account_password_reset'
+  | 'account_deleted'
 
 export interface FormateurHistoryEntry {
   id: string
@@ -62,8 +75,8 @@ export interface FormateurSeance {
   degreeTitle: string | null
   module: string | null
   location: string | null
-  site: string
-  mode: string
+  site: SeanceSite
+  mode: SeanceMode
   plannedMinutes: number
   validationStatus: SeanceValidationStatus
 }
@@ -78,4 +91,15 @@ export interface FormateurInput {
   email: string
   phone: string | null
   comment: string | null
+}
+
+/**
+ * Accueil de l'espace formateur (`GET /api/formateur/me`). La séance est celle
+ * de l'annuaire, au même format que l'historique de la fiche Peda.
+ */
+export interface FormateurDashboard {
+  formateur: { id: string; name: string; email: string }
+  nextSeance: FormateurSeance | null
+  upcomingSeanceCount: number
+  pastSeanceCount: number
 }

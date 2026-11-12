@@ -191,6 +191,10 @@ export class UserDeletionService {
             const notifications = await this.notificationRepository.deleteAllForUser(userId);
             const mailTemplates = await getModels().MailTemplate.deleteMany({ user_id: userId });
             const mailSignatures = await getModels().MailSignature.deleteMany({ user_id: userId });
+            // Fiche formateur rattachée à ce compte : on la délie, sinon elle
+            // pointerait vers un user mort et l'espace formateur renverrait une
+            // erreur opaque au lieu de « aucune fiche rattachée ».
+            await getModels().Formateur.updateMany({ user_id: userId }, { $set: { user_id: null } });
 
             return {
                 reassigned: { needsAnalyses, offers, candidates },
