@@ -178,14 +178,14 @@ if (( SKIP_BACKUP )); then
     confirm "Vraiment continuer SANS sauvegarde ?" || die "annulé (backup requis)"
 else
     run ./scripts/backup-db.sh
-    MYSQL_DUMP="$(ls -t ${BACKUP_DIR}/backup_mysql_*.sql       2>/dev/null | head -1 || true)"
-    MONGO_DUMP="$(ls -t ${BACKUP_DIR}/backup_mongo_*.archive  2>/dev/null | head -1 || true)"
+    MYSQL_DUMP="$(ls -t ${BACKUP_DIR}/backup_mysql_*.sql.age       2>/dev/null | head -1 || true)"
+    MONGO_DUMP="$(ls -t ${BACKUP_DIR}/backup_mongo_*.archive.age  2>/dev/null | head -1 || true)"
     [[ -n "$MYSQL_DUMP" && -s "$MYSQL_DUMP" ]] || die "dump MySQL récent introuvable/vide dans ${BACKUP_DIR}/"
     [[ -n "$MONGO_DUMP" && -s "$MONGO_DUMP" ]] || die "dump MongoDB récent introuvable/vide dans ${BACKUP_DIR}/"
     log "  MySQL   → ${MYSQL_DUMP} ($(du -h "$MYSQL_DUMP" | cut -f1))"
     log "  MongoDB → ${MONGO_DUMP} ($(du -h "$MONGO_DUMP" | cut -f1))"
-    MYSQL_ANNEMASSE_DUMP="$(ls -t ${BACKUP_DIR}/backup_annemasse_mysql_*.sql      2>/dev/null | head -1 || true)"
-    MONGO_ANNEMASSE_DUMP="$(ls -t ${BACKUP_DIR}/backup_annemasse_mongo_*.archive 2>/dev/null | head -1 || true)"
+    MYSQL_ANNEMASSE_DUMP="$(ls -t ${BACKUP_DIR}/backup_annemasse_mysql_*.sql.age      2>/dev/null | head -1 || true)"
+    MONGO_ANNEMASSE_DUMP="$(ls -t ${BACKUP_DIR}/backup_annemasse_mongo_*.archive.age 2>/dev/null | head -1 || true)"
     [[ -n "$MYSQL_ANNEMASSE_DUMP" && -s "$MYSQL_ANNEMASSE_DUMP" ]] || die "dump MySQL Annemasse récent introuvable/vide dans ${BACKUP_DIR}/"
     [[ -n "$MONGO_ANNEMASSE_DUMP" && -s "$MONGO_ANNEMASSE_DUMP" ]] || die "dump MongoDB Annemasse récent introuvable/vide dans ${BACKUP_DIR}/"
     log "  MySQL Annemasse   → ${MYSQL_ANNEMASSE_DUMP} ($(du -h "$MYSQL_ANNEMASSE_DUMP" | cut -f1))"
