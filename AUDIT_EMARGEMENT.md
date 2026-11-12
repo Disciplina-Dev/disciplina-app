@@ -261,7 +261,9 @@ Légende :
   heures prévues / réalisées, taux, détail des séances, zone de signature du service pédagogique).
 - **Exports et données personnelles** : les documents contiennent noms, financeur, statuts et images
   de signature ; ils sont produits à la demande, par un utilisateur AD/GESTION/PEDA authentifié, et ne
-  sont ni stockés côté serveur ni envoyés par e-mail (cf. `RGPD.md`).
+  sont pas stockés côté serveur. L'attestation d'assiduité peut en outre être envoyée par e-mail à
+  l'entreprise du jeune, à l'initiative du Peda, en pièce jointe d'un modèle mail du service
+  pédagogique et depuis la boîte Gmail connectée de ce Peda (cf. `RGPD.md`).
 
 ### 3.9 §9 — Sessions d'examen titre professionnel
 
@@ -592,8 +594,12 @@ Décisions de conception :
   une table de configuration et une reprise de données, tout en gardant les mentions légales relues à
   chaque évolution du code.
 - **Rien n'est conservé côté serveur** : les buffers sont renvoyés en pièce jointe HTTP et jamais écrits
-  sur disque ni envoyés par e-mail. Les noms de fichiers passent par `filename*=UTF-8''` (accents
-  préservés) ; les URL publiques (formateur / QR) ne donnent accès à aucun export.
+  sur disque. Les noms de fichiers passent par `filename*=UTF-8''` (accents préservés) ; les URL
+  publiques (formateur / QR) ne donnent accès à aucun export.
+- **Attestation envoyée par mail, sur décision du Peda** : l'attestation d'assiduité peut aussi être
+  expédiée à l'entreprise, en pièce jointe du modèle mail choisi et depuis la boîte Gmail connectée du
+  Peda (même chemin d'envoi que les autres mails de l'application) ; le PDF n'est pas conservé côté
+  serveur, la pièce jointe transite par la requête qui l'envoie.
 
 Couverture : `back/src/rest/emargement/__tests__/emargement.test.ts` (18 cas) — PDF de séance (en-tête
 `%PDF`, > 1 ko, charte `region`), présences CSV (BOM `efbbbf` sur les octets, séparateur `;`, statut et
