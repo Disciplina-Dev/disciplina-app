@@ -25,6 +25,7 @@ import Card, { CardHeader } from '@/components/ui/Card'
 import InputField from '@/components/ui/InputField'
 import AlternantCreateModal from '@/components/peda/AlternantCreateModal'
 import AlternantCompanyModal from '@/components/peda/AlternantCompanyModal'
+import AttestationModal from '@/components/peda/AttestationModal'
 import RuptureModal from '@/components/peda/RuptureModal'
 import {
   archiveAlternant,
@@ -48,7 +49,6 @@ import {
 import { declareRupture, deleteRupture, fetchAlternantRuptures } from '@/api/ruptures'
 import { fetchAssiduiteAlternant, fetchAttestation } from '@/api/emargement'
 import { fetchSessions } from '@/api/sessions'
-import { toast } from '@/store/toastStore'
 import { downloadBlob } from '@/utils/download'
 import { formatMinutes, formatRate, HALF_LABELS, STATUS_LABELS, formatSeanceDate, presenceLabel, presenceTone } from '@/utils/emargement'
 import {
@@ -161,7 +161,8 @@ export default function FicheAlternant() {
   /** Assiduité issue des feuilles d'émargement (7.1) — chargée à part. */
   const [assiduite, setAssiduite] = useState<AssiduiteAlternant | null>(null)
   const [assiduiteError, setAssiduiteError] = useState<string | null>(null)
-  const [downloadingAttestation, setDownloadingAttestation] = useState(false)
+  /** Choix de la période de l'attestation PDF (du / au, ou toute la période). */
+  const [showAttestation, setShowAttestation] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -183,17 +184,11 @@ export default function FicheAlternant() {
     }
   }, [id])
 
-  async function downloadAttestation() {
+  /** `range` vide = toute la période (toutes les feuilles de l'alternant). */
+  async function downloadAttestation(range: { from?: string; to?: string }) {
     if (!id) return
-    setDownloadingAttestation(true)
-    try {
-      const { blob, fileName } = await fetchAttestation(id)
-      downloadBlob(blob, fileName)
-    } catch (e) {
-      toast.errorMessage('Attestation indisponible', e instanceof Error ? e.message : undefined)
-    } finally {
-      setDownloadingAttestation(false)
-    }
+    const { blob, fileName } = await fetchAttestation(id, range)
+    downloadBlob(blob, fileName)
   }
 
   useEffect(() => {
@@ -765,9 +760,8 @@ export default function FicheAlternant() {
                   variant="ghost"
                   size="sm"
                   leftIcon={<IconFile width={15} height={15} />}
-                  isLoading={downloadingAttestation}
                   disabled={!assiduite || assiduite.seances.length === 0}
-                  onClick={downloadAttestation}
+                  onClick={() => setShowAttestation(true)}
                 >
                   Attestation PDF
                 </Button>
@@ -1186,6 +1180,15 @@ export default function FicheAlternant() {
       )}
       {showRupture && (
         <RuptureModal alternant={alternant} onClose={() => setShowRupture(false)} onSubmit={handleDeclareRupture} />
+      )}
+      {showAttestation && assiduite && (
+        <AttestationModal
+          alternantName={alternant.fullName}
+          availableFrom={assiduite.from}
+          availableTo={assiduite.to}
+          onClose={() => setShowAttestation(false)}
+          onDownload={downloadAttestation}
+        />
       )}
     </div>
   )
