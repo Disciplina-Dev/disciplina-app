@@ -10,6 +10,9 @@ steps are required for certain features.
 - Git repository cloned on the machine
 - Root `.env` and `back/.env` configured with production secrets
 - Docker & Docker Compose installed
+- [`age`](https://age-encryption.org) installed (`brew install age`) and
+  `BACKUP_AGE_RECIPIENT` (public key) set in the root `.env` — backups refuse to
+  run without them, see [Backup encryption](#backup-encryption-key-custody--recovery)
 - Caddy configured for TLS termination (public domains proxied to
   `127.0.0.1:8090` frontend / `127.0.0.1:4000` backend)
 
@@ -38,14 +41,18 @@ cd disciplina-app
 ./scripts/backup-db.sh
 ```
 
-The script dumps **both tenants** (4 files per run). Verify they all exist
+The script dumps **both tenants** (4 files per run), encrypted with age as they
+are written (no plaintext dump ever touches the disk). Verify they all exist
 before continuing:
 
 ```bash
 ls -lh backups/
-# La Réunion: backup_mysql_<DATE>.sql           + backup_mongo_<DATE>.archive
-# Annemasse:  backup_annemasse_mysql_<DATE>.sql + backup_annemasse_mongo_<DATE>.archive
+# La Réunion: backup_mysql_<DATE>.sql.age           + backup_mongo_<DATE>.archive.age
+# Annemasse:  backup_annemasse_mysql_<DATE>.sql.age + backup_annemasse_mongo_<DATE>.archive.age
 ```
+
+Anything in `backups/` not ending in `.age` is a leftover from before encryption:
+run the one-off migration (see below).
 
 Annemasse database names come from `MYSQL_ANNEMASSE_DATABASE` /
 `MONGO_ANNEMASSE_DATABASE` in the root `.env` (default `disciplina_annemasse`).
@@ -55,6 +62,72 @@ Annemasse files. `deploy.sh` records all four paths in `scripts/.deploy-state`.
 
 > Known gap: dumps live on the same disk as the databases — no off-machine
 > storage yet (tracked as `DB-5` in `BACKLOG.md`).
+
+### Backup encryption: key custody & recovery
+
+Dumps are encrypted with [age](https://age-encryption.org) using a **public**
+recipient. The Mac mini only holds the public key (`BACKUP_AGE_RECIPIENT` in the
+root `.env`): it can create backups but cannot read them, so a stolen machine or
+disk does not expose past dumps. The **private** key (the age "identity") is only
+needed to restore.
+
+**Custody rules**
+- The identity lives in a shared password manager entry readable by **at least two
+  named people** (holders: `<name 1>`, `<name 2>` — fill in). Optionally, add a
+  paper / offline copy in a safe for the case where the password manager is
+  unavailable; if there is none, the residual risk is that losing the password
+  manager makes every backup unrecoverable (to be accepted by the DPO).
+- The identity must **never** be on the Mac mini, in the repo, in `.env` or in
+  `backups/`. Fetch it only for a restore, delete the local copy afterwards.
+- Losing every copy of the identity means the encrypted backups cannot be read.
+
+**Generate the keypair** (on an admin workstation, not on the Mac mini):
+
+```bash
+./scripts/backup-keygen.sh ~/disciplina-backup-identity.txt
+# prints BACKUP_AGE_RECIPIENT=age1...  -> put it in the production root .env
+# then store the identity in the password manager and delete the local file
+```
+
+The script refuses to overwrite a file or to write the identity inside the repo.
+
+**Restore / decrypt**
+
+```bash
+# one dump, manually
+age -d -i ~/disciplina-backup-identity.txt backups/backup_mysql_<DATE>.sql.age \
+  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+
+# rollback.sh decrypts by itself when given the identity
+BACKUP_AGE_IDENTITY=~/disciplina-backup-identity.txt ./scripts/rollback.sh
+# or: ./scripts/rollback.sh --identity ~/disciplina-backup-identity.txt
+```
+
+`rollback.sh` test-decrypts every dump **before** touching the databases, so a
+wrong or missing key aborts early with a clear error.
+
+**Rotation**: run `backup-keygen.sh` again and replace `BACKUP_AGE_RECIPIENT`.
+Backups already written stay readable only with the *old* identity: keep it until
+the retention window (7 days for nightly dumps) has expired.
+
+**One-off migration of pre-existing plaintext dumps** (`backups/` and
+`scripts/backups/`, the latter includes the JSON copies written by
+`delete_companies.py`):
+
+```bash
+./scripts/backup-encrypt-legacy.sh             # dry run: lists the files
+./scripts/backup-encrypt-legacy.sh --execute   # encrypts, then deletes the plaintext
+```
+
+Plaintext deletion is not guaranteed to be unrecoverable on SSD/APFS: keep
+FileVault enabled on the Mac mini.
+
+**Restore test log** (a restore must be tested after any key rotation and at
+least once per quarter):
+
+| Date | Who | Dump restored | Result |
+|------|-----|---------------|--------|
+| 2026-11-12 | qh (GDPR_INF_01.2) | Both tenants, scripted run with a stubbed `docker` (encrypt → decrypt → `rollback.sh` right/wrong/missing key → dry-run → legacy migration) | OK, 28/28 checks. **Not yet** a restore into a real MySQL/MongoDB: do it once on a test instance and add a row. |
 
 ## 3. Deploy
 
@@ -108,29 +181,32 @@ docker compose -f docker-compose.test.yml up --build --force-recreate \
 If something goes wrong, restore the pre-deploy backup and revert the code.
 `./scripts/rollback.sh` does all of this and restores **both tenants** (Réunion
 and Annemasse) from the dumps recorded in `scripts/.deploy-state`; if the state
-file predates the Annemasse backup it warns and skips Annemasse. Manual
-procedure:
+file predates the Annemasse backup it warns and skips Annemasse. Dumps are
+encrypted: pass the age identity with `--identity <file>` or `BACKUP_AGE_IDENTITY`
+(see [Backup encryption](#backup-encryption-key-custody--recovery)). Manual
+procedure (pipe each `.age` dump through `age -d -i <identity>` instead of `<`):
 
 ```bash
 # 1. Stop the backend so it cannot write into a half-restored database
 docker compose stop backend
 
 # 2. Restore MySQL
-docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina \
-  < backups/backup_mysql_<DATE>.sql
+age -d -i "$AGE_IDENTITY" backups/backup_mysql_<DATE>.sql.age \
+  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
 
 # 3. Restore MongoDB
-docker compose exec -T nosql-db mongorestore \
+age -d -i "$AGE_IDENTITY" backups/backup_mongo_<DATE>.archive.age \
+  | docker compose exec -T nosql-db mongorestore \
   --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --archive < backups/backup_mongo_<DATE>.archive
+  --authenticationDatabase admin --archive
 
 # 3b. Restore the Annemasse tenant (MySQL + MongoDB)
-docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina_annemasse \
-  < backups/backup_annemasse_mysql_<DATE>.sql
-docker compose exec -T nosql-db mongorestore \
+age -d -i "$AGE_IDENTITY" backups/backup_annemasse_mysql_<DATE>.sql.age \
+  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina_annemasse
+age -d -i "$AGE_IDENTITY" backups/backup_annemasse_mongo_<DATE>.archive.age \
+  | docker compose exec -T nosql-db mongorestore \
   --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --archive --drop --nsInclude 'disciplina_annemasse.*' \
-  < backups/backup_annemasse_mongo_<DATE>.archive
+  --authenticationDatabase admin --archive --drop --nsInclude 'disciplina_annemasse.*'
 
 # 4. Restart the backend
 docker compose start backend
