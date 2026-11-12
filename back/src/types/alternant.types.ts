@@ -49,6 +49,8 @@ export enum AlternantSequenceType {
     J15 = 'j15',
     J10W = 'j10w',
     PERIODIQUE = 'periodique',
+    /** SA finale avant l'examen (#960) — jamais auto-générée (pas de date d'examen suivie), toujours créée manuellement. */
+    SA_FINALE = 'sa_finale',
 }
 
 export interface AlternantSequenceContacts {

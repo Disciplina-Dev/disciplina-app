@@ -20,6 +20,7 @@ export function resolvedDocumentToGql(r: ResolvedSequenceDocument): object {
         header: {
             alternantFullName: r.header.alternantFullName,
             session: r.header.session,
+            companyName: r.header.companyName,
             mentorName: r.header.mentorName,
             companyStartDate: r.header.companyStartDate ? new Date(r.header.companyStartDate).toISOString() : null,
             companyEndDate: r.header.companyEndDate ? new Date(r.header.companyEndDate).toISOString() : null,

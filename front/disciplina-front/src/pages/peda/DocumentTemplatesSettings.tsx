@@ -19,6 +19,7 @@ const inputClass =
 const SYSTEM_LABELS: Record<string, string> = {
   j15: 'J+15 — Prise de contact',
   j10w: 'J+10 semaines — Fin de période d’essai',
+  sa_finale: 'SA finale — Avant l’examen',
 }
 
 type Part = 'maitreApprentissage' | 'alternant' | 'formateur'
@@ -75,8 +76,12 @@ export default function DocumentTemplatesSettings() {
   }, [periodicTemplates, search])
 
   useEffect(() => {
-    Promise.all([fetchAlternantDocumentTemplates('j15'), fetchAlternantDocumentTemplates('j10w')])
-      .then(([j15, j10w]) => setSystemTemplates([...j15, ...j10w]))
+    Promise.all([
+      fetchAlternantDocumentTemplates('j15'),
+      fetchAlternantDocumentTemplates('j10w'),
+      fetchAlternantDocumentTemplates('sa_finale'),
+    ])
+      .then(([j15, j10w, saFinale]) => setSystemTemplates([...j15, ...j10w, ...saFinale]))
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
     fetchAlternantDocumentTemplates('periodique')
       .then(setPeriodicTemplates)

@@ -194,11 +194,11 @@ export const resolvers = {
         },
         createSequence: async (
             _: unknown,
-            { alternantId, prevueLe }: { alternantId: string; prevueLe: string },
+            { alternantId, prevueLe, type }: { alternantId: string; prevueLe: string; type?: AlternantSequenceType },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
-            const created = await alternantService.createManualSequence(alternantId, prevueLe);
+            const created = await alternantService.createManualSequence(alternantId, prevueLe, type);
             await saCalendarService.syncSequencesForAllPedas([created._id]);
             return sequenceToGql(created);
         },

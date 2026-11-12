@@ -178,6 +178,7 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
                   <span className="font-semibold text-[var(--ds-text)]">{doc.header.alternantFullName}</span>
                   {doc.header.session && <> — {doc.header.session}</>}
                 </p>
+                {doc.header.companyName && <p>Entreprise : {doc.header.companyName}</p>}
                 {doc.header.mentorName && <p>Maître d'apprentissage : {doc.header.mentorName}</p>}
                 {(doc.header.companyStartDate || doc.header.companyEndDate) && (
                   <p>

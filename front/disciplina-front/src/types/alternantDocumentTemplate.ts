@@ -22,6 +22,7 @@ export interface AlternantDocumentTemplateInput {
 export interface AlternantSequenceDocumentHeader {
   alternantFullName: string
   session: string | null
+  companyName: string | null
   mentorName: string | null
   companyStartDate: string | null
   companyEndDate: string | null

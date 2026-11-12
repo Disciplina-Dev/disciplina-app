@@ -133,6 +133,7 @@ export default function FicheAlternant() {
   const [actionLoading, setActionLoading] = useState(false)
 
   const [newSaDate, setNewSaDate] = useState('')
+  const [newSaType, setNewSaType] = useState<'periodique' | 'sa_finale'>('periodique')
   const [saLoading, setSaLoading] = useState(false)
   const [linkPickerOpen, setLinkPickerOpen] = useState(false)
   const [allAlternants, setAllAlternants] = useState<Alternant[]>([])
@@ -289,9 +290,10 @@ export default function FicheAlternant() {
     if (!id || !newSaDate) return
     setSaLoading(true)
     try {
-      const created = await createSequence(id, newSaDate)
+      const created = await createSequence(id, newSaDate, newSaType)
       setSequences((prev) => [...prev, created].sort((a, b) => a.numero - b.numero))
       setNewSaDate('')
+      setNewSaType('periodique')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Création de la SA impossible')
     } finally {
@@ -732,6 +734,20 @@ export default function FicheAlternant() {
           <div className="mb-4 flex flex-col gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3 sm:flex-row sm:items-end">
             <div className="flex-1">
               <InputField id="new-sa-date" label="Date de réalisation" type="date" value={newSaDate} onChange={(e) => setNewSaDate(e.target.value)} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="new-sa-type" className="text-[13px] font-semibold text-[var(--ds-text-muted)]">
+                Type
+              </label>
+              <select
+                id="new-sa-type"
+                value={newSaType}
+                onChange={(e) => setNewSaType(e.target.value as 'periodique' | 'sa_finale')}
+                className="h-11 rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 text-sm text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)]"
+              >
+                <option value="periodique">Périodique</option>
+                <option value="sa_finale">SA finale (avant examen)</option>
+              </select>
             </div>
             <Button variant="secondary" size="sm" leftIcon={<IconPlus width={14} height={14} />} onClick={handleCreateSequence} isLoading={saLoading} disabled={!newSaDate} className="shrink-0">
               Créer la SA

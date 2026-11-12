@@ -60,6 +60,7 @@ const SEQUENCE_DOCUMENT_FIELDS = gql`
     header {
       alternantFullName
       session
+      companyName
       mentorName
       companyStartDate
       companyEndDate
