@@ -35,6 +35,7 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
   const [companyName, setCompanyName] = useState(initial?.company?.name ?? '')
   const [companyAddress, setCompanyAddress] = useState(initial?.company?.address ?? '')
   const [mentorName, setMentorName] = useState(initial?.company?.mentorName ?? '')
+  const [mentorEmail, setMentorEmail] = useState(initial?.company?.mentorEmail ?? '')
   const [startDate, setStartDate] = useState(
     initial?.company?.startDate ? initial.company.startDate.slice(0, 10) : '',
   )
@@ -192,6 +193,7 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
           name: companyName.trim() || null,
           address: companyAddress.trim() || null,
           mentorName: mentorName.trim() || null,
+          mentorEmail: mentorEmail.trim() || null,
           startDate,
           endDate: endDate || null,
         },
@@ -367,6 +369,15 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
                 value={mentorName}
                 onChange={(e) => setMentorName(e.target.value)}
                 placeholder="Nom du maître d’apprentissage"
+              />
+              <InputField
+                id="alt-mentor-email"
+                label="Email du maître d’apprentissage"
+                type="email"
+                value={mentorEmail}
+                onChange={(e) => setMentorEmail(e.target.value)}
+                placeholder="mentor@entreprise.fr"
+                hint="Nécessaire pour lui envoyer la proposition de RDV avant chaque SA."
               />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <InputField

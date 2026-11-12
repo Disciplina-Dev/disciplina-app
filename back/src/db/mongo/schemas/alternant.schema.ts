@@ -6,6 +6,7 @@ const companySchema = new Schema<AlternantCompany>(
         name: { type: String, default: null },
         address: { type: String, default: null },
         mentor_name: { type: String, default: null },
+        mentor_email: { type: String, default: null },
         start_date: { type: Date, required: true },
         end_date: { type: Date, default: null },
     },

@@ -3,7 +3,7 @@ import { AlternantRepository } from '../../repositories/mongo/AlternantRepositor
 import { AlternantSequenceRepository } from '../../repositories/mongo/AlternantSequenceRepository';
 import { UserRepository } from '../../repositories/mysql/UserRepository';
 import { NotificationRepository } from '../../repositories/mongo/NotificationRepository';
-import { SaNotificationService } from '../SaNotificationService';
+import { SaNotificationService, SA_LATE_RELANCE_DAYS } from '../SaNotificationService';
 import { RuptureService } from '../RuptureService';
 import { AlternantSequenceStatus } from '../../types/alternant.types';
 import { getModels } from '../../db/mongo/tenant';
@@ -95,6 +95,29 @@ describe('SaNotificationService', () => {
 
         // Deuxième passage : chaque transition n'est notifiée qu'une fois.
         expect(await new SaNotificationService().run(now)).toEqual({ soon: 0, late: 0 });
+    });
+
+    it('relances a still-late SA every SA_LATE_RELANCE_DAYS, but not before (#961)', async () => {
+        const suffix = Date.now() + 100;
+        const pedaId = await createPedaUser(suffix);
+        const alternantId = await seedAlternant(suffix);
+
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        const overdue = new Date(startOfToday.getTime() - 40 * DAY_MS);
+        const recentlyNotified = new Date(startOfToday.getTime() - 5 * DAY_MS);
+        const staleNotified = new Date(startOfToday.getTime() - (SA_LATE_RELANCE_DAYS + 1) * DAY_MS);
+
+        const recentSeq = await seedSequence(alternantId, 1, overdue, { late_notified_at: recentlyNotified });
+        const staleSeq = await seedSequence(alternantId, 2, overdue, { late_notified_at: staleNotified });
+
+        const counts = await new SaNotificationService().run(new Date());
+        expect(counts).toEqual({ soon: 0, late: 1 });
+
+        const notifications = await new NotificationRepository().findForUser(pedaId);
+        const lateMessages = notifications.filter((n) => n.type === 'sa_late').map((n) => n.message);
+        expect(lateMessages.some((m) => m.includes(`n°${staleSeq.numero}`))).toBe(true);
+        expect(lateMessages.some((m) => m.includes(`n°${recentSeq.numero}`))).toBe(false);
     });
 
     it('ignores done, archived and already-realised SAs', async () => {

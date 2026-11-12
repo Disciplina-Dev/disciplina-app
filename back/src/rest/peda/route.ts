@@ -9,6 +9,7 @@ import {
     putDraftHour,
     runNow,
     downloadSequencePdf,
+    handleAppointmentResponse,
 } from './controller';
 import { getCalendarEvents, syncCalendar } from './calendar';
 
@@ -31,6 +32,9 @@ router.post('/run', ...access, runNow);
 
 // Document de SA (#888) : export PDF
 router.get('/alternant-sequences/:id/pdf', ...access, downloadSequencePdf);
+
+// Proposition de RDV au maître d'apprentissage (#961) : lien signé, pas d'auth.
+router.get('/sa-appointment/response', handleAppointmentResponse);
 
 // Agenda Google du Peda : lecture réconciliée + synchronisation des SA
 router.get('/calendar/events', ...access, getCalendarEvents);

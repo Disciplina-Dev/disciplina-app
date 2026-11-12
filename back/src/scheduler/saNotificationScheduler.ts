@@ -1,4 +1,5 @@
 import { SaNotificationService } from '../services/SaNotificationService';
+import { SaAppointmentService } from '../services/SaAppointmentService';
 import { runForAllRegions, getRegion } from '../db/tenant';
 import { logger } from '../external/logger/logger';
 
@@ -9,13 +10,16 @@ import { logger } from '../external/logger/logger';
 const TICK_MS = 60 * 60_000;
 
 /**
- * Planificateur des notifications « SA en cours / en retard » : à chaque tick,
+ * Planificateur des notifications « SA en cours / en retard » (équipe Peda) et
+ * des propositions de RDV au maître d'apprentissage (#961) : à chaque tick,
  * notifie l'équipe Peda pour toute SA en attente entrée pour la première fois
- * dans la fenêtre « En cours » (moins de 14 jours) ou passée « En retard ».
- * In-process (setInterval), à l'image de `immersionEndScheduler`.
+ * dans la fenêtre « En cours » (moins de 14 jours) ou passée « En retard », et
+ * envoie une proposition de date aux mentors des SA à venir dans 2 à 3
+ * semaines. In-process (setInterval), à l'image de `immersionEndScheduler`.
  */
 export function startSaNotificationScheduler(): NodeJS.Timeout {
     const service = new SaNotificationService();
+    const appointmentService = new SaAppointmentService();
     let running = false;
 
     const tick = async () => {
@@ -30,6 +34,12 @@ export function startSaNotificationScheduler(): NodeJS.Timeout {
                         logger.info({ region, soon, late }, 'sa-notifications: notifications émises');
                 } catch (err) {
                     logger.error({ err, region }, 'sa-notifications: tick du scheduler en erreur');
+                }
+                try {
+                    const { proposed } = await appointmentService.run();
+                    if (proposed > 0) logger.info({ region, proposed }, 'sa-appointments: propositions envoyées');
+                } catch (err) {
+                    logger.error({ err, region }, 'sa-appointments: tick du scheduler en erreur');
                 }
             });
         } finally {

@@ -1,14 +1,18 @@
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { logger } from '../../external/logger';
 import { PedaService, InvalidSheetLinkError, InvalidHourError } from '../../services/PedaService';
 import { PedaDraftService } from '../../services/PedaDraftService';
 import { AlternantService } from '../../services/AlternantService';
+import { SaAppointmentService } from '../../services/SaAppointmentService';
 import { PdfService } from '../../services/PdfService';
+import { verifyRelanceUrl } from '../../external/crypto';
+import { confirmationPage } from '../shared/confirmationPage';
 
 const pedaService = new PedaService();
 const draftService = new PedaDraftService();
 const alternantService = new AlternantService();
+const saAppointmentService = new SaAppointmentService();
 
 function handleError(err: unknown, res: Response): void {
     if (err instanceof InvalidSheetLinkError || err instanceof InvalidHourError) {
@@ -86,6 +90,34 @@ export async function runNow(req: AuthRequest, res: Response): Promise<void> {
         res.json({ report });
     } catch (err) {
         handleError(err, res);
+    }
+}
+
+// ── Proposition de RDV au maître d'apprentissage (#961) ────────────────────
+// Lien signé envoyé par mail, jamais appelé par un utilisateur authentifié.
+export async function handleAppointmentResponse(req: Request, res: Response): Promise<void> {
+    const { id, answer, sig, ts } = req.query as { id?: string; answer?: string; sig?: string; ts?: string };
+
+    if (!id || answer !== 'confirm' || !sig || !ts) {
+        res.status(400).send(confirmationPage('Lien invalide.', false));
+        return;
+    }
+    if (!verifyRelanceUrl(id, answer, sig, Number(ts))) {
+        res.status(400).send(confirmationPage('Lien invalide ou expiré.', false));
+        return;
+    }
+
+    try {
+        const confirmed = await saAppointmentService.confirm(id);
+        if (!confirmed) {
+            res.status(404).send(confirmationPage('Séquence introuvable.', false));
+            return;
+        }
+        logger.info({ sequenceId: id }, '[sa-appointment] rendez-vous confirmé');
+        res.send(confirmationPage('Merci, ce rendez-vous est confirmé. À bientôt !', true));
+    } catch (err) {
+        logger.error({ err, id }, '[sa-appointment] confirm error');
+        res.status(500).send(confirmationPage('Une erreur est survenue.', false));
     }
 }
 

@@ -55,6 +55,10 @@ const alternantSequenceSchema = new Schema<AlternantSequence & Document>(
         // Événements Google Calendar par utilisateur Peda (id user → id event) :
         // permet de mettre à jour/supprimer l'événement sans re-scanner l'agenda.
         google_event_ids: { type: Schema.Types.Mixed, default: {} },
+        // Proposition de RDV au maître d'apprentissage (#961) : dédup scheduler
+        // + confirmation posée par le lien signé envoyé dans ce mail.
+        appointment_proposed_at: { type: Date, default: null },
+        appointment_confirmed_at: { type: Date, default: null },
         archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },

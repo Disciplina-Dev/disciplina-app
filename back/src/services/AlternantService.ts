@@ -98,6 +98,7 @@ export interface CreateAlternantInput {
         name?: string | null;
         address?: string | null;
         mentorName?: string | null;
+        mentorEmail?: string | null;
         startDate: string;
         endDate?: string | null;
     };
@@ -119,6 +120,7 @@ export interface CompanyInput {
     name?: string | null;
     address?: string | null;
     mentorName?: string | null;
+    mentorEmail?: string | null;
     startDate: string;
     endDate?: string | null;
 }
@@ -128,6 +130,7 @@ function toCompanySnake(input: CompanyInput): AlternantCompany {
         name: input.name?.trim() || null,
         address: input.address?.trim() || null,
         mentor_name: input.mentorName?.trim() || null,
+        mentor_email: input.mentorEmail?.trim() || null,
         start_date: new Date(input.startDate),
         end_date: input.endDate ? new Date(input.endDate) : null,
     };
