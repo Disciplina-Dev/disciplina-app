@@ -32,7 +32,9 @@ export class AlternantSequenceRepository {
 
     async findByIds(ids: string[]): Promise<AlternantSequence[]> {
         if (ids.length === 0) return [];
-        return getModels().AlternantSequence.find({ _id: { $in: ids } }).lean();
+        return getModels()
+            .AlternantSequence.find({ _id: { $in: ids } })
+            .lean();
     }
 
     /** Enregistre (ou retire si `eventId` est null) l'id d'événement Google d'un utilisateur. */
@@ -140,13 +142,19 @@ export class AlternantSequenceRepository {
     }
 
     /** SA en attente dont la date prévue est dépassée et pas encore notifiées. */
-    async findLateUnnotified(startOfToday: Date): Promise<AlternantSequence[]> {
+    /**
+     * `relanceCutoff` : une SA déjà notifiée « en retard » n'est renotifiée que
+     * si la dernière notif date d'avant ce seuil (relance mensuelle #961) — pas
+     * de notif en boucle à chaque tick, mais pas qu'une seule fois non plus tant
+     * que la SA reste en retard.
+     */
+    async findLateUnnotified(startOfToday: Date, relanceCutoff: Date): Promise<AlternantSequence[]> {
         return getModels()
             .AlternantSequence.find({
                 status: 'pending',
                 archived_at: null,
                 prevue_le: { $lt: startOfToday },
-                late_notified_at: null,
+                $or: [{ late_notified_at: null }, { late_notified_at: { $lt: relanceCutoff } }],
             })
             .lean();
     }

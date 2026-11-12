@@ -9,6 +9,9 @@ import { logger } from '../external/logger/logger';
 /** Seuil « En cours » : SA prévue dans moins de 14 jours (aligné sur DashboardPeda). */
 export const SA_SOON_THRESHOLD_DAYS = 14;
 
+/** Cadence de relance pour une SA toujours en retard (#961) : tous les 30 jours. */
+export const SA_LATE_RELANCE_DAYS = 30;
+
 export interface SaNotificationCounts {
     soon: number;
     late: number;
@@ -27,12 +30,14 @@ function formatDateFr(iso: Date | string): string {
 /**
  * Émet une notification aux utilisateurs Peda quand une SA entre pour la
  * première fois dans la fenêtre « En cours » (moins de 14 jours) ou devient
- * « En retard » (date prévue dépassée).
+ * « En retard » (date prévue dépassée) — puis, tant qu'elle reste en retard,
+ * une relance tous les `SA_LATE_RELANCE_DAYS` jours (#961).
  *
- * La déduplication repose sur `sequence.soon_notified_at` /
- * `sequence.late_notified_at` : chaque transition n'est notifiée qu'une fois,
- * quel que soit le nombre de ticks. Seules les SA en attente et non archivées
- * sont prises en compte (même périmètre que le dashboard Peda).
+ * La déduplication repose sur `sequence.soon_notified_at` (une fois, jamais
+ * renotifié) / `sequence.late_notified_at` (renotifié si la dernière notif
+ * date de plus de `SA_LATE_RELANCE_DAYS` jours) : un tick entre deux ne
+ * renotifie jamais. Seules les SA en attente et non archivées sont prises en
+ * compte (même périmètre que le dashboard Peda).
  */
 export class SaNotificationService {
     private sequences = new AlternantSequenceRepository();
@@ -43,9 +48,10 @@ export class SaNotificationService {
     async run(now: Date = new Date()): Promise<SaNotificationCounts> {
         const startOfToday = startOfDay(now);
         const soonUpper = new Date(startOfToday.getTime() + SA_SOON_THRESHOLD_DAYS * 24 * 60 * 60 * 1000);
+        const relanceCutoff = new Date(now.getTime() - SA_LATE_RELANCE_DAYS * 24 * 60 * 60 * 1000);
         const [soon, late] = await Promise.all([
             this.sequences.findSoonUnnotified(startOfToday, soonUpper),
-            this.sequences.findLateUnnotified(startOfToday),
+            this.sequences.findLateUnnotified(startOfToday, relanceCutoff),
         ]);
         if (soon.length === 0 && late.length === 0) return { soon: 0, late: 0 };
 
