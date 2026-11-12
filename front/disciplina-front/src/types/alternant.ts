@@ -17,6 +17,17 @@ export interface AlternantDefaillance {
   resolvedAt: string | null
 }
 
+/** Changement de mentor déclaré (#961) — avenant/déclaration OPCO cochés à la main. */
+export interface AlternantMentorChange {
+  previousMentorName: string | null
+  previousMentorEmail: string | null
+  newMentorName: string | null
+  newMentorEmail: string | null
+  declaredAt: string
+  avenantSignedAt: string | null
+  opcoDeclaredAt: string | null
+}
+
 export interface Alternant {
   id: string
   firstName: string
@@ -32,6 +43,7 @@ export interface Alternant {
   company: AlternantCompany | null
   linkedAlternantIds: string[]
   defaillance: AlternantDefaillance | null
+  mentorChanges: AlternantMentorChange[]
   /** `true` = archivé suite à une rupture « quitte la formation ». */
   archived: boolean
   archivedAt: string | null

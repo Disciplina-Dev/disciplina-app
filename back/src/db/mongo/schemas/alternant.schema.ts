@@ -1,5 +1,10 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
-import { Alternant, AlternantCompany, AlternantCompanyDefaillance } from '../../../types/alternant.types';
+import {
+    Alternant,
+    AlternantCompany,
+    AlternantCompanyDefaillance,
+    AlternantMentorChange,
+} from '../../../types/alternant.types';
 
 const companySchema = new Schema<AlternantCompany>(
     {
@@ -25,6 +30,19 @@ const defaillanceSchema = new Schema<AlternantCompanyDefaillance>(
     { _id: false },
 );
 
+const mentorChangeSchema = new Schema<AlternantMentorChange>(
+    {
+        previous_mentor_name: { type: String, default: null },
+        previous_mentor_email: { type: String, default: null },
+        new_mentor_name: { type: String, default: null },
+        new_mentor_email: { type: String, default: null },
+        declared_at: { type: Date, required: true },
+        avenant_signed_at: { type: Date, default: null },
+        opco_declared_at: { type: Date, default: null },
+    },
+    { _id: false },
+);
+
 const alternantSchema = new Schema<Alternant & Document>(
     {
         _id: { type: String },
@@ -38,6 +56,7 @@ const alternantSchema = new Schema<Alternant & Document>(
         company: { type: companySchema, default: null },
         linked_alternant_ids: { type: [String], default: [] },
         defaillance: { type: defaillanceSchema, default: null },
+        mentor_changes: { type: [mentorChangeSchema], default: [] },
         archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },

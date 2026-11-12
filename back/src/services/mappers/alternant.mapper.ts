@@ -35,6 +35,15 @@ export function alternantToGql(a: Alternant): object {
                   resolvedAt: a.defaillance.resolved_at ? new Date(a.defaillance.resolved_at).toISOString() : null,
               }
             : null,
+        mentorChanges: (a.mentor_changes ?? []).map((c) => ({
+            previousMentorName: c.previous_mentor_name ?? null,
+            previousMentorEmail: c.previous_mentor_email ?? null,
+            newMentorName: c.new_mentor_name ?? null,
+            newMentorEmail: c.new_mentor_email ?? null,
+            declaredAt: new Date(c.declared_at).toISOString(),
+            avenantSignedAt: c.avenant_signed_at ? new Date(c.avenant_signed_at).toISOString() : null,
+            opcoDeclaredAt: c.opco_declared_at ? new Date(c.opco_declared_at).toISOString() : null,
+        })),
         archived: a.archived_at != null,
         archivedAt: a.archived_at ? new Date(a.archived_at).toISOString() : null,
         createdAt: a.created_at ? new Date(a.created_at).toISOString() : null,

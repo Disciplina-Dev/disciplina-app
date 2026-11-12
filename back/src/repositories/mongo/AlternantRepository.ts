@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
 import { searchNeedle } from './searchRegex';
-import { Alternant, AlternantCompanyDefaillance } from '../../types/alternant.types';
+import { Alternant, AlternantCompanyDefaillance, AlternantMentorChange } from '../../types/alternant.types';
 
 export class AlternantRepository {
     /**
@@ -163,5 +163,26 @@ export class AlternantRepository {
                 'defaillance.resolved_at': null,
             })
             .lean();
+    }
+
+    /** Déclare un changement de mentor en cours de contrat (#961) : ajoute à l'historique. */
+    async declareMentorChange(id: string, change: AlternantMentorChange): Promise<Alternant | null> {
+        return getModels()
+            .Alternant.findOneAndUpdate(
+                { _id: id },
+                { $push: { mentor_changes: change }, $set: { updated_at: new Date() } },
+                { returnDocument: 'after', runValidators: true, context: 'query' },
+            )
+            .lean();
+    }
+
+    /** Coche manuellement l'avenant ou la déclaration OPCO sur le dernier changement de mentor déclaré (#961). */
+    async markMentorChangeStep(
+        id: string,
+        index: number,
+        field: 'avenant_signed_at' | 'opco_declared_at',
+        at: Date,
+    ): Promise<void> {
+        await getModels().Alternant.updateOne({ _id: id }, { $set: { [`mentor_changes.${index}.${field}`]: at } });
     }
 }
