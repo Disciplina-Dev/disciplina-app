@@ -9,3 +9,13 @@ export function downloadBlob(blob: Blob, fileName: string): void {
   a.remove()
   URL.revokeObjectURL(url)
 }
+
+/** Contenu d'un blob en base64 (sans préfixe data URL) — pièces jointes mail. */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+    reader.onerror = () => reject(new Error('Lecture du fichier impossible'))
+    reader.readAsDataURL(blob)
+  })
+}

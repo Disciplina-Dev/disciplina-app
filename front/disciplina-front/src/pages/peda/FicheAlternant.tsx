@@ -47,9 +47,8 @@ import {
   type CompanyForm,
 } from '@/api/alternants'
 import { declareRupture, deleteRupture, fetchAlternantRuptures } from '@/api/ruptures'
-import { fetchAssiduiteAlternant, fetchAttestation } from '@/api/emargement'
+import { fetchAssiduiteAlternant } from '@/api/emargement'
 import { fetchSessions } from '@/api/sessions'
-import { downloadBlob } from '@/utils/download'
 import { formatMinutes, formatRate, HALF_LABELS, STATUS_LABELS, formatSeanceDate, presenceLabel, presenceTone } from '@/utils/emargement'
 import {
   FINANCEUR_SUGGESTIONS,
@@ -183,13 +182,6 @@ export default function FicheAlternant() {
       alive = false
     }
   }, [id])
-
-  /** `range` vide = toute la période (toutes les feuilles de l'alternant). */
-  async function downloadAttestation(range: { from?: string; to?: string }) {
-    if (!id) return
-    const { blob, fileName } = await fetchAttestation(id, range)
-    downloadBlob(blob, fileName)
-  }
 
   useEffect(() => {
     if (!id) return
@@ -763,7 +755,7 @@ export default function FicheAlternant() {
                   disabled={!assiduite || assiduite.seances.length === 0}
                   onClick={() => setShowAttestation(true)}
                 >
-                  Attestation PDF
+                  Attestation
                 </Button>
               }
             />
@@ -1183,11 +1175,17 @@ export default function FicheAlternant() {
       )}
       {showAttestation && assiduite && (
         <AttestationModal
-          alternantName={alternant.fullName}
+          alternant={{
+            id: alternant.id,
+            fullName: alternant.fullName,
+            firstName: alternant.firstName,
+            lastName: alternant.lastName,
+            email: alternant.email,
+            companyName: alternant.company?.name ?? null,
+          }}
           availableFrom={assiduite.from}
           availableTo={assiduite.to}
           onClose={() => setShowAttestation(false)}
-          onDownload={downloadAttestation}
         />
       )}
     </div>
