@@ -127,7 +127,7 @@ least once per quarter):
 
 | Date | Who | Dump restored | Result |
 |------|-----|---------------|--------|
-| _to fill after the first test_ | | | |
+| 2026-11-12 | qh (GDPR_INF_01.2) | Both tenants, scripted run with a stubbed `docker` (encrypt → decrypt → `rollback.sh` right/wrong/missing key → dry-run → legacy migration) | OK, 28/28 checks. **Not yet** a restore into a real MySQL/MongoDB: do it once on a test instance and add a row. |
 
 ## 3. Deploy
 
