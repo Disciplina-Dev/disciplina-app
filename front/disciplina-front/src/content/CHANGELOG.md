@@ -49,6 +49,10 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ### Changed
 
+- Émargement (#955) — période de l'attestation d'assiduité : sur la fiche d'un alternant, « Attestation PDF »
+  ouvre le choix de la période (du / au, préremplie avec les bornes des feuilles disponibles) et le document ne
+  reprend que les séances émargées entre ces deux dates ; le bouton « Toute la période » génère l'attestation
+  complète, toutes feuilles de l'alternant confondues.
 - Émargement (#955) — suppression d'une séance toujours possible : le bouton « Supprimer » n'est plus
   grisé sur une feuille validée et le serveur accepte la suppression (`emargements` et journal
   compris) ; une confirmation spécifique rappelle que statuts, signatures et historique seront
