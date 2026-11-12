@@ -30,12 +30,15 @@ import {
   changeAlternantCompany,
   completeSequence,
   createSequence,
+  declareMentorChange,
   deleteAlternant,
   deleteSequence,
   fetchAlternant,
   fetchAlternants,
   fetchSequences,
   linkAlternant,
+  markMentorChangeAvenantSigned,
+  markMentorChangeOpcoDeclared,
   markSequence,
   removeAlternantCompany,
   reportCompanyDefaillance,
@@ -133,6 +136,10 @@ export default function FicheAlternant() {
   const [showDefaillanceForm, setShowDefaillanceForm] = useState(false)
   const [defaillanceReason, setDefaillanceReason] = useState('')
   const [defaillanceLoading, setDefaillanceLoading] = useState(false)
+  const [showMentorChangeForm, setShowMentorChangeForm] = useState(false)
+  const [mentorChangeName, setMentorChangeName] = useState('')
+  const [mentorChangeEmail, setMentorChangeEmail] = useState('')
+  const [mentorChangeLoading, setMentorChangeLoading] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'delete' | 'removeCompany' | null>(null)
   const [confirmDeleteRuptureId, setConfirmDeleteRuptureId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -281,6 +288,52 @@ export default function FicheAlternant() {
       setError(e instanceof Error ? e.message : 'Mise à jour impossible')
     } finally {
       setDefaillanceLoading(false)
+    }
+  }
+
+  async function handleDeclareMentorChange() {
+    if (!id) return
+    setMentorChangeLoading(true)
+    try {
+      const updated = await declareMentorChange(
+        id,
+        mentorChangeName.trim() || null,
+        mentorChangeEmail.trim() || null,
+      )
+      if (updated) setAlternant(updated)
+      setShowMentorChangeForm(false)
+      setMentorChangeName('')
+      setMentorChangeEmail('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Déclaration impossible')
+    } finally {
+      setMentorChangeLoading(false)
+    }
+  }
+
+  async function handleMarkAvenantSigned() {
+    if (!id) return
+    setMentorChangeLoading(true)
+    try {
+      const updated = await markMentorChangeAvenantSigned(id)
+      if (updated) setAlternant(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Mise à jour impossible')
+    } finally {
+      setMentorChangeLoading(false)
+    }
+  }
+
+  async function handleMarkOpcoDeclared() {
+    if (!id) return
+    setMentorChangeLoading(true)
+    try {
+      const updated = await markMentorChangeOpcoDeclared(id)
+      if (updated) setAlternant(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Mise à jour impossible')
+    } finally {
+      setMentorChangeLoading(false)
     }
   }
 
@@ -645,6 +698,84 @@ export default function FicheAlternant() {
                 </Button>
               )
             ) : null}
+
+            {alternant.company
+              ? (() => {
+                  const lastChange = alternant.mentorChanges[alternant.mentorChanges.length - 1]
+                  const pending = lastChange && (!lastChange.avenantSignedAt || !lastChange.opcoDeclaredAt)
+                  if (pending) {
+                    return (
+                      <div className="mt-3 rounded-xl border border-[var(--ds-warning)]/30 bg-[var(--ds-warning-bg)] p-3">
+                        <Badge tone="warning" icon={<IconUser width={12} height={12} />}>
+                          Changement de mentor en cours
+                        </Badge>
+                        <p className="mt-2 text-sm text-[var(--ds-text)]">
+                          {lastChange.previousMentorName || 'Mentor précédent inconnu'} → {lastChange.newMentorName || '-'}
+                        </p>
+                        <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+                          Déclaré le {formatDate(lastChange.declaredAt)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={mentorChangeLoading || !!lastChange.avenantSignedAt}
+                            onClick={handleMarkAvenantSigned}
+                          >
+                            {lastChange.avenantSignedAt ? 'Avenant signé ✓' : 'Marquer l’avenant signé'}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={mentorChangeLoading || !!lastChange.opcoDeclaredAt}
+                            onClick={handleMarkOpcoDeclared}
+                          >
+                            {lastChange.opcoDeclaredAt ? 'OPCO déclaré ✓' : 'Marquer la déclaration OPCO faite'}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  }
+                  if (showMentorChangeForm) {
+                    return (
+                      <div className="mt-3 space-y-2">
+                        <InputField
+                          id="mentor-change-name"
+                          label="Nouveau maître d’apprentissage"
+                          value={mentorChangeName}
+                          onChange={(e) => setMentorChangeName(e.target.value)}
+                        />
+                        <InputField
+                          id="mentor-change-email"
+                          label="Email du nouveau mentor"
+                          type="email"
+                          value={mentorChangeEmail}
+                          onChange={(e) => setMentorChangeEmail(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                          <Button variant="primary" size="sm" disabled={mentorChangeLoading} onClick={handleDeclareMentorChange}>
+                            Déclarer
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => setShowMentorChangeForm(false)}>
+                            Annuler
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="mt-3"
+                      leftIcon={<IconUser width={14} height={14} />}
+                      onClick={() => setShowMentorChangeForm(true)}
+                    >
+                      Déclarer un changement de mentor
+                    </Button>
+                  )
+                })()
+              : null}
 
             <h4 className="mb-2 mt-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
               <IconLink width={14} height={14} /> Suivi en commun ({linkedOthers.length})

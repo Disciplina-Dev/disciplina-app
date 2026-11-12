@@ -24,6 +24,7 @@ import {
 import { RuptureService } from '../../services/RuptureService';
 import { SaCalendarService } from '../../services/SaCalendarService';
 import { SaDefaillanceService } from '../../services/SaDefaillanceService';
+import { AlternantMentorChangeService } from '../../services/AlternantMentorChangeService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
 
 const alternantService = new AlternantService();
@@ -32,6 +33,7 @@ const ruptureService = new RuptureService();
 const documentTemplateService = new AlternantDocumentTemplateService();
 const saCalendarService = new SaCalendarService();
 const defaillanceService = new SaDefaillanceService();
+const mentorChangeService = new AlternantMentorChangeService();
 
 /** Re-synchronise l'agenda Google des Pedas avec les SA actives d'un alternant. */
 async function syncAlternantSequences(alternantId: string): Promise<void> {
@@ -207,6 +209,32 @@ export const resolvers = {
         resolveCompanyDefaillance: async (_: unknown, { alternantId }: { alternantId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             await defaillanceService.resolve(alternantId);
+            const updated = await alternantService.findById(alternantId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        declareMentorChange: async (
+            _: unknown,
+            {
+                alternantId,
+                newMentorName,
+                newMentorEmail,
+            }: { alternantId: string; newMentorName?: string | null; newMentorEmail?: string | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await mentorChangeService.declare(alternantId, newMentorName ?? null, newMentorEmail ?? null);
+            const updated = await alternantService.findById(alternantId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        markMentorChangeAvenantSigned: async (_: unknown, { alternantId }: { alternantId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await mentorChangeService.markAvenantSigned(alternantId);
+            const updated = await alternantService.findById(alternantId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        markMentorChangeOpcoDeclared: async (_: unknown, { alternantId }: { alternantId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await mentorChangeService.markOpcoDeclared(alternantId);
             const updated = await alternantService.findById(alternantId);
             return updated ? alternantToGql(updated) : null;
         },

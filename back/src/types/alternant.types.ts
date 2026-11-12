@@ -16,7 +16,7 @@ export interface AlternantCompany {
 
 /**
  * Entreprise défaillante (#961) — déclenchée manuellement par un péda,
- * escaladée automatiquement en 3 temps par `AlternantDefaillanceService` tant
+ * escaladée automatiquement en 3 temps par `SaDefaillanceService` tant
  * qu'elle n'est pas résolue. Portée par l'alternant (pas `AlternantCompany`,
  * qui est remplacé en bloc à chaque modification de fiche entreprise).
  */
@@ -30,6 +30,25 @@ export interface AlternantCompanyDefaillance {
     /** Information interne Direction + Commercial, envoyée si toujours non résolu à J+14. */
     escalated_at?: Date | string | null;
     resolved_at?: Date | string | null;
+}
+
+/**
+ * Changement de maître d'apprentissage en cours de contrat (#961 — point 5).
+ * Déclaré explicitement par un péda (plutôt qu'une simple édition silencieuse
+ * du champ sur `AlternantCompany`) pour garder un historique et ne pas oublier
+ * les démarches associées — dont le contenu (avenant, déclaration OPCO) reste
+ * manuel, faute de template/process automatisable aujourd'hui.
+ */
+export interface AlternantMentorChange {
+    previous_mentor_name: string | null;
+    previous_mentor_email: string | null;
+    new_mentor_name: string | null;
+    new_mentor_email: string | null;
+    declared_at: Date | string;
+    /** Coché manuellement une fois l'avenant signé en dehors de l'app. */
+    avenant_signed_at?: Date | string | null;
+    /** Coché manuellement une fois la déclaration faite auprès de l'OPCO. */
+    opco_declared_at?: Date | string | null;
 }
 
 export interface Alternant {
@@ -49,6 +68,8 @@ export interface Alternant {
     linked_alternant_ids: string[];
     /** `null` = aucune défaillance en cours ou déjà résolue. */
     defaillance?: AlternantCompanyDefaillance | null;
+    /** Historique des changements de mentor déclarés (#961) — [] = aucun. */
+    mentor_changes?: AlternantMentorChange[];
     /** `null` = actif ; date posée = archivé (rupture « quitte la formation »). */
     archived_at?: Date | string | null;
     created_at: Date | string;

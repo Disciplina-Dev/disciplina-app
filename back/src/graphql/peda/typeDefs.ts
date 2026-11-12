@@ -32,6 +32,16 @@ export const typeDefs = gql`
         resolvedAt: String
     }
 
+    type AlternantMentorChange {
+        previousMentorName: String
+        previousMentorEmail: String
+        newMentorName: String
+        newMentorEmail: String
+        declaredAt: String!
+        avenantSignedAt: String
+        opcoDeclaredAt: String
+    }
+
     type Alternant {
         id: ID!
         firstName: String!
@@ -45,6 +55,7 @@ export const typeDefs = gql`
         company: AlternantCompany
         linkedAlternantIds: [String!]!
         defaillance: AlternantDefaillance
+        mentorChanges: [AlternantMentorChange!]!
         archived: Boolean!
         archivedAt: String
         createdAt: String
@@ -270,6 +281,9 @@ export const typeDefs = gql`
         unarchiveAlternant(id: ID!): Alternant
         reportCompanyDefaillance(alternantId: ID!, reason: String!): Alternant
         resolveCompanyDefaillance(alternantId: ID!): Alternant
+        declareMentorChange(alternantId: ID!, newMentorName: String, newMentorEmail: String): Alternant
+        markMentorChangeAvenantSigned(alternantId: ID!): Alternant
+        markMentorChangeOpcoDeclared(alternantId: ID!): Alternant
         createSequence(alternantId: ID!, prevueLe: String!, type: AlternantSequenceType): AlternantSequence!
         rescheduleSequence(id: ID!, prevueLe: String!): AlternantSequence
         updateSequenceContacts(id: ID!, contacts: AlternantSequenceContactsInput!): AlternantSequence

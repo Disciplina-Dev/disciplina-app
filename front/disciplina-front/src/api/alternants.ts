@@ -38,6 +38,15 @@ const ALTERNANT_FIELDS = gql`
       escalatedAt
       resolvedAt
     }
+    mentorChanges {
+      previousMentorName
+      previousMentorEmail
+      newMentorName
+      newMentorEmail
+      declaredAt
+      avenantSignedAt
+      opcoDeclaredAt
+    }
     archived
     archivedAt
     createdAt
@@ -197,6 +206,33 @@ const REPORT_COMPANY_DEFAILLANCE = gql`
 const RESOLVE_COMPANY_DEFAILLANCE = gql`
   mutation ResolveCompanyDefaillance($alternantId: ID!) {
     resolveCompanyDefaillance(alternantId: $alternantId) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
+const DECLARE_MENTOR_CHANGE = gql`
+  mutation DeclareMentorChange($alternantId: ID!, $newMentorName: String, $newMentorEmail: String) {
+    declareMentorChange(alternantId: $alternantId, newMentorName: $newMentorName, newMentorEmail: $newMentorEmail) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
+const MARK_MENTOR_CHANGE_AVENANT_SIGNED = gql`
+  mutation MarkMentorChangeAvenantSigned($alternantId: ID!) {
+    markMentorChangeAvenantSigned(alternantId: $alternantId) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
+const MARK_MENTOR_CHANGE_OPCO_DECLARED = gql`
+  mutation MarkMentorChangeOpcoDeclared($alternantId: ID!) {
+    markMentorChangeOpcoDeclared(alternantId: $alternantId) {
       ...AlternantFields
     }
   }
@@ -364,6 +400,25 @@ export async function reportCompanyDefaillance(alternantId: string, reason: stri
 export async function resolveCompanyDefaillance(alternantId: string): Promise<Alternant | null> {
   const res = await pedaGraphqlClient.mutation(RESOLVE_COMPANY_DEFAILLANCE, { alternantId })
   return unwrap<{ resolveCompanyDefaillance: Alternant | null }>(res).resolveCompanyDefaillance
+}
+
+export async function declareMentorChange(
+  alternantId: string,
+  newMentorName: string | null,
+  newMentorEmail: string | null,
+): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(DECLARE_MENTOR_CHANGE, { alternantId, newMentorName, newMentorEmail })
+  return unwrap<{ declareMentorChange: Alternant | null }>(res).declareMentorChange
+}
+
+export async function markMentorChangeAvenantSigned(alternantId: string): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(MARK_MENTOR_CHANGE_AVENANT_SIGNED, { alternantId })
+  return unwrap<{ markMentorChangeAvenantSigned: Alternant | null }>(res).markMentorChangeAvenantSigned
+}
+
+export async function markMentorChangeOpcoDeclared(alternantId: string): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(MARK_MENTOR_CHANGE_OPCO_DECLARED, { alternantId })
+  return unwrap<{ markMentorChangeOpcoDeclared: Alternant | null }>(res).markMentorChangeOpcoDeclared
 }
 
 export async function createSequence(
