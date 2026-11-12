@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
-import { IconClose, IconDownload, IconFile, IconLoader, IconRefresh, IconSave } from '@/components/ui/icons'
+import { IconClose, IconDownload, IconFile, IconLoader, IconRefresh, IconSave, IconUpload } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import RichTextEditor from '@/components/ui/RichTextEditor'
 import SignaturePad from '@/components/ui/SignaturePad'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { apiFetch } from '@/api/httpClient'
 import { fetchAlternantDocumentTemplates, fetchSequenceDocument, saveSequenceDocument } from '@/api/alternantDocumentTemplates'
+import { fetchSequences } from '@/api/alternants'
 import type { AlternantDocumentTemplate, AlternantSequenceDocument } from '@/types/alternantDocumentTemplate'
+import type { AlternantSequence } from '@/types/alternant'
 
 type Part = 'maitreApprentissage' | 'alternant' | 'formateur'
 
@@ -23,10 +25,11 @@ function formatDate(iso: string | null): string {
 
 interface SequenceDocumentModalProps {
   sequenceId: string
+  alternantId: string
   onClose: () => void
 }
 
-export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceDocumentModalProps) {
+export default function SequenceDocumentModal({ sequenceId, alternantId, onClose }: SequenceDocumentModalProps) {
   const [doc, setDoc] = useState<AlternantSequenceDocument | null>(null)
   const [activePart, setActivePart] = useState<Part>('maitreApprentissage')
   const [content, setContent] = useState<Record<Part, string>>({
@@ -47,6 +50,12 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
   // manuellement ici, pas seulement celui résolu automatiquement (`doc.template`).
   const [templates, setTemplates] = useState<AlternantDocumentTemplate[]>([])
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
+  // Autres SA du même alternant, pour "Importer et remplacer" (#892) — on ne
+  // propose jamais d'importer depuis un autre alternant (risque de mélanger
+  // des entreprises/signatures différentes).
+  const [otherSequences, setOtherSequences] = useState<AlternantSequence[]>([])
+  const [importSourceId, setImportSourceId] = useState('')
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     fetchSequenceDocument(sequenceId)
@@ -66,7 +75,10 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
       .finally(() => setLoading(false))
     fetchAlternantDocumentTemplates().then(setTemplates).catch(() => setTemplates([]))
-  }, [sequenceId])
+    fetchSequences(alternantId)
+      .then((seqs) => setOtherSequences(seqs.filter((s) => s.id !== sequenceId)))
+      .catch(() => setOtherSequences([]))
+  }, [sequenceId, alternantId])
 
   // Applique le modèle choisi aux 3 parties en mémoire (pas encore enregistré) —
   // utile quand le modèle résolu automatiquement par Session ne convient pas à
@@ -80,6 +92,41 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
       alternant: template.alternant,
       formateur: template.formateur,
     })
+  }
+
+  // Importe le document déjà enregistré d'une autre SA du même alternant
+  // (textes + signatures) à la place du contenu courant, en mémoire — comme
+  // "Appliquer un modèle" mais avec les signatures aussi, donc plus
+  // destructeur : confirmation requise (#892).
+  async function handleImportFromSequence() {
+    if (!importSourceId) return
+    const source = otherSequences.find((s) => s.id === importSourceId)
+    if (!window.confirm(`Remplacer tout le contenu (textes et signatures) de cette SA par celui de la SA n°${source?.numero ?? ''} ? Rien n'est enregistré avant de cliquer sur "Enregistrer".`)) {
+      return
+    }
+    setImporting(true)
+    setError(null)
+    try {
+      const sourceDoc = await fetchSequenceDocument(importSourceId)
+      if (!sourceDoc.isSnapshotted) {
+        setError('Cette SA n\'a pas encore de contenu enregistré, impossible de l\'importer.')
+        return
+      }
+      setContent({
+        maitreApprentissage: sourceDoc.maitreApprentissage ?? '',
+        alternant: sourceDoc.alternant ?? '',
+        formateur: sourceDoc.formateur ?? '',
+      })
+      setSignature({
+        maitreApprentissage: sourceDoc.signatureMaitreApprentissage ?? '',
+        alternant: sourceDoc.signatureAlternant ?? '',
+        formateur: sourceDoc.signatureFormateur ?? '',
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setImporting(false)
+    }
   }
 
   async function handleSave() {
@@ -206,6 +253,39 @@ export default function SequenceDocumentModal({ sequenceId, onClose }: SequenceD
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="sa-import-source" className="text-xs font-medium text-[var(--ds-text-muted)]">
+                Importer et remplacer depuis une autre SA de cet alternant (textes et signatures)
+              </label>
+              <div className="flex gap-2">
+                <select
+                  id="sa-import-source"
+                  value={importSourceId}
+                  onChange={(e) => setImportSourceId(e.target.value)}
+                  className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2 px-3 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-teal-700"
+                >
+                  <option value="">— Choisir une SA —</option>
+                  {otherSequences.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      SA n°{s.numero} — {formatDate(s.prevueLe)}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  leftIcon={<IconUpload width={14} height={14} />}
+                  onClick={handleImportFromSequence}
+                  disabled={!importSourceId}
+                  isLoading={importing}
+                  loadingLabel="Import"
+                  title="Remplace les 3 parties et les 3 signatures par celles de la SA choisie — non enregistré avant 'Enregistrer'"
+                >
+                  Importer
+                </Button>
+              </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">

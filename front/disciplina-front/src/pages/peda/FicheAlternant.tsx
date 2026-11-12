@@ -1168,8 +1168,8 @@ export default function FicheAlternant() {
       {showRupture && (
         <RuptureModal alternant={alternant} onClose={() => setShowRupture(false)} onSubmit={handleDeclareRupture} />
       )}
-      {documentSeqId && (
-        <SequenceDocumentModal sequenceId={documentSeqId} onClose={() => setDocumentSeqId(null)} />
+      {documentSeqId && alternant && (
+        <SequenceDocumentModal sequenceId={documentSeqId} alternantId={alternant.id} onClose={() => setDocumentSeqId(null)} />
       )}
     </div>
   )
