@@ -23,6 +23,18 @@ export function alternantToGql(a: Alternant): object {
               }
             : null,
         linkedAlternantIds: a.linked_alternant_ids ?? [],
+        defaillance: a.defaillance
+            ? {
+                  reason: a.defaillance.reason,
+                  reportedAt: new Date(a.defaillance.reported_at).toISOString(),
+                  reminderSentAt: a.defaillance.reminder_sent_at
+                      ? new Date(a.defaillance.reminder_sent_at).toISOString()
+                      : null,
+                  alertSentAt: a.defaillance.alert_sent_at ? new Date(a.defaillance.alert_sent_at).toISOString() : null,
+                  escalatedAt: a.defaillance.escalated_at ? new Date(a.defaillance.escalated_at).toISOString() : null,
+                  resolvedAt: a.defaillance.resolved_at ? new Date(a.defaillance.resolved_at).toISOString() : null,
+              }
+            : null,
         archived: a.archived_at != null,
         archivedAt: a.archived_at ? new Date(a.archived_at).toISOString() : null,
         createdAt: a.created_at ? new Date(a.created_at).toISOString() : null,

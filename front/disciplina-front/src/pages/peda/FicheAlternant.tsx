@@ -38,7 +38,9 @@ import {
   linkAlternant,
   markSequence,
   removeAlternantCompany,
+  reportCompanyDefaillance,
   rescheduleSequence,
+  resolveCompanyDefaillance,
   unlinkAlternant,
   updateAlternant,
   updateSequenceContacts,
@@ -128,6 +130,9 @@ export default function FicheAlternant() {
   const [showEdit, setShowEdit] = useState(false)
   const [showCompany, setShowCompany] = useState(false)
   const [showRupture, setShowRupture] = useState(false)
+  const [showDefaillanceForm, setShowDefaillanceForm] = useState(false)
+  const [defaillanceReason, setDefaillanceReason] = useState('')
+  const [defaillanceLoading, setDefaillanceLoading] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'delete' | 'removeCompany' | null>(null)
   const [confirmDeleteRuptureId, setConfirmDeleteRuptureId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -248,6 +253,34 @@ export default function FicheAlternant() {
     if (updated) {
       setAlternant(updated)
       setSequences(await fetchSequences(id))
+    }
+  }
+
+  async function handleReportDefaillance() {
+    if (!id || !defaillanceReason.trim()) return
+    setDefaillanceLoading(true)
+    try {
+      const updated = await reportCompanyDefaillance(id, defaillanceReason.trim())
+      if (updated) setAlternant(updated)
+      setShowDefaillanceForm(false)
+      setDefaillanceReason('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Signalement impossible')
+    } finally {
+      setDefaillanceLoading(false)
+    }
+  }
+
+  async function handleResolveDefaillance() {
+    if (!id) return
+    setDefaillanceLoading(true)
+    try {
+      const updated = await resolveCompanyDefaillance(id)
+      if (updated) setAlternant(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Mise à jour impossible')
+    } finally {
+      setDefaillanceLoading(false)
     }
   }
 
@@ -549,6 +582,69 @@ export default function FicheAlternant() {
             ) : (
               <p className="text-sm italic text-[var(--ds-text-subtle)]">Plus d’entreprise.</p>
             )}
+
+            {alternant.company && !alternant.defaillance?.resolvedAt && alternant.defaillance ? (
+              <div className="mt-3 rounded-xl border border-[var(--ds-danger)]/30 bg-[var(--ds-danger-bg)] p-3">
+                <Badge tone="danger" icon={<IconAlert width={12} height={12} />}>
+                  Entreprise défaillante
+                </Badge>
+                <p className="mt-2 text-sm text-[var(--ds-text)]">{alternant.defaillance.reason}</p>
+                <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+                  Signalée le {formatDate(alternant.defaillance.reportedAt)}
+                  {alternant.defaillance.escalatedAt
+                    ? ' · Direction et Commercial informés'
+                    : alternant.defaillance.alertSentAt
+                      ? ' · Courrier d’alerte envoyé'
+                      : alternant.defaillance.reminderSentAt
+                        ? ' · Rappel envoyé au mentor'
+                        : ''}
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  disabled={defaillanceLoading}
+                  onClick={handleResolveDefaillance}
+                >
+                  Marquer résolu
+                </Button>
+              </div>
+            ) : alternant.company ? (
+              showDefaillanceForm ? (
+                <div className="mt-3 space-y-2">
+                  <InputField
+                    id="defaillance-reason"
+                    label="Motif"
+                    value={defaillanceReason}
+                    onChange={(e) => setDefaillanceReason(e.target.value)}
+                    placeholder="Ex. aucune réponse du mentor depuis plusieurs relances"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      disabled={defaillanceLoading || !defaillanceReason.trim()}
+                      onClick={handleReportDefaillance}
+                    >
+                      Signaler
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => setShowDefaillanceForm(false)}>
+                      Annuler
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3"
+                  leftIcon={<IconAlert width={14} height={14} />}
+                  onClick={() => setShowDefaillanceForm(true)}
+                >
+                  Signaler une entreprise défaillante
+                </Button>
+              )
+            ) : null}
 
             <h4 className="mb-2 mt-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
               <IconLink width={14} height={14} /> Suivi en commun ({linkedOthers.length})

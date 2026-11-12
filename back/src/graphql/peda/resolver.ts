@@ -23,6 +23,7 @@ import {
 } from '../../services/AlternantDocumentTemplateService';
 import { RuptureService } from '../../services/RuptureService';
 import { SaCalendarService } from '../../services/SaCalendarService';
+import { SaDefaillanceService } from '../../services/SaDefaillanceService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
 
 const alternantService = new AlternantService();
@@ -30,6 +31,7 @@ const sessionService = new SessionService();
 const ruptureService = new RuptureService();
 const documentTemplateService = new AlternantDocumentTemplateService();
 const saCalendarService = new SaCalendarService();
+const defaillanceService = new SaDefaillanceService();
 
 /** Re-synchronise l'agenda Google des Pedas avec les SA actives d'un alternant. */
 async function syncAlternantSequences(alternantId: string): Promise<void> {
@@ -190,6 +192,22 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             const updated = await alternantService.unarchive(id);
             await syncAlternantSequences(id);
+            return updated ? alternantToGql(updated) : null;
+        },
+        reportCompanyDefaillance: async (
+            _: unknown,
+            { alternantId, reason }: { alternantId: string; reason: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await defaillanceService.report(alternantId, reason);
+            const updated = await alternantService.findById(alternantId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        resolveCompanyDefaillance: async (_: unknown, { alternantId }: { alternantId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await defaillanceService.resolve(alternantId);
+            const updated = await alternantService.findById(alternantId);
             return updated ? alternantToGql(updated) : null;
         },
         createSequence: async (

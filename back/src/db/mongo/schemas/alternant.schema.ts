@@ -1,5 +1,5 @@
 import mongoose, { Schema, model, Document } from 'mongoose';
-import { Alternant, AlternantCompany } from '../../../types/alternant.types';
+import { Alternant, AlternantCompany, AlternantCompanyDefaillance } from '../../../types/alternant.types';
 
 const companySchema = new Schema<AlternantCompany>(
     {
@@ -9,6 +9,18 @@ const companySchema = new Schema<AlternantCompany>(
         mentor_email: { type: String, default: null },
         start_date: { type: Date, required: true },
         end_date: { type: Date, default: null },
+    },
+    { _id: false },
+);
+
+const defaillanceSchema = new Schema<AlternantCompanyDefaillance>(
+    {
+        reason: { type: String, required: true },
+        reported_at: { type: Date, required: true },
+        reminder_sent_at: { type: Date, default: null },
+        alert_sent_at: { type: Date, default: null },
+        escalated_at: { type: Date, default: null },
+        resolved_at: { type: Date, default: null },
     },
     { _id: false },
 );
@@ -25,6 +37,7 @@ const alternantSchema = new Schema<Alternant & Document>(
         candidate_id: { type: String, default: null },
         company: { type: companySchema, default: null },
         linked_alternant_ids: { type: [String], default: [] },
+        defaillance: { type: defaillanceSchema, default: null },
         archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },

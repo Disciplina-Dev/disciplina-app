@@ -14,6 +14,24 @@ export interface AlternantCompany {
     end_date?: Date | string | null;
 }
 
+/**
+ * Entreprise défaillante (#961) — déclenchée manuellement par un péda,
+ * escaladée automatiquement en 3 temps par `AlternantDefaillanceService` tant
+ * qu'elle n'est pas résolue. Portée par l'alternant (pas `AlternantCompany`,
+ * qui est remplacé en bloc à chaque modification de fiche entreprise).
+ */
+export interface AlternantCompanyDefaillance {
+    reason: string;
+    reported_at: Date | string;
+    /** Rappel écrit au mentor, envoyé dès le constat. */
+    reminder_sent_at?: Date | string | null;
+    /** Courrier d'alerte de la Responsable, envoyé si toujours non résolu à J+7. */
+    alert_sent_at?: Date | string | null;
+    /** Information interne Direction + Commercial, envoyée si toujours non résolu à J+14. */
+    escalated_at?: Date | string | null;
+    resolved_at?: Date | string | null;
+}
+
 export interface Alternant {
     _id: string;
     first_name: string;
@@ -29,6 +47,8 @@ export interface Alternant {
     /** `null` = le jeune n'a plus d'entreprise (cf. `removeCompany`). */
     company: AlternantCompany | null;
     linked_alternant_ids: string[];
+    /** `null` = aucune défaillance en cours ou déjà résolue. */
+    defaillance?: AlternantCompanyDefaillance | null;
     /** `null` = actif ; date posée = archivé (rupture « quitte la formation »). */
     archived_at?: Date | string | null;
     created_at: Date | string;
