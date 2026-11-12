@@ -7,13 +7,21 @@ import type { AlternantCompany } from '@/types/alternant'
 interface AlternantCompanyModalProps {
   initial?: AlternantCompany | null
   onClose: () => void
-  onSubmit: (company: { name?: string | null; address?: string | null; mentorName?: string | null; startDate: string; endDate?: string | null }) => Promise<void>
+  onSubmit: (company: {
+    name?: string | null
+    address?: string | null
+    mentorName?: string | null
+    mentorEmail?: string | null
+    startDate: string
+    endDate?: string | null
+  }) => Promise<void>
 }
 
 export default function AlternantCompanyModal({ initial, onClose, onSubmit }: AlternantCompanyModalProps) {
   const [name, setName] = useState(initial?.name ?? '')
   const [address, setAddress] = useState(initial?.address ?? '')
   const [mentorName, setMentorName] = useState(initial?.mentorName ?? '')
+  const [mentorEmail, setMentorEmail] = useState(initial?.mentorEmail ?? '')
   const [startDate, setStartDate] = useState(initial?.startDate ? initial.startDate.slice(0, 10) : '')
   const [endDate, setEndDate] = useState(initial?.endDate ? (initial.endDate as string).slice(0, 10) : '')
   const [error, setError] = useState<string | null>(null)
@@ -35,6 +43,7 @@ export default function AlternantCompanyModal({ initial, onClose, onSubmit }: Al
         name: name.trim() || null,
         address: address.trim() || null,
         mentorName: mentorName.trim() || null,
+        mentorEmail: mentorEmail.trim() || null,
         startDate,
         endDate: endDate || null,
       })
@@ -70,6 +79,14 @@ export default function AlternantCompanyModal({ initial, onClose, onSubmit }: Al
           <InputField id="cmp-name" label="Nom de l’entreprise" value={name} onChange={(e) => setName(e.target.value)} />
           <InputField id="cmp-address" label="Adresse de l’entreprise" value={address} onChange={(e) => setAddress(e.target.value)} />
           <InputField id="cmp-mentor" label="Maître d’apprentissage" value={mentorName} onChange={(e) => setMentorName(e.target.value)} />
+          <InputField
+            id="cmp-mentor-email"
+            label="Email du maître d’apprentissage"
+            type="email"
+            value={mentorEmail}
+            onChange={(e) => setMentorEmail(e.target.value)}
+            hint="Nécessaire pour lui envoyer la proposition de RDV avant chaque SA."
+          />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <InputField id="cmp-start" label="Date d’entrée en entreprise" type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} />
             <InputField id="cmp-end" label="Date de fin en entreprise" type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} />

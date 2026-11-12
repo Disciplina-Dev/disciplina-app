@@ -141,7 +141,6 @@ export class AlternantSequenceRepository {
             .lean();
     }
 
-    /** SA en attente dont la date prévue est dépassée et pas encore notifiées. */
     /**
      * `relanceCutoff` : une SA déjà notifiée « en retard » n'est renotifiée que
      * si la dernière notif date d'avant ce seuil (relance mensuelle #961) — pas
@@ -157,6 +156,33 @@ export class AlternantSequenceRepository {
                 $or: [{ late_notified_at: null }, { late_notified_at: { $lt: relanceCutoff } }],
             })
             .lean();
+    }
+
+    /**
+     * SA en attente dont la date prévue tombe dans la fenêtre de proposition de
+     * RDV (2 à 3 semaines avant, #961) et pas encore proposées au maître
+     * d'apprentissage. Le filtrage sur l'email du mentor (porté par l'alternant,
+     * pas la SA) se fait à l'appelant.
+     */
+    async findAppointmentProposalCandidates(windowStart: Date, windowEnd: Date): Promise<AlternantSequence[]> {
+        return getModels()
+            .AlternantSequence.find({
+                status: 'pending',
+                archived_at: null,
+                prevue_le: { $gte: windowStart, $lt: windowEnd },
+                appointment_proposed_at: null,
+            })
+            .lean();
+    }
+
+    /** Marque la proposition de RDV comme envoyée (dédup scheduler, #961). */
+    async markAppointmentProposed(id: string, at: Date): Promise<void> {
+        await getModels().AlternantSequence.updateOne({ _id: id }, { $set: { appointment_proposed_at: at } });
+    }
+
+    /** Marque le RDV comme confirmé par le maître d'apprentissage (lien signé, #961). */
+    async markAppointmentConfirmed(id: string, at: Date): Promise<void> {
+        await getModels().AlternantSequence.updateOne({ _id: id }, { $set: { appointment_confirmed_at: at } });
     }
 
     /** Marque la notification « SA en cours » comme émise (dédup scheduler). */

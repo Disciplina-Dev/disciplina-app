@@ -8,6 +8,8 @@ export interface AlternantCompany {
     name?: string | null;
     address?: string | null;
     mentor_name?: string | null;
+    /** Nécessaire pour la proposition de RDV automatique avant chaque SA (#961). */
+    mentor_email?: string | null;
     start_date: Date | string;
     end_date?: Date | string | null;
 }
@@ -96,6 +98,10 @@ export interface AlternantSequence {
     late_notified_at?: Date | string | null;
     /** Ids des événements Google Calendar créés pour cette SA, par id d'utilisateur Peda. */
     google_event_ids?: Record<string, string> | null;
+    /** Horodatage d'envoi de la proposition de RDV au maître d'apprentissage (#961) — dédup scheduler. */
+    appointment_proposed_at?: Date | string | null;
+    /** Horodatage de la confirmation du RDV par le maître d'apprentissage (lien signé, #961). */
+    appointment_confirmed_at?: Date | string | null;
     /** `null` = active ; date posée = archivée avec son alternant. */
     archived_at?: Date | string | null;
     created_at: Date | string;
