@@ -1,7 +1,14 @@
 import { gql } from 'urql'
 import { pedaGraphqlClient, candidateGraphqlClient } from '@/graphql/client'
 import { CHECK_CANDIDATE_EMAIL, GET_CANDIDATE_BY_ID } from '@/graphql/queries'
-import type { Alternant, AlternantSequence, CreateAlternantInput, SequenceContacts, SequenceStatus } from '@/types/alternant'
+import type {
+  Alternant,
+  AlternantSequence,
+  AlternantSequenceType,
+  CreateAlternantInput,
+  SequenceContacts,
+  SequenceStatus,
+} from '@/types/alternant'
 
 const ALTERNANT_FIELDS = gql`
   fragment AlternantFields on Alternant {
@@ -167,8 +174,8 @@ const UNARCHIVE_ALTERNANT = gql`
 `
 
 const CREATE_SEQUENCE = gql`
-  mutation CreateSequence($alternantId: ID!, $prevueLe: String!) {
-    createSequence(alternantId: $alternantId, prevueLe: $prevueLe) {
+  mutation CreateSequence($alternantId: ID!, $prevueLe: String!, $type: AlternantSequenceType) {
+    createSequence(alternantId: $alternantId, prevueLe: $prevueLe, type: $type) {
       ...SequenceFields
     }
   }
@@ -318,8 +325,12 @@ export async function unarchiveAlternant(id: string): Promise<Alternant | null> 
   return unwrap<{ unarchiveAlternant: Alternant | null }>(res).unarchiveAlternant
 }
 
-export async function createSequence(alternantId: string, prevueLe: string): Promise<AlternantSequence> {
-  const res = await pedaGraphqlClient.mutation(CREATE_SEQUENCE, { alternantId, prevueLe })
+export async function createSequence(
+  alternantId: string,
+  prevueLe: string,
+  type?: AlternantSequenceType,
+): Promise<AlternantSequence> {
+  const res = await pedaGraphqlClient.mutation(CREATE_SEQUENCE, { alternantId, prevueLe, type })
   return unwrap<{ createSequence: AlternantSequence }>(res).createSequence
 }
 

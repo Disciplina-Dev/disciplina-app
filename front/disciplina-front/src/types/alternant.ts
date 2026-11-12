@@ -29,8 +29,8 @@ export interface Alternant {
 
 export type SequenceStatus = 'pending' | 'done' | 'not_done'
 
-/** Type de séquence (#888) — détermine quel modèle de document s'applique. */
-export type AlternantSequenceType = 'j15' | 'j10w' | 'periodique'
+/** Type de séquence (#888/#960) — détermine quel modèle de document s'applique. */
+export type AlternantSequenceType = 'j15' | 'j10w' | 'periodique' | 'sa_finale'
 
 export interface SequenceContacts {
   mentor: boolean

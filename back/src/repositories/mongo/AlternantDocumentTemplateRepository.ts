@@ -13,7 +13,9 @@ export class AlternantDocumentTemplateRepository {
         return getModels().AlternantDocumentTemplate.findOne({ _id: id }).lean();
     }
 
-    async findSystemTemplate(type: AlternantSequenceType.J15 | AlternantSequenceType.J10W) {
+    async findSystemTemplate(
+        type: AlternantSequenceType.J15 | AlternantSequenceType.J10W | AlternantSequenceType.SA_FINALE,
+    ) {
         return getModels().AlternantDocumentTemplate.findOne({ type }).lean();
     }
 

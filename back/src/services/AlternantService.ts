@@ -376,17 +376,25 @@ export class AlternantService {
         return updated;
     }
 
-    async createManualSequence(alternantId: string, prevueLe: string): Promise<AlternantSequence> {
+    async createManualSequence(
+        alternantId: string,
+        prevueLe: string,
+        type: AlternantSequenceType = AlternantSequenceType.PERIODIQUE,
+    ): Promise<AlternantSequence> {
         const existing = await this.alternants.findById(alternantId);
         if (!existing) throw new Error('Alternant introuvable');
+        // J15/J10W restent des jalons exclusivement auto-générés (#888) — une SA
+        // créée à la main est un suivi périodique classique, ou la SA finale
+        // avant l'examen (#960, jamais auto-générée faute de date d'examen suivie).
+        if (type === AlternantSequenceType.J15 || type === AlternantSequenceType.J10W) {
+            throw new Error('J15 et J10W sont des jalons auto-générés, pas créables à la main');
+        }
         const date = requireValidDate(prevueLe, 'La date de réalisation');
         const numero = await this.sequences.nextNumero(alternantId);
         return this.sequences.create({
             alternant_id: alternantId,
             numero,
-            // Une SA créée à la main est toujours un suivi périodique classique
-            // (#888) — J15/J10W restent des jalons exclusivement auto-générés.
-            type: AlternantSequenceType.PERIODIQUE,
+            type,
             prevue_le: date,
             status: AlternantSequenceStatus.PENDING,
             contacts: { mentor: false, alternant: false, formateur: false },
@@ -496,6 +504,7 @@ export class AlternantService {
         const header: ResolvedSequenceDocumentHeader = {
             alternantFullName: `${alternant.first_name} ${alternant.last_name}`.trim(),
             session: alternant.session ?? null,
+            companyName: alternant.company?.name ?? null,
             mentorName: alternant.company?.mentor_name ?? null,
             companyStartDate: alternant.company?.start_date ?? null,
             companyEndDate: alternant.company?.end_date ?? null,
@@ -618,6 +627,7 @@ export class AlternantService {
 export interface ResolvedSequenceDocumentHeader {
     alternantFullName: string;
     session: string | null;
+    companyName: string | null;
     mentorName: string | null;
     companyStartDate: Date | string | null;
     companyEndDate: Date | string | null;

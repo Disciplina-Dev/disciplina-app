@@ -1296,6 +1296,7 @@ ${logoHtml}
 ${sh('Informations générales')}
 ${fr('Alternant :', header.alternantFullName)}
 ${fr('Session :', header.session)}
+${fr('Entreprise :', header.companyName)}
 ${fr("Maître d'apprentissage :", header.mentorName)}
 ${periode ? fr('Période en entreprise :', periode) : ''}
 

@@ -11,6 +11,7 @@ export const typeDefs = gql`
         j15
         j10w
         periodique
+        sa_finale
     }
 
     type AlternantCompany {
@@ -151,6 +152,7 @@ export const typeDefs = gql`
     type AlternantSequenceDocumentHeader {
         alternantFullName: String!
         session: String
+        companyName: String
         mentorName: String
         companyStartDate: String
         companyEndDate: String
@@ -252,7 +254,7 @@ export const typeDefs = gql`
         unlinkAlternant(id: ID!, otherId: ID!): Alternant
         archiveAlternant(id: ID!): Alternant
         unarchiveAlternant(id: ID!): Alternant
-        createSequence(alternantId: ID!, prevueLe: String!): AlternantSequence!
+        createSequence(alternantId: ID!, prevueLe: String!, type: AlternantSequenceType): AlternantSequence!
         rescheduleSequence(id: ID!, prevueLe: String!): AlternantSequence
         updateSequenceContacts(id: ID!, contacts: AlternantSequenceContactsInput!): AlternantSequence
         completeSequence(id: ID!, realiseeLe: String!): AlternantSequence
