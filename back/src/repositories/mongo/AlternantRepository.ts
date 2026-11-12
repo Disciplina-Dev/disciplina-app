@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
 import { searchNeedle } from './searchRegex';
-import { Alternant } from '../../types/alternant.types';
+import { Alternant, AlternantCompanyDefaillance } from '../../types/alternant.types';
 
 export class AlternantRepository {
     /**
@@ -118,5 +118,50 @@ export class AlternantRepository {
 
     async delete(id: string): Promise<boolean> {
         return (await getModels().Alternant.deleteOne({ _id: id })).deletedCount > 0;
+    }
+
+    /** Déclare/résout une entreprise défaillante (remplacement en bloc, #961). */
+    async setDefaillance(id: string, defaillance: AlternantCompanyDefaillance | null): Promise<Alternant | null> {
+        return getModels()
+            .Alternant.findOneAndUpdate(
+                { _id: id },
+                { $set: { defaillance, updated_at: new Date() } },
+                { returnDocument: 'after', runValidators: true, context: 'query' },
+            )
+            .lean();
+    }
+
+    /** Marque le courrier d'alerte de la Responsable comme envoyé (dédup scheduler, #961). */
+    async markDefaillanceAlertSent(id: string, at: Date): Promise<void> {
+        await getModels().Alternant.updateOne({ _id: id }, { $set: { 'defaillance.alert_sent_at': at } });
+    }
+
+    /** Marque l'escalade Direction/Commercial comme envoyée (dédup scheduler, #961). */
+    async markDefaillanceEscalated(id: string, at: Date): Promise<void> {
+        await getModels().Alternant.updateOne({ _id: id }, { $set: { 'defaillance.escalated_at': at } });
+    }
+
+    /** Entreprises défaillantes non résolues, signalées depuis au moins `alertCutoff`, pas encore alertées. */
+    async findDefaillanceAlertCandidates(alertCutoff: Date): Promise<Alternant[]> {
+        return getModels()
+            .Alternant.find({
+                archived_at: null,
+                'defaillance.reported_at': { $lte: alertCutoff },
+                'defaillance.alert_sent_at': null,
+                'defaillance.resolved_at': null,
+            })
+            .lean();
+    }
+
+    /** Entreprises défaillantes non résolues, signalées depuis au moins `escalationCutoff`, pas encore escaladées. */
+    async findDefaillanceEscalationCandidates(escalationCutoff: Date): Promise<Alternant[]> {
+        return getModels()
+            .Alternant.find({
+                archived_at: null,
+                'defaillance.reported_at': { $lte: escalationCutoff },
+                'defaillance.escalated_at': null,
+                'defaillance.resolved_at': null,
+            })
+            .lean();
     }
 }

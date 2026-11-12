@@ -1,5 +1,6 @@
 import { SaNotificationService } from '../services/SaNotificationService';
 import { SaAppointmentService } from '../services/SaAppointmentService';
+import { SaDefaillanceService } from '../services/SaDefaillanceService';
 import { runForAllRegions, getRegion } from '../db/tenant';
 import { logger } from '../external/logger/logger';
 
@@ -15,11 +16,14 @@ const TICK_MS = 60 * 60_000;
  * notifie l'équipe Peda pour toute SA en attente entrée pour la première fois
  * dans la fenêtre « En cours » (moins de 14 jours) ou passée « En retard », et
  * envoie une proposition de date aux mentors des SA à venir dans 2 à 3
- * semaines. In-process (setInterval), à l'image de `immersionEndScheduler`.
+ * semaines, et escalade les entreprises défaillantes signalées par un péda
+ * (courrier d'alerte à J+7, info Direction/Commercial à J+14). In-process
+ * (setInterval), à l'image de `immersionEndScheduler`.
  */
 export function startSaNotificationScheduler(): NodeJS.Timeout {
     const service = new SaNotificationService();
     const appointmentService = new SaAppointmentService();
+    const defaillanceService = new SaDefaillanceService();
     let running = false;
 
     const tick = async () => {
@@ -40,6 +44,13 @@ export function startSaNotificationScheduler(): NodeJS.Timeout {
                     if (proposed > 0) logger.info({ region, proposed }, 'sa-appointments: propositions envoyées');
                 } catch (err) {
                     logger.error({ err, region }, 'sa-appointments: tick du scheduler en erreur');
+                }
+                try {
+                    const { alerted, escalated } = await defaillanceService.run();
+                    if (alerted > 0 || escalated > 0)
+                        logger.info({ region, alerted, escalated }, 'sa-defaillance: escalade exécutée');
+                } catch (err) {
+                    logger.error({ err, region }, 'sa-defaillance: tick du scheduler en erreur');
                 }
             });
         } finally {

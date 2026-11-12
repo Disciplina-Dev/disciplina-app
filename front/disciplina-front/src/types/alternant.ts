@@ -7,6 +7,16 @@ export interface AlternantCompany {
   endDate: string | null
 }
 
+/** Entreprise défaillante en cours (#961) — `null` = aucune, ou déjà résolue. */
+export interface AlternantDefaillance {
+  reason: string
+  reportedAt: string
+  reminderSentAt: string | null
+  alertSentAt: string | null
+  escalatedAt: string | null
+  resolvedAt: string | null
+}
+
 export interface Alternant {
   id: string
   firstName: string
@@ -21,6 +31,7 @@ export interface Alternant {
   candidateId: string | null
   company: AlternantCompany | null
   linkedAlternantIds: string[]
+  defaillance: AlternantDefaillance | null
   /** `true` = archivé suite à une rupture « quitte la formation ». */
   archived: boolean
   archivedAt: string | null

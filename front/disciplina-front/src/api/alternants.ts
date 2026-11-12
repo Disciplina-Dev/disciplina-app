@@ -30,6 +30,14 @@ const ALTERNANT_FIELDS = gql`
       endDate
     }
     linkedAlternantIds
+    defaillance {
+      reason
+      reportedAt
+      reminderSentAt
+      alertSentAt
+      escalatedAt
+      resolvedAt
+    }
     archived
     archivedAt
     createdAt
@@ -171,6 +179,24 @@ const ARCHIVE_ALTERNANT = gql`
 const UNARCHIVE_ALTERNANT = gql`
   mutation UnarchiveAlternant($id: ID!) {
     unarchiveAlternant(id: $id) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
+const REPORT_COMPANY_DEFAILLANCE = gql`
+  mutation ReportCompanyDefaillance($alternantId: ID!, $reason: String!) {
+    reportCompanyDefaillance(alternantId: $alternantId, reason: $reason) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
+const RESOLVE_COMPANY_DEFAILLANCE = gql`
+  mutation ResolveCompanyDefaillance($alternantId: ID!) {
+    resolveCompanyDefaillance(alternantId: $alternantId) {
       ...AlternantFields
     }
   }
@@ -328,6 +354,16 @@ export async function archiveAlternant(id: string): Promise<Alternant | null> {
 export async function unarchiveAlternant(id: string): Promise<Alternant | null> {
   const res = await pedaGraphqlClient.mutation(UNARCHIVE_ALTERNANT, { id })
   return unwrap<{ unarchiveAlternant: Alternant | null }>(res).unarchiveAlternant
+}
+
+export async function reportCompanyDefaillance(alternantId: string, reason: string): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(REPORT_COMPANY_DEFAILLANCE, { alternantId, reason })
+  return unwrap<{ reportCompanyDefaillance: Alternant | null }>(res).reportCompanyDefaillance
+}
+
+export async function resolveCompanyDefaillance(alternantId: string): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(RESOLVE_COMPANY_DEFAILLANCE, { alternantId })
+  return unwrap<{ resolveCompanyDefaillance: Alternant | null }>(res).resolveCompanyDefaillance
 }
 
 export async function createSequence(
