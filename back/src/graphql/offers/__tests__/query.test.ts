@@ -278,13 +278,14 @@ describe('GraphQL job queries', () => {
         expect(json.data.matchOffer.relaxedCriteria).toEqual(['sector']);
     });
 
-    it('relaxes the activity-sector matching criterion when the flagged sectors yield no candidate', async () => {
+    it('does not relax the activity-sector filter when no candidate wants the offer sector', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
         const candidateRepo = new CandidateRepository();
 
-        // Même comportement pour des secteurs référencés pour lesquels aucune fiche
-        // candidat n'existe actuellement : la liste ne doit pas être vide à cause du secteur.
+        // Secteur référencé que ce candidat n'a pas coché : il ne doit plus être
+        // proposé. L'ancien repli « aucun candidat → on ignore le secteur »
+        // présentait des candidats de secteurs non souhaités (restauration…).
         const offerId = `job-flagged-sector-${suffix}`;
         await seedOffer({
             _id: offerId,
@@ -326,8 +327,60 @@ describe('GraphQL job queries', () => {
         const json = await res.json();
         expect(res.status).toBe(200);
         expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(false);
+        expect(json.data.matchOffer.relaxedCriteria).toEqual([]);
+    });
+
+    it('matches a candidate enum sector against a legacy offer activity label', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        // Les fiches récentes stockent le code (`COMMERCIAL`), les anciennes AB
+        // le libellé (`Commerce / Vente`) : le matching doit les rapprocher.
+        const offerId = `job-label-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Label Sector Corp ${suffix}`,
+            desired_tp: 'AD',
+            status: OfferStatus.NOT_MATCHED,
+            activities: ['Commerce / Vente'],
+        });
+
+        const candidateId = `cand-label-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Lina ${suffix}`,
+                email: `lina-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 26,
+            },
+            desired_sectors: [Sector.COMMERCIAL],
+            job_info: {},
+        });
+
+        const query = `query($id: String!) { matchOffer(id: $id) { id relaxedCriteria suggestedCandidates { id } } }`;
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
         expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(true);
-        expect(json.data.matchOffer.relaxedCriteria).toEqual(['sector']);
+        expect(json.data.matchOffer.relaxedCriteria).toEqual([]);
     });
 
     it('errors when job not found', async () => {

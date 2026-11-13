@@ -8,6 +8,7 @@
 #   ./scripts/rollback.sh --ref <commit> # revient sur <commit> au lieu de PREV_HEAD
 #   ./scripts/rollback.sh --dry-run      # affiche le plan sans rien exécuter
 #   ./scripts/rollback.sh --force        # passe outre l'arbre de travail non propre
+#   ./scripts/rollback.sh --identity <fichier>  # clé privée age (dumps *.age), ou BACKUP_AGE_IDENTITY
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,6 +21,8 @@ READY_TIMEOUT=180
 DRY=0
 FORCE=0
 TARGET_REF=""
+# Clé PRIVÉE age : jamais dans le repo ni dans .env, uniquement fournie à l'exécution.
+AGE_IDENTITY="${BACKUP_AGE_IDENTITY:-}"
 
 log()     { printf '%s\n' "$*"; }
 warn()    { printf '⚠  %s\n' "$*" >&2; }
@@ -43,7 +46,8 @@ while (($# > 0)); do
         --dry-run) DRY=1 ;;
         --force)   FORCE=1 ;;
         --ref)     TARGET_REF="${2:?--ref requiert un commit}"; shift ;;
-        -h|--help) sed -n '2,12p' "${BASH_SOURCE[0]}"; exit 0 ;;
+        --identity) AGE_IDENTITY="${2:?--identity requiert un fichier}"; shift ;;
+        -h|--help) sed -n '2,13p' "${BASH_SOURCE[0]}"; exit 0 ;;
         *) die "option inconnue : $1" ;;
     esac
     shift
@@ -52,6 +56,37 @@ done
 # .env contient des valeurs avec métacaractères shell : extraction ciblée.
 load_env() {
     grep -E "^${1}=" .env | tail -1 | cut -d= -f2-
+}
+# Clé facultative : absente de .env → vide (grep=1 ferait sinon échouer pipefail).
+load_env_opt() {
+    grep -E "^${1}=" .env | tail -1 | cut -d= -f2- || true
+}
+
+# Émet le contenu clair d'un dump sur stdout : déchiffre les *.age (age), sinon
+# lit tel quel (anciens dumps en clair). Utilisé en pipe pour que pipefail
+# interrompe le rollback si le déchiffrement échoue.
+dump_cat() {
+    if [[ "$1" == *.age ]]; then
+        age -d -i "$AGE_IDENTITY" -- "$1"
+    else
+        cat -- "$1"
+    fi
+}
+
+# Vérifie, avant toute action destructive, que la clé privée déchiffre bien
+# chaque dump chiffré (un mauvais identity ne doit pas vider les bases).
+check_identity() {
+    local f any=0
+    for f in "$@"; do [[ "$f" == *.age ]] && any=1; done
+    (( any )) || return 0
+    command -v age >/dev/null 2>&1 || die "'age' introuvable dans le PATH (dumps chiffrés)"
+    [[ -n "$AGE_IDENTITY" && -r "$AGE_IDENTITY" ]] \
+        || die "dumps chiffrés : fournir la clé privée age (--identity <fichier> ou BACKUP_AGE_IDENTITY, voir HOWTODEPLOY.md)"
+    for f in "$@"; do
+        [[ "$f" == *.age ]] || continue
+        [[ -n "$(age -d -i "$AGE_IDENTITY" -- "$f" 2>/dev/null | head -c 1 || true)" ]] \
+            || die "déchiffrement impossible (mauvaise clé ?) : $f"
+    done
 }
 
 curl_sc() {
@@ -79,6 +114,8 @@ section "1/6 Référence de rollback"
 PREV_HEAD=""
 MYSQL_DUMP=""
 MONGO_DUMP=""
+MYSQL_ANNEMASSE_DUMP=""
+MONGO_ANNEMASSE_DUMP=""
 if [[ -n "$TARGET_REF" ]]; then
     REF="$TARGET_REF"
     log "  --ref fourni : ${REF}"
@@ -94,13 +131,19 @@ fi
 git rev-parse --verify --quiet "$REF" >/dev/null || die "référence invalide : $REF"
 [[ -n "$MYSQL_DUMP" && -f "$MYSQL_DUMP" ]] || MYSQL_DUMP=""
 [[ -n "$MONGO_DUMP" && -f "$MONGO_DUMP" ]] || MONGO_DUMP=""
-if [[ -z "$MYSQL_DUMP" && -z "$MONGO_DUMP" ]]; then
+[[ -n "$MYSQL_ANNEMASSE_DUMP" && -f "$MYSQL_ANNEMASSE_DUMP" ]] || MYSQL_ANNEMASSE_DUMP=""
+[[ -n "$MONGO_ANNEMASSE_DUMP" && -f "$MONGO_ANNEMASSE_DUMP" ]] || MONGO_ANNEMASSE_DUMP=""
+if [[ -z "$MYSQL_ANNEMASSE_DUMP" || -z "$MONGO_ANNEMASSE_DUMP" ]]; then
+    warn "dump(s) Annemasse absent(s) de l'état (état antérieur à GDPR_INF_01.1 ?) : tenant Annemasse non restauré"
+fi
+if [[ -z "$MYSQL_DUMP" && -z "$MONGO_DUMP" && -z "$MYSQL_ANNEMASSE_DUMP" && -z "$MONGO_ANNEMASSE_DUMP" ]]; then
     warn "aucun dump retrouvé (état : réf=${REF}, mysql='${MYSQL_DUMP}', mongo='${MONGO_DUMP}')"
     confirm "Continuer quand même (restauration DB ignorée) ?" || die "annulé"
 fi
 
 # ------------------------------------------------------- 2. contrôles git/env
 section "2/6 Contrôles"
+check_identity $MYSQL_DUMP $MONGO_DUMP $MYSQL_ANNEMASSE_DUMP $MONGO_ANNEMASSE_DUMP
 if git diff --quiet && git diff --cached --quiet; then
     log "  arbre de travail propre"
 elif (( FORCE )); then
@@ -116,6 +159,8 @@ fi
 log "  Restauration des bases depuis :"
 [[ -n "$MYSQL_DUMP" ]] && log "    MySQL   → $MYSQL_DUMP ($(du -h "$MYSQL_DUMP" | cut -f1))"
 [[ -n "$MONGO_DUMP" ]] && log "    MongoDB → $MONGO_DUMP ($(du -h "$MONGO_DUMP" | cut -f1))"
+[[ -n "$MYSQL_ANNEMASSE_DUMP" ]] && log "    MySQL Annemasse   → $MYSQL_ANNEMASSE_DUMP ($(du -h "$MYSQL_ANNEMASSE_DUMP" | cut -f1))"
+[[ -n "$MONGO_ANNEMASSE_DUMP" ]] && log "    MongoDB Annemasse → $MONGO_ANNEMASSE_DUMP ($(du -h "$MONGO_ANNEMASSE_DUMP" | cut -f1))"
 log "  Code : retour sur $REF"
 confirm "Exécuter ce rollback (DESTRUCTIF pour le contenu actuel des bases) ?" || die "annulé"
 
@@ -124,16 +169,20 @@ section "3/6 Restauration des bases de données"
 MYSQL_ROOT_PASSWORD="$(load_env MYSQL_ROOT_PASSWORD)"
 MONGO_ROOT_USERNAME="$(load_env MONGO_ROOT_USERNAME)"
 MONGO_ROOT_PASSWORD="$(load_env MONGO_ROOT_PASSWORD)"
+MYSQL_ANNEMASSE_DATABASE="$(load_env_opt MYSQL_ANNEMASSE_DATABASE)"
+MYSQL_ANNEMASSE_DATABASE="${MYSQL_ANNEMASSE_DATABASE:-disciplina_annemasse}"
+MONGO_ANNEMASSE_DATABASE="$(load_env_opt MONGO_ANNEMASSE_DATABASE)"
+MONGO_ANNEMASSE_DATABASE="${MONGO_ANNEMASSE_DATABASE:-disciplina_annemasse}"
 
 run docker compose stop backend
 
 if [[ -n "$MYSQL_DUMP" ]]; then
     log "  restauration MySQL ($MYSQL_DUMP) ..."
     if (( DRY )); then
-        log "  $ docker compose exec -T -e MYSQL_PWD=*** sql-db mysql -h127.0.0.1 -uroot disciplina < $MYSQL_DUMP"
+        log "  $ docker compose exec -T -e MYSQL_PWD=*** sql-db mysql -h127.0.0.1 -uroot disciplina < $MYSQL_DUMP (déchiffré par age si *.age)"
     else
-        docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
-            mysql -h127.0.0.1 -uroot disciplina < "$MYSQL_DUMP"
+        dump_cat "$MYSQL_DUMP" | docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+            mysql -h127.0.0.1 -uroot disciplina
     fi
     log "  OK MySQL restauré"
 else
@@ -145,15 +194,45 @@ if [[ -n "$MONGO_DUMP" ]]; then
     gzip_opt=()
     if gzip -t "$MONGO_DUMP" 2>/dev/null; then gzip_opt=(--gzip); fi
     if (( DRY )); then
-        log "  $ docker compose exec -T nosql-db mongorestore --archive${gzip_opt[0]:+ --gzip} --drop --db human_ressources < $MONGO_DUMP"
+        log "  $ docker compose exec -T nosql-db mongorestore --archive${gzip_opt[0]:+ --gzip} --drop --db human_ressources < $MONGO_DUMP (déchiffré par age si *.age)"
     else
-        docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
+        dump_cat "$MONGO_DUMP" | docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
             mongorestore --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-            --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop --db human_ressources < "$MONGO_DUMP"
+            --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop --db human_ressources
     fi
     log "  OK MongoDB restauré"
 else
     warn "pas de dump MongoDB : ignore"
+fi
+
+if [[ -n "$MYSQL_ANNEMASSE_DUMP" ]]; then
+    log "  restauration MySQL Annemasse ($MYSQL_ANNEMASSE_DUMP) ..."
+    if (( DRY )); then
+        log "  $ docker compose exec -T -e MYSQL_PWD=*** sql-db mysql -h127.0.0.1 -uroot $MYSQL_ANNEMASSE_DATABASE < $MYSQL_ANNEMASSE_DUMP (déchiffré par age si *.age)"
+    else
+        dump_cat "$MYSQL_ANNEMASSE_DUMP" | docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+            mysql -h127.0.0.1 -uroot "$MYSQL_ANNEMASSE_DATABASE"
+    fi
+    log "  OK MySQL Annemasse restauré"
+else
+    warn "pas de dump MySQL Annemasse : ignore"
+fi
+
+if [[ -n "$MONGO_ANNEMASSE_DUMP" ]]; then
+    log "  restauration MongoDB Annemasse ($MONGO_ANNEMASSE_DUMP) ..."
+    gzip_opt=()
+    if gzip -t "$MONGO_ANNEMASSE_DUMP" 2>/dev/null; then gzip_opt=(--gzip); fi
+    if (( DRY )); then
+        log "  $ docker compose exec -T nosql-db mongorestore --archive${gzip_opt[0]:+ --gzip} --drop --nsInclude '$MONGO_ANNEMASSE_DATABASE.*' < $MONGO_ANNEMASSE_DUMP (déchiffré par age si *.age)"
+    else
+        dump_cat "$MONGO_ANNEMASSE_DUMP" | docker compose exec -T nosql-db \
+            mongorestore --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+            --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop \
+            --nsInclude "${MONGO_ANNEMASSE_DATABASE}.*"
+    fi
+    log "  OK MongoDB Annemasse restauré"
+else
+    warn "pas de dump MongoDB Annemasse : ignore"
 fi
 
 section "4/6 Redémarrage du backend (base restaurée)"
@@ -173,5 +252,6 @@ fi
 section "6/6 Résumé du rollback"
 log "  HEAD actuel : $(git rev-parse HEAD 2>/dev/null || echo N/A)"
 log "  Bases restaurées : MySQL=$([[ -n "$MYSQL_DUMP" ]] && echo oui || echo non) MongoDB=$([[ -n "$MONGO_DUMP" ]] && echo oui || echo non)"
+log "  Annemasse restauré : MySQL=$([[ -n "$MYSQL_ANNEMASSE_DUMP" ]] && echo oui || echo non) MongoDB=$([[ -n "$MONGO_ANNEMASSE_DUMP" ]] && echo oui || echo non)"
 log "  Les dumps restent dans backups/ pour archive."
 exit 0

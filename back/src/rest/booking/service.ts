@@ -1,5 +1,6 @@
 import { randomBytes } from 'crypto';
 import { BookingRepository, BookingSettings } from './repository';
+import { DayBlockRepository, DayBlockScope, DayBlock } from './blocksRepository';
 import { UserService } from '../../services/UserService';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { GoogleCalendarService, BusyInterval } from '../../external/google/calendar.service';
@@ -16,17 +17,28 @@ export interface Slot {
 }
 
 export interface GuestInfo {
-    name: string;
+    firstName: string;
+    lastName: string;
+    /** Numéro normalisé (chiffres, `+` initial éventuel). */
+    phone: string;
     email: string;
     note?: string;
 }
 
 export class BookingDisabledError extends Error {}
 export class SlotUnavailableError extends Error {}
+export class DayBlockNotFoundError extends Error {}
+export class DayBlockForbiddenError extends Error {}
+export class DayBlockConflictError extends Error {}
 
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
+
+/** Nom complet de l'invité (« Prénom Nom »). */
+function guestFullName(guest: GuestInfo): string {
+    return `${guest.firstName} ${guest.lastName}`.trim();
+}
 
 /** Formate un instant pour affichage dans le fuseau donné (ex "lundi 16 juin 2026 à 09:00"). */
 function formatInTz(iso: string, tz: string): string {
@@ -125,12 +137,70 @@ function calendarForUser(user: User): GoogleCalendarService {
 
 export class BookingService {
     private repo = new BookingRepository();
+    private blockRepo = new DayBlockRepository();
 
     /** Renvoie les réglages de l'utilisateur, en les créant (slug aléatoire) au premier accès. */
     async getOrCreate(userId: number): Promise<BookingSettings> {
         const existing = await this.repo.findByUserId(userId);
         if (existing) return existing;
         return this.repo.create(userId, randomBytes(8).toString('hex'));
+    }
+
+    // ── Blocage de dates ──────────────────────────────────────────────────
+    /** Blocages visibles par l'utilisateur : les siens + ceux « pour tout le monde ». */
+    async listDayBlocks(userId: number, from?: string, to?: string): Promise<DayBlock[]> {
+        return this.blockRepo.findVisible(userId, from, to);
+    }
+
+    /** Bloque un jour pour soi ou pour tout le monde. */
+    async blockDay(
+        userId: number,
+        input: { day: string; scope: DayBlockScope; reason: string },
+    ): Promise<void> {
+        await this.blockRepo.upsert(
+            input.day,
+            input.scope === 'ALL' ? null : userId,
+            'BLOCK',
+            input.reason,
+            userId,
+        );
+    }
+
+    /**
+     * « Me rendre disponible » : dérogation personnelle à un blocage global.
+     * Bascule — un second appel re-bloque le jour pour cet utilisateur.
+     */
+    async releaseDayBlock(userId: number, id: number): Promise<void> {
+        const block = await this.blockRepo.findById(id);
+        if (!block || block.kind !== 'BLOCK') throw new DayBlockNotFoundError('Blocage introuvable');
+        if (block.user_id != null) {
+            throw new DayBlockForbiddenError('Ce blocage ne concerne que vous : annulez-le');
+        }
+        const mine = await this.blockRepo.findPersonal(userId, block.day);
+        if (mine?.kind === 'BLOCK') {
+            throw new DayBlockConflictError('Ce jour est déjà bloqué pour vous');
+        }
+        if (mine?.kind === 'OPEN') {
+            await this.blockRepo.deleteById(mine.id);
+            return;
+        }
+        await this.blockRepo.upsert(block.day, userId, 'OPEN', block.reason, userId);
+    }
+
+    /**
+     * Annule un blocage. Un blocage personnel ne peut être annulé que par son
+     * auteur ; un blocage global est supprimé pour tout le monde (les
+     * dérogations personnelles qui l'annulaient tombent avec lui).
+     */
+    async deleteDayBlock(userId: number, id: number): Promise<void> {
+        const block = await this.blockRepo.findById(id);
+        if (!block || block.kind !== 'BLOCK') throw new DayBlockNotFoundError('Blocage introuvable');
+        if (block.user_id != null) {
+            if (block.user_id !== userId) throw new DayBlockForbiddenError('Ce blocage ne vous appartient pas');
+            await this.blockRepo.deleteById(block.id);
+            return;
+        }
+        await this.blockRepo.deleteGlobalBlock(block.day);
     }
 
     async update(userId: number, patch: Partial<BookingSettings>): Promise<BookingSettings> {
@@ -171,6 +241,9 @@ export class BookingService {
         const rangeStart = zonedToUtc(fy, fm, fd, 0, 0, tz);
         const rangeEnd = zonedToUtc(ty, tm, td, 23, 59, tz);
         const busy = await calendarForUser(host).freeBusy(rangeStart.toISOString(), rangeEnd.toISOString());
+        // Jours bloqués par le RH (ou par un blocage « pour tout le monde ») :
+        // ils ne sont jamais proposés, quelles que soient les plages hebdomadaires.
+        const blockedDays = await this.blockRepo.blockedDays(settings.userId, fromDate, toDate);
 
         const slots: Slot[] = [];
         for (let cur = new Date(rangeStart); cur <= rangeEnd; cur.setUTCDate(cur.getUTCDate() + 1)) {
@@ -181,6 +254,7 @@ export class BookingService {
                 month: '2-digit',
                 day: '2-digit',
             }).format(cur);
+            if (blockedDays.has(local)) continue;
             const [y, mo, d] = local.split('-').map(Number);
             const windows = settings.workingHours[String(isoWeekday(y, mo, d))] ?? [];
             for (const [startHM, endHM] of windows) {
@@ -225,19 +299,20 @@ export class BookingService {
         const startIsoFinal = new Date(startMs).toISOString();
         const endIsoFinal = new Date(endMs).toISOString();
         const calendar = calendarForUser(host);
+        const fullName = guestFullName(guest);
         const description = [
-            `Réservation par ${guest.name} (${guest.email}).`,
+            `Réservation par ${fullName} (${guest.email}, ${guest.phone}).`,
             guest.note ? `\nMessage : ${guest.note}` : '',
         ].join('');
 
         await calendar.createEvent(
             {
-                summary: `${settings.title} — ${guest.name}`,
+                summary: `${settings.title} — ${fullName}`,
                 description,
                 location: settings.location ?? undefined,
                 start: startIsoFinal,
                 end: endIsoFinal,
-                attendees: [{ email: guest.email, displayName: guest.name }],
+                attendees: [{ email: guest.email, displayName: fullName }],
             },
             'none', // Pas d'email d'invitation Google : on envoie notre propre confirmation.
         );
@@ -255,6 +330,7 @@ export class BookingService {
         guest: GuestInfo,
     ): Promise<void> {
         const when = formatInTz(startIso, settings.timezone);
+        const guestName = guestFullName(guest);
 
         let subject: string;
         let html: string;
@@ -263,7 +339,9 @@ export class BookingService {
         if (settings.confirmationBody && settings.confirmationBody.trim()) {
             // Modèle personnalisé : on remplace les variables {{…}}.
             const vars: Record<string, string> = {
-                nom: guest.name,
+                nom: guestName,
+                prenom: guest.firstName,
+                telephone: guest.phone,
                 date: `${when} (${settings.timezone})`,
                 ...dateVars(startIso, settings.timezone),
                 lieu: settings.location ?? '',
@@ -282,7 +360,7 @@ export class BookingService {
             subject = `Confirmation de votre rendez-vous — ${settings.title}`;
             const lieu = settings.location ? `<p><strong>Lieu :</strong> ${settings.location}</p>` : '';
             html = `
-            <p>Bonjour ${guest.name},</p>
+            <p>Bonjour ${guestName},</p>
             <p>Votre rendez-vous « <strong>${
                 settings.title
             }</strong> » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.</p>
@@ -291,7 +369,7 @@ export class BookingService {
             ${lieu}
             <p>À bientôt,<br/>${`${host.firstName} ${host.lastName}`.trim()}</p>`;
             text =
-                `Bonjour ${guest.name},\n\nVotre rendez-vous « ${
+                `Bonjour ${guestName},\n\nVotre rendez-vous « ${
                     settings.title
                 } » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.\n` +
                 `Date : ${when} (${settings.timezone})\nDurée : ${settings.durationMin} minutes\n` +

@@ -190,6 +190,7 @@ export interface Identity {
     had_apprenticeship_contract?: boolean; // A déjà eu un contrat d'apprentissage
     apprenticeship_contract_details?: string; // Détails du contrat d'apprentissage (si oui)
     description?: string;                  // Descriptif libre du candidat (contexte matching)
+    description_source?: 'auto' | 'manual'; // Provenance : résumé auto régénérable ou texte RH protégé
     avatar_url?: string;
     avatar_updated_at?: string;
     drive_avatar_file_id?: string;

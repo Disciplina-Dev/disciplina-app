@@ -137,7 +137,9 @@ export default function PublicBooking() {
 }
 
 function BookingForm({ slug, slot, onDone }: { slug: string; slot: Slot; onDone: (s: Slot) => void }) {
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
@@ -145,11 +147,21 @@ function BookingForm({ slug, slot, onDone }: { slug: string; slot: Slot; onDone:
 
   const submit = async () => {
     setErr(null)
-    if (!name.trim()) { setErr('Nom requis'); return }
+    if (!firstName.trim()) { setErr('Prénom requis'); return }
+    if (!lastName.trim()) { setErr('Nom requis'); return }
+    const cleanPhone = normalizePhone(phone)
+    if (!cleanPhone) { setErr('Numéro de téléphone invalide'); return }
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setErr('Email invalide'); return }
     setBusy(true)
     try {
-      const booked = await createBooking(slug, { start: slot.start, name: name.trim(), email: email.trim(), note: note.trim() || undefined })
+      const booked = await createBooking(slug, {
+        start: slot.start,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        phone: cleanPhone,
+        email: email.trim(),
+        note: note.trim() || undefined,
+      })
       onDone(booked)
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erreur'); setBusy(false)
@@ -161,19 +173,32 @@ function BookingForm({ slug, slot, onDone }: { slug: string; slot: Slot; onDone:
       <p className="text-[13px] font-bold text-[var(--ds-text)]">
         {new Date(slot.start).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}
       </p>
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Votre nom"
+      <div className="grid grid-cols-2 gap-2">
+        <input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Prénom" aria-label="Prénom" maxLength={100}
+          className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+        <input value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Nom" aria-label="Nom" maxLength={100}
+          className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+      </div>
+      <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Téléphone" aria-label="Téléphone" maxLength={30}
         className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
-      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Votre email"
+      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" aria-label="Email"
         className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
       <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Message (optionnel)" rows={3}
         className="w-full resize-none rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
       {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
+      <p className="text-[11px] text-[var(--ds-text-subtle)]">Prénom, nom, téléphone et email sont obligatoires.</p>
       <button onClick={submit} disabled={busy}
         className="flex items-center justify-center gap-2 rounded-lg bg-purple px-4 py-2.5 text-[14px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
         {busy && <IconLoader width={16} height={16} className="animate-spin" />} Confirmer le rendez-vous
       </button>
     </div>
   )
+}
+
+/** Nettoie et valide un numéro de téléphone (même règle que le back). */
+function normalizePhone(raw: string): string {
+  const cleaned = raw.replace(/[\s.\-()]/g, '')
+  return /^\+?\d{6,15}$/.test(cleaned) ? cleaned : ''
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

@@ -82,6 +82,7 @@ lien ») ou révocation (`LOCKED`). Seules les lignes historiques déjà marqué
 | `app_settings` | S0 | — (peut contenir des gabarits de mail) | `AppSettingsRepository` | Permanent |
 | `sector_settings` | S0 | — | `SectorSettingsRepository` | Permanent |
 | `booking_settings` | S0 | clé = `user_id` (pseudo-personnel) | `rest/booking/repository.ts` | Suit `users` (CASCADE) |
+| `calendar_day_blocks` | S1 | clé = `user_id` (blocages « pour moi »), `reason` (texte libre), `created_by` | `rest/booking/blocksRepository.ts` | Blocages personnels purgés avec l'utilisateur (`UserDeletionService`) ; blocages globaux conservés (organisationnels) |
 | `peda_config` | S0 | clé = `user_id` | `PedaConfigRepository` | Suit `users` (CASCADE) |
 | `peda_draft_history` | S2 | `recipient` (email) | `PedaDraftHistoryRepository` | 12 mois (déduplication d'envois) |
 | `todos` | S1 | `title`, `description` (texte libre) | `TodoRepository` | Suit `users` (CASCADE) |

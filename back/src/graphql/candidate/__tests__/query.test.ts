@@ -488,6 +488,7 @@ describe('matchCandidate', () => {
             age_range: '20-40',
             localisation: [Localisation.SAINT_BENOIT],
             sector: Sector.STATION,
+            activities: [Sector.STATION],
             status: OfferStatus.NOT_MATCHED,
         });
 
@@ -507,6 +508,59 @@ describe('matchCandidate', () => {
         expect(json.data.matchCandidate.matchedOffers).toContainEqual(
             expect.objectContaining({ id: offerId, companyName: `Match Corp ${suffix}` }),
         );
+    });
+
+    it('does not propose offers in a sector the candidate did not tick', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `mc-sector-${Date.now()}`;
+        const candidateRepo = new CandidateRepository();
+
+        const candidateId = `cand-mc-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.NTC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Sector Me ${suffix}`,
+                email: `sectorme-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 28,
+                driving_license_b: true,
+                sex: DesiredSex.MIXTE,
+            },
+            // Le candidat ne veut pas de restauration.
+            desired_sectors: [Sector.STATION],
+            job_info: { geographic_mobility: [Localisation.SAINT_BENOIT] },
+        });
+
+        const offerId = `job-mc-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Restaurant Corp ${suffix}`,
+            desired_tp: TitleProfessionalType.NTC,
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            localisation: [Localisation.SAINT_BENOIT],
+            activities: [Sector.RESTAURATION],
+            status: OfferStatus.NOT_MATCHED,
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchCandidate(id: $id) { matchedOffers { id } } }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const matchedIds = (json.data.matchCandidate.matchedOffers ?? []).map((o: { id: string }) => o.id);
+        expect(matchedIds).not.toContain(offerId);
     });
 
     it('errors when candidate is not found', async () => {

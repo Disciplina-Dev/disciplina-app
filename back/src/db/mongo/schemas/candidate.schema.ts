@@ -94,6 +94,8 @@ const identitySchema = new Schema<Identity>(
         had_apprenticeship_contract: { type: Boolean },
         apprenticeship_contract_details: { type: String },
         description: { type: String },
+        // `auto` : résumé régénéré à chaque mise à jour ; `manual` : texte RH protégé.
+        description_source: { type: String, enum: ['auto', 'manual'] },
         avatar_updated_at: { type: Date },
         drive_avatar_file_id: { type: String },
     },
