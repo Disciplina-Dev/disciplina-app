@@ -28,6 +28,14 @@ export function ProtectedRoute({ children, allowedRoles, minPermission }: Protec
     return <Navigate to="/" replace />
   }
 
+  // Un formateur n'est jamais staff, quelle que soit sa permission : il ne sort
+  // de son espace que s'il y est explicitement attendu. Placé avant les
+  // dérogations ADMIN/RESPONSABLE pour qu'un compte d'intervenant mal configuré
+  // ne puisse pas atteindre les espaces internes.
+  if (user.role === UserRole.FORMATEUR && !allowedRoles?.includes(UserRole.FORMATEUR)) {
+    return <Navigate to="/formateur" replace />
+  }
+
   // ADMIN permission bypasses role checks on all routes
   if (user.permission === 'ADMIN') {
     return <>{children}</>

@@ -13,6 +13,7 @@ const formateurSchema = new Schema<Formateur & Document>(
         email: { type: String, required: true },
         phone: { type: String, default: null },
         comment: { type: String, default: null },
+        user_id: { type: Number, default: null },
         created_by: { type: Number, default: null },
         created_at: { type: Date },
         updated_at: { type: Date },
@@ -22,5 +23,8 @@ const formateurSchema = new Schema<Formateur & Document>(
 
 formateurSchema.index({ email: 1 }, { unique: true });
 formateurSchema.index({ name: 1 });
+// Résolution de l'espace formateur : `users.id` → fiche. Unicité tenue par le
+// service (FormateurService.createAccount), pas par l'index (voir Formateur.user_id).
+formateurSchema.index({ user_id: 1 });
 
 export const FormateurModel = mongoose.models.Formateur || model<Formateur & Document>('Formateur', formateurSchema);

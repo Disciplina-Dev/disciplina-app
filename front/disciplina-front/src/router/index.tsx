@@ -70,6 +70,9 @@ import GestionApprentis from "@/pages/entreprise/GestionApprentis";
 import GestionRDV from "@/pages/entreprise/GestionRDV";
 import ProfilsMatches from "@/pages/entreprise/ProfilsMatches";
 
+import FormateurLayout from "@/components/layout/FormateurLayout";
+import DashboardFormateur from "@/pages/formateur/DashboardFormateur";
+
 import PublicPortalLayout from "@/components/legal/PublicPortalLayout";
 import CguPage from "@/pages/legal/CguPage";
 import MentionsLegalesPage from "@/pages/legal/MentionsLegalesPage";
@@ -247,6 +250,20 @@ export const router = createBrowserRouter([
       { path: "apprentis", element: <GestionApprentis />, handle: { crumb: "Apprentis" } },
       { path: "rendez-vous", element: <GestionRDV />, handle: { crumb: "Rendez-vous" } },
       { path: "profils", element: <ProfilsMatches />, handle: { crumb: "Profils" } },
+    ],
+  },
+  // Espace des intervenants : comptes créés par le Peda, une seule section pour
+  // l'instant (voir AUDIT_FORMATEUR.md — calendrier, séances et documents à venir).
+  {
+    path: "/formateur",
+    element: (
+      <ProtectedRoute allowedRoles={[UserRole.FORMATEUR]}>
+        <FormateurLayout />
+      </ProtectedRoute>
+    ),
+    handle: { crumb: "Espace Formateur" },
+    children: [
+      { index: true, element: <DashboardFormateur />, handle: { crumb: "Tableau de bord" } },
     ],
   },
   // Portails accessibles par lien signé — encadrés par les mentions légales

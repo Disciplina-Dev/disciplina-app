@@ -12,6 +12,7 @@ import { logger } from '../../external/logger';
 import { sha256Hex } from '../../external/crypto/hash';
 import { UserService } from '../../services/UserService';
 import { isRegion, type Region } from '../../types/tenant';
+import { JobRole } from '../../types/user.types';
 import { buildRedirectUri, renderConsentPage } from './consentPage';
 import { McpAuditStore, CONSENT_TEXT_VERSION, hashArgs } from '../auditStore';
 import { McpOAuthClientStore } from './clientStore';
@@ -112,6 +113,18 @@ export class McpOAuthProvider implements OAuthServerProvider {
         if (!user) {
             logger.warn({ ip: res.req.ip, clientId: client.client_id, region }, 'MCP OAuth: consent login failed');
             res.status(200).send(renderConsentPage(client, params, 'Identifiants incorrects.', email, region));
+            return;
+        }
+
+        // Le consentement MCP donne accès à tout le CRM : un compte formateur
+        // (contact externe) ne doit jamais pouvoir l'accorder, même avec un mot
+        // de passe valide.
+        if (user.role === JobRole.FORMATEUR) {
+            logger.warn(
+                { ip: res.req.ip, clientId: client.client_id, userId: user.id },
+                'MCP OAuth: formateur refused',
+            );
+            res.status(200).send(renderConsentPage(client, params, 'Ce compte n’a pas accès à MCP.', email, region));
             return;
         }
 

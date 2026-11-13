@@ -8,6 +8,8 @@ import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-seq
 import { QuestionnaireAttemptModel, QuestionnaireModel } from '../../src/db/mongo/schemas/questionnaire.schema';
 import { SeanceModel } from '../../src/db/mongo/schemas/seance.schema';
 import { EmargementModel } from '../../src/db/mongo/schemas/emargement.schema';
+import { FormateurModel } from '../../src/db/mongo/schemas/formateur.schema';
+import { FormateurHistoryModel } from '../../src/db/mongo/schemas/formateurHistory.schema';
 
 const CLEARED_TABLES = [
     'mcp_audit_log',
@@ -51,7 +53,8 @@ export async function truncateMysql(): Promise<void> {
             } catch (e: unknown) {
                 const msg = String((e as any)?.message ?? '');
                 // Table may not exist yet before migrations (e.g. todo_groups on old DB)
-                if (msg.includes("doesn't exist") || msg.includes('Unknown table') || msg.includes('ER_NO_SUCH_TABLE')) continue;
+                if (msg.includes("doesn't exist") || msg.includes('Unknown table') || msg.includes('ER_NO_SUCH_TABLE'))
+                    continue;
                 throw e;
             }
         }
@@ -74,4 +77,10 @@ export async function dropMongo(): Promise<void> {
     await QuestionnaireAttemptModel.deleteMany({});
     await SeanceModel.deleteMany({});
     await EmargementModel.deleteMany({});
+    // Annuaire formateurs : `user_id` pointe vers `users.id`, dont l'AUTO_INCREMENT
+    // repart de 1 entre les fichiers. Sans ce nettoyage, une fiche d'une exécution
+    // précédente garderait le même `user_id` et `findByUserId` résoudrait la
+    // mauvaise fiche (l'espace formateur servirait les données d'un autre).
+    await FormateurModel.deleteMany({});
+    await FormateurHistoryModel.deleteMany({});
 }

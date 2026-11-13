@@ -39,6 +39,7 @@ Sources : `front/disciplina-front/src/store/authStore.ts`, `front/disciplina-fro
 | `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, alternants, sessions, formateurs, ruptures, émargements, modèles de mail |
 | `AD` / `GESTION` | `/admin` | CRUD utilisateurs, config Drive/secteurs |
 | `ENTREPRISE` | `/entreprise` | Remplir Analyse de Besoin, gérer apprentis, RDV, profils matchés |
+| `FORMATEUR` | `/formateur` | Intervenant externe : prochaine séance et compteurs. Compte créé par le Peda depuis la fiche formateur ; jamais staff (le front le renvoie dans son espace, le back refuse son jeton sur les routes internes) |
 | Public (token/signature) | `/booking/:slug`, `/external/matching/:signature`, `/external/interview/:signature`, `/external/authenticate?sig=…`, `/external/cv-import/:signature` — les anciens liens `/public/{match,interview,cv-import}/:signature` (mails pré-migration) sont redirigés vers `/external/authenticate?sig=…` | Parcours invités sans compte |
 
 ---
@@ -222,6 +223,15 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Test vitest** : `rest/formateurs/__tests__/formateurs.test.ts`.
 - **Statut** : _à remplir_
 
+### 3.14 sexies Espace formateur — compte et tableau de bord (#1185)
+
+- **Étapes** : (1) Peda → `/peda/formateurs/:id` → carte « Accès à l'espace formateur » : saisir un mot de passe (12 caractères minimum, majuscule, minuscule, chiffre) puis « Créer le compte » ; (2) ouvrir la page d'accueil `/` dans un autre navigateur, se connecter avec l'e-mail de la fiche et ce mot de passe → arrivée directe sur `/formateur` ; (3) vérifier le tableau de bord : compteurs « séances à venir » / « séances passées » et carte « prochain créneau » (date, horaires, durée, session, module, site) ; (4) revenir sur la fiche et cliquer « Mot de passe » puis enregistrer un nouveau secret : les appareils déjà connectés sont déconnectés et la connexion n'accepte plus que le nouveau ; (5) « Retirer l'accès » : le formateur ne peut plus se connecter mais la fiche, ses séances et son journal restent ; (6) « Supprimer la fiche » : confirmation explicite, la fiche disparaît de la liste, le compte est désactivé et les séances restent lisibles.
+- **Chaîne** : `POST|PUT|DELETE /api/formateurs/:id/account`, `DELETE /api/formateurs/:id` (`authenticate` + rôle PEDA/AD/GESTION) → `FormateurService.createAccount` / `resetAccountPassword` / `deleteAccount` / `remove` → `UserService.register|updateUser|revokeAllSessions` (`users`, rôle `FORMATEUR` id 7, permission `EMPLOYEE`) et `UserDeletionService.deleteUser` (soft delete) ; `SeanceRepository.unlinkFormateur` ; côté formateur `GET /api/formateur/me` (`authenticateAny` + `requireRoles('FORMATEUR')`) → `FormateurService.dashboardForUser` → `FormateurRepository.findByUserId` (Mongo `formateurs.user_id`) + `SeanceRepository.findByFormateur`.
+- **Résultat attendu** : (1) mot de passe faible → 400 `validation`, second compte sur la même fiche → 409 `account_exists`, e-mail déjà pris par un autre compte → 409 `email` ; la création journalise `account_created` ; (2) la connexion renvoie `role: 'FORMATEUR'`, `permission: 'EMPLOYEE'`, et le front redirige vers `/formateur` ; (3) « à venir » inclut aujourd'hui, calculé dans le fuseau du tenant ; fiche résolue par `req.user.id` exclusivement — un compte sans fiche rattachée reçoit 403 `no_formateur`, et un jeton `FORMATEUR` reçoit 403 sur **toutes** les routes staff (`/api/auth/users`, `/api/auth/directory`, `/api/formateurs`, `/api/emargement/seances`) alors que `/api/auth/me` et `/api/auth/logout` l'acceptent ; les quatre serveurs GraphQL (`jwtContext`) et MCP (`mcpAuth`, consentement OAuth) le rejettent aussi (réponse GraphQL en erreur `Unauthorized`, MCP 401, consentement refusé) ; (4) le nouveau mot de passe seul fonctionne, l'ancien tombe à 401, `account_password_reset` est journalisé et les refresh tokens du compte sont révoqués ; (5) connexion refusée (401), `account_deleted` journalisé, la fiche est intacte ; (6) 204, fiche inaccessible (404), `formateur_deleted` journalisé, `seances.formateur_id` remis à `null` (le rattachement par e-mail reprend la main) et `formateur_history` conservé ; (7) les comptes `FORMATEUR` n'apparaissent ni dans `/api/auth/users`, ni dans `/api/auth/directory`, ni dans l'annuaire MCP ; (8) la suppression puis la recréation d'un compte sur le même e-mail réactive la ligne `users` soft-deleted au lieu d'échouer sur la contrainte d'unicité.
+- **External** : aucun (pas d'e-mail d'invitation dans ce lot : le Peda transmet les identifiants).
+- **Test vitest** : `rest/formateurs/__tests__/formateurAccount.test.ts`.
+- **Statut** : _à remplir_
+
 ### 3.15 Notifications & Todos
 
 - **Étapes** : réception de notifications temps réel ; création/consultation de todos.
@@ -298,6 +308,7 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.14 ter Exports émargement | `emargement` (PDF séance/attestation/groupe, CSV/Excel, journal) | — |
 | 3.14 quater Assiduité émargement | `emargement` (agrégats alternant/groupe/site, fiche alternant, feuilles incomplètes, archivage et export historique) | — |
 | 3.14 quinquies Formateurs | `formateurs` (CRUD, auto-création depuis une séance, statistiques, journal/notes) | — |
+| 3.14 sexies Espace formateur | `formateurAccount` (compte créé/réinitialisé/retiré depuis la fiche, connexion `FORMATEUR`, cloisonnement staff, tableau de bord, suppression de fiche) | — |
 | 3.17 MCP péda | `mcp/peda`, `mcp/pedaMasking` | — |
 | 3.15 Notifs/Todos | `authBoundary` (SSE) | flux nominal |
 | 3.16 Admin users | `directory`, `sensitive-fields` | — |

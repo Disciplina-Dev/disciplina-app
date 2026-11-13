@@ -8,6 +8,8 @@ export enum UserRole {
   AD = 'AD',
   GESTION = 'GESTION',
   ENTREPRISE = 'ENTREPRISE',
+  /** Intervenant externe : accès au seul espace `/formateur` (miroir de JobRole backend). */
+  FORMATEUR = 'FORMATEUR',
 }
 
 export enum Permission {

@@ -59,6 +59,8 @@ export default function LoginPage() {
         navigate('/admin')
       } else if (user.role === 'ENTREPRISE') {
         navigate('/entreprise')
+      } else if (user.role === 'FORMATEUR') {
+        navigate('/formateur')
       } else {
         navigate('/')
       }

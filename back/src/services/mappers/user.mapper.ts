@@ -13,6 +13,7 @@ const ROLE_ID_TO_NAME: Record<number, JobRole> = {
     3: JobRole.PEDA,
     4: JobRole.AD,
     5: JobRole.GESTION,
+    7: JobRole.FORMATEUR,
 };
 
 const PERMISSION_ID_TO_NAME: Record<number, Permission> = {

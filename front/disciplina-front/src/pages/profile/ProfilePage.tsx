@@ -21,6 +21,7 @@ const ROLE_LABELS: Record<UserRole, string> = {
   [UserRole.AD]: 'Administrateur',
   [UserRole.GESTION]: 'Gestion',
   [UserRole.ENTREPRISE]: 'Entreprise',
+  [UserRole.FORMATEUR]: 'Formateur',
 }
 
 const SECTOR_LABELS: Record<string, string> = SECTEUR_LABELS
