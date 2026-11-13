@@ -117,9 +117,19 @@ export async function fetchPublicSlots(slug: string, from: string, to: string): 
   return ((await res.json()) as { slots: Slot[] }).slots;
 }
 
+/** Identité obligatoire de l'invité qui réserve un créneau. */
+export interface BookingGuest {
+  firstName: string;
+  lastName: string;
+  /** Numéro normalisé (chiffres, `+` initial éventuel). */
+  phone: string;
+  email: string;
+  note?: string;
+}
+
 export async function createBooking(
   slug: string,
-  payload: { start: string; name: string; email: string; note?: string },
+  payload: { start: string } & BookingGuest,
 ): Promise<Slot> {
   const res = await bookFetch(`/public/${slug}/book`, { method: 'POST', body: JSON.stringify(payload) });
   return ((await res.json()) as { booked: Slot }).booked;

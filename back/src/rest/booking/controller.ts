@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
-import { isValidEmail } from '../../services/validation';
+import { isValidEmail, normalizePhone } from '../../services/validation';
 import { logger } from '../../external/logger';
 import {
     BookingService,
@@ -303,15 +303,17 @@ export async function getPublicSlots(req: Request, res: Response): Promise<void>
     }
 }
 
-/** POST /api/booking/public/:slug/book — body { start, name, email, note? } */
+/** POST /api/booking/public/:slug/book — body { start, firstName, lastName, phone, email, note? } */
 export async function postBooking(req: Request, res: Response): Promise<void> {
     const b = (req.body ?? {}) as Record<string, unknown>;
     const start = typeof b.start === 'string' ? b.start : '';
-    const name = typeof b.name === 'string' ? b.name.trim() : '';
+    const firstName = typeof b.firstName === 'string' ? b.firstName.trim().slice(0, 100) : '';
+    const lastName = typeof b.lastName === 'string' ? b.lastName.trim().slice(0, 100) : '';
+    const phone = normalizePhone(b.phone);
     const email = typeof b.email === 'string' ? b.email.trim() : '';
     const note = typeof b.note === 'string' ? b.note.trim().slice(0, 1000) : undefined;
-    if (!start || !name || !isValidEmail(email)) {
-        res.status(400).json({ error: 'start, name et email valides requis' });
+    if (!start || !firstName || !lastName || !phone || !isValidEmail(email)) {
+        res.status(400).json({ error: 'start, firstName, lastName, phone et email valides requis' });
         return;
     }
     const settings = await bookingService.findBySlug(req.params.slug as string);
@@ -320,7 +322,7 @@ export async function postBooking(req: Request, res: Response): Promise<void> {
         return;
     }
     try {
-        const booked = await bookingService.book(settings, start, { name, email, note });
+        const booked = await bookingService.book(settings, start, { firstName, lastName, phone, email, note });
         res.status(201).json({ booked });
     } catch (err) {
         if (err instanceof SlotUnavailableError) {

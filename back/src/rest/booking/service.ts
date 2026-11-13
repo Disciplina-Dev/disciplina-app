@@ -17,7 +17,10 @@ export interface Slot {
 }
 
 export interface GuestInfo {
-    name: string;
+    firstName: string;
+    lastName: string;
+    /** Numéro normalisé (chiffres, `+` initial éventuel). */
+    phone: string;
     email: string;
     note?: string;
 }
@@ -31,6 +34,11 @@ export class DayBlockConflictError extends Error {}
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
+
+/** Nom complet de l'invité (« Prénom Nom »). */
+function guestFullName(guest: GuestInfo): string {
+    return `${guest.firstName} ${guest.lastName}`.trim();
+}
 
 /** Formate un instant pour affichage dans le fuseau donné (ex "lundi 16 juin 2026 à 09:00"). */
 function formatInTz(iso: string, tz: string): string {
@@ -291,19 +299,20 @@ export class BookingService {
         const startIsoFinal = new Date(startMs).toISOString();
         const endIsoFinal = new Date(endMs).toISOString();
         const calendar = calendarForUser(host);
+        const fullName = guestFullName(guest);
         const description = [
-            `Réservation par ${guest.name} (${guest.email}).`,
+            `Réservation par ${fullName} (${guest.email}, ${guest.phone}).`,
             guest.note ? `\nMessage : ${guest.note}` : '',
         ].join('');
 
         await calendar.createEvent(
             {
-                summary: `${settings.title} — ${guest.name}`,
+                summary: `${settings.title} — ${fullName}`,
                 description,
                 location: settings.location ?? undefined,
                 start: startIsoFinal,
                 end: endIsoFinal,
-                attendees: [{ email: guest.email, displayName: guest.name }],
+                attendees: [{ email: guest.email, displayName: fullName }],
             },
             'none', // Pas d'email d'invitation Google : on envoie notre propre confirmation.
         );
@@ -321,6 +330,7 @@ export class BookingService {
         guest: GuestInfo,
     ): Promise<void> {
         const when = formatInTz(startIso, settings.timezone);
+        const guestName = guestFullName(guest);
 
         let subject: string;
         let html: string;
@@ -329,7 +339,9 @@ export class BookingService {
         if (settings.confirmationBody && settings.confirmationBody.trim()) {
             // Modèle personnalisé : on remplace les variables {{…}}.
             const vars: Record<string, string> = {
-                nom: guest.name,
+                nom: guestName,
+                prenom: guest.firstName,
+                telephone: guest.phone,
                 date: `${when} (${settings.timezone})`,
                 ...dateVars(startIso, settings.timezone),
                 lieu: settings.location ?? '',
@@ -348,7 +360,7 @@ export class BookingService {
             subject = `Confirmation de votre rendez-vous — ${settings.title}`;
             const lieu = settings.location ? `<p><strong>Lieu :</strong> ${settings.location}</p>` : '';
             html = `
-            <p>Bonjour ${guest.name},</p>
+            <p>Bonjour ${guestName},</p>
             <p>Votre rendez-vous « <strong>${
                 settings.title
             }</strong> » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.</p>
@@ -357,7 +369,7 @@ export class BookingService {
             ${lieu}
             <p>À bientôt,<br/>${`${host.firstName} ${host.lastName}`.trim()}</p>`;
             text =
-                `Bonjour ${guest.name},\n\nVotre rendez-vous « ${
+                `Bonjour ${guestName},\n\nVotre rendez-vous « ${
                     settings.title
                 } » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.\n` +
                 `Date : ${when} (${settings.timezone})\nDurée : ${settings.durationMin} minutes\n` +
