@@ -39,7 +39,7 @@
 - `scripts/backup-db.sh` only backs up `disciplina` (MySQL, l. 239) and `human_ressources` (Mongo, l. 245). **`disciplina_annemasse` is never backed up** (MySQL and Mongo). `scripts/rollback.sh` does not restore it either.
 - Plain dumps (`.sql`, `.archive`) in `<repo>/backups/` on the **same disk** as the DBs. 7-day retention (`find -mtime +7 -delete`). No off-machine copy (acknowledged in `HOWTODEPLOY.md:48-49`, `README.md:68`, BACKLOG DB-5).
 - No restore test, checksum or failure alert.
-- Passwords passed as arguments (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244): visible in the process list.
+- Passwords passed as arguments (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244 — now `scripts/backup*.sh`, `rollback.sh`; fixed in #1112 via `MYSQL_PWD` + `scripts/mongo-exec.sh`): visible in the process list.
 - No `umask`/`chmod`: default permissions.
 - The Mac mini may sleep at 03:00 (`README.md:177`), delaying or missing the backup.
 

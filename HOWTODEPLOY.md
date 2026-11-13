@@ -96,7 +96,7 @@ The script refuses to overwrite a file or to write the identity inside the repo.
 ```bash
 # one dump, manually
 age -d -i ~/disciplina-backup-identity.txt backups/backup_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina
 
 # rollback.sh decrypts by itself when given the identity
 BACKUP_AGE_IDENTITY=~/disciplina-backup-identity.txt ./scripts/rollback.sh
@@ -192,20 +192,20 @@ docker compose stop backend
 
 # 2. Restore MySQL
 age -d -i "$AGE_IDENTITY" backups/backup_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina
 
 # 3. Restore MongoDB
 age -d -i "$AGE_IDENTITY" backups/backup_mongo_<DATE>.archive.age \
-  | docker compose exec -T nosql-db mongorestore \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  | mongo_exec mongorestore \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --archive
 
 # 3b. Restore the Annemasse tenant (MySQL + MongoDB)
 age -d -i "$AGE_IDENTITY" backups/backup_annemasse_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina_annemasse
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina_annemasse
 age -d -i "$AGE_IDENTITY" backups/backup_annemasse_mongo_<DATE>.archive.age \
-  | docker compose exec -T nosql-db mongorestore \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  | mongo_exec mongorestore \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --archive --drop --nsInclude 'disciplina_annemasse.*'
 
 # 4. Restart the backend
@@ -215,6 +215,8 @@ docker compose start backend
 git checkout <previous-commit>
 docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d --build
 ```
+
+> Manual Mongo commands use `mongo_exec` (`source scripts/mongo-exec.sh` after exporting `MONGO_ROOT_USERNAME`/`MONGO_ROOT_PASSWORD`): the password is passed via env + a 0600 temp config in the container, never as an argument visible in `ps`. Same for MySQL via `MYSQL_PWD`.
 
 ## 6. Notes for special features
 

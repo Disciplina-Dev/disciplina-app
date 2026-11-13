@@ -109,7 +109,7 @@ Légende gravité : **Critique** (risque immédiat de perte/fuite) · **Élevée
   - `scripts/backup-db.sh` ne sauvegarde que `disciplina` (MySQL, l. 239) et `human_ressources` (Mongo, l. 245). **`disciplina_annemasse` n'est jamais sauvegardé** (MySQL et Mongo). `scripts/rollback.sh` ne le restaure pas non plus.
   - Dumps en clair (`.sql`, `.archive`), écrits dans `<repo>/backups/` sur le **même disque** que les DB. Rétention 7 jours (`find -mtime +7 -delete`). Aucune copie hors machine (reconnu dans `HOWTODEPLOY.md:48-49`, `README.md:68`, BACKLOG DB-5).
   - Aucun test de restauration, checksum ou alerte d'échec.
-  - Mots de passe passés en argument (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244) : visibles dans la liste des processus.
+  - Mots de passe passés en argument (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244 — now `scripts/backup*.sh`, `rollback.sh`; fixed in #1112 via `MYSQL_PWD` + `scripts/mongo-exec.sh`) : visibles dans la liste des processus.
   - Pas de `umask`/`chmod` : permissions par défaut.
   - Le Mac mini peut se mettre en veille à 03:00 (`README.md:177`), retardant ou manquant la sauvegarde.
 - **Risque** : panne disque, vol, ransomware ou erreur = perte définitive des données Annemasse ; fuite complète si le disque est volé.

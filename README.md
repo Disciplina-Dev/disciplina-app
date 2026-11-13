@@ -76,13 +76,13 @@ mkdir -p backups
 
 # MySQL
 DATE=$(date +%Y-%m-%d_%H%M%S)
-docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" disciplina \
+MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysqldump -h127.0.0.1 -uroot disciplina \
   | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mysql_${DATE}.sql.age"
 
 # MongoDB
 DATE=$(date +%Y-%m-%d_%H%M%S)
-docker compose exec -T nosql-db mongodump \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+mongo_exec mongodump \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --db human_ressources --archive \
   | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mongo_${DATE}.archive.age"
 ```
@@ -98,12 +98,12 @@ docker compose stop backend
 
 # MySQL
 age -d -i "$AGE_IDENTITY" backups/backup_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina
 
 # MongoDB
 age -d -i "$AGE_IDENTITY" backups/backup_mongo_<DATE>.archive.age \
-  | docker compose exec -T nosql-db mongorestore \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  | mongo_exec mongorestore \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --archive
 
 docker compose start backend
