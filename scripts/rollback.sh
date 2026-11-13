@@ -14,6 +14,9 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=scripts/mongo-exec.sh
+source "$REPO_ROOT/scripts/mongo-exec.sh"
+
 STATE_FILE="scripts/.deploy-state"
 COMPOSE_PROD=(docker compose -f docker-compose.yaml -f docker-compose.prod.yaml)
 READY_TIMEOUT=180
@@ -181,7 +184,7 @@ if [[ -n "$MYSQL_DUMP" ]]; then
     if (( DRY )); then
         log "  $ docker compose exec -T -e MYSQL_PWD=*** sql-db mysql -h127.0.0.1 -uroot disciplina < $MYSQL_DUMP (déchiffré par age si *.age)"
     else
-        dump_cat "$MYSQL_DUMP" | docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+        dump_cat "$MYSQL_DUMP" | env MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db \
             mysql -h127.0.0.1 -uroot disciplina
     fi
     log "  OK MySQL restauré"
@@ -196,8 +199,8 @@ if [[ -n "$MONGO_DUMP" ]]; then
     if (( DRY )); then
         log "  $ docker compose exec -T nosql-db mongorestore --archive${gzip_opt[0]:+ --gzip} --drop --db human_ressources < $MONGO_DUMP (déchiffré par age si *.age)"
     else
-        dump_cat "$MONGO_DUMP" | docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
-            mongorestore --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+        dump_cat "$MONGO_DUMP" | mongo_exec mongorestore \
+            --username "$MONGO_ROOT_USERNAME" \
             --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop --db human_ressources
     fi
     log "  OK MongoDB restauré"
@@ -210,7 +213,7 @@ if [[ -n "$MYSQL_ANNEMASSE_DUMP" ]]; then
     if (( DRY )); then
         log "  $ docker compose exec -T -e MYSQL_PWD=*** sql-db mysql -h127.0.0.1 -uroot $MYSQL_ANNEMASSE_DATABASE < $MYSQL_ANNEMASSE_DUMP (déchiffré par age si *.age)"
     else
-        dump_cat "$MYSQL_ANNEMASSE_DUMP" | docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+        dump_cat "$MYSQL_ANNEMASSE_DUMP" | env MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db \
             mysql -h127.0.0.1 -uroot "$MYSQL_ANNEMASSE_DATABASE"
     fi
     log "  OK MySQL Annemasse restauré"
@@ -225,8 +228,8 @@ if [[ -n "$MONGO_ANNEMASSE_DUMP" ]]; then
     if (( DRY )); then
         log "  $ docker compose exec -T nosql-db mongorestore --archive${gzip_opt[0]:+ --gzip} --drop --nsInclude '$MONGO_ANNEMASSE_DATABASE.*' < $MONGO_ANNEMASSE_DUMP (déchiffré par age si *.age)"
     else
-        dump_cat "$MONGO_ANNEMASSE_DUMP" | docker compose exec -T nosql-db \
-            mongorestore --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+        dump_cat "$MONGO_ANNEMASSE_DUMP" | mongo_exec mongorestore \
+            --username "$MONGO_ROOT_USERNAME" \
             --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop \
             --nsInclude "${MONGO_ANNEMASSE_DATABASE}.*"
     fi

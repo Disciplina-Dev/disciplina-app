@@ -15,6 +15,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
+
+# shellcheck source=scripts/mongo-exec.sh
+source "$REPO_ROOT/scripts/mongo-exec.sh"
 BACKUP_ROOT="scripts/backups"
 
 # .env contient des valeurs avec metacaracteres shell : on n'extrait que les cles
@@ -131,14 +134,14 @@ do_backup() {
     trap "rm -f '$mysql_file.part' '$mongo_file.part'" EXIT
 
     echo "[1/2] MySQL (disciplina.companies, candidates... en MySQL) ..."
-    docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+    env MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db \
         mysqldump -h127.0.0.1 -uroot --single-transaction --routines --triggers \
         disciplina | age -r "$AGE_RECIPIENT" > "$mysql_file.part"
     mv "$mysql_file.part" "$mysql_file"
 
     echo "[2/2] MongoDB (human_ressources.candidates, offers...) ..."
-    docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
-        mongodump --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+    mongo_exec mongodump \
+        --username "$MONGO_ROOT_USERNAME" \
         --authenticationDatabase admin --db human_ressources --archive \
         | age -r "$AGE_RECIPIENT" > "$mongo_file.part"
     mv "$mongo_file.part" "$mongo_file"
@@ -186,7 +189,7 @@ do_restore() {
         echo "[1/2] MySQL ..."
         # Le dump ne contient pas de clause USE (dump simple sans --databases) :
         # on cible explicitement la base `disciplina`.
-        dump_cat "$mysql_file" | docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+        dump_cat "$mysql_file" | env MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db \
             mysql -h127.0.0.1 -uroot disciplina
     else
         echo "mysql.sql absent : MySQL ignore."
@@ -201,8 +204,8 @@ do_restore() {
             gzip_opt=(--gzip)
             echo "  (archive gzip detectee)"
         fi
-        dump_cat "$mongo_file" | docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
-            mongorestore --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+        dump_cat "$mongo_file" | mongo_exec mongorestore \
+            --username "$MONGO_ROOT_USERNAME" \
             --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop --db human_ressources
     else
         echo "archive mongo absente : MongoDB ignore."
