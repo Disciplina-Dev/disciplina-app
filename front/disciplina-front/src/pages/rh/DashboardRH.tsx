@@ -426,14 +426,27 @@ function ImmersingCandidatesModal({ onClose }: { onClose: () => void }) {
               {finishedCount > 0 ? ` · ${finishedCount} terminée${finishedCount > 1 ? 's' : ''}` : ''}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
-            title="Fermer"
-          >
-            <IconClose width={18} height={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={loading}
+              title="Actualiser la liste des entreprises"
+              aria-label="Actualiser la liste des entreprises"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-xs font-semibold text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <IconRefresh width={14} height={14} className={loading ? 'animate-spin' : ''} />
+              Actualiser
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
+              title="Fermer"
+            >
+              <IconClose width={18} height={18} />
+            </button>
+          </div>
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
@@ -441,7 +454,7 @@ function ImmersingCandidatesModal({ onClose }: { onClose: () => void }) {
             <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
               <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des candidats…
             </div>
-          ) : error ? (
+          ) : error && rows.length === 0 ? (
             <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-[var(--ds-danger)]">
               <p className="font-medium">Erreur de chargement des candidats</p>
               <button
