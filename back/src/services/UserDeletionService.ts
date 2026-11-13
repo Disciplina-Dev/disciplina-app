@@ -52,7 +52,8 @@ interface Affected {
  * - Mongo : needs_analysis.saler_info, offers.saler_info, candidates.owner
  *
  * Données strictement personnelles purgées : todos + groupes, booking_settings,
- * peda_config, refresh_tokens, notifications, modèles et signatures de mail.
+ * calendar_day_blocks (blocages « pour soi »), peda_config, refresh_tokens,
+ * notifications, modèles et signatures de mail.
  */
 export class UserDeletionService {
     private userRepository = new UserRepository();
@@ -129,6 +130,9 @@ export class UserDeletionService {
             const todos = await conn.execute('DELETE FROM todos WHERE user_id = ?', [targetId]);
             const todoGroups = await conn.execute('DELETE FROM todo_groups WHERE user_id = ?', [targetId]);
             await conn.execute('DELETE FROM booking_settings WHERE user_id = ?', [targetId]);
+            // Blocages de dates posés « pour soi » (les blocages « pour tout le
+            // monde » restent : ils engagent l'organisation, pas la personne).
+            await conn.execute('DELETE FROM calendar_day_blocks WHERE user_id = ?', [targetId]);
             await conn.execute('DELETE FROM peda_config WHERE user_id = ?', [targetId]);
             await conn.execute('DELETE FROM refresh_tokens WHERE user_id = ?', [targetId]);
             // Sessions OAuth MCP (RGPD Art. 17) : jetons supprimés, clients dissociés du compte.

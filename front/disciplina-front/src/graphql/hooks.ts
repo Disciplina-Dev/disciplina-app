@@ -572,6 +572,7 @@ function toGqlUpdateInput(c: Candidate): any {
       ...(c.identity.address !== undefined && { address: c.identity.address }),
       ...(c.identity.city !== undefined && { city: c.identity.city }),
       ...(c.identity.description !== undefined && { description: c.identity.description }),
+      ...(c.identity.description_source !== undefined && { descriptionSource: c.identity.description_source }),
       ...(c.identity.had_apprenticeship_contract !== undefined && {
         hadApprenticeshipContract: c.identity.had_apprenticeship_contract,
       }),

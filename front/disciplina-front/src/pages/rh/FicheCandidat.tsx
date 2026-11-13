@@ -603,7 +603,14 @@ export default function FicheCandidat() {
     }
     const updated = { ...formData, identity: { ...formData.identity, description: summary } }
     setFormData(updated)
-    try { await update(updated._id, updated) } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
+    try {
+      // `description_source: 'auto'` : le résumé reste régénérable automatiquement
+      // lors des prochaines mises à jour du dossier.
+      await update(updated._id, {
+        ...updated,
+        identity: { ...updated.identity, description_source: 'auto' },
+      })
+    } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
   }
 
   const handleGenerateAiSummary = async () => {
@@ -632,7 +639,12 @@ export default function FicheCandidat() {
     const updated = { ...formData, identity: { ...formData.identity, description: aiSummaryText } }
     setFormData(updated)
     try {
-      await update(updated._id, updated)
+      // Résumé IA validé par un RH : marqué manuel pour ne plus être écrasé par
+      // la génération automatique.
+      await update(updated._id, {
+        ...updated,
+        identity: { ...updated.identity, description_source: 'manual' },
+      })
       setAiSummaryOpen(false)
     } catch {
       setAiSummaryError('Erreur lors de l\'enregistrement')

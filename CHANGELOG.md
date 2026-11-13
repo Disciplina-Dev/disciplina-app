@@ -32,14 +32,21 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ### Added
 
+- Report d'un entretien (#1076) dans le calendrier RH : le bouton « Reporté » d'un entretien demande désormais la nouvelle date et l'heure, puis déplace réellement le créneau (les KPI « entretien placé » et « reporté » suivent la nouvelle date). Un créneau non-entretien garde le marquage direct.
 - Questionnaires internes (#968), remplaçants de ClassMarker : éditeur par blocs (QCM 1 ou plusieurs réponses, vrai/faux, réponse libre corrigée automatiquement), import/export JSON, mode « Tester », verrouillage après le 1er passage + duplication en v2 ; lien unique + QR depuis la fiche candidat, page candidat `/test/:token` (une question par page, chrono serveur, pas de retour arrière, lien lié au 1er appareil), suivi en direct sur la fiche ; résultats filtrables (export CSV, détail réponse par réponse) et téléchargement direct du PDF des résultats, sans compte Google. Questionnaires ClassMarker repris dans `Classmarker/questions/jsons/`.
 - Tableau de bord RH (#1036) : le KPI « En immersion » est cliquable et ouvre la liste complète des candidats en immersion (candidat, entreprise d'accueil, début, fin, n° de convention, échéance), comme « En contrat ».
+- Blocage de dates dans le calendrier RH (#1080) : depuis le calendrier, « Bloquer des dates » retire un jour des créneaux proposés sur la page de réservation, quelles que soient les disponibilités hebdomadaires. Choix de la portée (« pour moi » seul, ou « pour tout le monde » pour tous les RH) avec motif obligatoire ; blocage visible directement dans les vues mois/semaine et annulable à tout moment. Un blocage « pour tout le monde » peut être annulé « pour moi » (dérogation personnelle, re-bloquable) ou « pour tout le monde ».
 
 ### Changed
 
+- KPI entretiens du calendrier RH (#1076) : un même email d'invité ne compte qu'une fois — seul son premier rendez-vous (par date de début) crédite « entretien placé » et la catégorie de présence (venu, pas venu, reporté, décliné), pour ne plus cumuler deux catégories pour un même candidat.
 - Résultats de test (#968) : la logique du webhook ClassMarker est extraite dans `TestResultService` ; les résultats internes sont écrits au même format (`candidate.classmarker` / `classmarker_history`, `source: 'internal'`), donc fiche, gate, PDF et MCP sont inchangés. ClassMarker reste branché pendant la transition.
 - Horaires d'immersion (#1035) : chaque jour activé peut porter deux plages facultatives (matin et après-midi) pour deux shifts le même jour ; toutes les heures restent optionnelles, une fin de matinée ou un début d'après-midi absents ne bloquent pas l'enregistrement, et les créneaux continus existants sont relus sans migration.
 - Annuaire entreprises du tableau de bord RH (#1043) : une ligne par offre — une entreprise portant plusieurs offres apparaît désormais plusieurs fois, avec une colonne « Offre » (statut) et l'historique propre à chaque offre. La liste charge maintenant toutes les analyses de besoins en arrière-plan, ce qui fait réapparaître les entreprises actives anciennes (offres « CV envoyé », « Matché », « En contrat ») qui sortaient de la fenêtre des 500 premières lignes.
+
+### Fixed
+
+- Matching par secteur d'activité (#1066) : une offre ne propose plus que les candidats ayant coché l'un de ses secteurs ; le repli qui affichait tous les candidats quand aucun ne correspondait est supprimé. Le rapprochement compare désormais les secteurs du référentiel en tolérant les codes et libellés historiques (`COMMERCIAL` ≡ « Commerce / Vente »), et s'applique aussi aux « Offres correspondantes » de la fiche candidat. Les secteurs saisis librement dans l'AB restent ignorés faute d'équivalent candidat, avec un avertissement explicite.
 
 ### Security
 
