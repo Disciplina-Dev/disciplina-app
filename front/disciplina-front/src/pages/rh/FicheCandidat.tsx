@@ -21,7 +21,7 @@ import { SECTEUR_LABELS } from '@/constants/secteurs'
 import type { Candidate, DiscoverySource, ImmersionScheduleSlot, PedagogicalRecommendations } from '@/types/candidate'
 import type { ScheduleSlot } from '@/types/needsAnalysis'
 import { offerSlotToImmersionSlot } from '@/utils/schedule'
-import { computeAge, isSenior } from '@/utils/age'
+import { computeAge, formatDateOfBirth, isSenior } from '@/utils/age'
 import { gateThresholdForTps } from '@/utils/testGateThreshold'
 import {
   TEST_FAILURE_NO_SHARE_VALUE,
@@ -1202,7 +1202,13 @@ export default function FicheCandidat() {
                 <Field label="Âge">
                   {(() => {
                     const liveAge = computeAge(formData.identity.date_of_birth) ?? formData.identity.age
-                    return <p className={valueCls}>{liveAge != null ? `${liveAge} ans` : '—'}</p>
+                    const dob = formatDateOfBirth(formData.identity.date_of_birth)
+                    return (
+                      <p className={valueCls}>
+                        {liveAge != null ? `${liveAge} ans` : '—'}
+                        {dob && <span className="text-[var(--ds-text-subtle)]"> · {dob}</span>}
+                      </p>
+                    )
                   })()}
                 </Field>
                 <Field label="Ville">
