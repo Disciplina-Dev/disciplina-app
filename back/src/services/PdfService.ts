@@ -6,6 +6,9 @@ import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { MASKED_SSN } from '../external/crypto/ssn-cipher';
+import { tenantDocuments } from '../config/tenantDocuments';
+import { getRegion } from '../db/tenant';
+import type { Region } from '../types/tenant';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // On utilise le Chromium natif du système (installé dans l'image Docker via apt)
@@ -169,25 +172,44 @@ function getLogoDataUrl(): string {
 
 // ─── Header / Footer templates ────────────────────────────────────────────────
 
-function buildHeaderTemplate(logoDataUrl: string): string {
+function buildHeaderTemplate(logoDataUrl: string, region: Region): string {
+    const { brandColor } = tenantDocuments(region);
     const logoHtml = logoDataUrl
         ? `<img src="${logoDataUrl}" style="height:128px;display:block;" />`
-        : `<div style="font-size:22px;font-weight:bold;color:#1130A7;">Disciplina</div>`;
+        : `<div style="font-size:22px;font-weight:bold;color:${brandColor};">Disciplina</div>`;
     return `
     <div style="width:100%;padding:6px 18mm 0;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;">
         ${logoHtml}
     </div>`;
 }
 
-function buildFooterTemplate(): string {
+function buildFooterTemplate(region: Region): string {
+    const { legal } = tenantDocuments(region);
     return `
     <div style="width:100%;padding:0 18mm 4px;font-family:Arial,Helvetica,sans-serif;font-size:7px;text-align:center;color:#333;-webkit-print-color-adjust:exact;">
         <div style="border-top:1px solid #999;padding-top:4px;">
-            <strong>DISCIPLINA</strong> | 71 rue Roger Payet, Sainte-Marie 97438 | Numéro SIRET : <em>97828986600011</em><br/>
-            Déclaration d'activité enregistrée sous le n° 04973484197 auprès du Préfet de région de Réunion. Cet enregistrement ne vaut pas agrément de l'Etat<br/>
-            Mis à jour le 25/02/2026
+            <strong>${esc(legal.companyName)}</strong> | ${esc(legal.address)} | Numéro SIRET : <em>${esc(legal.siret)}</em><br/>
+            ${esc(legal.activityDeclaration)}<br/>
+            Mis à jour le ${esc(legal.updatedAt)}
         </div>
     </div>`;
+}
+
+/** Page « Contacts » : coordonnées du tenant courant, jamais celles d'un autre. */
+function buildContactsSection(region: Region): string {
+    const groups = tenantDocuments(region)
+        .contacts.map(
+            (group) => `
+    <p class="site-title">${esc(group.title)}</p>
+    <ul>
+        ${group.people.map((person) => `<li>${esc(person)}</li>`).join('\n        ')}
+    </ul>`,
+        )
+        .join('');
+    return `
+<div class="contacts-section">
+    <p class="contacts-title">Contacts</p>${groups}
+</div>`;
 }
 
 // ─── HTML builder (pages 1-5) ─────────────────────────────────────────────────
@@ -227,7 +249,7 @@ ${fr('Titre professionnel visé :', TP_LABELS[tp.tpType ?? ''] ?? tp.tpType ?? '
 </div>${complementaire}`;
 }
 
-function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
+function buildHtml(analysis: NeedsAnalysisGql, company: Companies, region: Region): string {
     const days = parseDays(analysis.trainingDays ?? '{}');
 
     const legalRepFunction = analysis.referents?.legalReferents?.function ?? '';
@@ -506,43 +528,7 @@ ${criteriaBlocks}
 </div>
 
 <!-- ═══ PAGE 4 — Contacts ═══ -->
-<div class="page-break">
-<div class="contacts-section">
-    <p class="contacts-title">Contacts</p>
-    <p class="site-title">Fonction centrale : 8 rue Pondichéry, ZI La Mare, 97438 Ste Marie</p>
-    <ul>
-        <li>Lorenzo ENCATASSAMY en qualité de Directeur : direction@disciplina.re / 0693 85 59 91</li>
-    </ul>
-    <p class="site-title">DISCIPLINA Nord : 8 rue Pondichéry, ZI La Mare, 97438 Ste Marie</p>
-    <ul>
-        <li>Amanda SINAMAN en qualité de Responsable Commerciale : sinaman.commercial@disciplina.re / 0693 00 76 91</li>
-        <li>Brandon GALMAR en qualité de Commercial : galmar.commercial@disciplina.re / 0693 39 52 07</li>
-        <li>Emile LEBON en qualité de Commercial : lebon.commercial@disciplina.re / 0692 39 66 29</li>
-        <li>Loïc GRONDIN en qualité de Responsable de recrutement : grondin.rh@disciplina.re / 0693 88 00 20</li>
-        <li>Marion GOUARD en qualité d'Assistante de recrutement : gouard.rh@disciplina.re / 0692 44 37 99</li>
-        <li>Séverine DUGAIN en qualité de Responsable administrative : dugain.administration@disciplina.re / 0693 88 00 20</li>
-        <li>Sébastien COUVIN en qualité de Responsable pédagogique CFA et OF : couvin.pedagogie@disciplina.re / 0692 23 22 98</li>
-        <li>Emmanuella MAONDA en qualité de Coordinatrice pédagogique CFA : maonda.pedagogie@disciplina.re / 0692 40 42 93</li>
-        <li>Samantha BERTILLE en qualité d'Assistante pédagogique CFA : bertille.pedagogie@disciplina.re / 0692 52 38 75</li>
-        <li>Rachelle ADAVAMIS en qualité d'Assistante pédagogique OF : adavamis.of@disciplina.re / 0693 06 23 12</li>
-    </ul>
-    <p class="site-title">DISCIPLINA Ouest : 14 rue Jules Thirel, 97460 Saint-Paul</p>
-    <ul>
-        <li>Marion LAURET en qualité de Responsable Commerciale : lauret.commercial@disciplina.re / 0693 06 92 01</li>
-        <li>Martin HARDIER en qualité de Commercial : hardier.commercial@disciplina.re / 0693 06 92 04</li>
-        <li>Lucas MADELEINE en qualité de Commercial : madeleine.commercial@disciplina.re / 0693 06 92 03</li>
-        <li>Célia GALAIS en qualité de Responsable de recrutement : galais.rh@disciplina.re / 0693 06 92 20</li>
-        <li>Alice NATIVEL en qualité d'Assistante de recrutement : nativel.rh@disciplina.re / 0692 44 37 99</li>
-        <li>Mayli ARMOUET en qualité d'Assistante de recrutement : armouet.rh@disciplina.re / 0693 06 92 21</li>
-        <li>Alexia TURPIN en qualité de Responsable administrative : turpin.administration@disciplina.re / 06 93 06 92 13</li>
-        <li>Emma NIRLO en qualité de Coordinatrice pédagogique CFA : nirlo.pedagogie@disciplina.re / 0693 06 92 17</li>
-        <li>Nolwenn ALEX en qualité d'Assistante pédagogique CFA : alex.pedagogie@disciplina.re / 0692 51 78 51</li>
-    </ul>
-    <p class="site-title">DISCIPLINA Sud : 249 avenue du Général de Gaulle, 97410 Saint-Pierre</p>
-    <ul>
-        <li>Céline BOYER en qualité de Responsable de recrutement : boyer.rh@disciplina.re / 0693 88 80 23</li>
-    </ul>
-</div>
+<div class="page-break">${buildContactsSection(region)}
 </div>
 
 <!-- ═══ PAGE 5 — Engagement, clause & signature ═══ -->
@@ -1290,9 +1276,13 @@ export class PdfService {
         });
     }
 
-    static async generateNeedsAnalysisPdf(analysis: NeedsAnalysisGql, company: Companies): Promise<Buffer> {
+    static async generateNeedsAnalysisPdf(
+        analysis: NeedsAnalysisGql,
+        company: Companies,
+        region: Region = getRegion(),
+    ): Promise<Buffer> {
         const logoDataUrl = getLogoDataUrl();
-        const html = buildHtml(analysis, company);
+        const html = buildHtml(analysis, company, region);
 
         const browser = await launchBrowser();
 
@@ -1305,8 +1295,8 @@ export class PdfService {
                 format: 'A4',
                 printBackground: true,
                 displayHeaderFooter: true,
-                headerTemplate: buildHeaderTemplate(logoDataUrl),
-                footerTemplate: buildFooterTemplate(),
+                headerTemplate: buildHeaderTemplate(logoDataUrl, region),
+                footerTemplate: buildFooterTemplate(region),
                 margin: { top: '38mm', right: '18mm', bottom: '25mm', left: '18mm' },
             });
 

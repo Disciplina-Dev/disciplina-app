@@ -1,9 +1,16 @@
 import { Request, Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { UserService } from '../../services/UserService';
-import { isValidEmail } from '../../services/validation';
+import { isValidEmail, normalizePhone } from '../../services/validation';
 import { logger } from '../../external/logger';
-import { BookingService, BookingDisabledError, SlotUnavailableError } from './service';
+import {
+    BookingService,
+    BookingDisabledError,
+    SlotUnavailableError,
+    DayBlockNotFoundError,
+    DayBlockForbiddenError,
+    DayBlockConflictError,
+} from './service';
 import { WorkingHours, WorkingWindow, BookingSettings } from './repository';
 
 const bookingService = new BookingService();
@@ -131,6 +138,113 @@ function isValidTimezone(tz: string): boolean {
     }
 }
 
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Valide une date locale `YYYY-MM-DD` (rejette 2026-02-31, format libre, etc.). */
+function parseDay(raw: unknown): string | undefined {
+    if (typeof raw !== 'string' || !DAY_RE.test(raw)) return undefined;
+    const date = new Date(`${raw}T00:00:00Z`);
+    if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== raw) return undefined;
+    return raw;
+}
+
+/** Mappe les erreurs métier de blocage vers un statut HTTP (true = géré). */
+function handleBlockError(err: unknown, res: Response): boolean {
+    if (err instanceof DayBlockNotFoundError) {
+        res.status(404).json({ error: err.message });
+        return true;
+    }
+    if (err instanceof DayBlockForbiddenError) {
+        res.status(403).json({ error: err.message });
+        return true;
+    }
+    if (err instanceof DayBlockConflictError) {
+        res.status(409).json({ error: err.message });
+        return true;
+    }
+    return false;
+}
+
+function parseBlockId(raw: unknown): number | undefined {
+    const id = Number(raw);
+    return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
+/** GET /api/booking/blocks?from=YYYY-MM-DD&to=YYYY-MM-DD — blocages visibles par l'utilisateur. */
+export async function getDayBlocks(req: AuthRequest, res: Response): Promise<void> {
+    const from = req.query.from === undefined ? undefined : parseDay(req.query.from);
+    const to = req.query.to === undefined ? undefined : parseDay(req.query.to);
+    if ((req.query.from !== undefined && !from) || (req.query.to !== undefined && !to)) {
+        res.status(400).json({ error: 'from et to doivent être des dates YYYY-MM-DD' });
+        return;
+    }
+    if (from && to && from > to) {
+        res.status(400).json({ error: 'from doit précéder to' });
+        return;
+    }
+    const blocks = await bookingService.listDayBlocks(Number(req.user.id), from, to);
+    res.json({ blocks });
+}
+
+/**
+ * POST /api/booking/blocks — body { day, scope: 'SELF' | 'ALL', reason }.
+ * 'SELF' bloque le jour pour soi, 'ALL' pour tout le monde.
+ */
+export async function createDayBlock(req: AuthRequest, res: Response): Promise<void> {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const day = parseDay(b.day);
+    if (!day) {
+        res.status(400).json({ error: 'day invalide (YYYY-MM-DD)' });
+        return;
+    }
+    if (b.scope !== 'SELF' && b.scope !== 'ALL') {
+        res.status(400).json({ error: "scope invalide ('SELF' ou 'ALL')" });
+        return;
+    }
+    const reason = typeof b.reason === 'string' ? b.reason.trim() : '';
+    if (!reason || reason.length > 255) {
+        res.status(400).json({ error: 'Motif requis (255 caractères max)' });
+        return;
+    }
+    const userId = Number(req.user.id);
+    await bookingService.blockDay(userId, { day, scope: b.scope, reason });
+    res.status(201).json({ blocks: await bookingService.listDayBlocks(userId) });
+}
+
+/** POST /api/booking/blocks/:id/release — « me rendre disponible » (bascule pour un blocage global). */
+export async function releaseDayBlock(req: AuthRequest, res: Response): Promise<void> {
+    const id = parseBlockId(req.params.id);
+    if (!id) {
+        res.status(400).json({ error: 'id invalide' });
+        return;
+    }
+    const userId = Number(req.user.id);
+    try {
+        await bookingService.releaseDayBlock(userId, id);
+    } catch (err) {
+        if (handleBlockError(err, res)) return;
+        throw err;
+    }
+    res.json({ blocks: await bookingService.listDayBlocks(userId) });
+}
+
+/** DELETE /api/booking/blocks/:id — annule un blocage (le sien, ou un blocage global pour tout le monde). */
+export async function deleteDayBlock(req: AuthRequest, res: Response): Promise<void> {
+    const id = parseBlockId(req.params.id);
+    if (!id) {
+        res.status(400).json({ error: 'id invalide' });
+        return;
+    }
+    const userId = Number(req.user.id);
+    try {
+        await bookingService.deleteDayBlock(userId, id);
+    } catch (err) {
+        if (handleBlockError(err, res)) return;
+        throw err;
+    }
+    res.json({ blocks: await bookingService.listDayBlocks(userId) });
+}
+
 /** Vue publique (champs non sensibles) d'un slug. */
 async function publicView(slug: string) {
     const settings = await bookingService.findBySlug(slug);
@@ -189,15 +303,17 @@ export async function getPublicSlots(req: Request, res: Response): Promise<void>
     }
 }
 
-/** POST /api/booking/public/:slug/book — body { start, name, email, note? } */
+/** POST /api/booking/public/:slug/book — body { start, firstName, lastName, phone, email, note? } */
 export async function postBooking(req: Request, res: Response): Promise<void> {
     const b = (req.body ?? {}) as Record<string, unknown>;
     const start = typeof b.start === 'string' ? b.start : '';
-    const name = typeof b.name === 'string' ? b.name.trim() : '';
+    const firstName = typeof b.firstName === 'string' ? b.firstName.trim().slice(0, 100) : '';
+    const lastName = typeof b.lastName === 'string' ? b.lastName.trim().slice(0, 100) : '';
+    const phone = normalizePhone(b.phone);
     const email = typeof b.email === 'string' ? b.email.trim() : '';
     const note = typeof b.note === 'string' ? b.note.trim().slice(0, 1000) : undefined;
-    if (!start || !name || !isValidEmail(email)) {
-        res.status(400).json({ error: 'start, name et email valides requis' });
+    if (!start || !firstName || !lastName || !phone || !isValidEmail(email)) {
+        res.status(400).json({ error: 'start, firstName, lastName, phone et email valides requis' });
         return;
     }
     const settings = await bookingService.findBySlug(req.params.slug as string);
@@ -206,7 +322,7 @@ export async function postBooking(req: Request, res: Response): Promise<void> {
         return;
     }
     try {
-        const booked = await bookingService.book(settings, start, { name, email, note });
+        const booked = await bookingService.book(settings, start, { firstName, lastName, phone, email, note });
         res.status(201).json({ booked });
     } catch (err) {
         if (err instanceof SlotUnavailableError) {

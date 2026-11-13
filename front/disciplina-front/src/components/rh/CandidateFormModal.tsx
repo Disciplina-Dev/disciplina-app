@@ -375,7 +375,10 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
     identity: {
       fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
       sex: f.sex || undefined,
-      description: f.description || undefined,
+      // Chaîne vide explicite = l'utilisateur a effacé le champ : le backend
+      // régénère le résumé automatique (une description manuelle est protégée
+      // tant que le champ n'est pas vidé).
+      description: f.description,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       departmentOfBirth: f.departmentOfBirth || undefined,

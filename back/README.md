@@ -271,7 +271,7 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 ### MySQL (`disciplina`)
 - Main tables (non-exhaustive — see `database/mysql/mysql-init.sql`): `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
   `relance_history`, `commercial_kpi`, `rh_kpi`, `sector_settings`, `booking_settings`,
-  `interview_access`, `match_link`, `todos`, `peda_config`, `peda_draft_history`, `app_settings`,
+  `calendar_day_blocks`, `interview_access`, `match_link`, `todos`, `peda_config`, `peda_draft_history`, `app_settings`,
   `filiz`, `needs_analysis`, `mcp_oauth_clients`, `mcp_oauth_refresh_tokens`, `mcp_audit_log`
 - ⚠️ `needs_analysis` is **dead**: the entity moved to MongoDB and no code reads this table
   anymore, but `mysql-init.sql` still creates it. See `docs/AUDIT.md` §6.3.

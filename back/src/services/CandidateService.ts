@@ -19,6 +19,7 @@ import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
 import { offerZones, candidateZones } from '../utils/zone';
+import { activitySectorFilter, candidateWantsOfferSector } from '../utils/activitySector';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
@@ -185,8 +186,15 @@ export class CandidateService {
     async create(data: Partial<Candidate>): Promise<Candidate> {
         // Rétro-compat : un client existant peut encore envoyer l'ancien code « SA ».
         if (data.tp_types) data.tp_types = normalizeTpCodes(data.tp_types) as Candidate['tp_types'];
-        if (data.identity && !data.identity.description) {
-            data.identity.description = buildCandidateSummary(data as Candidate);
+        if (data.identity) {
+            if (!data.identity.description) {
+                data.identity.description = buildCandidateSummary(data as Candidate);
+                data.identity.description_source = 'auto';
+            } else if (!data.identity.description_source) {
+                // Description fournie à la création (saisie RH, import…) : on la protège
+                // des régénérations automatiques.
+                data.identity.description_source = 'manual';
+            }
         }
         encryptIdentitySsn(data.identity);
         const created = await this.repository.create(data);
@@ -244,10 +252,37 @@ export class CandidateService {
                     ...existing.professional_projects,
                     ...data.professional_projects,
                 } as any;
-            if (!data.identity?.description) {
+            const incomingDescription = data.identity?.description;
+            const existingDescription = existing.identity?.description;
+            const existingSource = existing.identity?.description_source;
+            if (incomingDescription && incomingDescription.trim()) {
+                // Description explicitement fournie (saisie RH, ou bouton « Régénérer »
+                // qui précise `description_source: 'auto'`). Sans source explicite, un
+                // texte différent de l'existant est une modification manuelle : il ne
+                // sera plus écrasé par la génération automatique.
+                if (!data.identity?.description_source) {
+                    data.identity = {
+                        ...data.identity,
+                        description_source:
+                            incomingDescription.trim() === (existingDescription ?? '').trim()
+                                ? (existingSource ?? 'auto')
+                                : 'manual',
+                    } as Candidate['identity'];
+                }
+            } else if (existingSource === 'manual' && incomingDescription !== '') {
+                // Résumé personnalisé par un RH : une mise à jour qui ne touche pas à la
+                // description (ajout de CV, changement de statut, avatar, dossier Drive…)
+                // ne doit pas le remplacer. Une chaîne vide explicite, elle, demande un
+                // retour au résumé généré.
+                data.identity = {
+                    ...(data.identity ?? {}),
+                    description: existingDescription,
+                } as Candidate['identity'];
+            } else {
                 data.identity = {
                     ...(data.identity ?? {}),
                     description: buildCandidateSummary(merged),
+                    description_source: 'auto',
                 } as Candidate['identity'];
             }
         }
@@ -400,6 +435,12 @@ export class CandidateService {
         if (offer.criteria?.age_min != null && offer.criteria?.age_max != null && candidateAge != null) {
             if (candidateAge < offer.criteria.age_min || candidateAge > offer.criteria.age_max) return false;
         }
+
+        // Le candidat ne voit proposées que les offres d'un secteur qu'il a
+        // effectivement coché. Un secteur d'offre purement libre (hors
+        // référentiel) est ignoré faute de pouvoir être comparé.
+        const offerSectorFilter = activitySectorFilter(offer.company_infos?.activities);
+        if (!candidateWantsOfferSector(candidate.desired_sectors, offerSectorFilter.keys)) return false;
 
         const offerZoneSet = offerZones(offer);
         const offerCommunes = offer.localisation ?? [];

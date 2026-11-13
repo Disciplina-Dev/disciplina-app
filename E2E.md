@@ -125,11 +125,11 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 
 ### 3.9 Booking / calendrier
 
-- **Étapes** : réglages de disponibilité (`GET/PUT /api/booking/settings`) ; parcours public `/booking/:slug` → choisir créneau → réserver ; calendrier interne.
-- **Chaîne** : `GET /api/booking/public/:slug`, `/slots`, `POST /book` → `booking/service.ts`. Calendrier : `GET /api/calendar/users|events`, `POST /events`, `PATCH /events/:id`, `/events/:id/attendance`, `DELETE /events/:id` → `external/google/calendar.service.ts`.
-- **Résultat attendu** : créneaux libres corrects ; réservation crée l'event Google Calendar. Recherche dans le calendrier RH par email **ou** nom/prénom de l'invité (champs optionnels à la création, absents des créneaux historiques → recherche email seule).
+- **Étapes** : réglages de disponibilité (`GET/PUT /api/booking/settings`) ; blocage de dates (`GET/POST /api/booking/blocks`, `POST /blocks/:id/release`, `DELETE /blocks/:id`) « pour moi » ou « pour tout le monde » ; parcours public `/booking/:slug` → choisir créneau → renseigner prénom, nom, téléphone et email (les quatre sont obligatoires) → réserver ; calendrier interne.
+- **Chaîne** : `GET /api/booking/public/:slug`, `/slots`, `POST /book` → `booking/service.ts` (créneaux retirés par `calendar_day_blocks`). Calendrier : `GET /api/calendar/users|events`, `POST /events`, `PATCH /events/:id`, `/events/:id/attendance`, `/events/:id/report`, `DELETE /events/:id` → `external/google/calendar.service.ts`.
+- **Résultat attendu** : créneaux libres corrects ; un jour bloqué n'est jamais proposé (blocage « pour moi » = mon agenda seul, « pour tout le monde » = tous les RH, avec dérogation personnelle possible) ; réservation crée l'event Google Calendar. Recherche dans le calendrier RH par email **ou** nom/prénom de l'invité (champs optionnels à la création, absents des créneaux historiques → recherche email seule). KPI RH : un même email d'invité ne compte qu'une fois — seul son premier rendez-vous (par date de début) crédite « entretien placé » et la catégorie de présence (venu / pas venu / reporté / décliné). « Reporté » sur un entretien demande une nouvelle date/heure et déplace réellement le créneau (KPI du créneau suivent, « reporté » crédité au bucket de la nouvelle date).
 - **External** : ⚠️ Google Calendar.
-- **Test vitest** : `rest/calendar/__tests__/events.test.ts` (authz secteur), `rest/calendar/__tests__/attendee.test.ts` (création + nom/prénom, rétro-compatibilité).
+- **Test vitest** : `rest/calendar/__tests__/events.test.ts` (authz secteur), `rest/calendar/__tests__/attendee.test.ts` (création + nom/prénom, rétro-compatibilité), `rest/calendar/__tests__/kpi.test.ts` (dédoublonnage KPI par email, report d'un entretien), `rest/booking/__tests__/dayBlocks.test.ts` (blocage de dates), `rest/booking/__tests__/publicBook.test.ts` (identité obligatoire de l'invité).
 - **Statut** : _à remplir_
 
 ### 3.10 E-signature AB

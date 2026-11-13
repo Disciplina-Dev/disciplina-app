@@ -1,6 +1,7 @@
 import { RhKpiRepository } from '../repositories/mongo/RhKpiRepository';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { RH_KPI_COLUMNS, RhKpiColumn, RhKpiMetrics, emptyRhMetrics } from '../types/rhKpi.types';
+import { GoogleCalendarService } from '../external/google/calendar.service';
 import { logger } from '../external/logger';
 
 /** Bucket calendaire d'une date : année + mois (1-12) + semaine ISO (1-53). */
@@ -52,9 +53,50 @@ function addInto(target: RhKpiMetrics, row: Record<RhKpiColumn, number>): void {
     for (const c of RH_KPI_COLUMNS) target[c] += Number(row[c]) || 0;
 }
 
+/**
+ * Profondeur de recherche d'un rendez-vous antérieur du même invité.
+ * Au-delà, le candidat est considéré comme nouveau : on ne remonte pas tout
+ * l'historique Google, la règle « premier rendez-vous » vise les doublons proches
+ * (reports, doubles réservations, 2ᵉ entretien).
+ */
+const KPI_EMAIL_LOOKBACK_MS = 2 * 365 * 86_400_000;
+
 export class RhKpiService {
     private repo = new RhKpiRepository();
     private users = new UserRepository();
+
+    /**
+     * Vrai si `startIso` correspond au premier rendez-vous (par date de début) de cet
+     * email d'invité — donc le seul à compter dans les KPI RH (placé, venu, pas venu,
+     * reporté, décliné). Évite de compter deux fois un candidat qui a plusieurs
+     * créneaux et de fausser la catégorie de présence.
+     *
+     * Sans email invité, aucun dédoublonnage n'est possible → toujours vrai.
+     * La recherche porte sur l'agenda du propriétaire du créneau (là où vivent les
+     * événements) : deux RH différents peuvent donc compter chacun leur entretien.
+     * Best-effort : si la recherche Google échoue, on ne bloque pas la saisie.
+     */
+    async isFirstMeetingForEmail(
+        calendar: Pick<GoogleCalendarService, 'listEventsByAttendeeEmail'>,
+        email: string | undefined,
+        startIso: string,
+        excludeId?: string,
+    ): Promise<boolean> {
+        const attendee = email?.trim();
+        const startMs = Date.parse(startIso);
+        if (!attendee || Number.isNaN(startMs)) return true;
+        try {
+            const earlier = await calendar.listEventsByAttendeeEmail(
+                attendee,
+                new Date(startMs - KPI_EMAIL_LOOKBACK_MS).toISOString(),
+                new Date(startMs).toISOString(),
+            );
+            return !earlier.some((e) => e.id !== excludeId && Date.parse(e.start) < startMs);
+        } catch (error) {
+            logger.warn({ err: error }, 'KPI email dedupe lookup failed');
+            return true;
+        }
+    }
 
     /** Incrémente/décrémente des compteurs au bucket de `date`. Best-effort : ne jette jamais. */
     async bump(
@@ -107,7 +149,10 @@ export class RhKpiService {
                 userId: r.user_id,
                 userName,
                 sector: r.sector ?? '',
-                metrics: RH_KPI_COLUMNS.reduce((acc, c) => { acc[c] = Number(r[c]) || 0; return acc; }, emptyRhMetrics()),
+                metrics: RH_KPI_COLUMNS.reduce((acc, c) => {
+                    acc[c] = Number(r[c]) || 0;
+                    return acc;
+                }, emptyRhMetrics()),
             });
         }
         for (const wk of byWeek.values()) {

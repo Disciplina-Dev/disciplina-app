@@ -93,6 +93,11 @@ export interface EncryptedSsn {
 // 1 : française, 2 : pays européen, 3 : autre (codes Filiz).
 export type NationalityCode = 1 | 2 | 3;
 
+// Provenance de `identity.description` : `auto` = résumé déterministe régénéré à
+// chaque mise à jour du dossier, `manual` = texte saisi par un RH (ou généré par
+// l'IA puis validé) qui ne doit plus être écrasé automatiquement.
+export type CandidateDescriptionSource = 'auto' | 'manual';
+
 export interface Identity {
     full_name: string;
     social_security_number?: EncryptedSsn;
@@ -117,6 +122,7 @@ export interface Identity {
     had_apprenticeship_contract?: boolean;
     apprenticeship_contract_details?: string;
     description?: string;
+    description_source?: CandidateDescriptionSource;
     avatar_updated_at?: Date;
     drive_avatar_file_id?: string;
 }

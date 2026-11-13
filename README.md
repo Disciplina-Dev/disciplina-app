@@ -67,6 +67,8 @@ CI runs automatically on every push and pull request via GitHub Actions (`.githu
 
 Backups run automatically every night on the deployment Mac mini — see [Automatisation (Mac mini)](#automatisation-mac-mini) below. What is still missing is **off-machine storage**: every dump lives on the same disk as the databases it protects, so a disk failure loses both (tracked as `DB-5` in `BACKLOG.md`).
 
+Dumps are **encrypted with [age](https://age-encryption.org)** as they are written (`*.sql.age` / `*.archive.age`), so no plaintext dump is left on disk. The machine only holds the public key (`BACKUP_AGE_RECIPIENT` in the root `.env`); the private key is needed only to restore and is kept off-machine. Install `age` (`brew install age`), generate the keypair with `./scripts/backup-keygen.sh`, and see [HOWTODEPLOY.md → Backup encryption](HOWTODEPLOY.md#backup-encryption-key-custody--recovery) for custody and recovery.
+
 The commands below are the on-demand equivalent, useful before a schema migration or before restoring. Run them against the running `sql-db`/`nosql-db` services with the root `.env` loaded:
 
 ```bash
@@ -74,31 +76,35 @@ mkdir -p backups
 
 # MySQL
 DATE=$(date +%Y-%m-%d_%H%M%S)
-docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" disciplina > "backups/backup_mysql_${DATE}.sql"
+docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" disciplina \
+  | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mysql_${DATE}.sql.age"
 
 # MongoDB
 DATE=$(date +%Y-%m-%d_%H%M%S)
 docker compose exec -T nosql-db mongodump \
   --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --db human_ressources --archive > "backups/backup_mongo_${DATE}.archive"
+  --authenticationDatabase admin --db human_ressources --archive \
+  | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mongo_${DATE}.archive.age"
 ```
 
-Dumps land in `./backups/` (gitignored) as `backup_mysql_<DATE>.sql` and `backup_mongo_<DATE>.archive`.
+Dumps land in `./backups/` (gitignored) as `backup_mysql_<DATE>.sql.age` and `backup_mongo_<DATE>.archive.age`. Never write an unencrypted dump to disk.
 
 > **Why `root` and not `disciplina_app`?** The application connects as the least-privilege account `disciplina_app` (see [Environment](#environment)), but `mysqldump` needs global read plus `LOCK TABLES`, which that account deliberately lacks. Backups are an administrative task, so they keep using `MYSQL_ROOT_PASSWORD`. The two accounts coexist on purpose.
 
-To restore a dump — **stop the `backend` container first**, otherwise the app writes into a half-restored database:
+To restore a dump — **stop the `backend` container first**, otherwise the app writes into a half-restored database. Decryption needs the private key file (`$AGE_IDENTITY`, fetched from the password manager, deleted afterwards):
 
 ```bash
 docker compose stop backend
 
 # MySQL
-docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina < backups/backup_mysql_<DATE>.sql
+age -d -i "$AGE_IDENTITY" backups/backup_mysql_<DATE>.sql.age \
+  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
 
 # MongoDB
-docker compose exec -T nosql-db mongorestore \
+age -d -i "$AGE_IDENTITY" backups/backup_mongo_<DATE>.archive.age \
+  | docker compose exec -T nosql-db mongorestore \
   --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --archive < backups/backup_mongo_<DATE>.archive
+  --authenticationDatabase admin --archive
 
 docker compose start backend
 ```
@@ -121,8 +127,8 @@ Stop it with `launchctl bootout gui/$(id -u)/com.disciplina.backup`. Details, ve
 
 `scripts/backup-db.sh` takes no arguments. It resolves the repo root from its own location (so it works from any working directory, which matters under launchd), sources the root `.env`, then:
 
-1. dumps MySQL `disciplina` via `mysqldump` → `backups/backup_mysql_<DATE>.sql`
-2. dumps MongoDB `human_ressources` via `mongodump --archive` → `backups/backup_mongo_<DATE>.archive`
+1. dumps MySQL `disciplina` via `mysqldump` → `backups/backup_mysql_<DATE>.sql.age` (encrypted on the fly with `age -r "$BACKUP_AGE_RECIPIENT"`)
+2. dumps MongoDB `human_ressources` via `mongodump --archive` → `backups/backup_mongo_<DATE>.archive.age` (same)
 3. deletes dumps older than `RETENTION_DAYS` (constant at the top of the script, default `7`)
 
 Every step logs an ISO-8601 timestamped line with the resulting dump size.
@@ -176,6 +182,8 @@ To remove the agent: `launchctl bootout gui/$(id -u)/com.disciplina.backup`.
 | No log file at all, `launchctl list` shows nothing | The plist failed to load — re-run `plutil -lint`, and check the path passed to `bootstrap`. |
 | Nothing happens overnight, works with `kickstart` | The Mac mini sleeps at 03:00. `launchd` runs a missed job on wake, but only once; check `pmset -g sched` and consider `sudo pmset repeat wakeorpoweron MTWRFSU 02:55:00`. |
 | `.env: No such file or directory` | The script sources the root `.env`; make sure it exists at the repo root and is readable by the account running the agent. |
+| `'age' introuvable dans le PATH` in the log | `age` is not installed or not on the launchd `PATH` (`brew install age`; `/opt/homebrew/bin` is already in the plist `PATH`). |
+| `BACKUP_AGE_RECIPIENT absent ou invalide` in the log | Set the **public** key (`age1…`) in the root `.env`; generate the pair with `./scripts/backup-keygen.sh`. |
 | `Error response from daemon` / connection refused | The `sql-db` / `nosql-db` containers are not running. The script does not start them. |
 
 Retention is 7 days **on this machine only** — off-machine storage is not implemented yet (`DB-5` in `BACKLOG.md`).

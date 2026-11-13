@@ -57,6 +57,11 @@ export interface CalendarEventInput {
     attendeeLastName?: string;
     /** Marqué comme entretien (compté dans les KPI RH). */
     isInterview?: boolean;
+    /**
+     * Statut de présence à écrire. Omis par défaut : un PATCH sans ce champ laisse
+     * le statut existant intact (seul le report d'entretien le renseigne).
+     */
+    attendance?: Attendance;
     /** Invités (réservation publique). */
     attendees?: { email: string; displayName?: string }[];
     /** Événement journée entière : `start`/`end` sont des dates `YYYY-MM-DD`. */
@@ -113,6 +118,25 @@ export class GoogleCalendarService {
             singleEvents: true,
             orderBy: 'startTime',
             maxResults: 2500,
+        });
+
+        return (response.data.items ?? []).map(toCalendarEvent);
+    }
+
+    /**
+     * Événements dont l'email d'invité (propriété privée `attendeeEmail`) correspond
+     * exactement, du plus ancien au plus récent. Sert au dédoublonnage KPI : un seul
+     * rendez-vous compté par candidat (le premier).
+     */
+    async listEventsByAttendeeEmail(email: string, timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
+        const response = await this.calendar.events.list({
+            calendarId: 'primary',
+            timeMin,
+            timeMax,
+            singleEvents: true,
+            orderBy: 'startTime',
+            privateExtendedProperty: [`${ATTENDEE_EMAIL_KEY}=${email}`],
+            maxResults: 50,
         });
 
         return (response.data.items ?? []).map(toCalendarEvent);
@@ -183,6 +207,8 @@ function toRequestBody(input: CalendarEventInput): calendar_v3.Schema$Event {
                 [IS_INTERVIEW_KEY]: input.isInterview ? '1' : '',
                 [SA_SEQUENCE_ID_KEY]: input.saSequenceId ?? '',
                 [SA_ALTERNANT_ID_KEY]: input.saAlternantId ?? '',
+                // Absent = ne pas toucher au statut existant (cf. setAttendance).
+                ...(input.attendance ? { [ATTENDANCE_KEY]: input.attendance } : {}),
             },
         },
     };

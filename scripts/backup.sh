@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Sauvegarde / restauration interactives de la stack dev (MySQL + MongoDB)
-# dans scripts/backups/<label>/ — convention : <db>-<label>.sql | .archive.
+# dans scripts/backups/<label>/ — convention : <db>-<label>.sql.age | .archive.age.
+# Les dumps sont chiffres a la volee avec age (cle publique BACKUP_AGE_RECIPIENT
+# du .env) : aucun clair sur disque. La restauration demande la cle PRIVEE :
+# BACKUP_AGE_IDENTITY=<fichier> (jamais dans le repo ni dans .env).
+# Les anciens dumps en clair (.sql / .archive) restent restaurables.
 #
 # Usage :
 #   ./scripts/backup.sh                  # menu interactif
@@ -21,6 +25,12 @@ load_env() {
 MYSQL_ROOT_PASSWORD="$(load_env MYSQL_ROOT_PASSWORD)"
 MONGO_ROOT_USERNAME="$(load_env MONGO_ROOT_USERNAME)"
 MONGO_ROOT_PASSWORD="$(load_env MONGO_ROOT_PASSWORD)"
+# Cle facultative : absente de .env -> vide (grep=1 ferait sinon echouer pipefail).
+AGE_RECIPIENT="$(grep -E '^BACKUP_AGE_RECIPIENT=' .env | tail -1 | cut -d= -f2- || true)"
+AGE_IDENTITY="${BACKUP_AGE_IDENTITY:-}"
+
+# Umask restrictif : les dumps contiennent des donnees personnelles.
+umask 077
 
 savedir() { printf '%s' "$BACKUP_ROOT/$1"; }
 is_running() {
@@ -35,6 +45,51 @@ check_env() {
         echo "Erreur : stack dev non demarree (docker compose up -d sql-db nosql-db)" >&2
         exit 1
     fi
+}
+
+require_encrypt() {
+    command -v age >/dev/null 2>&1 || { echo "Erreur : 'age' introuvable (dnf/brew install age)" >&2; exit 1; }
+    if [[ ! "$AGE_RECIPIENT" =~ ^age1[a-z0-9]+$ ]]; then
+        echo "Erreur : BACKUP_AGE_RECIPIENT absent ou invalide dans .env (cle PUBLIQUE age1...)" >&2
+        exit 1
+    fi
+}
+
+# Chemin du dump chiffre s'il existe, sinon du dump en clair (ancien format), sinon vide.
+pick_dump() {
+    local f
+    for f in "$1.age" "$1"; do
+        [[ -f "$f" ]] && { printf '%s' "$f"; return 0; }
+    done
+    return 0
+}
+
+# Contenu clair d'un dump sur stdout (age -d pour *.age). Toujours utilise en pipe.
+dump_cat() {
+    if [[ "$1" == *.age ]]; then
+        age -d -i "$AGE_IDENTITY" -- "$1"
+    else
+        cat -- "$1"
+    fi
+}
+
+# Verifie avant toute action destructive que la cle privee dechiffre les dumps.
+check_identity() {
+    local f any=0
+    for f in "$@"; do [[ "$f" == *.age ]] && any=1; done
+    ((any)) || return 0
+    command -v age >/dev/null 2>&1 || { echo "Erreur : 'age' introuvable" >&2; exit 1; }
+    if [[ -z "$AGE_IDENTITY" || ! -r "$AGE_IDENTITY" ]]; then
+        echo "Erreur : dumps chiffres, definir BACKUP_AGE_IDENTITY=<fichier cle privee age>" >&2
+        exit 1
+    fi
+    for f in "$@"; do
+        [[ "$f" == *.age ]] || continue
+        if [[ -z "$(age -d -i "$AGE_IDENTITY" -- "$f" 2>/dev/null | head -c 1 || true)" ]]; then
+            echo "Erreur : dechiffrement impossible (mauvaise cle ?) : $f" >&2
+            exit 1
+        fi
+    done
 }
 
 list_backups() {
@@ -61,25 +116,33 @@ list_backups() {
 
 do_backup() {
     local label="$1"
+    require_encrypt
     local dest
     dest="$(savedir "$label")"
     mkdir -p "$dest"
-    local mysql_file="$dest/disciplina-$label.sql"
-    local mongo_file="$dest/human_ressources-$label.archive"
-    if [[ -f "$mysql_file" || -f "$mongo_file" ]]; then
+    local mysql_file="$dest/disciplina-$label.sql.age"
+    local mongo_file="$dest/human_ressources-$label.archive.age"
+    if [[ -n "$(pick_dump "$dest/disciplina-$label.sql")" || -n "$(pick_dump "$dest/human_ressources-$label.archive")" ]]; then
         echo "Erreur : une sauvegarde '$label' existe deja." >&2
         exit 1
     fi
+    # Un echec ne doit laisser aucun fichier partiel.
+    # (double quotes : expansion immediate, les locals n'existent plus a la sortie)
+    trap "rm -f '$mysql_file.part' '$mongo_file.part'" EXIT
 
     echo "[1/2] MySQL (disciplina.companies, candidates... en MySQL) ..."
     docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
         mysqldump -h127.0.0.1 -uroot --single-transaction --routines --triggers \
-        disciplina > "$mysql_file"
+        disciplina | age -r "$AGE_RECIPIENT" > "$mysql_file.part"
+    mv "$mysql_file.part" "$mysql_file"
 
     echo "[2/2] MongoDB (human_ressources.candidates, offers...) ..."
     docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
         mongodump --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-        --authenticationDatabase admin --db human_ressources --archive > "$mongo_file"
+        --authenticationDatabase admin --db human_ressources --archive \
+        | age -r "$AGE_RECIPIENT" > "$mongo_file.part"
+    mv "$mongo_file.part" "$mongo_file"
+    trap - EXIT
 
     if [[ -L "$BACKUP_ROOT/latest" ]]; then
         read -r -p "Renouveler 'latest' vers cette sauvegarde ? [y/N] " renew
@@ -102,12 +165,14 @@ do_restore() {
         echo "Erreur : sauvegarde introuvable : $(savedir "$label")" >&2
         exit 1
     fi
-    local mysql_file="$src/disciplina-$label.sql"
-    local mongo_file="$src/human_ressources-$label.archive"
-    if [[ ! -f "$mysql_file" && ! -f "$mongo_file" ]]; then
+    local mysql_file mongo_file
+    mysql_file="$(pick_dump "$src/disciplina-$label.sql")"
+    mongo_file="$(pick_dump "$src/human_ressources-$label.archive")"
+    if [[ -z "$mysql_file" && -z "$mongo_file" ]]; then
         echo "Erreur : aucun fichier de sauvegarde dans $src" >&2
         exit 1
     fi
+    check_identity ${mysql_file:+"$mysql_file"} ${mongo_file:+"$mongo_file"}
 
     echo "Contenu de '$label' :"
     ls -lh "$src" | sed 's/^/  /'
@@ -117,28 +182,28 @@ do_restore() {
         exit 0
     fi
 
-    if [[ -f "$mysql_file" ]]; then
+    if [[ -n "$mysql_file" ]]; then
         echo "[1/2] MySQL ..."
         # Le dump ne contient pas de clause USE (dump simple sans --databases) :
         # on cible explicitement la base `disciplina`.
-        docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
-            mysql -h127.0.0.1 -uroot disciplina < "$mysql_file"
+        dump_cat "$mysql_file" | docker compose exec -T -e MYSQL_PWD="$MYSQL_ROOT_PASSWORD" sql-db \
+            mysql -h127.0.0.1 -uroot disciplina
     else
         echo "mysql.sql absent : MySQL ignore."
     fi
 
-    if [[ -f "$mongo_file" ]]; then
+    if [[ -n "$mongo_file" ]]; then
         echo "[2/2] MongoDB ..."
         local gzip_opt=()
         # Archives mongodump --archive --gzip (backups du 10/09) : detection pour
         # choisir --gzip a la restauration; sinon --archive brut.
-        if gzip -t "$mongo_file" 2>/dev/null; then
+        if [[ "$mongo_file" != *.age ]] && gzip -t "$mongo_file" 2>/dev/null; then
             gzip_opt=(--gzip)
             echo "  (archive gzip detectee)"
         fi
-        docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
+        dump_cat "$mongo_file" | docker compose exec -T -e MONGO_ROOT_USERNAME -e MONGO_ROOT_PASSWORD nosql-db \
             mongorestore --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-            --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop --db human_ressources < "$mongo_file"
+            --authenticationDatabase admin --archive "${gzip_opt[@]}" --drop --db human_ressources
     else
         echo "archive mongo absente : MongoDB ignore."
     fi

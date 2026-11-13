@@ -2,6 +2,7 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import {
   IconBell,
   IconCheckCircle,
+  IconClipboardCheck,
   IconClose,
   IconCompany,
   IconDashboard,
@@ -84,6 +85,7 @@ export default function CommercialLayout() {
           <nav aria-label="Navigation principale" className="mt-2 flex flex-col gap-1 px-3">
             <NavItem to="/commercial" end icon={<IconDashboard width={18} height={18} />} label="Tableau de bord" />
             <NavItem to="/commercial/portefeuille" icon={<IconCompany width={18} height={18} />} label="Portefeuille" />
+            <NavItem to="/commercial/suivi-entreprise" icon={<IconClipboardCheck width={18} height={18} />} label="Suivi entreprise" />
             <NavItem to="/commercial/liste-noire" icon={<IconShieldOff width={18} height={18} />} label="Liste noire" />
             <NavItem to="/commercial/sourcing" icon={<IconSearch width={18} height={18} />} label="Sourcing SIRET" />
             <NavItem to="/commercial/mail" icon={<IconMail width={18} height={18} />} label="Modèles mail" />
