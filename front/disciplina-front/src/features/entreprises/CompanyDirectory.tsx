@@ -3,10 +3,12 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 
 import ChipGroup from '@/components/ui/ChipGroup';
-import { IconChevronDown, IconClose, IconLoader, IconRefresh, IconSearch } from '@/components/ui/icons';
+import { IconChart, IconChevronDown, IconClose, IconLoader, IconRefresh, IconSearch } from '@/components/ui/icons';
 import { JOB_STATUS_BADGE_CLASS, JOB_STATUS_LABELS, JOB_STATUS_ORDER } from '@/constants/jobStatus';
 import { SECTEUR_KEYS, SECTEUR_LABELS, type SecteurKey } from '@/constants/secteurs';
+import { SECTOR_LABELS } from '@/data/sectors';
 import { OfferStatus, Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
+import { ANNEMASSE_REGION_LABELS } from '@/features/matching/constants/regions';
 import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import {
   useAllNeedsAnalysesPage,
@@ -59,6 +61,87 @@ const DIRECTORY_ACTIVITY_SECTORS = Object.values(Sector).filter((s) => s !== Sec
  */
 function activationDateOf(analysis: NeedsAnalysis): string | null | undefined {
   return analysis.lastActiveAt ?? analysis.createdAt;
+}
+
+/** Filtres « entreprise » de l'annuaire (communs à la liste et au récapitulatif). */
+interface DirectoryCompanyFilters {
+  needle: string;
+  statuses: Set<string>;
+  zone: SecteurKey | null;
+  /** `null` = filtre secteur d'activité ignoré (récapitulatif). */
+  activities: Set<string> | null;
+  minTime: number | null;
+  maxTime: number | null;
+}
+
+function matchesCompanyFilters(a: NeedsAnalysis, f: DirectoryCompanyFilters): boolean {
+  if (f.needle && !foldSearch(a.companyInfos?.name ?? '').includes(f.needle)) return false;
+  if (f.statuses.size > 0 && !f.statuses.has(effectiveAbStatus(a))) return false;
+  if (f.zone !== null && a.companyInfos?.sector !== f.zone) return false;
+  const activities = f.activities;
+  if (activities && activities.size > 0) {
+    const companyActivities = a.companyInfos?.activities ?? [];
+    if (!companyActivities.some((act) => activities.has(act))) return false;
+  }
+  if (f.minTime != null || f.maxTime != null) {
+    const activation = activationDateOf(a);
+    const activated = activation ? new Date(activation).getTime() : Number.NaN;
+    if (Number.isNaN(activated)) return false;
+    if (f.minTime != null && activated < f.minTime) return false;
+    if (f.maxTime != null && activated > f.maxTime) return false;
+  }
+  return true;
+}
+
+// Récapitulatif : secteurs d'activité et zones (Réunion + Annemasse).
+const UNKNOWN_ACTIVITY_KEY = '__unknown_activity__';
+const UNKNOWN_ZONE_KEY = '__unknown_zone__';
+
+const RECAP_ZONE_ORDER: string[] = [...SECTEUR_KEYS, ...Object.keys(ANNEMASSE_REGION_LABELS)];
+
+const RECAP_ZONE_LABELS: Record<string, string> = {
+  ...SECTEUR_LABELS,
+  ...ANNEMASSE_REGION_LABELS,
+};
+
+function recapZoneLabel(key: string): string {
+  if (key === UNKNOWN_ZONE_KEY) return 'Zone non renseignée';
+  return RECAP_ZONE_LABELS[key] ?? formatEnumLabel(key);
+}
+
+function recapActivityLabel(key: string): string {
+  return SECTOR_LABELS[key] ?? formatEnumLabel(key);
+}
+
+function recapZoneRank(key: string): number {
+  if (key === UNKNOWN_ZONE_KEY) return Number.MAX_SAFE_INTEGER;
+  const index = RECAP_ZONE_ORDER.indexOf(key);
+  return index === -1 ? RECAP_ZONE_ORDER.length : index;
+}
+
+/** Style d'un bouton de sélecteur segmenté du récapitulatif. */
+function recapSegmentClass(active: boolean): string {
+  return `rounded-full px-3 py-1 text-xs font-semibold transition ${
+    active
+      ? 'bg-[var(--color-blue)] text-white'
+      : 'text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]'
+  }`;
+}
+
+type RecapScope = 'global' | 'zone';
+
+interface RecapRow {
+  key: string;
+  label: string;
+  total: number;
+  byZone: Record<string, number>;
+}
+
+interface DirectoryRecap {
+  rows: RecapRow[];
+  zones: string[];
+  zoneTotals: Record<string, number>;
+  offers: number;
 }
 
 interface DirectoryHistoryEntry {
@@ -627,6 +710,10 @@ export default function CompanyDirectory({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [minDate, setMinDate] = useState('');
   const [maxDate, setMaxDate] = useState('');
+  const [recapOpen, setRecapOpen] = useState(false);
+  const [recapScope, setRecapScope] = useState<RecapScope>('global');
+  // Récapitulatif : « Toutes » par défaut, comme la liste de l'annuaire.
+  const [recapActiveOnly, setRecapActiveOnly] = useState(false);
   const [historyByRow, setHistoryByRow] = useState<Record<string, DirectoryHistoryState>>({});
 
   const toggleTp = (tp: string) =>
@@ -748,31 +835,18 @@ export default function CompanyDirectory({
   const rows = useMemo<DirectoryRow[]>(() => {
     const order = new Map(TP_ORDER.map((tp, i) => [tp, i]));
     const statusOrder = new Map(JOB_STATUS_ORDER.map((status, i) => [status, i]));
-    const minTime = minDate ? new Date(`${minDate}T00:00:00`).getTime() : null;
-    const maxTime = maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null;
-    const needle = foldSearch(nameQuery.trim());
-
-    // Filtres au niveau entreprise (nom, statut, zone, secteur, date d'activation).
-    const matchesCompany = (a: NeedsAnalysis): boolean => {
-      if (needle && !foldSearch(a.companyInfos?.name ?? '').includes(needle)) return false;
-      if (selectedStatuses.size > 0 && !selectedStatuses.has(effectiveAbStatus(a))) return false;
-      if (selectedZone !== null && a.companyInfos?.sector !== selectedZone) return false;
-      if (selectedActivities.size > 0) {
-        const activities = a.companyInfos?.activities ?? [];
-        if (!activities.some((act) => selectedActivities.has(act))) return false;
-      }
-      if (minTime != null || maxTime != null) {
-        const activated = activationDateOf(a) ? new Date(activationDateOf(a) as string).getTime() : Number.NaN;
-        if (Number.isNaN(activated)) return false;
-        if (minTime != null && activated < minTime) return false;
-        if (maxTime != null && activated > maxTime) return false;
-      }
-      return true;
+    const filters: DirectoryCompanyFilters = {
+      needle: foldSearch(nameQuery.trim()),
+      statuses: selectedStatuses,
+      zone: selectedZone,
+      activities: selectedActivities,
+      minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
+      maxTime: maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null,
     };
 
     const entries: DirectoryRow[] = [];
     for (const analysis of items) {
-      if (!matchesCompany(analysis)) continue;
+      if (!matchesCompanyFilters(analysis, filters)) continue;
       const analysisLevelTps = analysisTps(analysis);
       const companyOffers = [...(directoryIndex.offersByAnalysis.get(analysis.id) ?? [])].sort((a, b) => {
         const oa = statusOrder.get(offerStatus(a)) ?? JOB_STATUS_ORDER.length;
@@ -809,6 +883,223 @@ export default function CompanyDirectory({
 
   /** Nombre de lignes adossées à une offre (une ligne = une offre). */
   const offerRowCount = useMemo(() => rows.filter((row) => row.offer !== null).length, [rows]);
+
+  /**
+   * Récapitulatif : nombre d'offres par secteur d'activité.
+   * Le filtre « secteur d'activité » est ignoré — le récapitulatif sert justement
+   * à visualiser la répartition avant de filtrer. Les autres filtres s'appliquent,
+   * ainsi que le sélecteur « Toutes / Actives uniquement ».
+   */
+  const recap = useMemo<DirectoryRecap>(() => {
+    const filters: DirectoryCompanyFilters = {
+      needle: foldSearch(nameQuery.trim()),
+      statuses: selectedStatuses,
+      zone: selectedZone,
+      activities: null,
+      minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
+      maxTime: maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null,
+    };
+
+    // Une offre rattachée à une AB dont l'entreprise exerce plusieurs secteurs
+    // est comptée dans chaque secteur correspondant.
+    const buckets = new Map<string, { total: number; byZone: Record<string, number> }>();
+    const zoneTotals: Record<string, number> = {};
+    let offers = 0;
+    for (const analysis of items) {
+      if (!matchesCompanyFilters(analysis, filters)) continue;
+      if (recapActiveOnly && effectiveAbStatus(analysis) !== 'ACTIVE') continue;
+      const companyOffers = directoryIndex.offersByAnalysis.get(analysis.id) ?? [];
+      if (companyOffers.length === 0) continue;
+      const zone = analysis.companyInfos?.sector || UNKNOWN_ZONE_KEY;
+      const activities = [...new Set(
+        (analysis.companyInfos?.activities ?? []).filter((activity) => activity && activity !== Sector.NONE),
+      )];
+      // Offre sans secteur d'activité renseigné : regroupée sous « Secteur non renseigné ».
+      const bucketKeys = activities.length > 0 ? activities : [UNKNOWN_ACTIVITY_KEY];
+      const offerCount = companyOffers.length;
+      offers += offerCount;
+      zoneTotals[zone] = (zoneTotals[zone] ?? 0) + offerCount;
+      for (const key of bucketKeys) {
+        const bucket = buckets.get(key) ?? { total: 0, byZone: {} };
+        bucket.total += offerCount;
+        bucket.byZone[zone] = (bucket.byZone[zone] ?? 0) + offerCount;
+        buckets.set(key, bucket);
+      }
+    }
+
+    const recapRows: RecapRow[] = [...buckets.entries()]
+      .map(([key, bucket]) => ({
+        key,
+        label: key === UNKNOWN_ACTIVITY_KEY ? 'Secteur non renseigné' : recapActivityLabel(key),
+        total: bucket.total,
+        byZone: bucket.byZone,
+      }))
+      .sort((a, b) => {
+        if (a.key === UNKNOWN_ACTIVITY_KEY) return 1;
+        if (b.key === UNKNOWN_ACTIVITY_KEY) return -1;
+        return b.total - a.total || a.label.localeCompare(b.label, 'fr');
+      });
+
+    const zones = Object.keys(zoneTotals)
+      .filter((zone) => zone !== UNKNOWN_ZONE_KEY)
+      .sort((a, b) => recapZoneRank(a) - recapZoneRank(b) || recapZoneLabel(a).localeCompare(recapZoneLabel(b), 'fr'));
+    if (zoneTotals[UNKNOWN_ZONE_KEY]) zones.push(UNKNOWN_ZONE_KEY);
+
+    return { rows: recapRows, zones, zoneTotals, offers };
+  }, [items, directoryIndex, nameQuery, selectedStatuses, selectedZone, minDate, maxDate, recapActiveOnly]);
+
+  /** Plus gros effectif du récapitulatif : base des barres de proportion. */
+  const recapMaxTotal = useMemo(
+    () => recap.rows.reduce((max, row) => Math.max(max, row.total), 0),
+    [recap],
+  );
+
+  const renderRecap = () => (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-[var(--ds-text)]">Répartition par secteur d'activité</h3>
+          <p className="text-xs text-[var(--ds-text-subtle)]">
+            {recap.offers} offre{recap.offers > 1 ? 's' : ''} correspondant aux filtres actifs
+            {recapActiveOnly ? ' · AB actives uniquement' : ''}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="inline-flex rounded-full border border-[var(--ds-border)] p-0.5"
+            role="group"
+            aria-label="Statut des analyses de besoin"
+          >
+            <button
+              type="button"
+              onClick={() => setRecapActiveOnly(false)}
+              aria-pressed={!recapActiveOnly}
+              title="Inclure toutes les analyses de besoin"
+              className={recapSegmentClass(!recapActiveOnly)}
+            >
+              Toutes
+            </button>
+            <button
+              type="button"
+              onClick={() => setRecapActiveOnly(true)}
+              aria-pressed={recapActiveOnly}
+              title="Ne compter que les offres des analyses de besoin actives"
+              className={recapSegmentClass(recapActiveOnly)}
+            >
+              Actives uniquement
+            </button>
+          </div>
+          <div
+            className="inline-flex rounded-full border border-[var(--ds-border)] p-0.5"
+            role="group"
+            aria-label="Portée du récapitulatif"
+          >
+            {([
+              { value: 'global', label: 'Global' },
+              { value: 'zone', label: 'Par secteur' },
+            ] as const).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setRecapScope(option.value)}
+                aria-pressed={recapScope === option.value}
+                className={recapSegmentClass(recapScope === option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {loading && recap.rows.length === 0 ? (
+        <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+          <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des entreprises…
+        </div>
+      ) : recap.rows.length === 0 ? (
+        <p className="py-12 text-center text-sm text-[var(--ds-text-subtle)]">
+          Aucune offre ne correspond aux filtres actifs.
+        </p>
+      ) : recapScope === 'global' ? (
+        <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
+              <tr>
+                <th className="px-4 py-2.5 font-semibold">Secteur d'activité</th>
+                <th className="px-4 py-2.5 font-semibold">Offres</th>
+                <th className="px-4 py-2.5 text-right font-semibold">Part</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--ds-border)]">
+              {recap.rows.map((row) => (
+                <tr key={row.key} className="transition hover:bg-[var(--ds-surface-sunken)]">
+                  <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{row.label}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2.5">
+                      <div className="h-2 w-32 overflow-hidden rounded-full bg-[var(--ds-surface-sunken)] sm:w-48">
+                        <div
+                          className="h-full rounded-full bg-[var(--color-blue)]"
+                          style={{ width: `${recapMaxTotal > 0 ? Math.round((row.total / recapMaxTotal) * 100) : 0}%` }}
+                        />
+                      </div>
+                      <span className="font-semibold text-[var(--ds-text)]">{row.total}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-2.5 text-right text-[var(--ds-text-muted)]">
+                    {recap.offers > 0 ? Math.round((row.total / recap.offers) * 100) : 0} %
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
+              <tr>
+                <th className="px-4 py-2.5 font-semibold">Secteur d'activité</th>
+                {recap.zones.map((zone) => (
+                  <th key={zone} className="px-4 py-2.5 text-right font-semibold">{recapZoneLabel(zone)}</th>
+                ))}
+                <th className="px-4 py-2.5 text-right font-semibold">Total</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--ds-border)]">
+              {recap.rows.map((row) => (
+                <tr key={row.key} className="transition hover:bg-[var(--ds-surface-sunken)]">
+                  <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{row.label}</td>
+                  {recap.zones.map((zone) => (
+                    <td key={zone} className="px-4 py-2.5 text-right text-[var(--ds-text-muted)]">
+                      {row.byZone[zone] ?? 0}
+                    </td>
+                  ))}
+                  <td className="px-4 py-2.5 text-right font-semibold text-[var(--ds-text)]">{row.total}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="border-t border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+              <tr>
+                <td className="px-4 py-2.5 font-semibold text-[var(--ds-text)]">Total offres</td>
+                {recap.zones.map((zone) => (
+                  <td key={zone} className="px-4 py-2.5 text-right font-semibold text-[var(--ds-text)]">
+                    {recap.zoneTotals[zone] ?? 0}
+                  </td>
+                ))}
+                <td className="px-4 py-2.5 text-right font-semibold text-[var(--ds-text)]">{recap.offers}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      <p className="text-xs text-[var(--ds-text-subtle)]">
+        Une entreprise peut exercer plusieurs secteurs d'activité : une même offre peut donc être comptée dans plusieurs lignes.
+        Le récapitulatif applique les filtres actifs (nom, statut, zone, dates) mais ignore le filtre « secteur d'activité ».
+        « Actives uniquement » ne conserve que les offres des analyses de besoin au statut actif.
+      </p>
+    </div>
+  );
 
   const renderHistoryCell = (row: DirectoryRow) => {
     const analysis = row.analysis;
@@ -942,6 +1233,21 @@ export default function CompanyDirectory({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setRecapOpen((prev) => !prev)}
+              aria-pressed={recapOpen}
+              aria-label={recapOpen ? 'Masquer le récapitulatif par secteur d\'activité' : 'Afficher le récapitulatif par secteur d\'activité'}
+              title={recapOpen ? 'Masquer le récapitulatif' : 'Afficher le récapitulatif par secteur d\'activité'}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
+                recapOpen
+                  ? 'border-[var(--color-blue)] bg-[var(--color-blue-light)] text-[var(--color-blue)]'
+                  : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]'
+              }`}
+            >
+              <IconChart width={14} height={14} />
+              Récapitulatif
+            </button>
             <button
               type="button"
               onClick={refresh}
@@ -1087,7 +1393,9 @@ export default function CompanyDirectory({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {loading && rows.length === 0 ? (
+          {recapOpen ? (
+            renderRecap()
+          ) : loading && rows.length === 0 ? (
             <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
               <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des entreprises…
             </div>
