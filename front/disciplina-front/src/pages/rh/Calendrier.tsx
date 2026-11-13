@@ -811,7 +811,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
               </select>
               <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
                 Modèles gérés dans « Modèles de mail ». Variables disponibles :{' '}
-                <code>{'{{nom}}'}</code> <code>{'{{date}}'}</code> <code>{'{{jour}}'}</code>{' '}
+                <code>{'{{nom}}'}</code> <code>{'{{prenom}}'}</code> <code>{'{{telephone}}'}</code> <code>{'{{date}}'}</code> <code>{'{{jour}}'}</code>{' '}
                 <code>{'{{date_longue}}'}</code> <code>{'{{date_courte}}'}</code> <code>{'{{heure}}'}</code>{' '}
                 <code>{'{{lieu}}'}</code> <code>{'{{titre}}'}</code> <code>{'{{duree}}'}</code> <code>{'{{hote}}'}</code>.
               </p>

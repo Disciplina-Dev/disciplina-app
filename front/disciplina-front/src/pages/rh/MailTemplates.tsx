@@ -63,7 +63,8 @@ const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 // Variables remplacées à l'envoi du mail de confirmation (cf. back/src/rest/booking/service.ts).
 const TEMPLATE_VARS: { token: string; label: string; example: string; date?: boolean }[] = [
-  { token: 'nom', label: 'Nom de l’invité', example: 'Marie Dupont' },
+  { token: 'nom', label: 'Nom complet de l’invité', example: 'Marie Dupont' },
+  { token: 'telephone', label: 'Téléphone de l’invité', example: '0692 00 00 00' },
   { token: 'date', label: 'Date et heure complètes', example: '', date: true },
   { token: 'jour', label: 'Jour de la semaine', example: 'lundi', date: true },
   { token: 'date_longue', label: 'Date en toutes lettres (sans heure)', example: 'lundi 22 juin 2026', date: true },

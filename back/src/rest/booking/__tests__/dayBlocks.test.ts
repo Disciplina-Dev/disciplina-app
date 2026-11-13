@@ -229,7 +229,13 @@ describe('Blocage de dates — disponibilités publiques', () => {
         const res = await fetch(`${BASE}/public/${alice.slug}/book`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ start: firstSlot, name: 'Invité', email: 'guest@test.local' }),
+            body: JSON.stringify({
+                start: firstSlot,
+                firstName: 'Invité',
+                lastName: 'Test',
+                phone: '0692000000',
+                email: 'guest@test.local',
+            }),
         });
         expect(res.status).toBe(409);
     });
