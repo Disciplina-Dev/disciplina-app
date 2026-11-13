@@ -429,10 +429,10 @@ function ImmersingCandidatesModal({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={refresh}
+              onClick={() => refetch()}
               disabled={loading}
-              title="Actualiser la liste des entreprises"
-              aria-label="Actualiser la liste des entreprises"
+              title="Actualiser la liste des candidats en immersion"
+              aria-label="Actualiser la liste des candidats en immersion"
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-xs font-semibold text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <IconRefresh width={14} height={14} className={loading ? 'animate-spin' : ''} />
