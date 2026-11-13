@@ -51,6 +51,34 @@ export interface AlternantMentorChange {
     opco_declared_at?: Date | string | null;
 }
 
+/**
+ * Accident déclaré pour un alternant (#970). Qui doit déclarer (l'employeur
+ * si le contrat est actif, sinon le CFA via un P2S + courrier CGSS — contenu
+ * hors scope, cf. #967) est choisi à la main par le péda au signalement : il
+ * n'existe pas ailleurs dans l'app de notion de « contrat actif » à inférer.
+ * Rappels internes uniquement (pas de mail externe) si la déclaration (délai
+ * légal 48h) ou l'analyse des causes (délai 1 semaine) n'est pas cochée
+ * faite à temps — cf. `AlternantIncidentService`.
+ */
+export interface AlternantIncident {
+    description: string;
+    occurred_at: Date | string;
+    /** Horodatage du signalement dans l'app — point de départ des deux délais. */
+    declared_at: Date | string;
+    /** `true` = le CFA déclare (P2S + courrier CGSS) ; `false` = l'employeur déclare. */
+    declared_by_cfa: boolean;
+    /** Coché manuellement une fois la déclaration envoyée, par l'employeur ou le CFA. */
+    declaration_done_at?: Date | string | null;
+    /** Rappel interne envoyé si toujours non cochée à J+48h (dédup scheduler). */
+    declaration_reminder_sent_at?: Date | string | null;
+    /** Coché manuellement une fois les causes analysées et les mesures de prévention décidées. */
+    analysis_done_at?: Date | string | null;
+    /** Rappel interne envoyé si toujours non cochée à J+7j (dédup scheduler). */
+    analysis_reminder_sent_at?: Date | string | null;
+    /** Mesures de prévention décidées — texte libre, rempli manuellement. */
+    prevention_measures?: string | null;
+}
+
 export interface Alternant {
     _id: string;
     first_name: string;
@@ -70,6 +98,8 @@ export interface Alternant {
     defaillance?: AlternantCompanyDefaillance | null;
     /** Historique des changements de mentor déclarés (#961) — [] = aucun. */
     mentor_changes?: AlternantMentorChange[];
+    /** Historique des accidents déclarés (#970) — [] = aucun. */
+    incidents?: AlternantIncident[];
     /** `null` = actif ; date posée = archivé (rupture « quitte la formation »). */
     archived_at?: Date | string | null;
     created_at: Date | string;

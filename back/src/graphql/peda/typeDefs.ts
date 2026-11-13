@@ -42,6 +42,16 @@ export const typeDefs = gql`
         opcoDeclaredAt: String
     }
 
+    type AlternantIncident {
+        description: String!
+        occurredAt: String!
+        declaredAt: String!
+        declaredByCfa: Boolean!
+        declarationDoneAt: String
+        analysisDoneAt: String
+        preventionMeasures: String
+    }
+
     type Alternant {
         id: ID!
         firstName: String!
@@ -56,6 +66,7 @@ export const typeDefs = gql`
         linkedAlternantIds: [String!]!
         defaillance: AlternantDefaillance
         mentorChanges: [AlternantMentorChange!]!
+        incidents: [AlternantIncident!]!
         archived: Boolean!
         archivedAt: String
         createdAt: String
@@ -284,6 +295,9 @@ export const typeDefs = gql`
         declareMentorChange(alternantId: ID!, newMentorName: String, newMentorEmail: String): Alternant
         markMentorChangeAvenantSigned(alternantId: ID!): Alternant
         markMentorChangeOpcoDeclared(alternantId: ID!): Alternant
+        reportIncident(alternantId: ID!, description: String!, occurredAt: String!, declaredByCfa: Boolean!): Alternant
+        markIncidentDeclarationDone(alternantId: ID!): Alternant
+        markIncidentAnalysisDone(alternantId: ID!, preventionMeasures: String): Alternant
         createSequence(alternantId: ID!, prevueLe: String!, type: AlternantSequenceType): AlternantSequence!
         rescheduleSequence(id: ID!, prevueLe: String!): AlternantSequence
         updateSequenceContacts(id: ID!, contacts: AlternantSequenceContactsInput!): AlternantSequence

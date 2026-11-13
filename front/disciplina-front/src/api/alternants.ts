@@ -47,6 +47,15 @@ const ALTERNANT_FIELDS = gql`
       avenantSignedAt
       opcoDeclaredAt
     }
+    incidents {
+      description
+      occurredAt
+      declaredAt
+      declaredByCfa
+      declarationDoneAt
+      analysisDoneAt
+      preventionMeasures
+    }
     archived
     archivedAt
     createdAt
@@ -239,6 +248,38 @@ const MARK_MENTOR_CHANGE_OPCO_DECLARED = gql`
   ${ALTERNANT_FIELDS}
 `
 
+const REPORT_INCIDENT = gql`
+  mutation ReportIncident($alternantId: ID!, $description: String!, $occurredAt: String!, $declaredByCfa: Boolean!) {
+    reportIncident(
+      alternantId: $alternantId
+      description: $description
+      occurredAt: $occurredAt
+      declaredByCfa: $declaredByCfa
+    ) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
+const MARK_INCIDENT_DECLARATION_DONE = gql`
+  mutation MarkIncidentDeclarationDone($alternantId: ID!) {
+    markIncidentDeclarationDone(alternantId: $alternantId) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
+const MARK_INCIDENT_ANALYSIS_DONE = gql`
+  mutation MarkIncidentAnalysisDone($alternantId: ID!, $preventionMeasures: String) {
+    markIncidentAnalysisDone(alternantId: $alternantId, preventionMeasures: $preventionMeasures) {
+      ...AlternantFields
+    }
+  }
+  ${ALTERNANT_FIELDS}
+`
+
 const CREATE_SEQUENCE = gql`
   mutation CreateSequence($alternantId: ID!, $prevueLe: String!, $type: AlternantSequenceType) {
     createSequence(alternantId: $alternantId, prevueLe: $prevueLe, type: $type) {
@@ -419,6 +460,29 @@ export async function markMentorChangeAvenantSigned(alternantId: string): Promis
 export async function markMentorChangeOpcoDeclared(alternantId: string): Promise<Alternant | null> {
   const res = await pedaGraphqlClient.mutation(MARK_MENTOR_CHANGE_OPCO_DECLARED, { alternantId })
   return unwrap<{ markMentorChangeOpcoDeclared: Alternant | null }>(res).markMentorChangeOpcoDeclared
+}
+
+export async function reportIncident(
+  alternantId: string,
+  description: string,
+  occurredAt: string,
+  declaredByCfa: boolean,
+): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(REPORT_INCIDENT, { alternantId, description, occurredAt, declaredByCfa })
+  return unwrap<{ reportIncident: Alternant | null }>(res).reportIncident
+}
+
+export async function markIncidentDeclarationDone(alternantId: string): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(MARK_INCIDENT_DECLARATION_DONE, { alternantId })
+  return unwrap<{ markIncidentDeclarationDone: Alternant | null }>(res).markIncidentDeclarationDone
+}
+
+export async function markIncidentAnalysisDone(
+  alternantId: string,
+  preventionMeasures: string | null,
+): Promise<Alternant | null> {
+  const res = await pedaGraphqlClient.mutation(MARK_INCIDENT_ANALYSIS_DONE, { alternantId, preventionMeasures })
+  return unwrap<{ markIncidentAnalysisDone: Alternant | null }>(res).markIncidentAnalysisDone
 }
 
 export async function createSequence(

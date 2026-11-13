@@ -3,6 +3,7 @@ import {
     Alternant,
     AlternantCompany,
     AlternantCompanyDefaillance,
+    AlternantIncident,
     AlternantMentorChange,
 } from '../../../types/alternant.types';
 
@@ -43,6 +44,21 @@ const mentorChangeSchema = new Schema<AlternantMentorChange>(
     { _id: false },
 );
 
+const incidentSchema = new Schema<AlternantIncident>(
+    {
+        description: { type: String, required: true },
+        occurred_at: { type: Date, required: true },
+        declared_at: { type: Date, required: true },
+        declared_by_cfa: { type: Boolean, required: true },
+        declaration_done_at: { type: Date, default: null },
+        declaration_reminder_sent_at: { type: Date, default: null },
+        analysis_done_at: { type: Date, default: null },
+        analysis_reminder_sent_at: { type: Date, default: null },
+        prevention_measures: { type: String, default: null },
+    },
+    { _id: false },
+);
+
 const alternantSchema = new Schema<Alternant & Document>(
     {
         _id: { type: String },
@@ -57,6 +73,7 @@ const alternantSchema = new Schema<Alternant & Document>(
         linked_alternant_ids: { type: [String], default: [] },
         defaillance: { type: defaillanceSchema, default: null },
         mentor_changes: { type: [mentorChangeSchema], default: [] },
+        incidents: { type: [incidentSchema], default: [] },
         archived_at: { type: Date, default: null, index: true },
         created_at: { type: Date },
         updated_at: { type: Date },

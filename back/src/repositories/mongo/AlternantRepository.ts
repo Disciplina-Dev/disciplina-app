@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto';
 import { getModels } from '../../db/mongo/tenant';
 import { searchNeedle } from './searchRegex';
-import { Alternant, AlternantCompanyDefaillance, AlternantMentorChange } from '../../types/alternant.types';
+import {
+    Alternant,
+    AlternantCompanyDefaillance,
+    AlternantIncident,
+    AlternantMentorChange,
+} from '../../types/alternant.types';
 
 export class AlternantRepository {
     /**
@@ -184,5 +189,90 @@ export class AlternantRepository {
         at: Date,
     ): Promise<void> {
         await getModels().Alternant.updateOne({ _id: id }, { $set: { [`mentor_changes.${index}.${field}`]: at } });
+    }
+
+    /** Déclare un accident (#970) : ajoute à l'historique des incidents. */
+    async declareIncident(id: string, incident: AlternantIncident): Promise<Alternant | null> {
+        return getModels()
+            .Alternant.findOneAndUpdate(
+                { _id: id },
+                { $push: { incidents: incident }, $set: { updated_at: new Date() } },
+                { returnDocument: 'after', runValidators: true, context: 'query' },
+            )
+            .lean();
+    }
+
+    /** Coche manuellement la déclaration (employeur ou CFA) comme faite, sur un incident donné (#970). */
+    async markIncidentDeclarationDone(id: string, index: number, at: Date): Promise<void> {
+        await getModels().Alternant.updateOne(
+            { _id: id },
+            { $set: { [`incidents.${index}.declaration_done_at`]: at } },
+        );
+    }
+
+    /** Marque le rappel interne de déclaration en retard comme envoyé (dédup scheduler, #970). */
+    async markIncidentDeclarationReminderSent(id: string, index: number, at: Date): Promise<void> {
+        await getModels().Alternant.updateOne(
+            { _id: id },
+            { $set: { [`incidents.${index}.declaration_reminder_sent_at`]: at } },
+        );
+    }
+
+    /** Coche manuellement l'analyse des causes + mesures de prévention comme faite, sur un incident donné (#970). */
+    async markIncidentAnalysisDone(
+        id: string,
+        index: number,
+        at: Date,
+        preventionMeasures: string | null,
+    ): Promise<void> {
+        await getModels().Alternant.updateOne(
+            { _id: id },
+            {
+                $set: {
+                    [`incidents.${index}.analysis_done_at`]: at,
+                    [`incidents.${index}.prevention_measures`]: preventionMeasures,
+                },
+            },
+        );
+    }
+
+    /** Marque le rappel interne d'analyse en retard comme envoyé (dédup scheduler, #970). */
+    async markIncidentAnalysisReminderSent(id: string, index: number, at: Date): Promise<void> {
+        await getModels().Alternant.updateOne(
+            { _id: id },
+            { $set: { [`incidents.${index}.analysis_reminder_sent_at`]: at } },
+        );
+    }
+
+    /** Alternants ayant au moins un incident non déclaré depuis au moins `cutoff`, sans rappel déjà envoyé. */
+    async findIncidentDeclarationReminderCandidates(cutoff: Date): Promise<Alternant[]> {
+        return getModels()
+            .Alternant.find({
+                archived_at: null,
+                incidents: {
+                    $elemMatch: {
+                        declared_at: { $lte: cutoff },
+                        declaration_done_at: null,
+                        declaration_reminder_sent_at: null,
+                    },
+                },
+            })
+            .lean();
+    }
+
+    /** Alternants ayant au moins un incident non analysé depuis au moins `cutoff`, sans rappel déjà envoyé. */
+    async findIncidentAnalysisReminderCandidates(cutoff: Date): Promise<Alternant[]> {
+        return getModels()
+            .Alternant.find({
+                archived_at: null,
+                incidents: {
+                    $elemMatch: {
+                        declared_at: { $lte: cutoff },
+                        analysis_done_at: null,
+                        analysis_reminder_sent_at: null,
+                    },
+                },
+            })
+            .lean();
     }
 }

@@ -37,11 +37,14 @@ import {
   fetchAlternants,
   fetchSequences,
   linkAlternant,
+  markIncidentAnalysisDone,
+  markIncidentDeclarationDone,
   markMentorChangeAvenantSigned,
   markMentorChangeOpcoDeclared,
   markSequence,
   removeAlternantCompany,
   reportCompanyDefaillance,
+  reportIncident,
   rescheduleSequence,
   resolveCompanyDefaillance,
   unlinkAlternant,
@@ -140,6 +143,12 @@ export default function FicheAlternant() {
   const [mentorChangeName, setMentorChangeName] = useState('')
   const [mentorChangeEmail, setMentorChangeEmail] = useState('')
   const [mentorChangeLoading, setMentorChangeLoading] = useState(false)
+  const [showIncidentForm, setShowIncidentForm] = useState(false)
+  const [incidentDescription, setIncidentDescription] = useState('')
+  const [incidentOccurredAt, setIncidentOccurredAt] = useState('')
+  const [incidentDeclaredByCfa, setIncidentDeclaredByCfa] = useState(false)
+  const [incidentPreventionMeasures, setIncidentPreventionMeasures] = useState('')
+  const [incidentLoading, setIncidentLoading] = useState(false)
   const [confirmAction, setConfirmAction] = useState<'delete' | 'removeCompany' | null>(null)
   const [confirmDeleteRuptureId, setConfirmDeleteRuptureId] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
@@ -334,6 +343,55 @@ export default function FicheAlternant() {
       setError(e instanceof Error ? e.message : 'Mise à jour impossible')
     } finally {
       setMentorChangeLoading(false)
+    }
+  }
+
+  async function handleReportIncident() {
+    if (!id || !incidentDescription.trim() || !incidentOccurredAt) return
+    setIncidentLoading(true)
+    try {
+      const updated = await reportIncident(
+        id,
+        incidentDescription.trim(),
+        incidentOccurredAt,
+        incidentDeclaredByCfa,
+      )
+      if (updated) setAlternant(updated)
+      setShowIncidentForm(false)
+      setIncidentDescription('')
+      setIncidentOccurredAt('')
+      setIncidentDeclaredByCfa(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Déclaration impossible')
+    } finally {
+      setIncidentLoading(false)
+    }
+  }
+
+  async function handleMarkIncidentDeclarationDone() {
+    if (!id) return
+    setIncidentLoading(true)
+    try {
+      const updated = await markIncidentDeclarationDone(id)
+      if (updated) setAlternant(updated)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Mise à jour impossible')
+    } finally {
+      setIncidentLoading(false)
+    }
+  }
+
+  async function handleMarkIncidentAnalysisDone() {
+    if (!id) return
+    setIncidentLoading(true)
+    try {
+      const updated = await markIncidentAnalysisDone(id, incidentPreventionMeasures.trim() || null)
+      if (updated) setAlternant(updated)
+      setIncidentPreventionMeasures('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Mise à jour impossible')
+    } finally {
+      setIncidentLoading(false)
     }
   }
 
@@ -776,6 +834,101 @@ export default function FicheAlternant() {
                   )
                 })()
               : null}
+
+            {(() => {
+              const lastIncident = alternant.incidents[alternant.incidents.length - 1]
+              const pending = lastIncident && (!lastIncident.declarationDoneAt || !lastIncident.analysisDoneAt)
+              if (pending) {
+                const who = lastIncident.declaredByCfa ? 'le CFA (P2S + courrier CGSS)' : "l'employeur"
+                return (
+                  <div className="mt-3 rounded-xl border border-[var(--ds-warning)]/30 bg-[var(--ds-warning-bg)] p-3">
+                    <Badge tone="warning" icon={<IconAlert width={12} height={12} />}>
+                      Accident déclaré
+                    </Badge>
+                    <p className="mt-2 text-sm text-[var(--ds-text)]">{lastIncident.description}</p>
+                    <p className="mt-1 text-[12px] text-[var(--ds-text-subtle)]">
+                      Survenu le {formatDate(lastIncident.occurredAt)} · Déclaration par {who} sous 48h
+                    </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={incidentLoading || !!lastIncident.declarationDoneAt}
+                        onClick={handleMarkIncidentDeclarationDone}
+                      >
+                        {lastIncident.declarationDoneAt ? 'Déclaration faite ✓' : 'Marquer la déclaration faite'}
+                      </Button>
+                    </div>
+                    {!lastIncident.analysisDoneAt && (
+                      <div className="mt-2 space-y-2">
+                        <InputField
+                          id="incident-prevention-measures"
+                          label="Mesures de prévention (facultatif)"
+                          value={incidentPreventionMeasures}
+                          onChange={(e) => setIncidentPreventionMeasures(e.target.value)}
+                        />
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          disabled={incidentLoading}
+                          onClick={handleMarkIncidentAnalysisDone}
+                        >
+                          Marquer l'analyse des causes faite
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+              if (showIncidentForm) {
+                return (
+                  <div className="mt-3 space-y-2">
+                    <InputField
+                      id="incident-description"
+                      label="Description de l'accident"
+                      value={incidentDescription}
+                      onChange={(e) => setIncidentDescription(e.target.value)}
+                    />
+                    <InputField
+                      id="incident-occurred-at"
+                      label="Date de l'accident"
+                      type="date"
+                      value={incidentOccurredAt}
+                      onChange={(e) => setIncidentOccurredAt(e.target.value)}
+                    />
+                    <ContactCheckbox
+                      label="Déclaration par le CFA (pas de contrat actif)"
+                      checked={incidentDeclaredByCfa}
+                      onChange={() => setIncidentDeclaredByCfa((v) => !v)}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        disabled={incidentLoading || !incidentDescription.trim() || !incidentOccurredAt}
+                        onClick={handleReportIncident}
+                      >
+                        Déclarer
+                      </Button>
+                      <Button variant="secondary" size="sm" onClick={() => setShowIncidentForm(false)}>
+                        Annuler
+                      </Button>
+                    </div>
+                  </div>
+                )
+              }
+              return (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3"
+                  leftIcon={<IconAlert width={14} height={14} />}
+                  onClick={() => setShowIncidentForm(true)}
+                >
+                  Déclarer un accident
+                </Button>
+              )
+            })()}
 
             <h4 className="mb-2 mt-5 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
               <IconLink width={14} height={14} /> Suivi en commun ({linkedOthers.length})

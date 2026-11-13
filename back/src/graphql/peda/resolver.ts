@@ -25,6 +25,7 @@ import { RuptureService } from '../../services/RuptureService';
 import { SaCalendarService } from '../../services/SaCalendarService';
 import { SaDefaillanceService } from '../../services/SaDefaillanceService';
 import { AlternantMentorChangeService } from '../../services/AlternantMentorChangeService';
+import { AlternantIncidentService } from '../../services/AlternantIncidentService';
 import { DeclareRuptureInput, UpdateRuptureInput } from '../../types/rupture.types';
 
 const alternantService = new AlternantService();
@@ -34,6 +35,7 @@ const documentTemplateService = new AlternantDocumentTemplateService();
 const saCalendarService = new SaCalendarService();
 const defaillanceService = new SaDefaillanceService();
 const mentorChangeService = new AlternantMentorChangeService();
+const incidentService = new AlternantIncidentService();
 
 /** Re-synchronise l'agenda Google des Pedas avec les SA actives d'un alternant. */
 async function syncAlternantSequences(alternantId: string): Promise<void> {
@@ -235,6 +237,37 @@ export const resolvers = {
         markMentorChangeOpcoDeclared: async (_: unknown, { alternantId }: { alternantId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
             await mentorChangeService.markOpcoDeclared(alternantId);
+            const updated = await alternantService.findById(alternantId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        reportIncident: async (
+            _: unknown,
+            {
+                alternantId,
+                description,
+                occurredAt,
+                declaredByCfa,
+            }: { alternantId: string; description: string; occurredAt: string; declaredByCfa: boolean },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await incidentService.report(alternantId, description, new Date(occurredAt), declaredByCfa);
+            const updated = await alternantService.findById(alternantId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        markIncidentDeclarationDone: async (_: unknown, { alternantId }: { alternantId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await incidentService.markDeclarationDone(alternantId);
+            const updated = await alternantService.findById(alternantId);
+            return updated ? alternantToGql(updated) : null;
+        },
+        markIncidentAnalysisDone: async (
+            _: unknown,
+            { alternantId, preventionMeasures }: { alternantId: string; preventionMeasures?: string | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.PEDA]);
+            await incidentService.markAnalysisDone(alternantId, preventionMeasures ?? null);
             const updated = await alternantService.findById(alternantId);
             return updated ? alternantToGql(updated) : null;
         },

@@ -28,6 +28,17 @@ export interface AlternantMentorChange {
   opcoDeclaredAt: string | null
 }
 
+/** Accident déclaré (#970) — déclaration (48h) et analyse des causes (1 semaine) cochées à la main. */
+export interface AlternantIncident {
+  description: string
+  occurredAt: string
+  declaredAt: string
+  declaredByCfa: boolean
+  declarationDoneAt: string | null
+  analysisDoneAt: string | null
+  preventionMeasures: string | null
+}
+
 export interface Alternant {
   id: string
   firstName: string
@@ -44,6 +55,7 @@ export interface Alternant {
   linkedAlternantIds: string[]
   defaillance: AlternantDefaillance | null
   mentorChanges: AlternantMentorChange[]
+  incidents: AlternantIncident[]
   /** `true` = archivé suite à une rupture « quitte la formation ». */
   archived: boolean
   archivedAt: string | null
