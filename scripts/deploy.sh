@@ -120,6 +120,11 @@ if [[ ! -f backups/.last-restore-test ]]; then
 elif [[ -z "$(find backups/.last-restore-test -mtime -10 2>/dev/null)" ]]; then
     warn "dernier test de restauration > 10 jours ($(cat backups/.last-restore-test)) : scripts/restore-test.sh"
 fi
+# Chiffrement disque (GDPR_INF_02.1) : avertit si FileVault n'est pas actif (macOS).
+if [[ "$(uname -s)" == "Darwin" ]] && command -v fdesetup >/dev/null 2>&1; then
+    fdesetup status 2>/dev/null | grep -q "FileVault is On" \
+        || warn "FileVault inactif : chiffrement disque requis (HOWTODEPLOY.md, Disk encryption)"
+fi
 log "  pré-requis OK"
 
 # ------------------------------------------------------------------ 2. git

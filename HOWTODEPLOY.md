@@ -215,6 +215,29 @@ run, the 09:00 watchdog must have alerted: either outcome validates the AC.
 
 Temporary measure: superseded once hosting is migrated (GDPR_INF_03).
 
+### Disk encryption (GDPR_INF_02.1)
+
+**Mac mini (now)** — FileVault, to run on the machine itself:
+
+1. `sudo fdesetup enable` (choose a *personal recovery key*, not iCloud).
+2. Store the recovery key in the team password manager (restricted vault) with
+   a sealed paper copy held by a second custodian. Never in the repo, `.env`,
+   chat or tickets. Rotate it (`sudo fdesetup changerecovery -personal`) when a
+   custodian leaves.
+3. Verify: `fdesetup status` must print `FileVault is On.`
+4. Reboots: a headless boot stops at the FileVault login screen (backups/deploy
+   down). Reboot with `sudo fdesetup authrestart` so the next boot unlocks itself.
+
+`deploy.sh` pre-flight warns if FileVault is not On.
+
+| Date | Who | `fdesetup status` | Key custodians |
+|------|-----|-------------------|----------------|
+| _to fill_ | | | |
+
+**Target server (GDPR_INF_03)** — RAID1 + LUKS from install time; verify with
+`cryptsetup status <mapping>` and `lsblk -f`. Remote unlock (dropbear-initramfs)
+procedure to be documented at migration.
+
 ## 3. Deploy
 
 ```bash
