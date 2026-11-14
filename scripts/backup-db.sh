@@ -18,6 +18,8 @@ cd "$REPO_ROOT"
 
 # shellcheck source=scripts/mongo-exec.sh
 source "$REPO_ROOT/scripts/mongo-exec.sh"
+# shellcheck source=scripts/notify.sh
+source "$REPO_ROOT/scripts/notify.sh"
 
 # .env contient des valeurs avec métacaractères shell (ex. `&` dans MONGO_URI),
 # donc `source .env` échoue en parse error. On n'extrait que les clés nécessaires.
@@ -51,8 +53,25 @@ DATE=$(date +%Y-%m-%d_%H%M%S)
 mkdir -p backups
 chmod 700 backups
 
-# Un échec en cours de route ne doit laisser aucun fichier partiel dans backups/.
-trap 'rm -f backups/*.part' EXIT
+# Un échec en cours de route ne doit laisser aucun fichier partiel dans backups/,
+# et doit déclencher une alerte webhook (BACKUP_ALERT_WEBHOOK, voir notify.sh).
+on_exit() {
+    local rc=$?
+    rm -f backups/*.part
+    if ((rc != 0)); then
+        notify_failure "Backup FAILED" "backup-db.sh exit ${rc}"
+    fi
+}
+trap on_exit EXIT
+
+# sha256 d'un fichier : sha256sum (Linux) ou shasum (macOS).
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum -- "$1"
+    else
+        shasum -a 256 -- "$1"
+    fi
+}
 
 # dump_encrypted <fichier final> <commande de dump…>
 # Le dump est chiffré à la volée vers <fichier>.part puis renommé : un dump
@@ -64,6 +83,9 @@ dump_encrypted() {
     "$@" | age -r "$AGE_RECIPIENT" > "${out}.part"
     chmod 600 "${out}.part"
     mv "${out}.part" "$out"
+    # Checksum ecrit a la sauvegarde (nom de fichier relatif : verifiable depuis backups/).
+    (cd "$(dirname "$out")" && sha256_of "$(basename "$out")" > "$(basename "$out").sha256")
+    chmod 600 "${out}.sha256"
 }
 
 echo "[$(date -Iseconds)] Starting backup"
@@ -95,8 +117,12 @@ dump_encrypted "$MONGO_ANNEMASSE_DUMP" \
 echo "[$(date -Iseconds)] MongoDB Annemasse dump done: $MONGO_ANNEMASSE_DUMP ($(du -h "$MONGO_ANNEMASSE_DUMP" | cut -f1))"
 
 find backups -name 'backup_mysql_*.sql.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_mysql_*.sql.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_mongo_*.archive.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_mongo_*.archive.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_annemasse_mysql_*.sql.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_annemasse_mysql_*.sql.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_annemasse_mongo_*.archive.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_annemasse_mongo_*.archive.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 
 echo "[$(date -Iseconds)] Backup finished, rotation applied (retention: ${RETENTION_DAYS}d)"

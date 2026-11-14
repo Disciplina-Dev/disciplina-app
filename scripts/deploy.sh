@@ -108,6 +108,12 @@ if (( ! DRY )); then
     [[ -n "$(docker compose ps -q sql-db nosql-db 2>/dev/null)" ]] \
         || die "sql-db / nosql-db doivent être up : docker compose up -d sql-db nosql-db"
 fi
+# Test de restauration (restore-test.sh, hebdo) : avertit s'il est absent ou > 10 jours.
+if [[ ! -f backups/.last-restore-test ]]; then
+    warn "aucun test de restauration enregistré (backups/.last-restore-test) : scripts/restore-test.sh"
+elif [[ -z "$(find backups/.last-restore-test -mtime -10 2>/dev/null)" ]]; then
+    warn "dernier test de restauration > 10 jours ($(cat backups/.last-restore-test)) : scripts/restore-test.sh"
+fi
 log "  pré-requis OK"
 
 # ------------------------------------------------------------------ 2. git
