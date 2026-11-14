@@ -129,6 +129,47 @@ least once per quarter):
 |------|-----|---------------|--------|
 | 2026-11-12 | qh (GDPR_INF_01.2) | Both tenants, scripted run with a stubbed `docker` (encrypt → decrypt → `rollback.sh` right/wrong/missing key → dry-run → legacy migration) | OK, 28/28 checks. **Not yet** a restore into a real MySQL/MongoDB: do it once on a test instance and add a row. |
 
+### Backup integrity, failure alert & automated restore test (GDPR_INF_01.5)
+
+**Checksums**: `backup-db.sh` writes `<dump>.sha256` next to each of the 4 dumps
+(over the encrypted file) and rotation removes it with the dump. Verify by hand:
+`cd backups && sha256sum -c backup_mysql_<DATE>.sql.age.sha256` (`shasum -a 256 -c` on macOS).
+
+**Failure alert**: any non-zero exit of `backup-db.sh` or `restore-test.sh` POSTs
+`{"text": "..."}` to `BACKUP_ALERT_WEBHOOK` (root `.env`, Slack/Discord-compatible
+or n8n; see `.env.example`). Without it, only a warning is printed to stderr
+(launchd log): set it in production.
+
+**Restore test**: `scripts/restore-test.sh` takes the latest dump of each of the 4
+databases, verifies its checksum, decrypts it and restores it into throwaway
+MySQL/MongoDB containers (same image tags as compose, no published port, random
+password, removed on exit; dev/prod containers and volumes are never touched).
+It checks every restored database has tables/collections, then writes the date to
+`backups/.last-restore-test`. On failure it alerts and exits non-zero.
+
+```bash
+BACKUP_AGE_IDENTITY=/path/to/age-identity.txt ./scripts/restore-test.sh
+```
+
+`BACKUP_AGE_IDENTITY` is the path of the age **private** key file (env var or
+`.env`). Custody tension: the rules above say the identity must not live on the
+Mac mini, but an unattended weekly test needs it. Either (a) run the test from an
+admin workstation that has the identity and a copy of `backups/`, or (b) use a
+dedicated restore-test key (add its public key as a second recipient) kept
+outside the repo with `chmod 600`: decision to validate with the DPO.
+
+**Schedule** (weekly, Sunday 04:00, same procedure as the backup job):
+
+```bash
+cp scripts/launchd/com.disciplina.restore-test.plist ~/Library/LaunchAgents/
+# edit ABSOLUTE/PATH/TO, YOUR_USER and the BACKUP_AGE_IDENTITY path, then:
+launchctl load ~/Library/LaunchAgents/com.disciplina.restore-test.plist
+```
+
+`deploy.sh` pre-flight warns (non-blocking) if `backups/.last-restore-test` is
+missing or older than 10 days. The last successful test date is the content of
+that file.
+
 ## 3. Deploy
 
 ```bash
