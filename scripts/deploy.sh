@@ -108,6 +108,12 @@ if (( ! DRY )); then
     [[ -n "$(docker compose ps -q sql-db nosql-db 2>/dev/null)" ]] \
         || die "sql-db / nosql-db doivent être up : docker compose up -d sql-db nosql-db"
 fi
+# Dernier backup nocturne (backup-db.sh) : avertit s'il est absent ou > 26h.
+if [[ ! -f backups/.last-backup ]]; then
+    warn "aucun backup nocturne enregistré (backups/.last-backup) : scripts/backup-db.sh"
+elif [[ -z "$(find backups/.last-backup -mmin -1560 2>/dev/null)" ]]; then
+    warn "dernier backup nocturne > 26h ($(cat backups/.last-backup)) : veille du Mac mini ? voir README (pmset)"
+fi
 # Test de restauration (restore-test.sh, hebdo) : avertit s'il est absent ou > 10 jours.
 if [[ ! -f backups/.last-restore-test ]]; then
     warn "aucun test de restauration enregistré (backups/.last-restore-test) : scripts/restore-test.sh"

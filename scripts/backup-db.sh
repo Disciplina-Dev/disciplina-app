@@ -125,4 +125,8 @@ find backups -name 'backup_annemasse_mysql_*.sql.age.sha256' -mtime "+${RETENTIO
 find backups -name 'backup_annemasse_mongo_*.archive.age' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_annemasse_mongo_*.archive.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 
+# Marqueur de succes lu par backup-watchdog.sh / deploy.sh (detection des runs manques).
+date -Iseconds > backups/.last-backup
+chmod 600 backups/.last-backup
+
 echo "[$(date -Iseconds)] Backup finished, rotation applied (retention: ${RETENTION_DAYS}d)"

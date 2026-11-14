@@ -170,6 +170,51 @@ launchctl load ~/Library/LaunchAgents/com.disciplina.restore-test.plist
 missing or older than 10 days. The last successful test date is the content of
 that file.
 
+### Missed backup detection (GDPR_INF_01.6)
+
+The Mac mini may sleep at 03:00, so the backup job silently does not run (no
+non-zero exit, hence no failure alert). `backup-db.sh` writes the success date to
+`backups/.last-backup`; `scripts/backup-watchdog.sh` (daily 09:00) alerts via
+`BACKUP_ALERT_WEBHOOK` and exits 1 if that file is missing or older than 26h.
+`deploy.sh` pre-flight also warns (non-blocking) on a stale `.last-backup`.
+
+```bash
+# Prevent the miss: wake the machine before the job (and/or: sudo pmset -a sleep 0)
+sudo pmset repeat wakeorpoweron MTWRFSU 02:55:00 && pmset -g sched
+
+# Detect it if it happens anyway
+cp scripts/launchd/com.disciplina.backup-watchdog.plist ~/Library/LaunchAgents/
+# edit ABSOLUTE/PATH/TO and YOUR_USER, then:
+launchctl load ~/Library/LaunchAgents/com.disciplina.backup-watchdog.plist
+```
+
+**Acceptance test on the Mac mini** (once at install, do not skip: launchd and
+`pmset` cannot be validated from a dev machine):
+
+```bash
+# 1. Wake schedule is in place
+pmset -g sched                      # expect: wakepoweron at 2:55AM every day
+
+# 2. Backup writes the marker
+./scripts/backup-db.sh && cat backups/.last-backup
+
+# 3. Watchdog is silent when the backup is recent
+launchctl kickstart -p gui/$(id -u)/com.disciplina.backup-watchdog   # exit 0, "Backup recent OK"
+
+# 4. Watchdog alerts on a missed run (BACKUP_ALERT_WEBHOOK must be set)
+touch -t 202001010000 backups/.last-backup
+launchctl kickstart -p gui/$(id -u)/com.disciplina.backup-watchdog   # message "Backup MISSED" received on the webhook channel
+./scripts/backup-db.sh              # restore a fresh marker
+
+# 5. Real sleep test: put the Mac to sleep before 02:55, check next morning
+tail ~/Library/Logs/disciplina-backup.log   # run at ~03:00 and fresh dumps in backups/
+```
+
+Step 5 is the only proof the wake schedule works end to end. If the backup did not
+run, the 09:00 watchdog must have alerted: either outcome validates the AC.
+
+Temporary measure: superseded once hosting is migrated (GDPR_INF_03).
+
 ## 3. Deploy
 
 ```bash
