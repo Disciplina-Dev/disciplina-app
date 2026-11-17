@@ -42,6 +42,13 @@ function nextWeekday(targetIso: number): string {
     throw new Error(`Impossible de trouver un jour ISO ${targetIso}`);
 }
 
+/** Décale une date locale `YYYY-MM-DD` de `n` jours. */
+function addDays(day: string, n: number): string {
+    const date = new Date(`${day}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() + n);
+    return date.toISOString().slice(0, 10);
+}
+
 /** Jour d'ouverture dédié à ce fichier : lundi de la semaine prochaine. */
 const DAY = nextWeekday(1);
 
@@ -52,16 +59,20 @@ interface Host {
     headers: Record<string, string>;
 }
 
-async function seedHost(label: string): Promise<Host> {
+async function seedHost(
+    label: string,
+    options: { sectors?: string[]; permission?: 'EMPLOYEE' | 'RESPONSABLE' } = {},
+): Promise<Host> {
     const email = `booking-block-${label}-${suffix}@test.local`;
+    const permission = options.permission ?? 'EMPLOYEE';
     const id = await new UserRepository().create({
         email,
         first_name: 'RH',
         last_name: `Blocage ${label}`,
         password: 'hashed',
         role_id: 2,
-        permission_id: 1,
-        sectors: null,
+        permission_id: permission === 'RESPONSABLE' ? 2 : 1,
+        sectors: options.sectors ?? null,
         oauth_token: 'oauth-access-token',
         refresh_token: 'oauth-refresh-token',
     });
@@ -71,7 +82,7 @@ async function seedHost(label: string): Promise<Host> {
         id,
         email,
         role: 'RH',
-        permission: 'EMPLOYEE',
+        permission,
         region: 'reunion',
     });
     const headers = {
@@ -105,18 +116,48 @@ async function slotsFor(slug: string, day = DAY): Promise<string[]> {
     return body.slots.map((s) => s.start);
 }
 
-async function listBlocks(host: Host) {
-    const res = await fetch(`${BASE}/blocks`, { headers: host.headers });
-    expect(res.status).toBe(200);
-    return (await res.json()) as { blocks: { id: number; day: string; scope: string; releasedForMe?: boolean }[] };
+interface BlockEntry {
+    id: number;
+    day: string;
+    scope: string;
+    groupKey: string;
+    targetLabels: string[];
+    targetCount: number;
+    releasedForMe?: boolean;
 }
 
-async function block(host: Host, scope: 'SELF' | 'ALL', day = DAY, reason = 'Congés') {
+async function listBlocks(host: Host): Promise<BlockEntry[]> {
+    const res = await fetch(`${BASE}/blocks`, { headers: host.headers });
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { blocks: BlockEntry[] }).blocks;
+}
+
+interface BlockInput {
+    from?: string;
+    to?: string;
+    scope: 'SELF' | 'ALL' | 'SECTOR' | 'USERS';
+    reason?: string;
+    sectors?: string[];
+    userIds?: number[];
+}
+
+async function block(host: Host, input: BlockInput) {
     return fetch(`${BASE}/blocks`, {
         method: 'POST',
         headers: host.headers,
-        body: JSON.stringify({ day, scope, reason }),
+        body: JSON.stringify({ from: DAY, reason: 'Congés', ...input }),
     });
+}
+
+/** Bloque une période et renvoie les entrées créées (filtrées sur la période). */
+async function blockPeriod(host: Host, from: string, to: string, input: BlockInput): Promise<BlockEntry[]> {
+    const res = await block(host, { from, to, ...input });
+    expect(res.status).toBe(201);
+    const days: string[] = [];
+    for (let cur = Date.parse(`${from}T12:00:00Z`); cur <= Date.parse(`${to}T12:00:00Z`); cur += 86_400_000) {
+        days.push(new Date(cur).toISOString().slice(0, 10));
+    }
+    return (await listBlocks(host)).filter((b) => days.includes(b.day));
 }
 
 beforeEach(async () => {
@@ -157,7 +198,7 @@ describe('Blocage de dates — disponibilités publiques', () => {
         expect((await slotsFor(alice.slug)).length).toBeGreaterThan(0);
         expect((await slotsFor(bob.slug)).length).toBeGreaterThan(0);
 
-        const created = await block(alice, 'SELF', DAY, 'Formation interne');
+        const created = await block(alice, { scope: 'SELF', reason: 'Formation interne' });
         expect(created.status).toBe(201);
 
         expect(await slotsFor(alice.slug)).toEqual([]);
@@ -169,24 +210,169 @@ describe('Blocage de dates — disponibilités publiques', () => {
         const alice = await seedHost('all-a');
         const bob = await seedHost('all-b');
 
-        expect((await block(alice, 'ALL', DAY, 'Jour férié')).status).toBe(201);
+        expect((await block(alice, { scope: 'ALL', reason: 'Jour férié' })).status).toBe(201);
 
         expect(await slotsFor(alice.slug)).toEqual([]);
         expect(await slotsFor(bob.slug)).toEqual([]);
 
-        // Bob voit le blocage global (et son motif), pas les blocages personnels d'Alice.
-        const { blocks } = await listBlocks(bob);
+        // Bob voit le blocage collectif (et son motif), pas les blocages personnels d'Alice.
+        const blocks = await listBlocks(bob);
         expect(blocks).toHaveLength(1);
         expect(blocks[0]).toMatchObject({ day: DAY, scope: 'ALL', releasedForMe: false });
+    });
+
+    it('une période bloque chaque jour et se liste comme une seule entrée', async () => {
+        const alice = await seedHost('range-a');
+
+        expect((await block(alice, { to: addDays(DAY, 2), scope: 'SELF', reason: 'Congés' })).status).toBe(201);
+
+        const blocks = await listBlocks(alice);
+        expect(blocks.map((b) => b.day)).toEqual([DAY, addDays(DAY, 1), addDays(DAY, 2)]);
+        expect(new Set(blocks.map((b) => b.groupKey)).size).toBe(1);
+        expect(await slotsFor(alice.slug)).toEqual([]);
+
+        // Le filtre de plage (paramètres positionnels de findVisible) reste correct.
+        const ranged = await fetch(`${BASE}/blocks?from=${addDays(DAY, 1)}&to=${addDays(DAY, 2)}`, {
+            headers: alice.headers,
+        });
+        const { blocks: rangedBlocks } = (await ranged.json()) as { blocks: BlockEntry[] };
+        expect(rangedBlocks.map((b) => b.day)).toEqual([addDays(DAY, 1), addDays(DAY, 2)]);
+    });
+
+    it('annuler une période rouvre tous ses jours', async () => {
+        const alice = await seedHost('range-del');
+        const [first] = await blockPeriod(alice, DAY, addDays(DAY, 2), { scope: 'ALL' });
+
+        const del = await fetch(`${BASE}/blocks/groups/${first.groupKey}`, {
+            method: 'DELETE',
+            headers: alice.headers,
+        });
+        expect(del.status).toBe(200);
+
+        expect(await listBlocks(alice)).toEqual([]);
+        expect((await slotsFor(alice.slug)).length).toBeGreaterThan(0);
+    });
+
+    it('« mon secteur » : ne bloque que les membres du secteur', async () => {
+        const alice = await seedHost('sector-a', { sectors: ['Sud'] });
+        const bob = await seedHost('sector-b', { sectors: ['Sud'] });
+        const carol = await seedHost('sector-c', { sectors: ['Ouest'] });
+
+        const res = await block(alice, { scope: 'SECTOR', sectors: ['Sud'], reason: 'Séminaire' });
+        expect(res.status).toBe(201);
+
+        expect(await slotsFor(alice.slug)).toEqual([]);
+        expect(await slotsFor(bob.slug)).toEqual([]);
+        expect((await slotsFor(carol.slug)).length).toBeGreaterThan(0);
+
+        // Carol (autre secteur) ne voit pas le blocage ; Bob le voit et connaît sa cible.
+        expect(await listBlocks(carol)).toEqual([]);
+        const bobBlocks = await listBlocks(bob);
+        expect(bobBlocks).toHaveLength(1);
+        expect(bobBlocks[0]).toMatchObject({ scope: 'SECTOR', targetLabels: ['Sud'] });
+    });
+
+    it('« personnes » : ne bloque que la sélection', async () => {
+        const alice = await seedHost('users-a', { sectors: ['Sud'] });
+        const bob = await seedHost('users-b', { sectors: ['Sud'] });
+        const carol = await seedHost('users-c', { sectors: ['Sud'] });
+
+        const res = await block(alice, { scope: 'USERS', userIds: [bob.id], reason: 'Rendez-vous' });
+        expect(res.status).toBe(201);
+
+        expect((await slotsFor(alice.slug)).length).toBeGreaterThan(0);
+        expect(await slotsFor(bob.slug)).toEqual([]);
+        expect((await slotsFor(carol.slug)).length).toBeGreaterThan(0);
+
+        expect(await listBlocks(carol)).toEqual([]);
+        const bobBlocks = await listBlocks(bob);
+        expect(bobBlocks).toHaveLength(1);
+        // Ciblé mais pas auteur : Bob voit qu'il est bloqué, pas l'identité des autres cibles.
+        expect(bobBlocks[0]).toMatchObject({ scope: 'USERS', targetLabels: [], targetCount: 1 });
+
+        // L'auteur, lui, retrouve les noms.
+        const aliceBlocks = await listBlocks(alice);
+        expect(aliceBlocks[0]).toMatchObject({ scope: 'USERS', targetLabels: ['RH Blocage users-b'] });
+    });
+
+    it("« me rendre disponible » refuse un blocage qui ne me concerne pas", async () => {
+        const alice = await seedHost('release-scope-a', { sectors: ['Sud'] });
+        const carol = await seedHost('release-scope-c', { sectors: ['Ouest'] });
+
+        expect((await block(alice, { scope: 'SECTOR', sectors: ['Sud'], reason: 'Séminaire' })).status).toBe(201);
+        const [sudBlock] = await listBlocks(alice);
+        expect(await listBlocks(carol)).toEqual([]);
+
+        // Carol (autre secteur) connaît l'id mais n'est pas concernée : refus.
+        const byId = await fetch(`${BASE}/blocks/${sudBlock.id}/release`, {
+            method: 'POST',
+            headers: carol.headers,
+        });
+        expect(byId.status).toBe(403);
+
+        const byGroup = await fetch(`${BASE}/blocks/groups/${sudBlock.groupKey}/release`, {
+            method: 'POST',
+            headers: carol.headers,
+        });
+        expect(byGroup.status).toBe(403);
+    });
+
+    it("refuse de réécrire le blocage collectif d'un autre RH", async () => {
+        const alice = await seedHost('takeover-a');
+        const bob = await seedHost('takeover-b');
+
+        expect((await block(alice, { scope: 'ALL', reason: 'Fermeture décidée par Alice' })).status).toBe(201);
+
+        // Bob ne peut pas prendre la main sur le blocage pour s'en donner l'annulation.
+        const takeover = await block(bob, { scope: 'ALL', reason: 'Reprise' });
+        expect(takeover.status).toBe(409);
+
+        const [existing] = await listBlocks(bob);
+        expect(existing).toMatchObject({ scope: 'ALL', reason: 'Fermeture décidée par Alice' });
+        const stillBlocked = await listBlocks(alice);
+        expect(stillBlocked).toHaveLength(1);
+    });
+
+    it("annuler un jour collectif n'efface pas les autres blocages du même jour", async () => {
+        const alice = await seedHost('multi-a', { sectors: ['Sud'] });
+        const bob = await seedHost('multi-b', { sectors: ['Sud'] });
+
+        expect((await block(alice, { scope: 'ALL', reason: 'Fermeture' })).status).toBe(201);
+        expect((await block(bob, { scope: 'SECTOR', sectors: ['Sud'], reason: 'Séminaire' })).status).toBe(201);
+
+        const allBlock = (await listBlocks(alice)).find((b) => b.scope === 'ALL');
+        expect(allBlock).toBeDefined();
+        const del = await fetch(`${BASE}/blocks/${allBlock!.id}`, { method: 'DELETE', headers: alice.headers });
+        expect(del.status).toBe(200);
+
+        // Le blocage sectoriel de Bob survit : seul le blocage visé disparaît.
+        const bobBlocks = await listBlocks(bob);
+        expect(bobBlocks).toHaveLength(1);
+        expect(bobBlocks[0]).toMatchObject({ scope: 'SECTOR', targetLabels: ['Sud'] });
+        expect(await slotsFor(bob.slug)).toEqual([]);
+    });
+
+    it('refuse une cible hors de ses secteurs (EMPLOYEE)', async () => {
+        const alice = await seedHost('guard-a', { sectors: ['Sud'] });
+        const carol = await seedHost('guard-c', { sectors: ['Ouest'] });
+
+        const res = await block(alice, { scope: 'USERS', userIds: [carol.id], reason: 'Test' });
+        expect(res.status).toBe(400);
+    });
+
+    it('refuse un secteur dont on n’est pas membre', async () => {
+        const alice = await seedHost('guard-sector', { sectors: ['Sud'] });
+
+        const res = await block(alice, { scope: 'SECTOR', sectors: ['Ouest'], reason: 'Test' });
+        expect(res.status).toBe(400);
     });
 
     it('« me rendre disponible » : débloque le jour pour soi seul, et se re-bloque ensuite', async () => {
         const alice = await seedHost('release-a');
         const bob = await seedHost('release-b');
 
-        expect((await block(alice, 'ALL', DAY, 'Séminaire')).status).toBe(201);
-        const { blocks } = await listBlocks(bob);
-        const globalId = blocks[0].id;
+        expect((await block(alice, { scope: 'ALL', reason: 'Séminaire' })).status).toBe(201);
+        const globalId = (await listBlocks(bob))[0].id;
 
         const released = await fetch(`${BASE}/blocks/${globalId}/release`, { method: 'POST', headers: bob.headers });
         expect(released.status).toBe(200);
@@ -204,12 +390,33 @@ describe('Blocage de dates — disponibilités publiques', () => {
         expect(await slotsFor(bob.slug)).toEqual([]);
     });
 
-    it('annuler un blocage global le rouvre pour tout le monde (dérogations comprises)', async () => {
+    it('« me rendre disponible » sur une période : bascule pour tous ses jours', async () => {
+        const alice = await seedHost('release-range-a');
+        const bob = await seedHost('release-range-b');
+        const [first] = await blockPeriod(alice, DAY, addDays(DAY, 2), { scope: 'ALL', reason: 'Séminaire' });
+
+        const release = () =>
+            fetch(`${BASE}/blocks/groups/${first.groupKey}/release`, { method: 'POST', headers: bob.headers });
+
+        expect((await release()).status).toBe(200);
+        const released = await listBlocks(bob);
+        expect(released).toHaveLength(3);
+        expect(released.every((b) => b.releasedForMe === true)).toBe(true);
+        expect((await slotsFor(bob.slug)).length).toBeGreaterThan(0);
+        expect(await slotsFor(alice.slug)).toEqual([]);
+
+        // Bascule : Bob re-bloque les trois jours.
+        expect((await release()).status).toBe(200);
+        expect((await listBlocks(bob)).every((b) => b.releasedForMe === false)).toBe(true);
+        expect(await slotsFor(bob.slug)).toEqual([]);
+    });
+
+    it('annuler un blocage collectif le rouvre pour tout le monde (dérogations comprises)', async () => {
         const alice = await seedHost('cancel-a');
         const bob = await seedHost('cancel-b');
 
-        expect((await block(alice, 'ALL', DAY, 'Fermeture')).status).toBe(201);
-        const { blocks } = await listBlocks(alice);
+        expect((await block(alice, { scope: 'ALL', reason: 'Fermeture' })).status).toBe(201);
+        const blocks = await listBlocks(alice);
         await fetch(`${BASE}/blocks/${blocks[0].id}/release`, { method: 'POST', headers: bob.headers });
 
         const del = await fetch(`${BASE}/blocks/${blocks[0].id}`, { method: 'DELETE', headers: alice.headers });
@@ -217,14 +424,14 @@ describe('Blocage de dates — disponibilités publiques', () => {
 
         expect((await slotsFor(alice.slug)).length).toBeGreaterThan(0);
         expect((await slotsFor(bob.slug)).length).toBeGreaterThan(0);
-        expect((await listBlocks(alice)).blocks).toEqual([]);
+        expect(await listBlocks(alice)).toEqual([]);
     });
 
     it('refuse de réserver un créneau sur un jour bloqué (409)', async () => {
         const alice = await seedHost('book-a');
         const [firstSlot] = await slotsFor(alice.slug);
 
-        expect((await block(alice, 'SELF', DAY, 'Absent')).status).toBe(201);
+        expect((await block(alice, { scope: 'SELF', reason: 'Absent' })).status).toBe(201);
 
         const res = await fetch(`${BASE}/public/${alice.slug}/book`, {
             method: 'POST',
@@ -240,44 +447,70 @@ describe('Blocage de dates — disponibilités publiques', () => {
         expect(res.status).toBe(409);
     });
 
-    it('valide la date, la portée et le motif', async () => {
+    it('valide les dates, la portée, la période et le motif', async () => {
         const alice = await seedHost('valid');
 
         const badDay = await fetch(`${BASE}/blocks`, {
             method: 'POST',
             headers: alice.headers,
-            body: JSON.stringify({ day: '2026-02-31', scope: 'SELF', reason: 'x' }),
+            body: JSON.stringify({ from: '2026-02-31', scope: 'SELF', reason: 'x' }),
         });
         expect(badDay.status).toBe(400);
 
-        const badScope = await block(alice, 'SELF');
-        expect(badScope.status).toBe(201); // sanity : SELF valide
-        const badScopeRes = await fetch(`${BASE}/blocks`, {
-            method: 'POST',
-            headers: alice.headers,
-            body: JSON.stringify({ day: '2030-01-07', scope: 'EVERYONE', reason: 'x' }),
-        });
-        expect(badScopeRes.status).toBe(400);
+        const backwards = await block(alice, { from: '2030-01-07', to: '2030-01-01', scope: 'SELF' });
+        expect(backwards.status).toBe(400);
 
-        const noReason = await fetch(`${BASE}/blocks`, {
-            method: 'POST',
-            headers: alice.headers,
-            body: JSON.stringify({ day: '2030-01-07', scope: 'SELF', reason: '   ' }),
+        const tooLong = await block(alice, { from: '2030-01-01', to: '2031-06-01', scope: 'SELF' });
+        expect(tooLong.status).toBe(400);
+
+        const badScope = await block(alice, {
+            scope: 'EVERYONE' as unknown as BlockInput['scope'],
         });
+        expect(badScope.status).toBe(400);
+
+        const noReason = await block(alice, { from: '2030-01-07', scope: 'SELF', reason: '   ' });
         expect(noReason.status).toBe(400);
+
+        const noTarget = await block(alice, { from: '2030-01-07', scope: 'USERS' });
+        expect(noTarget.status).toBe(400);
     });
 
     it("n'autorise pas à annuler le blocage personnel d'un autre RH", async () => {
         const alice = await seedHost('own-a');
         const bob = await seedHost('own-b');
 
-        expect((await block(alice, 'SELF')).status).toBe(201);
-        const aliceBlocks = (await listBlocks(alice)).blocks;
+        expect((await block(alice, { scope: 'SELF' })).status).toBe(201);
+        const aliceBlocks = await listBlocks(alice);
         expect(aliceBlocks).toHaveLength(1);
-        expect((await listBlocks(bob)).blocks).toEqual([]);
+        expect(await listBlocks(bob)).toEqual([]);
 
         const del = await fetch(`${BASE}/blocks/${aliceBlocks[0].id}`, { method: 'DELETE', headers: bob.headers });
         expect(del.status).toBe(403);
-        expect((await listBlocks(alice)).blocks).toHaveLength(1);
+        expect(await listBlocks(alice)).toHaveLength(1);
+    });
+
+    it("n'autorise qu'un responsable à annuler le blocage collectif d'un autre", async () => {
+        const alice = await seedHost('authz-a');
+        const bob = await seedHost('authz-b');
+        const manager = await seedHost('authz-m', { permission: 'RESPONSABLE' });
+
+        expect((await block(alice, { scope: 'ALL', reason: 'Fermeture' })).status).toBe(201);
+        const groupKey = (await listBlocks(alice))[0].groupKey;
+
+        const byPeer = await fetch(`${BASE}/blocks/groups/${groupKey}`, { method: 'DELETE', headers: bob.headers });
+        expect(byPeer.status).toBe(403);
+
+        // La route mono-jour applique la même règle (le front ne l'utilise plus).
+        const dayId = (await listBlocks(alice))[0].id;
+        const dayByPeer = await fetch(`${BASE}/blocks/${dayId}`, { method: 'DELETE', headers: bob.headers });
+        expect(dayByPeer.status).toBe(403);
+        expect(await listBlocks(alice)).toHaveLength(1);
+
+        const byManager = await fetch(`${BASE}/blocks/groups/${groupKey}`, {
+            method: 'DELETE',
+            headers: manager.headers,
+        });
+        expect(byManager.status).toBe(200);
+        expect(await listBlocks(alice)).toEqual([]);
     });
 });

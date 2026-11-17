@@ -1,13 +1,21 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { BookingRepository, BookingSettings } from './repository';
-import { DayBlockRepository, DayBlockScope, DayBlock } from './blocksRepository';
+import {
+    DayBlockRepository,
+    DayBlockScope,
+    DayBlock,
+    SECTOR_TARGET_PREFIX,
+    USER_TARGET_PREFIX,
+    scopeKeyFor,
+} from './blocksRepository';
 import { UserService } from '../../services/UserService';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { GoogleCalendarService, BusyInterval } from '../../external/google/calendar.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
 import { withNoReply } from '../../external/google/no-reply';
 import { GoogleTokens } from '../../external/google/types';
-import { User } from '../../types/user.types';
+import { JobRole, User } from '../../types/user.types';
+import { canAccessAllSectors, shareSector } from '../../utils/sector';
 import { logger } from '../../external/logger';
 
 export interface Slot {
@@ -30,6 +38,19 @@ export class SlotUnavailableError extends Error {}
 export class DayBlockNotFoundError extends Error {}
 export class DayBlockForbiddenError extends Error {}
 export class DayBlockConflictError extends Error {}
+export class DayBlockValidationError extends Error {}
+
+/** Saisie d'un blocage de dates (une période, éventuellement d'un seul jour). */
+export interface DayBlockPeriodInput {
+    from: string;
+    to: string;
+    scope: DayBlockScope;
+    reason: string;
+    /** Blocage sectoriel : libellés de SES propres secteurs. */
+    sectors?: string[];
+    /** Blocage nominatif : personnes sélectionnées manuellement. */
+    userIds?: number[];
+}
 
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
@@ -119,6 +140,17 @@ function parseHM(hm: string): [number, number] {
     return [h, m];
 }
 
+/** Jours locaux `YYYY-MM-DD` de `from` à `to` inclus (bornes déjà validées). */
+function daysInRange(from: string, to: string): string[] {
+    const days: string[] = [];
+    const start = Date.parse(`${from}T00:00:00Z`);
+    const end = Date.parse(`${to}T00:00:00Z`);
+    for (let cur = start; cur <= end; cur += 86_400_000) {
+        days.push(new Date(cur).toISOString().slice(0, 10));
+    }
+    return days;
+}
+
 function overlapsBusy(startMs: number, endMs: number, busy: BusyInterval[]): boolean {
     return busy.some((b) => {
         const bs = Date.parse(b.start);
@@ -147,34 +179,94 @@ export class BookingService {
     }
 
     // ── Blocage de dates ──────────────────────────────────────────────────
-    /** Blocages visibles par l'utilisateur : les siens + ceux « pour tout le monde ». */
+    /** Blocages qui concernent l'utilisateur : les siens + ceux qui le ciblent. */
     async listDayBlocks(userId: number, from?: string, to?: string): Promise<DayBlock[]> {
         return this.blockRepo.findVisible(userId, from, to);
     }
 
-    /** Bloque un jour pour soi ou pour tout le monde. */
-    async blockDay(
-        userId: number,
-        input: { day: string; scope: DayBlockScope; reason: string },
-    ): Promise<void> {
-        await this.blockRepo.upsert(
-            input.day,
-            input.scope === 'ALL' ? null : userId,
-            'BLOCK',
-            input.reason,
-            userId,
-        );
+    /**
+     * Bloque une période (un seul jour si `from === to`) pour la portée demandée :
+     * soi-même, tout le monde, un de ses secteurs, ou une sélection de personnes.
+     */
+    async blockPeriod(actor: User, input: DayBlockPeriodInput): Promise<void> {
+        const targets = await this.resolveTargets(actor, input);
+        const days = daysInRange(input.from, input.to);
+        // Reprise : un blocage déjà posé sur la même portée par un autre RH ne se
+        // réécrit pas (ni motif ni auteur), sinon le contrôle « auteur ou
+        // responsable » à l'annulation serait contournable en le réécrivant.
+        const ownerId = input.scope === 'SELF' ? actor.id : null;
+        const existing = await this.blockRepo.findByScopeKey(scopeKeyFor(input.scope, ownerId, targets), days);
+        if (existing.some((row) => row.created_by != null && row.created_by !== actor.id)) {
+            throw new DayBlockConflictError('Ces dates sont déjà bloquées par un autre RH');
+        }
+        await this.blockRepo.save({
+            days,
+            userId: ownerId,
+            scope: input.scope,
+            kind: 'BLOCK',
+            reason: input.reason,
+            createdBy: actor.id,
+            groupKey: randomUUID(),
+            targets,
+        });
+    }
+
+    /** Résout les cibles d'un blocage en lignes de `calendar_day_block_targets`. */
+    private async resolveTargets(actor: User, input: DayBlockPeriodInput): Promise<string[]> {
+        if (input.scope === 'SECTOR') {
+            const labels = [...new Set(input.sectors ?? [])];
+            if (labels.length === 0) throw new DayBlockValidationError('Choisissez au moins un secteur');
+            // On ne résout que parmi SES secteurs : « mon secteur » reste une
+            // portée personnelle, jamais un moyen de bloquer les autres.
+            const mine = await this.blockRepo.findUserSectors(actor.id);
+            const idByLabel = new Map<string, number>();
+            for (const sector of mine) if (!idByLabel.has(sector.label)) idByLabel.set(sector.label, sector.id);
+            return labels.map((label) => {
+                const id = idByLabel.get(label);
+                if (id === undefined) throw new DayBlockValidationError(`Secteur inconnu : ${label}`);
+                return `${SECTOR_TARGET_PREFIX}${id}`;
+            });
+        }
+        if (input.scope === 'USERS') {
+            const ids = [...new Set(input.userIds ?? [])].filter((id) => Number.isInteger(id) && id > 0);
+            if (ids.length === 0) throw new DayBlockValidationError('Choisissez au moins une personne');
+            const allowed = await this.targetableUserIds(actor);
+            if (ids.some((id) => !allowed.has(id))) {
+                throw new DayBlockValidationError('Certaines personnes ne sont pas accessibles depuis votre agenda');
+            }
+            return ids.map((id) => `${USER_TARGET_PREFIX}${id}`);
+        }
+        return [];
     }
 
     /**
-     * « Me rendre disponible » : dérogation personnelle à un blocage global.
-     * Bascule — un second appel re-bloque le jour pour cet utilisateur.
+     * Personnes qu'un utilisateur peut cibler : les mêmes que la liste du
+     * calendrier — RH + soi-même, restreint à son secteur pour un EMPLOYEE,
+     * tout le monde pour un RESPONSABLE/ADMIN.
+     */
+    private async targetableUserIds(actor: User): Promise<Set<number>> {
+        const rhUsers = await userService.findByJobRoles([JobRole.RH]);
+        const people = rhUsers.some((u) => u.id === actor.id) ? rhUsers : [actor, ...rhUsers];
+        const visible = canAccessAllSectors(actor.permission)
+            ? people
+            : people.filter((u) => u.id === actor.id || shareSector(actor.sectors, u.sectors));
+        return new Set(visible.map((u) => u.id));
+    }
+
+    /**
+     * « Me rendre disponible » : dérogation personnelle à un blocage collectif.
+     * Bascule — un second appel re-bloque les jours pour cet utilisateur.
+     * La dérogation est journalière (sémantique #1080 conservée) : elle vaut pour
+     * la date, pas pour le blocage qui l'a motivée.
      */
     async releaseDayBlock(userId: number, id: number): Promise<void> {
         const block = await this.blockRepo.findById(id);
         if (!block || block.kind !== 'BLOCK') throw new DayBlockNotFoundError('Blocage introuvable');
         if (block.user_id != null) {
             throw new DayBlockForbiddenError('Ce blocage ne concerne que vous : annulez-le');
+        }
+        if (!(await this.blockRepo.concernsUser(block.id, userId))) {
+            throw new DayBlockForbiddenError('Ce blocage ne vous concerne pas');
         }
         const mine = await this.blockRepo.findPersonal(userId, block.day);
         if (mine?.kind === 'BLOCK') {
@@ -184,23 +276,86 @@ export class BookingService {
             await this.blockRepo.deleteById(mine.id);
             return;
         }
-        await this.blockRepo.upsert(block.day, userId, 'OPEN', block.reason, userId);
+        await this.blockRepo.save({
+            days: [block.day],
+            userId,
+            scope: 'SELF',
+            kind: 'OPEN',
+            reason: block.reason,
+            createdBy: userId,
+            groupKey: '',
+        });
     }
 
     /**
-     * Annule un blocage. Un blocage personnel ne peut être annulé que par son
-     * auteur ; un blocage global est supprimé pour tout le monde (les
-     * dérogations personnelles qui l'annulaient tombent avec lui).
+     * Dérogation personnelle sur toute une période. Refusée si un jour est déjà
+     * bloqué pour soi (le blocage personnel l'emporte).
      */
-    async deleteDayBlock(userId: number, id: number): Promise<void> {
+    async releaseBlockGroup(userId: number, groupKey: string): Promise<void> {
+        const rows = await this.blockRepo.findGroup(groupKey);
+        if (rows.length === 0) throw new DayBlockNotFoundError('Blocage introuvable');
+        if (rows.every((r) => r.user_id != null)) {
+            throw new DayBlockForbiddenError('Ce blocage ne concerne que vous : débloquez-le');
+        }
+        if (!(await this.blockRepo.allConcernUser(rows.map((r) => r.id), userId))) {
+            throw new DayBlockForbiddenError('Ce blocage ne vous concerne pas');
+        }
+        const days = [...new Set(rows.map((r) => r.day))];
+        const mine = await this.blockRepo.findPersonalOnDays(userId, days);
+        if (mine.some((r) => r.kind === 'BLOCK')) {
+            throw new DayBlockConflictError('Ces jours sont déjà bloqués pour vous');
+        }
+        const openDays = new Set(mine.filter((r) => r.kind === 'OPEN').map((r) => r.day));
+        if (days.every((day) => openDays.has(day))) {
+            await this.blockRepo.deleteOpenDays(userId, days);
+            return;
+        }
+        await this.blockRepo.save({
+            days: days.filter((day) => !openDays.has(day)),
+            userId,
+            scope: 'SELF',
+            kind: 'OPEN',
+            reason: rows[0].reason,
+            createdBy: userId,
+            groupKey: '',
+        });
+    }
+
+    /**
+     * Annule un jour. Un blocage personnel ne peut être annulé que par son
+     * auteur ; un blocage collectif est supprimé pour tout le monde par son
+     * auteur ou un responsable (mêmes règles que l'annulation d'une période).
+     */
+    async deleteDayBlock(actor: User, id: number): Promise<void> {
         const block = await this.blockRepo.findById(id);
         if (!block || block.kind !== 'BLOCK') throw new DayBlockNotFoundError('Blocage introuvable');
         if (block.user_id != null) {
-            if (block.user_id !== userId) throw new DayBlockForbiddenError('Ce blocage ne vous appartient pas');
+            if (block.user_id !== actor.id) throw new DayBlockForbiddenError('Ce blocage ne vous appartient pas');
             await this.blockRepo.deleteById(block.id);
             return;
         }
-        await this.blockRepo.deleteGlobalBlock(block.day);
+        if (!canAccessAllSectors(actor.permission) && block.created_by !== actor.id) {
+            throw new DayBlockForbiddenError('Seul l’auteur du blocage (ou un responsable) peut l’annuler');
+        }
+        await this.blockRepo.deleteCollectiveDay(block.id, block.day);
+    }
+
+    /**
+     * Annule toute une période. Un blocage personnel reste réservé à son auteur ;
+     * un blocage collectif peut être annulé par son auteur ou un responsable.
+     */
+    async deleteBlockGroup(actor: User, groupKey: string): Promise<void> {
+        const rows = await this.blockRepo.findGroup(groupKey);
+        if (rows.length === 0) throw new DayBlockNotFoundError('Blocage introuvable');
+        const personal = rows.every((r) => r.user_id != null);
+        if (personal) {
+            if (rows.some((r) => r.user_id !== actor.id)) {
+                throw new DayBlockForbiddenError('Ce blocage ne vous appartient pas');
+            }
+        } else if (!canAccessAllSectors(actor.permission) && rows.some((r) => r.created_by !== actor.id)) {
+            throw new DayBlockForbiddenError('Seul l’auteur du blocage (ou un responsable) peut l’annuler');
+        }
+        await this.blockRepo.deleteGroup(groupKey);
     }
 
     async update(userId: number, patch: Partial<BookingSettings>): Promise<BookingSettings> {

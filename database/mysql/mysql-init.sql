@@ -91,29 +91,45 @@ CREATE TABLE IF NOT EXISTS `booking_settings` (
 -- Blocage de dates dans l'agenda d'un RH (« Congés », « Séminaire »…).
 -- Une ligne = un jour :
 --   * `kind = 'BLOCK'` : le jour n'est plus proposé sur la page de réservation.
---     `user_id NULL` = blocage « pour tout le monde » (tous les RH), sinon
---     blocage « pour moi » uniquement.
+--     `scope` dit pour qui : 'SELF' (blocage « pour moi », `user_id` renseigné),
+--     'ALL' (« pour tout le monde »), 'SECTOR' / 'USERS' (cibles dans
+--     `calendar_day_block_targets` : secteurs, ou personnes sélectionnées).
 --   * `kind = 'OPEN'` : dérogation personnelle (« me rendre disponible ») qui
---     annule un blocage global pour ce seul utilisateur.
--- `scope_key` matérialise la portée ('ALL' ou 'U<user_id>') pour n'autoriser
--- qu'une ligne par jour et par portée (MySQL n'indexe pas les NULL d'une clé
--- unique ; une colonne générée est impossible ici, MySQL interdisant qu'une
--- colonne générée dépende d'une colonne de clé étrangère).
+--     annule un blocage collectif pour ce seul utilisateur.
+-- `scope_key` matérialise la portée ('ALL', 'U<user_id>' ou 'G<hash des cibles>')
+-- pour n'autoriser qu'une ligne par jour et par portée (MySQL n'indexe pas les
+-- NULL d'une clé unique ; une colonne générée est impossible ici, MySQL
+-- interdisant qu'une colonne générée dépende d'une colonne de clé étrangère).
+-- `group_key` regroupe les jours d'une même saisie (« Congés du 12 au 23 ») :
+-- une période = N lignes, une seule entrée dans l'interface.
 CREATE TABLE IF NOT EXISTS `calendar_day_blocks` (
   `id` int NOT NULL AUTO_INCREMENT,
   `day` date NOT NULL,
   `user_id` int DEFAULT NULL,
   `kind` enum('BLOCK','OPEN') NOT NULL DEFAULT 'BLOCK',
+  `scope` enum('SELF','ALL','SECTOR','USERS') NOT NULL DEFAULT 'SELF',
   `reason` varchar(255) NOT NULL,
   `created_by` int DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `group_key` varchar(36) NOT NULL DEFAULT '',
   `scope_key` varchar(16) NOT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `uniq_calendar_day_blocks_scope_day` (`scope_key`,`day`),
   KEY `idx_calendar_day_blocks_day` (`day`),
   KEY `idx_calendar_day_blocks_user` (`user_id`),
+  KEY `idx_calendar_day_blocks_group` (`group_key`),
   CONSTRAINT `fk_calendar_day_blocks_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_calendar_day_blocks_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Cibles d'un blocage collectif : `S:<sector_id>` (membres du secteur, résolus à
+-- la lecture via `user_sectors`) ou `U:<user_id>` (personnes sélectionnées).
+CREATE TABLE IF NOT EXISTS `calendar_day_block_targets` (
+  `block_id` int NOT NULL,
+  `target` varchar(64) NOT NULL,
+  PRIMARY KEY (`block_id`,`target`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_calendar_day_block_targets_target` (`target`),
+  CONSTRAINT `fk_calendar_day_block_targets_block_id` FOREIGN KEY (`block_id`) REFERENCES `calendar_day_blocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 
@@ -516,6 +532,7 @@ CREATE TABLE disciplina_annemasse.roles LIKE disciplina.roles;
 CREATE TABLE disciplina_annemasse.users LIKE disciplina.users;
 CREATE TABLE disciplina_annemasse.booking_settings LIKE disciplina.booking_settings;
 CREATE TABLE disciplina_annemasse.calendar_day_blocks LIKE disciplina.calendar_day_blocks;
+CREATE TABLE disciplina_annemasse.calendar_day_block_targets LIKE disciplina.calendar_day_block_targets;
 CREATE TABLE disciplina_annemasse.companies LIKE disciplina.companies;
 CREATE TABLE disciplina_annemasse.company_conflict LIKE disciplina.company_conflict;
 CREATE TABLE disciplina_annemasse.companies_blacklist LIKE disciplina.companies_blacklist;
@@ -548,6 +565,9 @@ ALTER TABLE disciplina_annemasse.booking_settings
 ALTER TABLE disciplina_annemasse.calendar_day_blocks
   ADD CONSTRAINT fk_calendar_day_blocks_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT fk_calendar_day_blocks_created_by FOREIGN KEY (created_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.calendar_day_block_targets
+  ADD CONSTRAINT fk_calendar_day_block_targets_block_id FOREIGN KEY (block_id) REFERENCES disciplina_annemasse.calendar_day_blocks (id) ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE disciplina_annemasse.companies
   ADD CONSTRAINT fk_companies_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON UPDATE CASCADE;
