@@ -249,6 +249,7 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | other_description_missions | string | — | Free-text extra description |
 | other_missions | string | — | Free-text extra missions |
 | matching | object | — | Matching state for this offer (see below) — replaces the former `jobs` collection |
+| is_active | bool / null | — | Override actif/inactif de l'annuaire entreprises ; null = hérite du statut de l'AB |
 | criteria | object | — | Apprentice criteria for this position (see below) |
 
 #### offers[].matching

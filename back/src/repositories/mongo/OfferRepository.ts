@@ -210,6 +210,15 @@ export class OfferRepository {
         ).lean();
     }
 
+    /** Override actif/inactif d'une offre ; `null` rétablit l'héritage du statut de l'AB. */
+    async setOfferActive(offerId: string, active: boolean | null): Promise<Offer | null> {
+        return getModels().Offer.findOneAndUpdate(
+            { _id: offerId },
+            { $set: { is_active: active } },
+            { new: true },
+        ).lean();
+    }
+
     /**
      * Marque le sous-ensemble proposé (status SEND + champs de proposition) et
      * rebascule les anciens proposés hors liste en simples retenus. Passe l'offre en CV_SEND.

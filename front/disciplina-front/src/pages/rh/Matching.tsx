@@ -25,7 +25,8 @@ import HistoryModal from '@/features/matching/components/HistoryModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
-import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus, useUpdateOfferActive } from '@/graphql/hooks'
+import Badge from '@/components/ui/Badge'
 import { abStatusBadge } from '@/types/needsAnalysis'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
@@ -104,6 +105,7 @@ interface Job {
   hasVehicle: boolean | null
   professionalExperience: boolean | null
   status: string | null
+  isActive?: boolean | null
   localisation: string[] | null
   sector: string | null
   salerInfo?: SalerInfo | null
@@ -583,10 +585,18 @@ function JobCard({
         </div>
       )}
 
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
           {chip.label}
         </span>
+        {job.isActive === false && (
+          <span
+            className="rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]"
+            title="Offre inactive dans l'annuaire entreprises"
+          >
+            Inactive
+          </span>
+        )}
       </div>
     </button>
   )
@@ -600,6 +610,9 @@ function JobDetailsSection({
   isCreatingSession,
   onProposeCandidates,
   onShowCompanyInfo,
+  onSetActive,
+  isSavingActive,
+  abStatus,
   onDeleteOffer,
   onSeeAb,
 }: {
@@ -609,10 +622,20 @@ function JobDetailsSection({
   isCreatingSession: boolean
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
+  onSetActive: (active: boolean | null) => void
+  isSavingActive: boolean
+  /** Statut de l'AB parente, servant de repli quand l'offre est « Automatique ». */
+  abStatus?: string | null
   onDeleteOffer?: () => void
   onSeeAb?: () => void
 }) {
   const chip = statusChip(job.status)
+  // Statut actif/inactif effectif : override de l'offre, sinon statut de l'AB
+  // (null tant que l'AB n'est pas chargée → pas de pastille).
+  const effectiveStatus =
+    job.isActive === true ? 'ACTIVE' : job.isActive === false ? 'INACTIVE' : (abStatus ?? null)
+  const effectiveTone = effectiveStatus === 'ACTIVE' ? 'success' : effectiveStatus === 'ARCHIVED' ? 'warning' : 'neutral'
+  const effectiveLabel = effectiveStatus === 'ACTIVE' ? 'Active' : effectiveStatus === 'ARCHIVED' ? 'Archivée' : 'Inactive'
 
   return (
     <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
@@ -635,7 +658,25 @@ function JobDetailsSection({
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 shadow-sm"
+            title="Changer le statut de l'offre — « Automatique » suit le statut de l'analyse de besoin"
+          >
+            <span className="text-xs font-medium text-[var(--ds-text-subtle)]">Statut de l'offre</span>
+            <select
+              value={job.isActive === true ? 'ACTIVE' : job.isActive === false ? 'INACTIVE' : 'AUTO'}
+              onChange={(e) => onSetActive(e.target.value === 'AUTO' ? null : e.target.value === 'ACTIVE')}
+              disabled={isSavingActive}
+              aria-label="Statut de l'offre"
+              className="cursor-pointer bg-transparent text-sm font-semibold text-[var(--ds-text)] outline-none disabled:opacity-50"
+            >
+              <option value="AUTO">Automatique</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+            {effectiveStatus && <Badge tone={effectiveTone}>{effectiveLabel}</Badge>}
+          </div>
           {onSeeAb && (
             <button
               onClick={onSeeAb}
@@ -1557,7 +1598,7 @@ function formatSlot(iso: string, tz: string): string {
 
 
 
-function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void }) {
+function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void; onOfferUpdated?: () => void }) {
   // Fuseau du tenant : regionStore est la source de vérité (persistée au login
   // par LoginPage.tsx), plutôt que AppUser qui peut être null au 1er rendu.
   const region = useRegionStore((s) => s.region)
@@ -1601,6 +1642,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [showOfferAbDetail, setShowOfferAbDetail] = useState(false)
+  const [isActiveSaving, setIsActiveSaving] = useState(false)
+  const { updateOfferActive } = useUpdateOfferActive()
 
   const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
   const interviewDefaultLocation =
@@ -1936,6 +1979,21 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     }
   }
 
+  /** Statut actif/inactif propre à l'offre ; null = hérite du statut de l'AB. */
+  const handleSetActive = async (active: boolean | null) => {
+    if (!selectedJob) return
+    setIsActiveSaving(true)
+    try {
+      const result = await updateOfferActive(selectedJob.id, active)
+      if (!result.error) {
+        setJobData((prev) => (prev ? { ...prev, isActive: active } : prev))
+        onOfferUpdated?.()
+      }
+    } finally {
+      setIsActiveSaving(false)
+    }
+  }
+
   const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string, cc?: string[]): Promise<string> => {
     const result = await offerGraphqlClient
       .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates, templateId, cc })
@@ -2083,6 +2141,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
+        onSetActive={handleSetActive}
+        isSavingActive={isActiveSaving}
+        abStatus={interviewLocationNeedsAnalysis.data?.needsAnalysis?.abStatus}
         hasAcceptedCandidates={toSendCandidates.length > 0}
         isCreatingSession={false}
         onProposeCandidates={() => setSendToCompanyOpen(true)}
@@ -2688,7 +2749,7 @@ export default function Matching() {
 
         {/* ─ Right: Detail panel ─ */}
         <div className="flex-1 overflow-y-auto px-5 pt-5">
-          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} />
+          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} onOfferUpdated={() => reexecuteJobsQuery({ requestPolicy: 'network-only' })} />
         </div>
       </div>
     </div>

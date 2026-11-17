@@ -275,6 +275,11 @@ export const typeDefs = gql`
         hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
+        """
+        Statut actif/inactif propre à l'offre (annuaire entreprises). null
+        signifie que l'offre hérite du statut de son AB parente.
+        """
+        isActive: Boolean
         localisation: [Localisation]
         sector: Sector
         matchedCandidate: [MatchingCandidate]
@@ -394,6 +399,11 @@ export const typeDefs = gql`
 
     type Mutation {
         updateOffer(id: String!, offer: OfferInput!): Offer
+        """
+        Override actif/inactif d'une offre (annuaire entreprises). active à
+        null rétablit l'héritage : l'offre suit le statut de son AB parente.
+        """
+        updateOfferActive(id: String!, active: Boolean): Offer
         unmatchOffer(id: String!): Offer
         addCandidateToOffer(offerId: String!, candidateId: String!): Offer
         removeCandidateFromOffer(offerId: String!, candidateId: String!): Offer

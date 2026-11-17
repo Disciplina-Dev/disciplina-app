@@ -44,6 +44,12 @@ export interface Offer extends Position {
 
     matching?: Matching;
 
+    /**
+     * Statut actif/inactif propre à l'offre (annuaire entreprises). `null` ou
+     * absent = l'offre hérite du statut de son AB parente.
+     */
+    is_active?: boolean | null;
+
     created_at?: Date;
     updated_at?: Date;
 }

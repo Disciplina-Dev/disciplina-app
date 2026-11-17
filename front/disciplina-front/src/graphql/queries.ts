@@ -1364,6 +1364,7 @@ export const MATCH_OFFER = gql`
       hasVehicle
       professionalExperience
       status
+      isActive
       localisation
       sector
       softSkills
@@ -1600,6 +1601,15 @@ export const UPDATE_OFFER = gql`
   }
 `
 
+export const UPDATE_OFFER_ACTIVE = gql`
+  mutation UpdateOfferActive($id: String!, $active: Boolean) {
+    updateOfferActive(id: $id, active: $active) {
+      id
+      isActive
+    }
+  }
+`
+
 export const UNMATCH_OFFER = gql`
   mutation UnmatchOffer($id: String!) {
     unmatchOffer(id: $id) {
@@ -1705,6 +1715,7 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
       hasVehicle
       professionalExperience
       status
+      isActive
       localisation
       sector
       title
@@ -1866,6 +1877,7 @@ export const GET_OFFERS_DIRECTORY = gql`
       title
       jobRole
       status
+      isActive
       localisation
       desiredTp {
         tpType
