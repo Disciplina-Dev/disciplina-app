@@ -135,6 +135,7 @@ function toGql(
         hasVehicle: offer.criteria?.has_vehicle ?? false,
         professionalExperience: offer.criteria?.experience_required ?? false,
         status: offer.matching?.status ?? OfferStatus.NOT_MATCHED,
+        isActive: offer.is_active ?? null,
         localisation: offer.localisation,
         sector: null,
         matched: false,
@@ -415,6 +416,15 @@ export class OfferService {
             return offer ? toGql(offer) : null;
         }
         return null;
+    }
+
+    /**
+     * Statut actif/inactif propre à une offre (annuaire entreprises). `null`
+     * rétablit l'héritage : l'offre suit alors le statut de son AB parente.
+     */
+    async setActive(id: string, active: boolean | null): Promise<object | null> {
+        const offer = await this.offerRepository.setOfferActive(id, active);
+        return offer ? toGql(offer) : null;
     }
 
     async delete(id: string): Promise<boolean> {

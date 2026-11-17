@@ -24,6 +24,8 @@ const offerSchema = new Schema<Offer & Document>(
         referents: { type: referentsSchema },
         ...positionSchemaDefinition,
         matching: { type: matchingSchema, default: () => ({}) },
+        // Override actif/inactif de l'annuaire entreprises ; null = hérite de l'AB.
+        is_active: { type: Boolean, default: null },
         created_at: { type: Date },
         updated_at: { type: Date },
     },

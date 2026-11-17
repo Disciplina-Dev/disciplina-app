@@ -47,6 +47,7 @@ import {
   GET_OFFER_HISTORY,
   ADD_OFFER_HISTORY_ENTRY,
   DELETE_OFFER_HISTORY_ENTRY,
+  UPDATE_OFFER_ACTIVE,
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
 import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
@@ -873,6 +874,18 @@ export function useDeleteOfferHistoryEntry() {
   }
 
   return { deleteEntry }
+}
+
+/**
+ * Override actif/inactif d'une offre de l'annuaire entreprises.
+ * `active` à null rétablit l'héritage du statut de l'AB parente.
+ */
+export function useUpdateOfferActive() {
+  const updateOfferActive = (id: string, active: boolean | null) => {
+    return offerGraphqlClient.mutation(UPDATE_OFFER_ACTIVE, { id, active }).toPromise()
+  }
+
+  return { updateOfferActive }
 }
 
 export function useCreateNeedsAnalysis() {

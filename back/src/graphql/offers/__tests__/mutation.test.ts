@@ -63,6 +63,57 @@ describe('GraphQL job mutations', () => {
         });
     });
 
+    describe('updateOfferActive', () => {
+        it('stores a per-offer override and resets it to inherit the AB status', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const seeded = await seedOffer({
+                _id: `job-active-${suffix}`,
+                company_name: `Active Corp ${suffix}`,
+                status: OfferStatus.NOT_MATCHED,
+            });
+
+            const mutate = (active: boolean | null) =>
+                gql(auth, {
+                    query: `mutation($id: String!, $active: Boolean) {
+                        updateOfferActive(id: $id, active: $active) { id isActive }
+                    }`,
+                    variables: { id: seeded._id, active },
+                });
+
+            const inactive = await mutate(false);
+            expect(inactive.json.errors).toBeUndefined();
+            expect(inactive.json.data.updateOfferActive.isActive).toBe(false);
+
+            const active = await mutate(true);
+            expect(active.json.data.updateOfferActive.isActive).toBe(true);
+
+            // null efface l'override : l'offre hérite à nouveau de son AB.
+            const inherited = await mutate(null);
+            expect(inherited.json.data.updateOfferActive.isActive).toBeNull();
+
+            // La valeur est bien persistée et relue par les requêtes d'offres.
+            const { json: readJson } = await gql(auth, {
+                query: `query($id: String!) { matchOffer(id: $id) { isActive } }`,
+                variables: { id: seeded._id },
+            });
+            expect(readJson.data.matchOffer.isActive).toBeNull();
+        });
+
+        it('returns null when updating a non-existent job', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+
+            const { res, json } = await gql(auth, {
+                query: `mutation($id: String!) { updateOfferActive(id: $id, active: false) { id isActive } }`,
+                variables: { id: 'non-existent-id' },
+            });
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateOfferActive).toBeNull();
+        });
+    });
+
     describe('unmatchOffer', () => {
         it('clears matched candidates and sets NOT_MATCHED', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
