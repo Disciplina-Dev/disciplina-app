@@ -88,6 +88,8 @@ export interface EncryptedSsn {
     encrypted: string;
     iv: string;
     tag: string;
+    /** Empreinte de la clé de chiffrement (absente = format historique, clé scrypt). */
+    kid?: string;
 }
 
 // 1 : française, 2 : pays européen, 3 : autre (codes Filiz).

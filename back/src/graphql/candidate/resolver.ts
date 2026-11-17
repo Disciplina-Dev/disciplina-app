@@ -267,7 +267,7 @@ export const resolvers = {
             } catch (err) {
                 logger.error({ err, candidateId: id }, 'SSN unmask failed');
                 throw new Error(
-                    'Le numéro de sécurité sociale de cette fiche est illisible : il a été enregistré avant la mise en place du chiffrement, ou avec une autre clé. Une migration est nécessaire.',
+                    'Le numéro de sécurité sociale de cette fiche est illisible (clé inconnue ou valeur corrompue). Lancer la rotation : scripts/rotate-ssn-key.ts.',
                 );
             }
         },

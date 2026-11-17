@@ -111,6 +111,7 @@ services:
       INSEE_API_KEY: test-api-key
       OAUTH_ENCRYPTION_KEY: b2a84c6f814ddcaa75137e7ee8cdee759b305282e439da29b479fffde6f813af
       SSN_ENCRYPTION_KEY: ca8b3584e39e348284771bb25ff0bff6fe6bd3d645ff83d6a66899a01244203f
+      SSN_KDF_SALT: 5d1f0c7a9b3e4a68c2d7e1f90b4a3c58e6a7d2b1f4093c8e7a5b6d1c2e3f4a90
       CI: true
       RELANCE_HMAC_SECRET: Super-secret-hmac-relance
     # Rapport JSON de Vitest récupéré sur l'hôte : la CI en fait le résumé du run.

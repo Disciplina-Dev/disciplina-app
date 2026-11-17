@@ -65,6 +65,7 @@ const encryptedSsnSchema = new Schema<EncryptedSsn>(
         encrypted: { type: String, required: true },
         iv: { type: String, required: true },
         tag: { type: String, required: true },
+        kid: { type: String },
     },
     { _id: false },
 );

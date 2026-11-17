@@ -393,6 +393,18 @@ curl -i https://app-reunion.disciplina.re/.well-known/oauth-protected-resource/a
 
 Both must return `application/json` (OAuth metadata) — not `text/html` (SPA).
 
+### NIR key derivation & rotation (GDPR_INF_02.2)
+
+NIR (`identity.social_security_number`) are AES-256-GCM encrypted with a key derived by HKDF-SHA256 from `SSN_ENCRYPTION_KEY` + the per-deployment `SSN_KDF_SALT` (both in `back/.env`, both required, generate each with `openssl rand -hex 32`, never reuse the `.env.example` values). Each value carries a `kid` (key fingerprint).
+
+**First rollout / any rotation** (run from `back/` on the prod machine, backup first with `scripts/backup.sh`):
+
+1. Generate a new `SSN_ENCRYPTION_KEY` and `SSN_KDF_SALT`; put the old key (and old salt, if it had one) in `SSN_ENCRYPTION_KEY_PREVIOUS` / `SSN_KDF_SALT_PREVIOUS`. Store all values in the password manager. First rollout (legacy `'ssn-salt'` format): keep the current key as `SSN_ENCRYPTION_KEY_PREVIOUS` only.
+2. Deploy. Reads work for legacy, previous and current values; new writes use the new key.
+3. `npx ts-node scripts/rotate-ssn-key.ts --tenant all --dry-run`, then without `--dry-run`. Idempotent; re-run if it reports skipped records.
+4. `npx ts-node scripts/rotate-ssn-key.ts --tenant all --verify` must exit 0 (no plaintext, none on an old key, all decryptable) = acceptance criterion.
+5. Remove `*_PREVIOUS` only once step 4 is green **and** backups taken with the old key have expired (retention: GDPR_INF_07.3).
+
 ### Bulk company deletion by SIRET (manual, one-off)
 
 `scripts/delete_companies.py` deletes the companies listed in a text file (one

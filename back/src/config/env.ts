@@ -230,6 +230,11 @@ const data = {
 
     OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
     SSN_ENCRYPTION_KEY: requireString('SSN_ENCRYPTION_KEY'),
+    // Sel HKDF propre au déploiement (32 octets hex) : dérive la clé NIR (cf. ssn-cipher.ts).
+    SSN_KDF_SALT: requireString('SSN_KDF_SALT'),
+    // Rotation : ancienne clé/sel, en lecture seule le temps de la ré-encryption (rotate-ssn-key.ts).
+    SSN_ENCRYPTION_KEY_PREVIOUS: optionalString('SSN_ENCRYPTION_KEY_PREVIOUS'),
+    SSN_KDF_SALT_PREVIOUS: optionalString('SSN_KDF_SALT_PREVIOUS'),
 
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
@@ -254,6 +259,9 @@ if (!VALID_NODE_ENVS.includes(data.NODE_ENV)) {
 
 assertAes256HexKey(data.OAUTH_ENCRYPTION_KEY, 'OAUTH_ENCRYPTION_KEY');
 assertAes256HexKey(data.SSN_ENCRYPTION_KEY, 'SSN_ENCRYPTION_KEY');
+assertAes256HexKey(data.SSN_KDF_SALT, 'SSN_KDF_SALT');
+assertAes256HexKey(data.SSN_ENCRYPTION_KEY_PREVIOUS ?? '', 'SSN_ENCRYPTION_KEY_PREVIOUS');
+assertAes256HexKey(data.SSN_KDF_SALT_PREVIOUS ?? '', 'SSN_KDF_SALT_PREVIOUS');
 
 if (errors.length > 0) {
     console.error('Invalid environment variables:');
