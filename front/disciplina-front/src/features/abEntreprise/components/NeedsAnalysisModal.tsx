@@ -14,6 +14,7 @@ import { Localisation } from '@/types/candidate'
 import type { NeedsAnalysis, ScheduleSlot } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
 import { ALL_SECTORS, SECTOR_LABELS } from '@/data/sectors'
+import { toScheduleSlotInput } from '@/utils/schedule'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -658,7 +659,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           ageMax: p.criteria?.ageMax != null ? String(p.criteria.ageMax) : '',
           softSkills: parseSoftSkills(p.criteria?.softSkills),
           softSkillsOther: '',
-          scheduleOptions: p.criteria?.scheduleOptions ?? [],
+          scheduleOptions: toScheduleSlotInput(p.criteria?.scheduleOptions),
           conditions: p.criteria?.conditions ?? '',
           additionalComments: p.criteria?.additionalComments ?? '',
         },
@@ -935,7 +936,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           ageMin:             p.criteria.ageMin ? Number(p.criteria.ageMin) : null,
           ageMax:             p.criteria.ageMax ? Number(p.criteria.ageMax) : null,
           softSkills:         [...p.criteria.softSkills, ...(p.criteria.softSkillsOther ? [p.criteria.softSkillsOther] : [])].join(', ') || null,
-          scheduleOptions:    p.criteria.scheduleOptions,
+          scheduleOptions:    toScheduleSlotInput(p.criteria.scheduleOptions),
           conditions:         p.criteria.conditions || null,
           additionalComments: p.criteria.additionalComments || null,
         },
