@@ -58,6 +58,7 @@ import type { PageInfo } from '@/types/pagination'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import type { OfferFilterInput } from '@/features/matching/services/jobFilters'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
+import { toImmersionScheduleInput } from '@/utils/schedule'
 
 export interface CandidateServerFilters {
   trainingSite?: TrainingSite
@@ -376,7 +377,9 @@ function fromGql(c: any): Candidate {
     immersion_company_id: c.immersionCompanyId ?? undefined,
     immersion_company_name: c.immersionCompanyName ?? undefined,
     immersion_convention_number: c.immersionConventionNumber ?? undefined,
-    immersion_schedule: c.immersionSchedule ?? undefined,
+    immersion_schedule: c.immersionSchedule
+      ? toImmersionScheduleInput(c.immersionSchedule)
+      : undefined,
     contract_offer_id: c.contractOfferId ?? undefined,
     contract_company_id: c.contractCompanyId ?? undefined,
     contract_company_name: c.contractCompanyName ?? undefined,
@@ -553,7 +556,7 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
     ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
     ...(c.immersion_convention_number !== undefined && { immersionConventionNumber: c.immersion_convention_number }),
-    ...(c.immersion_schedule !== undefined && { immersionSchedule: c.immersion_schedule }),
+    ...(c.immersion_schedule !== undefined && { immersionSchedule: toImmersionScheduleInput(c.immersion_schedule) }),
     ...(c.contract_offer_id !== undefined && { contractOfferId: c.contract_offer_id }),
     ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
     ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
