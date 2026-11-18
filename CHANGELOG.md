@@ -48,6 +48,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ### Fixed
 
+- Offres correspondantes de la fiche candidat (#1188) : une offre désactivée dans l'annuaire entreprises (« Inactive ») n'est plus proposée au candidat — ni dans les suggestions automatiques, ni dans la recherche « Proposer des offres », ni même lorsqu'elle lui avait déjà été assignée. Les offres en statut « Automatique » continuent de suivre le statut de leur AB.
 - Prise de rendez-vous (#1191) : un entretien réservé par un candidat via le lien de calendrier d'un RH est désormais un vrai entretien (marquage « entretien », nom/prénom/email de l'invité enregistrés sur le créneau). « Venu » ouvre la création de la fiche candidat pré-remplie, le report et la relance « pas venu » sont disponibles, et le rendez-vous compte dans les KPI RH (« entretien placé », puis venu / pas venu / reporté / décliné).
 - Matching par secteur d'activité (#1066) : une offre ne propose plus que les candidats ayant coché l'un de ses secteurs ; le repli qui affichait tous les candidats quand aucun ne correspondait est supprimé. Le rapprochement compare désormais les secteurs du référentiel en tolérant les codes et libellés historiques (`COMMERCIAL` ≡ « Commerce / Vente »), et s'applique aussi aux « Offres correspondantes » de la fiche candidat. Les secteurs saisis librement dans l'AB restent ignorés faute d'équivalent candidat, avec un avertissement explicite.
 
