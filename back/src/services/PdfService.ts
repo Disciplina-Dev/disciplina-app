@@ -1,3 +1,4 @@
+import { decryptCandidateHealth } from './candidateHealthFields';
 import type { Browser } from 'puppeteer-core';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
@@ -1267,7 +1268,7 @@ export class PdfService {
                 doc.on('end', () => resolve(Buffer.concat(chunks)));
                 doc.on('error', reject);
 
-                renderCandidatePdf(doc, candidate);
+                renderCandidatePdf(doc, decryptCandidateHealth(candidate));
                 addPageFooters(doc);
                 doc.end();
             } catch (e) {

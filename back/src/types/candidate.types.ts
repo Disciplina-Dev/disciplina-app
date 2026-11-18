@@ -120,6 +120,7 @@ export interface Identity {
     driving_license_b?: boolean;
     has_vehicle?: boolean;
     transport_means?: string;
+    // Chiffrés au repos (health-cipher.ts) : ces types décrivent la valeur en clair, déchiffrée par le service/mapper.
     psh_referral_request?: boolean;
     had_apprenticeship_contract?: boolean;
     apprenticeship_contract_details?: string;

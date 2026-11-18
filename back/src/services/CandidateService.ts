@@ -28,6 +28,8 @@ import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
 import { QuestionnaireRepository } from '../repositories/mongo/QuestionnaireRepository';
 import { encryptSsn, MASKED_SSN } from '../external/crypto/ssn-cipher';
+import { decryptHealthIfNeeded } from '../external/crypto/health-cipher';
+import { encryptCandidateHealth } from './candidateHealthFields';
 
 function encryptIdentitySsn(identity?: Candidate['identity']): void {
     if (!identity || typeof identity.social_security_number !== 'string') return;
@@ -197,6 +199,7 @@ export class CandidateService {
             }
         }
         encryptIdentitySsn(data.identity);
+        encryptCandidateHealth(data);
         const created = await this.repository.create(data);
         if (created.status === CandidateStatus.CONTRACT) {
             await this.notifyCommercialOnContract(created);
@@ -236,6 +239,14 @@ export class CandidateService {
             ) {
                 data.immersion_agreement = false;
             }
+        }
+        // Le contact d'urgence est chiffré en bloc : une mise à jour partielle doit fusionner avec
+        // l'existant (avant, `flattenObject` ne touchait que les sous-champs envoyés).
+        if (existing?.emergency_contact && data.emergency_contact && typeof data.emergency_contact === 'object') {
+            data.emergency_contact = {
+                ...decryptHealthIfNeeded<Candidate['emergency_contact']>(existing.emergency_contact),
+                ...data.emergency_contact,
+            };
         }
         if (existing) {
             const merged: Candidate = {
@@ -287,6 +298,7 @@ export class CandidateService {
             }
         }
         encryptIdentitySsn(data.identity);
+        encryptCandidateHealth(data);
         const updated = await this.repository.update(id, data);
         if (updated) {
             // Passage en contrat : l'offre liée bascule elle aussi en contrat.

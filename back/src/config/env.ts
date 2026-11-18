@@ -236,6 +236,13 @@ const data = {
     SSN_ENCRYPTION_KEY_PREVIOUS: optionalString('SSN_ENCRYPTION_KEY_PREVIOUS'),
     SSN_KDF_SALT_PREVIOUS: optionalString('SSN_KDF_SALT_PREVIOUS'),
 
+    // Données de santé / handicap / contact d'urgence (GDPR_INF_02.3) : clé et sel HKDF distincts du NIR
+    // (cf. health-cipher.ts). Rotation via *_PREVIOUS (encrypt-health-fields.ts).
+    HEALTH_ENCRYPTION_KEY: requireString('HEALTH_ENCRYPTION_KEY'),
+    HEALTH_KDF_SALT: requireString('HEALTH_KDF_SALT'),
+    HEALTH_ENCRYPTION_KEY_PREVIOUS: optionalString('HEALTH_ENCRYPTION_KEY_PREVIOUS'),
+    HEALTH_KDF_SALT_PREVIOUS: optionalString('HEALTH_KDF_SALT_PREVIOUS'),
+
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
     MCP_API_KEY: optionalString('MCP_API_KEY'),
@@ -262,6 +269,10 @@ assertAes256HexKey(data.SSN_ENCRYPTION_KEY, 'SSN_ENCRYPTION_KEY');
 assertAes256HexKey(data.SSN_KDF_SALT, 'SSN_KDF_SALT');
 assertAes256HexKey(data.SSN_ENCRYPTION_KEY_PREVIOUS ?? '', 'SSN_ENCRYPTION_KEY_PREVIOUS');
 assertAes256HexKey(data.SSN_KDF_SALT_PREVIOUS ?? '', 'SSN_KDF_SALT_PREVIOUS');
+assertAes256HexKey(data.HEALTH_ENCRYPTION_KEY, 'HEALTH_ENCRYPTION_KEY');
+assertAes256HexKey(data.HEALTH_KDF_SALT, 'HEALTH_KDF_SALT');
+assertAes256HexKey(data.HEALTH_ENCRYPTION_KEY_PREVIOUS ?? '', 'HEALTH_ENCRYPTION_KEY_PREVIOUS');
+assertAes256HexKey(data.HEALTH_KDF_SALT_PREVIOUS ?? '', 'HEALTH_KDF_SALT_PREVIOUS');
 
 if (errors.length > 0) {
     console.error('Invalid environment variables:');
@@ -303,6 +314,11 @@ if (INSECURE_DEFAULTS.has(data.OAUTH_ENCRYPTION_KEY)) {
 
 if (INSECURE_DEFAULTS.has(data.SSN_ENCRYPTION_KEY)) {
     console.error('SSN_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.HEALTH_ENCRYPTION_KEY)) {
+    console.error('HEALTH_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 
