@@ -48,6 +48,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ### Fixed
 
+- Prise de rendez-vous (#1191) : un entretien réservé par un candidat via le lien de calendrier d'un RH est désormais un vrai entretien (marquage « entretien », nom/prénom/email de l'invité enregistrés sur le créneau). « Venu » ouvre la création de la fiche candidat pré-remplie, le report et la relance « pas venu » sont disponibles, et le rendez-vous compte dans les KPI RH (« entretien placé », puis venu / pas venu / reporté / décliné).
 - Matching par secteur d'activité (#1066) : une offre ne propose plus que les candidats ayant coché l'un de ses secteurs ; le repli qui affichait tous les candidats quand aucun ne correspondait est supprimé. Le rapprochement compare désormais les secteurs du référentiel en tolérant les codes et libellés historiques (`COMMERCIAL` ≡ « Commerce / Vente »), et s'applique aussi aux « Offres correspondantes » de la fiche candidat. Les secteurs saisis librement dans l'AB restent ignorés faute d'équivalent candidat, avec un avertissement explicite.
 
 ### Security
