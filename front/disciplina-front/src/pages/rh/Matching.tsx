@@ -1280,100 +1280,101 @@ function buildOfferMailBody(
   ouiUrl: string,
   nonUrl: string,
 ): string {
-  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  // Ce corps part tel quel vers /api/email/send, où `sanitizeMailHtml` supprime
+  // <style>, <div> et les classes : tout le style doit donc être inline sur les
+  // balises autorisées (a, p, span, ul/li). Sans ça les deux boutons arrivent en
+  // simples liens texte, ce qui pousse les candidats à répondre au mail.
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const name = esc(candidateName?.split(' ')[0] ?? 'Candidat')
   const companyName = job.companyInfos?.name ?? job.companyName
   const offerTitle = job.jobRole || job.title
   const segments: string[] = []
 
-  if (offerTitle) {
-    segments.push(`<div class="job-title"><strong>Role</strong></br> ${offerTitle}</div>`)
-  }
+  const label = (text: string) =>
+    `<span style="color:#6b7280;font-size:11px;font-weight:bold">${esc(text)}</span>`
+  const row = (text: string, html: string) =>
+    `<p>${label(text)}<br><span style="color:#111827;font-size:13px;font-weight:bold">${html}</span></p>`
+
+  if (offerTitle) segments.push(row('RÔLE', esc(offerTitle)))
   if (job.sector && job.sector !== 'NONE') {
-    segments.push(`<div class="field"><div class="field-label">Secteur</div><div class="field-value">${formatEnumLabel(job.sector)}</div></div>`)
+    segments.push(row('SECTEUR', esc(formatEnumLabel(job.sector))))
   }
   if (job.localisation && job.localisation.length > 0) {
     const locs = job.localisation
       .map((l) => LOCALISATION_LABELS[l as keyof typeof LOCALISATION_LABELS] ?? l)
       .filter(Boolean)
       .join(', ')
-    if (locs) {
-      segments.push(`<div class="field"><div class="field-label"><strong>Localisation</strong></div><div class="field-value">${locs}</div></div>`)
-    }
+    if (locs) segments.push(row('LOCALISATION', esc(locs)))
   }
   for (const tp of job.desiredTp) {
     if (tp.missions.length === 0) continue
-    const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label"><strong>Missions</strong> — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+    const items = tp.missions.map((m) => `<li>${esc(m)}</li>`).join('')
+    segments.push(`<p>${label(`MISSIONS — ${tpLabel(tp.tpType)}`)}</p><ul>${items}</ul>`)
   }
   const schedule = formatScheduleSlots(job.schedule)
   if (schedule.length > 0) {
-    const items = schedule.map((s) => `<li>${s}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label"><strong>Horaires</strong></div><ul class="mission-list">${items}</ul></div>`)
+    const items = schedule.map((s) => `<li>${esc(s)}</li>`).join('')
+    segments.push(`<p>${label('HORAIRES')}</p><ul>${items}</ul>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
-    const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
-    segments.push(`<div class="field"><div class="field-label"><strong>Activités de l'entreprise</strong></div><div>${tags}</div></div>`)
+    const acts = job.companyInfos.activities.map((a) => SECTOR_LABELS[a] ?? a).join(', ')
+    segments.push(row("ACTIVITÉS DE L'ENTREPRISE", esc(acts)))
   }
-  const offerCard = segments.length > 0
-    ? `<div class="offer-card">${segments.join('')}</div>`
-    : ''
 
-  const introCompany = companyName ? ` chez <strong>${companyName}</strong>` : ''
+  const introCompany = companyName ? ` chez <strong>${esc(companyName)}</strong>` : ''
+
+  // Bouton « bulletproof » : <a> inline-block avec fond + padding. Empilés (un par
+  // paragraphe) plutôt qu'en flex : `display:flex` est supprimé par le sanitizer et
+  // mal supporté par Outlook, ce qui cassait la mise en page côte à côte.
+  const primaryButton =
+    `<p style="text-align:center">` +
+    `<a href="${esc(ouiUrl)}" style="display:inline-block;background-color:#60207E;color:#ffffff;` +
+    `padding:16px 40px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none">` +
+    `✓&nbsp;Oui, je veux postuler à cette offre</a>` +
+    `</p>`
+  const secondaryButton =
+    `<p style="text-align:center">` +
+    `<a href="${esc(nonUrl)}" style="display:inline-block;background-color:#f3f4f6;color:#374151;` +
+    `padding:16px 40px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none;border:none">` +
+    `✗&nbsp;Non, je ne suis pas intéressé(e)</a>` +
+    `</p>`
+
+  // La version texte du mail (générée côté back en retirant les balises) perd les
+  // href : on répète donc les URLs en clair pour les clients sans HTML.
+  const fallbackLinks =
+    `<p><span style="color:#6b7280;font-size:11px;font-weight:bold">LES BOUTONS NE S'AFFICHENT PAS ?</span><br>` +
+    `<span style="color:#6b7280;font-size:12px">Copiez-collez l'un de ces liens dans votre navigateur :<br>` +
+    `Oui&nbsp;: <a href="${esc(ouiUrl)}" style="color:#60207E;font-size:12px">${esc(ouiUrl)}</a><br>` +
+    `Non&nbsp;: <a href="${esc(nonUrl)}" style="color:#60207E;font-size:12px">${esc(nonUrl)}</a></span></p>`
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
-  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
-  p { line-height: 1.6; margin: 0 0 16px; }
-  .offer-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 16px 0; }
-  .field { margin-bottom: 10px; }
-  .field-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: #9ca3af; letter-spacing: 0.5px; }
-  .field-value { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 2px; }
-  .company { font-size: 17px; font-weight: 800; color: #60207E; margin-bottom: 4px; }
-  .job-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
-  .mission-list { list-style: none; padding: 0; margin: 4px 0 0; }
-  .mission-list li { padding: 3px 0; font-size: 13px; color: #374151; position: relative; padding-left: 16px; }
-  .mission-list li::before { content: "•"; position: absolute; left: 0; color: #60207E; }
-  .activity-tag { display: inline-block; background: #f3e8ff; color: #60207E; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 2px; }
-  .question { font-size: 17px; font-weight: 700; margin: 28px 0 24px; }
-  .buttons { display: flex; gap: 12px; margin: 28px 0; }
-  .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
-  .btn-oui { background: #60207E; color: #ffffff; }
-  .btn-non { background: #f3f4f6; color: #374151; }
-  .benefits { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 16px; margin: 20px 0; }
-  .benefits h4 { color: #60207E; font-size: 14px; margin: 0 0 8px; }
-  .benefits ul { margin: 0; padding-left: 20px; }
-  .benefits li { font-size: 13px; color: #374151; margin-bottom: 4px; }
-  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
-</style>
-</head>
+<head><meta charset="utf-8"></head>
 <body>
-  <div class="logo">DISCIPLINA</div>
+  <p style="color:#60207E;font-size:20px;font-weight:bold">DISCIPLINA</p>
   <p>Bonjour ${name},</p>
-  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil :</p>
-  ${offerCard}
-  <div class="benefits">
-    <h4>Pourquoi postuler ?</h4>
-    <ul>
-      <li>Une formation en alternance rémunérée</li>
-      <li>Une expérience professionnelle enrichissante</li>
-      <li>Un accompagnement personnalisé tout au long de votre parcours</li>
-      <li>Un diplôme reconnu à la clé</li>
-    </ul>
-  </div>
-  <p class="question">Souhaitez-vous postuler à cette offre ?</p>
-  <div class="buttons">
-    <a href="${ouiUrl}" class="btn btn-oui">✓ &nbsp;Oui, je suis intéressé(e)</a>
-    <a href="${nonUrl}" class="btn btn-non">✗ &nbsp;Non, merci</a>
-  </div>
-  <p>Un simple clic suffit. Notre équipe vous recontactera rapidement pour la suite du processus.</p>
-  <div class="footer">
-    Cordialement,<br>
-    L'équipe DISCIPLINA<br>
-    <small style="color:#9ca3af;">Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</small>
-  </div>
+  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil&nbsp;:</p>
+  ${segments.join('')}
+  <p><span style="color:#60207E;font-size:14px;font-weight:bold">Pourquoi postuler ?</span></p>
+  <ul>
+    <li>Une formation en alternance rémunérée</li>
+    <li>Une expérience professionnelle enrichissante</li>
+    <li>Un accompagnement personnalisé tout au long de votre parcours</li>
+    <li>Un diplôme reconnu à la clé</li>
+  </ul>
+  <p style="text-align:center;font-size:17px;font-weight:bold">Souhaitez-vous postuler à cette offre&nbsp;?</p>
+  ${primaryButton}
+  ${secondaryButton}
+  <p style="text-align:center;font-size:13px;color:#6b7280">Un simple clic suffit&nbsp;: votre réponse est enregistrée automatiquement.</p>
+  <p style="background-color:#fef3c7;color:#92400e;padding:12px 16px;border-radius:8px;font-size:13px">
+    <strong>Merci de ne pas répondre à cet e-mail.</strong> Une réponse par mail ne peut pas être traitée&nbsp;:
+    pour indiquer votre choix, cliquez sur l'un des deux boutons ci-dessus.
+  </p>
+  ${fallbackLinks}
+  <hr style="border:none;height:1px;background-color:#e5e7eb">
+  <p><span style="color:#9ca3af;font-size:12px">Cordialement,<br>L'équipe DISCIPLINA<br>Cet e-mail a été envoyé automatiquement, merci de ne pas y répondre.</span></p>
 </body>
 </html>`
 }

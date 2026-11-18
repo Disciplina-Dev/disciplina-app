@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeMailHtml } from '../sanitizeMailHtml';
+import { htmlToPlainText, sanitizeMailHtml } from '../sanitizeMailHtml';
 
 describe('sanitizeMailHtml', () => {
     it('retire les balises actives (script, onerror, onclick)', () => {
@@ -77,5 +77,23 @@ describe('sanitizeMailHtml', () => {
         expect(out).toContain('align="center"');
         expect(out).toContain('margin-left:auto');
         expect(out).toContain('margin-right:auto');
+    });
+});
+
+describe('htmlToPlainText', () => {
+    it('décode les entités pour que les liens signés restent copiables', () => {
+        const html =
+            '<p>Oui&nbsp;: <a href="https://exemple.fr/api?answer=oui&amp;sig=abc&amp;ts=1">' +
+            'https://exemple.fr/api?answer=oui&amp;sig=abc&amp;ts=1</a></p>';
+        expect(htmlToPlainText(html)).toBe('Oui : https://exemple.fr/api?answer=oui&sig=abc&ts=1');
+    });
+
+    it('décode une seule fois (pas de double décodage)', () => {
+        expect(htmlToPlainText('<p>&amp;lt;</p>')).toBe('&lt;');
+    });
+
+    it('garde un saut de ligne par paragraphe et par lien', () => {
+        const html = '<p>Question ?</p><p>Oui&nbsp;: <a href="https://exemple.fr">https://exemple.fr</a></p>';
+        expect(htmlToPlainText(html)).toBe('Question ?\nOui : https://exemple.fr');
     });
 });
