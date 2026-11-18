@@ -15,8 +15,9 @@ import { GoogleGmailService } from '../../external/google/gmail.service';
 import { withNoReply } from '../../external/google/no-reply';
 import { GoogleTokens } from '../../external/google/types';
 import { JobRole, User } from '../../types/user.types';
-import { canAccessAllSectors, shareSector } from '../../utils/sector';
+import { canAccessAllSectors, primarySector, shareSector } from '../../utils/sector';
 import { logger } from '../../external/logger';
+import { RhKpiService } from '../../services/RhKpiService';
 
 export interface Slot {
     /** ISO datetime UTC du début. */
@@ -55,6 +56,7 @@ export interface DayBlockPeriodInput {
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
+const rhKpiService = new RhKpiService();
 
 /** Nom complet de l'invité (« Prénom Nom »). */
 function guestFullName(guest: GuestInfo): string {
@@ -460,6 +462,12 @@ export class BookingService {
             guest.note ? `\nMessage : ${guest.note}` : '',
         ].join('');
 
+        // Un rendez-vous pris via le lien de réservation est un entretien : il porte le
+        // même marquage qu'un créneau posé depuis le calendrier RH (« venu » ouvre la
+        // création du candidat, report possible, relance « pas venu », KPI entretiens).
+        // Le nom et l'email de l'invité sont stockés en propriétés privées pour le
+        // pré-remplissage de la fiche et le dédoublonnage KPI par email (cf. RhKpiService).
+        const countsForKpi = await rhKpiService.isFirstMeetingForEmail(calendar, guest.email, startIsoFinal);
         await calendar.createEvent(
             {
                 summary: `${settings.title} — ${fullName}`,
@@ -468,9 +476,21 @@ export class BookingService {
                 start: startIsoFinal,
                 end: endIsoFinal,
                 attendees: [{ email: guest.email, displayName: fullName }],
+                attendeeEmail: guest.email,
+                attendeeFirstName: guest.firstName,
+                attendeeLastName: guest.lastName,
+                isInterview: true,
             },
             'none', // Pas d'email d'invitation Google : on envoie notre propre confirmation.
         );
+
+        // KPI « entretien placé » au profit du RH dont le lien a été utilisé, crédité au
+        // bucket de la date (un seul rendez-vous compté par email, comme côté calendrier).
+        if (countsForKpi) {
+            await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(startIsoFinal), {
+                interviews_placed: 1,
+            });
+        }
 
         await this.sendConfirmation(host, settings, startIsoFinal, guest);
 
