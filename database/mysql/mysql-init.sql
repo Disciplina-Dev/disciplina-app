@@ -422,7 +422,7 @@ CREATE TABLE IF NOT EXISTS `mcp_oauth_clients` (
   `redirect_uris` json NOT NULL,
   `auth_method` varchar(32) NOT NULL DEFAULT 'none',
   `scope` varchar(255) DEFAULT NULL,
-  `client_secret` varchar(128) DEFAULT NULL,
+  `client_secret` varchar(512) DEFAULT NULL,
   `client_id_issued_at` bigint DEFAULT NULL,
   `client_secret_expires_at` bigint DEFAULT NULL,
   `user_id` int DEFAULT NULL,

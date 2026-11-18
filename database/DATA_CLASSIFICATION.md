@@ -141,3 +141,15 @@ Les besoins réels sous-jacents ont été traités directement, sans découpage 
 
 Reconsidérer le découpage seulement si un besoin d'isolation **physique** apparaît (charge,
 souveraineté, hébergement séparé) — pas pour un gain d'organisation.
+
+## 6. Chiffrement applicatif : avatars et `client_secret` (#1120, GDPR_INF_02.4)
+
+- `mcp_oauth_clients.client_secret` : **chiffré** AES-256-GCM (`token-cipher.ts`, clé
+  `OAUTH_ENCRYPTION_KEY`). Hachage écarté : le SDK MCP compare le secret en clair
+  (`clientAuth`), il faut donc pouvoir le restituer. Les secrets legacy en clair sont chiffrés
+  par `migrations.ts` (colonne élargie à `VARCHAR(512)`).
+- Avatars (`candidate_avatars`, Buffer Mongo) : **décision = pas de chiffrement applicatif**.
+  Photo non catégorie spéciale (Art. 9), accès déjà conditionné au consentement
+  (`avatarConsent`) ; le chiffrement par document alourdirait lecture/rotation de clé pour un
+  gain faible. Risque résiduel (disque) couvert par FileVault (#1117) et purge (INF audit).
+  À réexaminer si les avatars sont analysés (biométrie) ou si le disque reste non chiffré.
