@@ -24,6 +24,8 @@ export interface SeedOfferInput {
     interview_location?: string;
     /** Champs criteria bruts (ex. schedule_options legacy `string[]` ou slots structurés). */
     criteria?: Record<string, unknown>;
+    /** Statut actif/inactif de l'annuaire entreprises ; `null`/absent = hérite de l'AB. */
+    is_active?: boolean | null;
 }
 
 function parseAgeRange(range?: string): { min: number | null; max: number | null } {
@@ -55,6 +57,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
             interview_slots: input.interview_slots ?? [],
             interview_location: input.interview_location,
         },
+        is_active: input.is_active ?? null,
     };
     // getModels() et non OfferModel directement : le helper doit écrire dans la
     // base du tenant courant (ALS) comme le fait le code de production, sinon un

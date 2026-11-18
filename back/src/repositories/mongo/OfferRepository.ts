@@ -137,12 +137,16 @@ export class OfferRepository {
         return getModels().Offer.find(filter).lean();
     }
 
-    /** Toutes les offres à matcher (hors offres déjà contractualisées et hors AB inactives). */
+    /** Toutes les offres à matcher (hors offres déjà contractualisées, désactivées et hors AB inactives). */
     async listMatchingOffers(): Promise<Offer[]> {
         const inactiveIds: string[] = await getModels().NeedsAnalysis.distinct('_id', {
             $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }],
         });
         const filter: Record<string, unknown> = {
+            // Statut actif/inactif propre à l'offre (annuaire entreprises) : une offre
+            // désactivée ne doit plus être proposée côté candidat. `null`/absent =
+            // l'offre hérite du statut de son AB (filtrée ci-dessous).
+            is_active: { $ne: false },
             $nor: [
                 { 'matching.status': OfferStatus.CONTRACT },
                 { 'matching.candidates': { $elemMatch: { status: MatchedCandidateStatus.CONTRACT } } },

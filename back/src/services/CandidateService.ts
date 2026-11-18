@@ -421,7 +421,12 @@ export class CandidateService {
         ]);
 
         const inactiveSet = new Set<string>(inactiveIds.map(String));
-        const activeAssigned = assignedOffers.filter((offer) => !inactiveSet.has(String(offer.needs_analysis_id)));
+        // Une offre désactivée dans l'annuaire entreprises (ou rattachée à une AB
+        // inactive) n'est plus proposée au candidat, y compris si elle lui avait
+        // déjà été assignée.
+        const activeAssigned = assignedOffers.filter(
+            (offer) => offer.is_active !== false && !inactiveSet.has(String(offer.needs_analysis_id)),
+        );
 
         const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
         const matchedIds = new Set(matched.map((o) => String(o._id)));
