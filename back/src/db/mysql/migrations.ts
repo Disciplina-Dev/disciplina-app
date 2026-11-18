@@ -2,6 +2,7 @@ import { query as queryDefault } from './connection';
 import { logger } from '../../external/logger';
 import { TENANT_TIMEZONE } from '../../config/tenant';
 import { migrateSectors } from './sectorsMigration';
+import { encryptToken, isEncryptedToken } from '../../external/crypto/token-cipher';
 
 type QueryFn = <T>(sql: string, params?: unknown[]) => Promise<T>;
 
@@ -401,7 +402,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             redirect_uris JSON NOT NULL,
             auth_method VARCHAR(32) NOT NULL DEFAULT 'none',
             scope VARCHAR(255) DEFAULT NULL,
-            client_secret VARCHAR(128) DEFAULT NULL,
+            client_secret VARCHAR(512) DEFAULT NULL,
             client_id_issued_at BIGINT DEFAULT NULL,
             client_secret_expires_at BIGINT DEFAULT NULL,
             user_id INT DEFAULT NULL,
@@ -595,6 +596,26 @@ export async function runMysqlMigrations(
     if (sigCol[0] && sigCol[0].COLUMN_TYPE === 'char(128)') {
         await dbQuery('ALTER TABLE external_access MODIFY COLUMN signature VARCHAR(191) NOT NULL');
         logger.info('MySQL migration: widened external_access.signature to VARCHAR(191)');
+    }
+
+    // #1120 : client_secret DCR chiffré (AES-256-GCM, iv:tag:data > 128 car.) →
+    // élargit la colonne puis chiffre les secrets legacy en clair.
+    const secretCol = await dbQuery<{ CHARACTER_MAXIMUM_LENGTH: number }[]>(
+        "SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mcp_oauth_clients' AND COLUMN_NAME = 'client_secret'",
+    );
+    if (secretCol[0] && Number(secretCol[0].CHARACTER_MAXIMUM_LENGTH) < 512) {
+        await dbQuery('ALTER TABLE mcp_oauth_clients MODIFY COLUMN client_secret VARCHAR(512) DEFAULT NULL');
+        logger.info('MySQL migration: widened mcp_oauth_clients.client_secret to VARCHAR(512)');
+    }
+    const plainSecrets = await dbQuery<{ client_id: string; client_secret: string }[]>(
+        'SELECT client_id, client_secret FROM mcp_oauth_clients WHERE client_secret IS NOT NULL',
+    );
+    for (const row of plainSecrets) {
+        if (isEncryptedToken(row.client_secret)) continue;
+        await dbQuery('UPDATE mcp_oauth_clients SET client_secret = ? WHERE client_id = ?', [
+            encryptToken(row.client_secret),
+            row.client_id,
+        ]);
     }
 
     for (const { table, column, definition } of REQUIRED_COLUMNS) {

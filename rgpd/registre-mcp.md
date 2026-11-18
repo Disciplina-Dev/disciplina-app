@@ -13,7 +13,7 @@
 | Destinataires | Éditeur du client LLM (Anthropic) — sous-traitant, DPA à signer (M1, ouvert) |
 | Transferts hors UE | À qualifier (CCT / DPF) — M1 |
 | Durées | Journal d'accès `mcp_audit_log` : 365 j ; refresh tokens OAuth : 30 j (purge expirés +7 j) ; clients OAuth inactifs : 90 j ; logs techniques : 30 j |
-| Mesures de sécurité | OAuth 2.1 + PKCE, code à usage unique, rotation des refresh tokens, RBAC, quotas par utilisateur (1000 appels / 2000 fiches par 24 h), alerte à 80 %, pagination ≤ 50, outils en lecture seule, journal nominatif sans PII |
+| Mesures de sécurité | OAuth 2.1 + PKCE, `client_secret` des clients OAuth chiffré au repos (AES-256-GCM), code à usage unique, rotation des refresh tokens, RBAC, quotas par utilisateur (1000 appels / 2000 fiches par 24 h), alerte à 80 %, pagination ≤ 50, outils en lecture seule, journal nominatif sans PII |
 | AIPD | À réaliser (M1) |
 
 ## Périmètre péda (alternants)
