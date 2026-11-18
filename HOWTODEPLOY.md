@@ -405,6 +405,20 @@ NIR (`identity.social_security_number`) are AES-256-GCM encrypted with a key der
 4. `npx ts-node scripts/rotate-ssn-key.ts --tenant all --verify` must exit 0 (no plaintext, none on an old key, all decryptable) = acceptance criterion.
 5. Remove `*_PREVIOUS` only once step 4 is green **and** backups taken with the old key have expired (retention: GDPR_INF_07.3).
 
+### Health data encryption & rotation (GDPR_INF_02.3)
+
+`identity.psh_referral_request`, `synthesis.special_needs`, `synthesis.pedagogical_recommendations.psh_specific_support` and `emergency_contact` (whole object) are stored as one AES-256-GCM string `h1:<kid>:<iv>:<tag>:<data>`, key derived by HKDF from `HEALTH_ENCRYPTION_KEY` + `HEALTH_KDF_SALT` (distinct from the NIR key; both required in `back/.env`, generate each with `openssl rand -hex 32`). No HDS hosting: this is application-level encryption only (see #1129).
+
+**First rollout / any rotation** (from `back/` on the prod machine, backup first with `scripts/backup.sh`):
+
+1. Add `HEALTH_ENCRYPTION_KEY` / `HEALTH_KDF_SALT` (rotation: move the old pair to `HEALTH_ENCRYPTION_KEY_PREVIOUS` / `HEALTH_KDF_SALT_PREVIOUS`). Store in the password manager.
+2. Deploy. Reads accept plaintext (not yet migrated) and previous-key values; new writes are encrypted with the active key.
+3. `npx ts-node scripts/encrypt-health-fields.ts --tenant all --dry-run`, then without `--dry-run`. Idempotent; re-run if it reports skipped records.
+4. `npx ts-node scripts/encrypt-health-fields.ts --tenant all --verify` must exit 0 = acceptance criterion.
+5. Remove `*_PREVIOUS` only once step 4 is green **and** old backups have expired (GDPR_INF_07.3).
+
+Note: `scripts/seed_annemasse_test_data.py` writes plaintext `psh_specific_support` (test data); run step 3 after seeding if needed.
+
 ### Bulk company deletion by SIRET (manual, one-off)
 
 `scripts/delete_companies.py` deletes the companies listed in a text file (one

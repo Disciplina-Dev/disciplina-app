@@ -153,3 +153,13 @@ souveraineté, hébergement séparé) — pas pour un gain d'organisation.
   (`avatarConsent`) ; le chiffrement par document alourdirait lecture/rotation de clé pour un
   gain faible. Risque résiduel (disque) couvert par FileVault (#1117) et purge (INF audit).
   À réexaminer si les avatars sont analysés (biométrie) ou si le disque reste non chiffré.
+
+## 7. Chiffrement applicatif : données de santé et contact d'urgence (GDPR_INF_02.3)
+
+- Champs chiffrés (AES-256-GCM, `health-cipher.ts`, clé `HEALTH_ENCRYPTION_KEY` distincte du NIR) :
+  `identity.psh_referral_request`, `synthesis.special_needs`,
+  `synthesis.pedagogical_recommendations.psh_specific_support`, `emergency_contact` (en bloc).
+- Pas d'hébergement HDS : chiffrement applicatif seul, périmètre à valider par le DPO (DPIA #1129).
+- Aucune requête/filtre/tri ne porte sur ces champs. Écriture chiffrée dans `CandidateService`,
+  lecture déchiffrée dans `candidateToGql` et `PdfService` ; MCP les exclut déjà.
+- Données existantes : `back/scripts/encrypt-health-fields.ts` (`--verify`), cf. `HOWTODEPLOY.md`.
