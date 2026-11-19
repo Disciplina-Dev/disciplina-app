@@ -43,11 +43,12 @@ Rapport HTML : `playwright-report/`.
 
 ## Couverture des flux
 
-Les 16 flux numérotés de E2E.md (3.1 → 3.16) ont chacun leur spec. S'y ajoute le CRM commercial, non numéroté dans E2E.md (décrit au §2 « Rôles × espaces ») :
+Les 16 flux numérotés de E2E.md (3.1 → 3.16) ont chacun leur spec. S'y ajoutent le CRM commercial, non numéroté dans E2E.md (décrit au §2 « Rôles × espaces »), et une garde RGPD sur les polices :
 
 | Spec | Périmètre | Rôle | External |
 |---|---|---|---|
 | `portefeuille.spec.ts` | Portefeuille entreprises (liste + recherche nom/SIRET), ouverture du formulaire « Nouvelle fiche », liste noire | commercial | non |
+| `self-hosted-fonts.spec.ts` | GDPR_INF_11.2 (#1149) : aucune requête vers `fonts.googleapis.com` / `fonts.gstatic.com`, polices Figtree/Outfit servies par l'app | non authentifié | non |
 
 > Les routes commerciales `sourcing`, `analyses-besoin`, `mail`, `relance` et `todos` sont couvertes par leurs specs de flux respectifs (`sourcing`, `needs-analysis`, `email-relance`, `notifs-todos`). `portefeuille.spec.ts` complète le cœur CRM (portefeuille + fiche entreprise + liste noire) qui n'était rattaché à aucun flux numéroté.
 

@@ -331,7 +331,7 @@ Code default `https://api.docuseal.com` (US) and signing URL `docuseal.com` (`ba
 **Labels:** `gdpr` `severity:high` · **Standard:** Art. 13, 28
 
 ### Finding
-Policy (`front/disciplina-front/src/content/legal/politique-confidentialite.md:116-128`) lists Brevo (unused: email goes through Gmail OAuth, `back/README.md:261`) and omits: Yousign, Filiz, DuckDuckGo (`external/ddg`, LLM-generated queries with company name/address), Anthropic (MCP), Mistral/OpenAI (n8n `veille*.json`), Google Fonts (`index.css:1`, IP/UA transfer to Google). Google: "EU with possible non-EU access" vs `RGPD.md:429-437` "US". ClassMarker: non-EU, integration still active.
+Policy (`front/disciplina-front/src/content/legal/politique-confidentialite.md:116-128`) lists Brevo (unused: email goes through Gmail OAuth, `back/README.md:261`) and omits: Yousign, Filiz, DuckDuckGo (`external/ddg`, LLM-generated queries with company name/address), Anthropic (MCP), Mistral/OpenAI (n8n `veille*.json`), Google Fonts (`index.css:1`, IP/UA transfer to Google; self-hosted, fixed in #1149). Google: "EU with possible non-EU access" vs `RGPD.md:429-437` "US". ClassMarker: non-EU, integration still active.
 
 #### [GDPR_INF_11.1] Exact sub-processor table + privacy policy update
 **Labels:** `gdpr` `severity:high`
@@ -342,6 +342,7 @@ Policy (`front/disciplina-front/src/content/legal/politique-confidentialite.md:1
 **Labels:** `gdpr` `severity:medium`
 - Remove the Google import in `index.css:1`.
 - **AC:** no request to Google fonts; frontend lint/build pass.
+- **Status:** fixed in #1149. Front: `@fontsource-variable/figtree` + `@fontsource-variable/outfit` (woff2 bundled by Vite into `dist/assets/`). Back: the MCP OAuth consent page (`back/src/mcp/oauth/consentPage.ts`) also loaded Poppins from Google; now uses the system font stack, asserted in `back/src/mcp/__tests__/oauth.test.ts`. Verified in browser: 0 request to `fonts.googleapis.com` / `fonts.gstatic.com` on the login page and `/authorize`. Frontend build passes; frontend lint fails on pre-existing errors unrelated to this change.
 
 #### [GDPR_INF_11.3] Decide fate of n8n LLM workflows
 **Labels:** `gdpr` `severity:high`
