@@ -42,8 +42,9 @@ grep -rho '\[\[[A-Z_]*\]\]' front/disciplina-front/src/content/legal/ | sort | u
 
 ## Accords de sous-traitance (DPA)
 
-Les DPA signés avec les sous-traitants (Google, Sentry, DocuSeal, ClassMarker,
-Brevo) sont à archiver dans `rgpd/dpas/` — voir les failles 7 et 12 de l'audit.
+Le suivi des DPA (Google, Sentry, DocuSeal, Filiz, Anthropic, ClassMarker,
+hébergement et sauvegardes) est dans [`dpas/README.md`](dpas/README.md) — voir
+les failles 7 et 12 de l'audit.
 
 Ne pas committer de documents volumineux : les déposer sur le Drive
 organisationnel et référencer le lien dans le registre des traitements.
