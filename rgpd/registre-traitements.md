@@ -12,7 +12,7 @@
 
 | Champ | Contenu |
 |---|---|
-| Responsable de traitement | Disciplina (centre de formation). Raison sociale, adresse, SIRET : **À compléter** |
+| Responsable de traitement | Disciplina, SARL — SIRET 978 289 866 00011. Dénomination sociale exacte (Kbis) et adresse : **À confirmer** |
 | DPO / référente RGPD | Séverine DUGAIN — contact@disciplina.re — 0693 88 80 21 |
 | Périmètre | Application Disciplina (back Node/TS, front React, MySQL, MongoDB) pour les sites de La Réunion et d'Annemasse (deux bases, mêmes traitements) |
 | Registre MCP | [`registre-mcp.md`](registre-mcp.md) (fiche détaillée, non dupliquée ici) |
@@ -26,7 +26,7 @@
 | T3 | Entreprises et contacts | Intérêt légitime (6.1.f) | Entreprises (portail externe), Google, INSEE/entreprises (données publiques) | Google : à qualifier | Ouvert |
 | T4 | Assistance LLM via MCP | Intérêt légitime (6.1.f) ; consentement `ai_processing` | Anthropic | **Oui, non qualifié** | Ouvert (05.3, 05.4, 05.5) |
 | T5 | Questionnaires d'évaluation | Mesures précontractuelles (6.1.b) | Google Drive (PDF) ; ClassMarker en transition | ClassMarker : hors UE | Ouvert |
-| T6 | Signature électronique | Contrat (6.1.b) | DocuSeal, Yousign | DocuSeal : hors UE ; Yousign : **À confirmer** | Ouvert |
+| T6 | Signature électronique | Contrat (6.1.b) | DocuSeal | DocuSeal : hors UE | Ouvert |
 | T7 | Comptes utilisateurs et authentification | Intérêt légitime (6.1.f) / contrat de travail | Google (OAuth) | Google : à qualifier | Conforme sous réserve |
 | T8 | Supervision technique et journaux | Intérêt légitime (6.1.f) ; consentement pour les replays | Sentry | UE (Allemagne), à confirmer côté DSN de prod | Ouvert |
 | T9 | Messagerie, relances et agenda | Contrat / intérêt légitime | Google (Gmail, Calendar) | Google : à qualifier | Ouvert |
@@ -116,10 +116,10 @@ Voir la fiche complète [`registre-mcp.md`](registre-mcp.md). Synthèse :
 | Finalité | Faire signer les analyses du besoin (AB) et documents associés |
 | Base légale | 6.1.b |
 | Données | Nom, e-mail, signature, PDF d'analyse du besoin |
-| Sous-traitants | DocuSeal (hors UE), Yousign (`external/docuseal`, `external/yousign`) ; fournisseur effectivement actif en production : **À confirmer** |
+| Sous-traitants | DocuSeal (hors UE), seul prestataire de signature utilisé (confirmé par l’équipe projet ; le code `external/yousign` n’est pas utilisé en production) |
 | Durées | Politique : 5 ans (archivage). **Non appliquée** côté application ; durée chez le prestataire : **À confirmer** |
 | Mesures | Webhook protégé (`rest/docuseal/route.ts`) ; relances planifiées (`abSignatureRelanceScheduler.ts`) |
-| Points ouverts | DPA + localisation DocuSeal / Yousign (05.2) |
+| Points ouverts | DPA + localisation DocuSeal (05.2) |
 
 ### T7 — Comptes utilisateurs et authentification
 
@@ -151,7 +151,7 @@ Voir la fiche complète [`registre-mcp.md`](registre-mcp.md). Synthèse :
 | Finalité | Envoi de mails (invitations, relances, propositions), prise de rendez-vous, agenda |
 | Base légale | 6.1.b / 6.1.f |
 | Données | Adresses e-mail, contenu des messages, rendez-vous, historique des relances (`relance_history`) |
-| Sous-traitants | Google (Gmail, Calendar) via OAuth de l'utilisateur ; la politique cite aussi **Brevo**, mais aucun usage de Brevo n'est trouvé dans le code → **incohérence à lever** |
+| Sous-traitants | Google (Gmail, Calendar) via OAuth de l’utilisateur. Brevo n’est pas utilisé (confirmé) : à retirer de la politique de confidentialité |
 | Durées | Politique : 3 ans. **Non appliquée** (aucune purge de `relance_history`) |
 | Mesures | Contenu HTML assaini (`sanitizeMailHtml.ts`) ; liens signés par HMAC (`RELANCE_HMAC_SECRET`) |
 
@@ -170,19 +170,17 @@ Voir la fiche complète [`registre-mcp.md`](registre-mcp.md). Synthèse :
 | Google (Drive, Gmail, Calendar) | T1, T3, T5, T7, T9 | UE, accès hors UE possible | À archiver | 05.2 |
 | Sentry | T8 | UE (Allemagne) | À archiver | 05.2 |
 | DocuSeal | T6 | Hors UE | À archiver | 05.2 |
-| Yousign | T6 | À confirmer | À confirmer | 05.2 |
 | Filiz | T2 | À confirmer | À confirmer | 05.2 |
 | ClassMarker | T5 (transition) | Hors UE | À archiver | 05.2 |
 | Anthropic | T4 | Hors UE | Non signé | 05.2, 05.4 |
-| Brevo | cité par la politique, usage non trouvé | UE | — | à lever |
 | Ollama | T1 (résumé IA) | Local, aucun transfert | Sans objet | — |
 
 ## 6. Points ouverts consolidés
 
 1. Relecture et validation par le DPO (critère d'acceptation).
-2. Compléter l'identité du responsable de traitement (raison sociale, adresse, SIRET).
+2. Compléter l’adresse et vérifier la dénomination sociale exacte du responsable de traitement (Kbis).
 3. Durées non appliquées : candidats, alternants, entreprises, offres, relances, documents signés — décider puis implémenter des purges ; sinon corriger la politique de confidentialité.
-4. Lever l'incohérence Brevo (politique) / Gmail (code) ; confirmer Yousign vs DocuSeal en production.
+4. Retirer Brevo de la politique de confidentialité (§5.3), absent du code et confirmé non utilisé ; code `external/yousign` inutilisé à supprimer ou documenter.
 5. DPA (05.2), AIPD (05.3), transfert Anthropic (05.4), libellé du consentement IA (05.5).
 6. Procédure de gestion des demandes d'exercice des droits.
 7. Tenir ce registre à jour à chaque nouveau traitement ou sous-traitant (règle d'équipe à décider avec le DPO).
