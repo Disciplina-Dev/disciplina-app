@@ -165,6 +165,8 @@ Voir la fiche complète [`registre-mcp.md`](registre-mcp.md). Synthèse :
 
 ## 5. Sous-traitants et transferts (synthèse)
 
+Suivi détaillé des DPA : [`dpas/README.md`](dpas/README.md).
+
 | Sous-traitant | Traitements | Localisation (politique) | DPA | Suivi |
 |---|---|---|---|---|
 | Google (Drive, Gmail, Calendar) | T1, T3, T5, T7, T9 | UE, accès hors UE possible | À archiver | 05.2 |
@@ -181,6 +183,6 @@ Voir la fiche complète [`registre-mcp.md`](registre-mcp.md). Synthèse :
 2. Compléter l’adresse et vérifier la dénomination sociale exacte du responsable de traitement (Kbis).
 3. Durées non appliquées : candidats, alternants, entreprises, offres, relances, documents signés — décider puis implémenter des purges ; sinon corriger la politique de confidentialité.
 2. Faire valider l’identité du responsable de traitement (dénomination, adresse, SIRET) par le DPO, au regard du Kbis.
-5. DPA (05.2), AIPD (05.3), transfert Anthropic (05.4), libellé du consentement IA (05.5).
+5. DPA (05.2, suivi dans `dpas/README.md`), AIPD (05.3), transfert Anthropic (05.4), libellé du consentement IA (05.5).
 6. Procédure de gestion des demandes d'exercice des droits.
 7. Tenir ce registre à jour à chaque nouveau traitement ou sous-traitant (règle d'équipe à décider avec le DPO).
