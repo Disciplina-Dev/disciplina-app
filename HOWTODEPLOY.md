@@ -283,7 +283,7 @@ docker compose -f docker-compose.test.yml up --build --force-recreate \
 ### Log verification
 
 - `docker compose logs --tail 200 backend frontend` — check for errors
-- Jaeger — `http://localhost:16686` — spot-check traces
+- Jaeger — `http://localhost:16686` — spot-check traces (loopback-only in prod; from your machine: `ssh -L 16686:127.0.0.1:16686 <prod-host>`)
 
 ## 5. Rollback
 

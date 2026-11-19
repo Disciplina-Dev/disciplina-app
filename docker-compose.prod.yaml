@@ -47,6 +47,15 @@ services:
   nosql-db:
     ports: !reset []
 
+  # Observabilité : aucun port public. Le backend joint le collector via le réseau compose.
+  otel-collector:
+    ports: !reset []
+
+  # UI Jaeger gardée en boucle locale (HOWTODEPLOY.md : spot-check via localhost:16686).
+  jaeger:
+    ports: !override
+      - "127.0.0.1:16686:16686"
+
   startup-script:
     environment:
       NODE_ENV: production
