@@ -50,4 +50,6 @@ organisationnel et référencer le lien dans le registre des traitements.
 
 ## Registre des traitements
 
-Non encore constitué — voir la faille 3 de l'audit.
+[`registre-traitements.md`](registre-traitements.md) — registre général (Art. 30),
+brouillon en attente de validation du DPO. La fiche MCP détaillée reste dans
+[`registre-mcp.md`](registre-mcp.md).

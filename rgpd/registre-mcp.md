@@ -1,6 +1,7 @@
 # Fiche de registre — Assistance LLM via MCP (Art. 30)
 
 > Brouillon à valider par le DPO / responsable de traitement. Voir [`MCP_RGPD_AUDIT.md`](../MCP_RGPD_AUDIT.md).
+> Registre général : [`registre-traitements.md`](registre-traitements.md) (fiche T4).
 
 | Champ | Contenu |
 |---|---|
