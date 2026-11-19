@@ -30,6 +30,7 @@ import { QuestionnaireRepository } from '../repositories/mongo/QuestionnaireRepo
 import { encryptSsn, MASKED_SSN } from '../external/crypto/ssn-cipher';
 import { decryptHealthIfNeeded } from '../external/crypto/health-cipher';
 import { encryptCandidateHealth } from './candidateHealthFields';
+import { ConsentType } from './consentGuard';
 
 function encryptIdentitySsn(identity?: Candidate['identity']): void {
     if (!identity || typeof identity.social_security_number !== 'string') return;
@@ -308,6 +309,23 @@ export class CandidateService {
             }
         }
         return updated;
+    }
+
+    /**
+     * Retire les consentements demandés (GDPR_INF_08.2). Renvoie l'état avant/après,
+     * ou null si la fiche n'existe pas. Seuls les types encore accordés sont modifiés :
+     * un retrait déjà effectif ne change rien (pas de nouvel événement d'historique).
+     */
+    async withdrawConsents(
+        id: string,
+        types: ConsentType[],
+    ): Promise<{ previous: Candidate; updated: Candidate } | null> {
+        const previous = await this.repository.findById(id);
+        if (!previous) return null;
+        const granted = types.filter((type) => previous.consentments?.[type] === true);
+        if (granted.length === 0) return { previous, updated: previous };
+        const updated = await this.repository.withdrawConsents(id, granted);
+        return updated ? { previous, updated } : null;
     }
 
     /** Enregistre une relance envoyée (compteur + historique + `last_relance_at`). */

@@ -230,6 +230,25 @@ if (( ! DRY )); then
     "${COMPOSE_PROD[@]}" ps
 fi
 
+# Historique des consentements (GDPR_INF_08.2) : reprend les consentements sans
+# historique et répare un écart éventuel, puis contrôle. Idempotent, insertion
+# seule dans candidate_consent_history (Mongo en lecture). Lancé dans le conteneur
+# backend (bases non joignables depuis l'hôte). Un échec n'arrête pas le
+# déploiement (l'application tourne déjà) : il est signalé dans le résumé.
+CONSENT_RESULT="N/A"
+CONSENT_CLI=("${COMPOSE_PROD[@]}" exec -T backend node dist/cli/backfillConsentHistory.js --tenant all)
+log "  historique des consentements (GDPR_INF_08.2)..."
+if (( DRY )); then
+    log "  \$ ${CONSENT_CLI[*]}"
+    log "  \$ ${CONSENT_CLI[*]} --verify"
+elif "${CONSENT_CLI[@]}" && "${CONSENT_CLI[@]}" --verify; then
+    CONSENT_RESULT="OK"
+    log "  historique des consentements : OK"
+else
+    CONSENT_RESULT="FAIL"
+    warn "historique des consentements : écart ou échec, relancer à la main (HOWTODEPLOY.md, Consent history backfill)"
+fi
+
 # ------------------------------------------- 6. post-deploy verification
 section "6/7 Vérification post-déploiement"
 TEST_RESULT="N/A"
@@ -302,6 +321,7 @@ else
     log "  Backups           : PASSÉES (--skip-backup)"
 fi
 log "  Tests post-deploy  : ${TEST_RESULT}"
+log "  Consentements      : ${CONSENT_RESULT} (historique GDPR_INF_08.2)"
 log "  Smoke HTTP         : front=${FRONT_CODE} backend=${BACKEND_CODE} mcp=${MCP_CODE}"
 log "  Rollback           : ./scripts/rollback.sh"
 log ""

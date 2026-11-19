@@ -142,3 +142,16 @@ export interface FilizRow {
     created_at: Date;
     expires_at: Date;
 }
+
+/** Ligne de `candidate_consent_history` (GDPR_INF_08.2), avec le nom de l'auteur joint. */
+export interface ConsentHistoryRow {
+    id: number;
+    candidate_id: string;
+    consent_type: 'data_processing' | 'data_sharing' | 'ai_processing' | 'photo_processing';
+    action: 'GRANT' | 'WITHDRAW';
+    consent_version: string;
+    source: 'CREATE' | 'UPDATE' | 'WITHDRAWAL' | 'BACKFILL';
+    recorded_by: number | null;
+    recorded_by_name: string | null;
+    recorded_at_epoch: string | number;
+}

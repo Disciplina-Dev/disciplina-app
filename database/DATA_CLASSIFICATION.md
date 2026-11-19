@@ -49,6 +49,16 @@ d'un export ou d'un effacement sur demande d'un collaborateur.
 Données personnelles de **tiers** (référents légaux de prospects) : durée de conservation
 distincte de celle des collaborateurs.
 
+### Preuves de consentement (GDPR_INF_08.2)
+
+| Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
+|---|---|---|---|---|
+| `candidate_consent_history` | S1 | `candidate_id` (UUID de la fiche Mongo, pseudonyme), `recorded_by` | `ConsentHistoryRepository`, `ConsentHistoryService`, `graphql/candidate` | Journal en ajout seul, **conservé après suppression de la fiche** à titre de preuve (art. 7.1) ; durée (prescription) et purge à fixer avec le DPO |
+
+Aucune donnée identifiante en clair (ni nom ni e-mail) : l'UUID ne se relie plus à une personne
+une fois la fiche MongoDB supprimée. `recorded_by` passe à `NULL` à la suppression du compte
+(`ON DELETE SET NULL`).
+
 ### Indicateurs nominatifs
 
 | Table / collection | Sens. | Colonnes sensibles | Domaine backend | Rétention |

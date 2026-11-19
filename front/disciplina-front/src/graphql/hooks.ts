@@ -42,6 +42,8 @@ import {
   GET_CONTACT_LOG_STATS,
   CREATE_CONTACT_LOG,
   GET_CANDIDATE_HISTORY,
+  GET_CANDIDATE_CONSENT_HISTORY,
+  WITHDRAW_CANDIDATE_CONSENT,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
   GET_OFFER_HISTORY,
@@ -50,7 +52,7 @@ import {
   UPDATE_OFFER_ACTIVE,
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
-import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
+import type { Candidate, CandidateConsentEvent, CandidateConsentments, CandidateHistoryEntry, ConsentTypeKey } from '@/types/candidate'
 import type { Entreprise, CompanyWithSalePerson } from '@/types/entreprise'
 import { toEntreprise } from '@/types/companyMapper'
 import { apiJson } from '@/api/httpClient'
@@ -827,6 +829,45 @@ export function useCandidateHistory(candidateId: string | null) {
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
   }
+}
+
+/** Historique des consentements d'un candidat (GDPR_INF_08.2), le plus récent d'abord. */
+export function useCandidateConsentHistory(candidateId: string | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CANDIDATE_CONSENT_HISTORY,
+    variables: { candidateId: candidateId ?? '' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
+    pause: candidateId === null,
+    requestPolicy: 'network-only',
+  })
+
+  const events: CandidateConsentEvent[] = result.data?.candidateConsentHistory ?? []
+
+  return {
+    events,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+/** Retire des consentements ; renvoie l'état des consentements après retrait (snake_case, comme `Candidate`). */
+export function useWithdrawCandidateConsent() {
+  const withdrawConsent = async (id: string, types: ConsentTypeKey[]): Promise<CandidateConsentments> => {
+    const response = await candidateGraphqlClient.mutation(WITHDRAW_CANDIDATE_CONSENT, { id, types })
+    if (response.error) throw new Error(response.error.message.replace(/^\[GraphQL\]\s*/, ''))
+    const c = response.data.withdrawCandidateConsent.consentments
+    return {
+      data_processing: c.dataProcessing,
+      data_sharing: c.dataSharing,
+      ai_processing: c.aiProcessing,
+      photo_processing: c.photoProcessing,
+      consent_date: c.consentDate,
+      consent_version: c.consentVersion,
+    }
+  }
+
+  return { withdrawConsent }
 }
 
 export function useAddCandidateHistoryEntry() {

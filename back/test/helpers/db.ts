@@ -9,6 +9,7 @@ import { QuestionnaireAttemptModel, QuestionnaireModel } from '../../src/db/mong
 
 const CLEARED_TABLES = [
     'mcp_audit_log',
+    'candidate_consent_history',
     'filiz_folders',
     'external_access',
     'external_link',

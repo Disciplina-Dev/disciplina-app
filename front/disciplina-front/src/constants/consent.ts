@@ -6,6 +6,10 @@
  * `src/content/legal/_placeholders.md`. Toute modification de fond d'un libellé
  * impose d'incrémenter cette version.
  *
+ * Le backend refuse une version inconnue (GDPR_INF_08.2) : ajouter d'abord la
+ * nouvelle version à `ACCEPTED_CONSENT_VERSIONS` (`back/src/services/consentGuard.ts`)
+ * et déployer le backend AVANT le front qui l'envoie.
+ *
  * Historique :
  * - `2026-08-v1` : libellé `ai_processing` limité au « résumé IA local ».
  * - `2026-11-v2` : `ai_processing` couvre aussi l'assistant IA tiers (MCP),

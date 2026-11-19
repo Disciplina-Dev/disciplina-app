@@ -345,6 +345,19 @@ export interface CandidateConsentments {
     consent_version: string;
 }
 
+/** Types de consentement (enum GraphQL `ConsentType`, GDPR_INF_08.2). */
+export type ConsentTypeKey = 'DATA_PROCESSING' | 'DATA_SHARING' | 'AI_PROCESSING' | 'PHOTO_PROCESSING';
+
+/** Événement de l'historique des consentements (octroi / retrait, horodatage serveur). */
+export interface CandidateConsentEvent {
+    consentType: ConsentTypeKey;
+    action: 'GRANT' | 'WITHDRAW';
+    consentVersion: string;
+    source: 'CREATE' | 'UPDATE' | 'WITHDRAWAL' | 'BACKFILL';
+    recordedByName: string | null;
+    recordedAt: string;
+}
+
 export interface CandidateRelanceEntry {
     sent_at: string; // date d'envoi (ISO)
     kind: 'availability' | 'template';

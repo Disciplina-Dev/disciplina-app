@@ -280,6 +280,7 @@ Existing purges: `external_access`, `refresh_tokens` (D+7), `mcp_audit_log` (365
 **Labels:** `gdpr` `severity:high`
 - Keep every consent event (date, version, scope); allow withdrawal.
 - **AC:** history table + migration in both places (`mysql-init.sql` and `REQUIRED_COLUMNS`).
+- **Done (#1141):** `candidate_consent_history` (append-only; `mysql-init.sql` + `REQUIRED_TABLES`, a new table is not a column), written on create / update / `withdrawCandidateConsent`, read via `candidateConsentHistory` (RH form). Server-side timestamp, consent version checked against `ACCEPTED_CONSENT_VERSIONS`. Existing consents taken over by `back/src/cli/backfillConsentHistory.ts`, run by `deploy.sh` (`HOWTODEPLOY.md`). Out of scope: `block` mode (08.1), erasure on withdrawal (06.3 / 06.4).
 
 #### [GDPR_INF_08.3] Cookie banner with real choice (Sentry gated)
 **Labels:** `gdpr` `severity:high`
