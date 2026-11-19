@@ -12,7 +12,7 @@
 
 | Champ | Contenu |
 |---|---|
-| Responsable de traitement | Disciplina, SARL — SIRET 978 289 866 00011. Dénomination sociale exacte (Kbis) et adresse : **À confirmer** |
+| Responsable de traitement | Disciplina Reunion (SARL) — SIRET 978 289 866 00011 — 71 rue Roger Payet, 97438 Sainte-Marie |
 | DPO / référente RGPD | Séverine DUGAIN — contact@disciplina.re — 0693 88 80 21 |
 | Périmètre | Application Disciplina (back Node/TS, front React, MySQL, MongoDB) pour les sites de La Réunion et d'Annemasse (deux bases, mêmes traitements) |
 | Registre MCP | [`registre-mcp.md`](registre-mcp.md) (fiche détaillée, non dupliquée ici) |
@@ -180,7 +180,7 @@ Voir la fiche complète [`registre-mcp.md`](registre-mcp.md). Synthèse :
 1. Relecture et validation par le DPO (critère d'acceptation).
 2. Compléter l’adresse et vérifier la dénomination sociale exacte du responsable de traitement (Kbis).
 3. Durées non appliquées : candidats, alternants, entreprises, offres, relances, documents signés — décider puis implémenter des purges ; sinon corriger la politique de confidentialité.
-4. Retirer Brevo de la politique de confidentialité (§5.3), absent du code et confirmé non utilisé ; code `external/yousign` inutilisé à supprimer ou documenter.
+2. Faire valider l’identité du responsable de traitement (dénomination, adresse, SIRET) par le DPO, au regard du Kbis.
 5. DPA (05.2), AIPD (05.3), transfert Anthropic (05.4), libellé du consentement IA (05.5).
 6. Procédure de gestion des demandes d'exercice des droits.
 7. Tenir ce registre à jour à chaque nouveau traitement ou sous-traitant (règle d'équipe à décider avec le DPO).
