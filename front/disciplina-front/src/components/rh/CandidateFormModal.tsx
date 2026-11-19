@@ -25,6 +25,7 @@ import {
 } from '@/constants/testFailureOrientation';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
+import { AI_PROCESSING_CONSENT_LABEL, CONSENT_VERSION } from '@/constants/consent';
 import SignaturePad from '@/components/ui/SignaturePad';
 
 // Préconisations pédagogiques : clé GraphQL (camel), clé Mongo (snake), libellé.
@@ -157,10 +158,6 @@ type ABForm = {
   testAverage: string;
   testFailurePending: boolean;
 };
-
-// Version du corpus légal au moment du consentement — garder cohérent avec
-// [[VERSION_DOC]] dans src/content/legal/_placeholders.md.
-const CONSENT_VERSION = '2026-08-v1';
 
 // Union des compétences des templates de plusieurs TP (dédupliquée par nom).
 function defaultSkillsForTps(tps: TitleProfessionalType[]): { competence: string; level: SkillLevel }[] {
@@ -1517,7 +1514,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
                 checked={form.consentAiProcessing}
                 onChange={() => set('consentAiProcessing', !form.consentAiProcessing)}
               />
-              Le candidat accepte le traitement de ses données par intelligence artificielle locale pour générer un résumé de profil.
+              {AI_PROCESSING_CONSENT_LABEL}
             </label>
             <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
               <input

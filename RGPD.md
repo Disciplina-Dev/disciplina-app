@@ -68,7 +68,7 @@
 export interface CandidateConsentments {
     data_processing: boolean       // Traitement général (obligatoire)
     data_sharing: boolean          // Partage avec entreprises
-    ai_processing: boolean         // Résumé IA via Ollama
+    ai_processing: boolean         // Résumé IA local (Ollama) + assistant IA tiers (MCP) depuis 2026-11-v2
     photo_processing: boolean      // Stockage photo/avatar
     data_retention_years: number   // Durée acceptée (ex: 3)
     consent_date: Date
