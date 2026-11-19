@@ -284,6 +284,9 @@ docker compose -f docker-compose.test.yml up --build --force-recreate \
 
 - `docker compose logs --tail 200 backend frontend` — check for errors
 - Jaeger — `http://localhost:16686` — spot-check traces (loopback-only in prod; from your machine: `ssh -L 16686:127.0.0.1:16686 <prod-host>`)
+  - Access policy: the UI has no authentication; SSH tunnel is the only access path. Never publish 16686/4317/4318.
+  - Sampling in prod: 10 % (`OTEL_TRACES_SAMPLER=parentbased_traceidratio`, `OTEL_TRACES_SAMPLER_ARG=0.1` in `docker-compose.prod.yaml`); dev stays `always_on`. Raise the ratio only temporarily to debug.
+  - Minimization review (Art. 5-1-c): the backend sets no `user.id` span attribute; GraphQL values are not traced (`OTEL_GRAPHQL_ALLOW_VALUES=false`). Residual: URL paths/queries in HTTP spans. Not legal advice; DPO to validate.
 
 ## 5. Rollback
 
