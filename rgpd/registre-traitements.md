@@ -24,7 +24,7 @@
 | T1 | Candidats | Mesures précontractuelles / contrat (6.1.b) ; consentements par finalité (6.1.a) | Google, entreprises partenaires, Ollama (local) | Google : à qualifier | Ouvert |
 | T2 | Alternants (suivi péda) | Contrat / mission de formation (6.1.b) ; intérêt légitime (6.1.f) | Filiz, Google | Filiz : **À confirmer** | Ouvert |
 | T3 | Entreprises et contacts | Intérêt légitime (6.1.f) | Entreprises (portail externe), Google, INSEE/entreprises (données publiques) | Google : à qualifier | Ouvert |
-| T4 | Assistance LLM via MCP | Intérêt légitime (6.1.f) ; consentement `ai_processing` | Anthropic | **Oui, non qualifié** | Ouvert (05.3, 05.4, 05.5) |
+| T4 | Assistance LLM via MCP | Intérêt légitime (6.1.f) ; consentement `ai_processing` | Anthropic | **Oui, non qualifié** | Ouvert (05.3, 05.4) |
 | T5 | Questionnaires d'évaluation | Mesures précontractuelles (6.1.b) | Google Drive (PDF) ; ClassMarker en transition | ClassMarker : hors UE | Ouvert |
 | T6 | Signature électronique | Contrat (6.1.b) | DocuSeal | DocuSeal : hors UE | Ouvert |
 | T7 | Comptes utilisateurs et authentification | Intérêt légitime (6.1.f) / contrat de travail | Google (OAuth) | Google : à qualifier | Conforme sous réserve |
@@ -38,7 +38,7 @@
 | Champ | Contenu |
 |---|---|
 | Finalité | Accueillir, évaluer et accompagner les candidats à l'alternance ; les mettre en relation avec des entreprises partenaires |
-| Base légale | 6.1.b (mesures précontractuelles) ; consentements distincts enregistrés par candidat : `data_processing` (obligatoire), `data_sharing` (partage entreprises), `ai_processing` (résumé IA), `photo_processing` (photo), avec date et version du corpus légal (`back/src/types/candidate.types.ts`) |
+| Base légale | 6.1.b (mesures précontractuelles) ; consentements distincts enregistrés par candidat : `data_processing` (obligatoire), `data_sharing` (partage entreprises), `ai_processing` (résumé IA local + assistant IA tiers depuis `2026-11-v2`), `photo_processing` (photo), avec date et version du corpus légal (`back/src/types/candidate.types.ts`) |
 | Personnes concernées | Candidats, dont des **mineurs** (indicateur « mineur » présent dans l'application) |
 | Catégories de données | Identité (nom, e-mail, téléphone, date et lieu de naissance, sexe, adresse), parcours (formation, expériences, compétences, projet), CV et photo (Google Drive), synthèse recruteur, suivi RH (historique), relances. **Données sensibles** : numéro de sécurité sociale (NIR), situation de handicap (`psh_*`), besoins spécifiques, contact d'urgence, situation France Travail / Mission Locale |
 | Origine | Saisie par les RH, import CSV, formulaire |
@@ -93,7 +93,7 @@ Voir la fiche complète [`registre-mcp.md`](registre-mcp.md). Synthèse :
 | Transfert hors UE | **Non qualifié** (CCT / TIA à réaliser, 05.4) |
 | Durées | Journal d'accès `mcp_audit_log` 365 j ; refresh tokens OAuth 30 j (+7 j de grâce) ; clients OAuth inactifs 90 j (`expiredAccessScheduler.ts`, `mcp/auditStore.ts`) |
 | Mesures | OAuth 2.1 + PKCE, secrets chiffrés, quotas, pagination, journal sans PII |
-| Points ouverts | DPA Anthropic (05.2) ; AIPD (05.3) ; libellé du consentement `ai_processing` (« IA locale » ne couvre pas un LLM tiers, 05.5) |
+| Points ouverts | DPA Anthropic (05.2) ; AIPD (05.3) ; consentements `ai_processing` recueillis avant `2026-11-v2` (libellé « IA locale ») conservés tels quels : information des candidats concernés + droit d'opposition, ou re-consentement — à trancher par le DPO (05.5) |
 
 ### T5 — Questionnaires d'évaluation
 

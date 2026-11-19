@@ -41,6 +41,7 @@ Le format s'inspire de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
 ### Changed
 
+- Consentement « traitement par IA » de la fiche candidat (GDPR_INF_05.5, #1131) : le libellé couvre désormais, en plus du résumé de profil par l'IA locale, l'utilisation par l'équipe d'un assistant IA tiers (traitement possible hors UE) ; politique de confidentialité mise à jour en conséquence. Version des consentements portée à `2026-11-v2` (constante partagée `src/constants/consent.ts`) ; les consentements déjà recueillis sont conservés avec leur version d'origine.
 - KPI entretiens du calendrier RH (#1076) : un même email d'invité ne compte qu'une fois — seul son premier rendez-vous (par date de début) crédite « entretien placé » et la catégorie de présence (venu, pas venu, reporté, décliné), pour ne plus cumuler deux catégories pour un même candidat.
 - Résultats de test (#968) : la logique du webhook ClassMarker est extraite dans `TestResultService` ; les résultats internes sont écrits au même format (`candidate.classmarker` / `classmarker_history`, `source: 'internal'`), donc fiche, gate, PDF et MCP sont inchangés. ClassMarker reste branché pendant la transition.
 - Horaires d'immersion (#1035) : chaque jour activé peut porter deux plages facultatives (matin et après-midi) pour deux shifts le même jour ; toutes les heures restent optionnelles, une fin de matinée ou un début d'après-midi absents ne bloquent pas l'enregistrement, et les créneaux continus existants sont relus sans migration.
