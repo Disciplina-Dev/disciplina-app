@@ -9,8 +9,6 @@ processors:
     timeout: 1s
 
 exporters:
-  debug:
-    verbosity: detailed
   otlp:
     endpoint: jaeger:4317
     tls:
@@ -21,4 +19,4 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug, otlp]
+      exporters: [otlp]
