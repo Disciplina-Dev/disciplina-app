@@ -38,17 +38,17 @@
 | Champ | Contenu |
 |---|---|
 | Finalité | Accueillir, évaluer et accompagner les candidats à l'alternance ; les mettre en relation avec des entreprises partenaires |
-| Base légale | 6.1.b (mesures précontractuelles) ; consentements distincts enregistrés par candidat : `data_processing` (obligatoire), `data_sharing` (partage entreprises), `ai_processing` (résumé IA local + assistant IA tiers depuis `2026-11-v2`), `photo_processing` (photo), avec date et version du corpus légal (`back/src/types/candidate.types.ts`) |
+| Base légale | 6.1.b (mesures précontractuelles) ; consentements distincts enregistrés par candidat : `data_processing` (obligatoire), `data_sharing` (partage entreprises), `ai_processing` (résumé IA local + assistant IA tiers depuis `2026-11-v2`), `photo_processing` (photo), avec date et version du corpus légal (`back/src/types/candidate.types.ts`). Chaque octroi / retrait est historisé (date serveur, version, type, auteur) dans `candidate_consent_history` ; retrait possible à tout moment depuis la fiche, effet immédiat (GDPR_INF_08.2) |
 | Personnes concernées | Candidats, dont des **mineurs** (indicateur « mineur » présent dans l'application) |
 | Catégories de données | Identité (nom, e-mail, téléphone, date et lieu de naissance, sexe, adresse), parcours (formation, expériences, compétences, projet), CV et photo (Google Drive), synthèse recruteur, suivi RH (historique), relances. **Données sensibles** : numéro de sécurité sociale (NIR), situation de handicap (`psh_*`), besoins spécifiques, contact d'urgence, situation France Travail / Mission Locale |
 | Origine | Saisie par les RH, import CSV, formulaire |
 | Destinataires | Salariés habilités (RBAC par rôle) ; entreprises partenaires pour les profils partagés avec consentement `data_sharing` (responsables de traitement distincts) |
 | Sous-traitants | Google Drive/Gmail ; Ollama (local, aucun transfert) ; Anthropic via MCP (voir T4) |
 | Transferts hors UE | Google : traitement possible hors UE, **à qualifier** (voir 05.4 pour MCP) |
-| Durées | Politique : candidat accompagné = accompagnement + 3 ans après dernier contact ; sans suite = 1 an ; photo = accompagnement ou retrait du consentement ; NIR = durée de la formalité. **Non appliquée** : aucune purge automatique des candidats n'existe dans le code (seule la suppression manuelle `deleteCandidate`, rôle RH). À décider avec le DPO |
+| Durées | Politique : candidat accompagné = accompagnement + 3 ans après dernier contact ; sans suite = 1 an ; photo = accompagnement ou retrait du consentement ; NIR = durée de la formalité ; historique des consentements conservé après suppression de la fiche (preuve, UUID seul), durée à fixer. **Non appliquée** : aucune purge automatique des candidats n'existe dans le code (seule la suppression manuelle `deleteCandidate`, rôle RH). À décider avec le DPO |
 | Mesures de sécurité | NIR chiffré AES-256-GCM, clés versionnées et rotation (`external/crypto/ssn-cipher.ts`) ; santé/handicap/contact d'urgence chiffrés AES-256-GCM (`health-cipher.ts`, GDPR_INF_02.3) ; RBAC (`authGuardRole`) ; contrôle du consentement (`consentGuard.ts`) ; TLS MySQL en production (`MYSQL_SSL_CA`) ; compte applicatif MySQL à droits limités ; bases sans port public (#1124) |
 | Droits | Accès, rectification, suppression : voir `RGPD.md` faille 4. Procédure de réponse : **À documenter** |
-| Points ouverts | DPA Google (05.2) ; AIPD (05.3) car données sensibles + mineurs ; purge automatique à implémenter |
+| Points ouverts | DPA Google (05.2) ; AIPD (05.3) car données sensibles + mineurs ; purge automatique à implémenter ; durée de conservation de l'historique des consentements (prescription) à fixer par le DPO |
 
 ### T2 — Alternants (suivi pédagogique)
 

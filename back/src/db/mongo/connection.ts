@@ -14,6 +14,11 @@ const MONGO_ANNEMASSE_URI =
         ? env.MONGO_ANNEMASSE_URI!
         : `mongodb://${env.MONGO_ANNEMASSE_USERNAME ?? env.MONGO_ROOT_USERNAME}:${env.MONGO_ANNEMASSE_PASSWORD ?? env.MONGO_ROOT_PASSWORD}@${env.MONGO_HOST}:${env.MONGO_PORT}/${env.MONGO_ANNEMASSE_DATABASE}?authSource=admin`;
 
+/** URI MongoDB d'un tenant, pour les outils en ligne de commande (`src/cli/`). */
+export function mongoUriForRegion(region: 'reunion' | 'annemasse'): string {
+    return region === 'annemasse' ? MONGO_ANNEMASSE_URI : MONGO_URI;
+}
+
 const MONGO_CONNECTION_OPTIONS = {
     maxPoolSize: 10,
     minPoolSize: 2,

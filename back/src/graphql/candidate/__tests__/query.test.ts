@@ -221,7 +221,7 @@ describe('GraphQL candidate queries', () => {
                 ai_processing: false,
                 photo_processing: true,
                 consent_date: consentDate,
-                consent_version: 'test-v1',
+                consent_version: '2026-11-v2',
             },
         });
 
@@ -247,7 +247,7 @@ describe('GraphQL candidate queries', () => {
             aiProcessing: false,
             photoProcessing: true,
             consentDate: consentDate.toISOString(),
-            consentVersion: 'test-v1',
+            consentVersion: '2026-11-v2',
         });
     });
 

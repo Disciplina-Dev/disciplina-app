@@ -422,6 +422,24 @@ NIR (`identity.social_security_number`) are AES-256-GCM encrypted with a key der
 
 Note: `scripts/seed_annemasse_test_data.py` writes plaintext `psh_specific_support` (test data); run step 3 after seeding if needed.
 
+### Consent history backfill (GDPR_INF_08.2)
+
+Every candidate consent grant/withdrawal is logged in the MySQL table `candidate_consent_history` (append-only, created automatically at boot by `runMysqlMigrations`). Consents recorded **before** this release only exist as the current snapshot on the MongoDB candidate (`consentments`), so they are taken over once.
+
+**Automated by `deploy.sh`** (end of step 5, after the backend is up): it runs the backfill, then `--verify`, inside the backend container (the prod image ships the compiled `dist/cli/backfillConsentHistory.js`; the databases are not reachable from the host). Each consented candidate without history gets one `GRANT` per granted consent, `source = BACKFILL`, dated from its `consent_date`. Idempotent: on later deploys it finds nothing to do. The deploy summary shows `Consentements : OK`. A `FAIL` does not stop the deploy (the app is already running) but must be looked at.
+
+No backup needed (insert-only into a new table, MongoDB is read only). Rollback needs nothing special (the previous release ignores the table; `rollback.sh` restores the pre-deploy dumps anyway).
+
+**Manual run** (after a `FAIL`, or if the backend logs `Consent history write failed`, i.e. MySQL was unavailable right after a consent change), from the repo root on the prod machine:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml exec -T backend node dist/cli/backfillConsentHistory.js --tenant all --dry-run   # report only
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml exec -T backend node dist/cli/backfillConsentHistory.js --tenant all             # apply
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml exec -T backend node dist/cli/backfillConsentHistory.js --tenant all --verify    # must exit 0
+```
+
+`--dry-run` / `--verify` exit 1 while candidates still need a backfill or a fix. A gap is repaired by appending `BACKFILL` correction events so the history matches the candidate again. Dev: `cd back && npx ts-node src/cli/backfillConsentHistory.ts --tenant all [--dry-run|--verify]`.
+
 ### Bulk company deletion by SIRET (manual, one-off)
 
 `scripts/delete_companies.py` deletes the companies listed in a text file (one

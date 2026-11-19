@@ -1037,7 +1037,7 @@ const html = `
 - [ ] **F1** Ajouter le consentement explicite des candidats (checkbox + stockage)
 - [x] **F2** Créer et publier la politique de confidentialité (`/privacy`) — *corpus rédigé et publié ; placeholders et relecture juridique en attente*
 - [ ] **F3** Créer le registre des traitements
-- [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification
+- [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification — *retrait de consentement + historique faits (GDPR_INF_08.2, `withdrawCandidateConsent`)*
 - [x] **F5** Chiffrer le numéro de sécurité sociale en base — *AES-256-GCM, cf. `external/crypto/ssn-cipher.ts`*
 - [ ] **F11** Nettoyer les secrets du dépôt Git + `.gitignore`
 - [ ] **F15** Ajouter mentions légales + footer RGPD sur les portails publics — *fait côté portails et footer applicatif ; reste les templates d'emails*

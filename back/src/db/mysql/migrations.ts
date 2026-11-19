@@ -449,6 +449,24 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Historique des consentements candidats (GDPR_INF_08.2) : journal en ajout
+        // seul, une ligne par type et par événement. candidate_id = UUID MongoDB.
+        table: 'candidate_consent_history',
+        ddl: `CREATE TABLE IF NOT EXISTS candidate_consent_history (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            candidate_id VARCHAR(36) NOT NULL,
+            consent_type ENUM('data_processing', 'data_sharing', 'ai_processing', 'photo_processing') NOT NULL,
+            action ENUM('GRANT', 'WITHDRAW') NOT NULL,
+            consent_version VARCHAR(32) NOT NULL,
+            source ENUM('CREATE', 'UPDATE', 'WITHDRAWAL', 'BACKFILL') NOT NULL,
+            recorded_by INT DEFAULT NULL,
+            recorded_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+            INDEX idx_consent_history_candidate (candidate_id, consent_type, recorded_at),
+            INDEX idx_consent_history_recorded_by (recorded_by),
+            CONSTRAINT fk_consent_history_recorded_by FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+        )`,
+    },
+    {
         // Référentiel hiérarchique région > secteur > commune (seedé par migrateSectors).
         // `code` n'est unique que par niveau : la commune ANNECY et le secteur ANNECY coexistent.
         table: 'sectors',

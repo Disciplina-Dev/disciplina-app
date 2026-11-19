@@ -1766,6 +1766,29 @@ export const GET_CANDIDATE_HISTORY = gql`
   }
 `
 
+export const GET_CANDIDATE_CONSENT_HISTORY = gql`
+  query CandidateConsentHistory($candidateId: String!) {
+    candidateConsentHistory(candidateId: $candidateId) {
+      id
+      consentType
+      action
+      consentVersion
+      source
+      recordedByName
+      recordedAt
+    }
+  }
+`
+
+export const WITHDRAW_CANDIDATE_CONSENT = gql`
+  mutation WithdrawCandidateConsent($id: String!, $types: [ConsentType!]!) {
+    withdrawCandidateConsent(id: $id, types: $types) {
+      id
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
+    }
+  }
+`
+
 export const ADD_CANDIDATE_HISTORY_ENTRY = gql`
   mutation AddCandidateHistoryEntry($candidateId: String!, $description: String!) {
     addCandidateHistoryEntry(candidateId: $candidateId, description: $description) {

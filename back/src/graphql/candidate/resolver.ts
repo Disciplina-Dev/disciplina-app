@@ -47,11 +47,55 @@ function parseFilterDate(iso: string | undefined, endOfDay: boolean): Date | und
     return d;
 }
 import { canAccessAllSectors, primarySector, regionFromSector, sanitizeSectors } from '../../utils/sector';
+import { ConsentHistoryService, consentChanged, consentEvents } from '../../services/ConsentHistoryService';
+import { CONSENT_TYPES, ConsentType, isAcceptedConsentVersion } from '../../services/consentGuard';
+import { ConsentEventInput, ConsentHistoryEntry } from '../../types/consent.types';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
 const rhKpiService = new RhKpiService();
 const candidateHistoryService = new CandidateHistoryService();
+const consentHistoryService = new ConsentHistoryService();
+
+const UNKNOWN_CONSENT_VERSION_ERROR = 'Version du texte de consentement inconnue : rechargez la page.';
+
+/**
+ * Écrit les événements de consentement APRÈS la mise à jour MongoDB (pas de
+ * transaction commune Mongo/MySQL). Un échec n'annule pas l'action métier, déjà
+ * appliquée : il est journalisé (sans PII, UUID seul) et l'écart est détecté puis
+ * réparé par `src/cli/backfillConsentHistory.ts` (lancé par deploy.sh, cf. HOWTODEPLOY.md).
+ */
+async function recordConsentHistory(candidateId: string, events: ConsentEventInput[]): Promise<void> {
+    try {
+        await consentHistoryService.record(events);
+    } catch (error) {
+        logger.error(
+            { err: error, candidateId, events: events.length },
+            'Consent history write failed, run dist/cli/backfillConsentHistory.js (HOWTODEPLOY.md)',
+        );
+    }
+}
+
+/** `DATA_PROCESSING` (enum GraphQL) → `data_processing` ; rejette tout type inconnu. */
+function parseConsentTypes(types: string[]): ConsentType[] {
+    const parsed = types.map((t) => t.toLowerCase() as ConsentType);
+    if (parsed.length === 0 || parsed.some((t) => !CONSENT_TYPES.includes(t))) {
+        throw new Error('Type de consentement invalide.');
+    }
+    return [...new Set(parsed)];
+}
+
+function consentHistoryToGql(entry: ConsentHistoryEntry): object {
+    return {
+        id: String(entry.id),
+        consentType: entry.consentType.toUpperCase(),
+        action: entry.action,
+        consentVersion: entry.consentVersion,
+        source: entry.source,
+        recordedByName: entry.recordedByName,
+        recordedAt: entry.recordedAt.toISOString(),
+    };
+}
 
 /**
  * Secteurs effectivement visibles pour les stats agrégées : ADMIN/RESPONSABLE
@@ -252,6 +296,11 @@ export const resolvers = {
             const entries = await candidateHistoryService.findByCandidate(candidateId);
             return entries.map(candidateHistoryToGql);
         },
+        candidateConsentHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const entries = await consentHistoryService.findByCandidate(candidateId);
+            return entries.map(consentHistoryToGql);
+        },
         driveFolderConfig: async (_: unknown, __: unknown, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const config = await driveFolderConfigService.getConfig();
@@ -290,9 +339,15 @@ export const resolvers = {
             if (!input.consentments?.dataProcessing) {
                 throw new Error('Le consentement au traitement des données est obligatoire.');
             }
+            if (!isAcceptedConsentVersion(input.consentments.consentVersion)) {
+                throw new Error(UNKNOWN_CONSENT_VERSION_ERROR);
+            }
 
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
+            // Preuve du consentement (art. 7.1) : horodatage serveur, jamais celui du client.
+            const consentAt = new Date();
+            snakeInput.consentments = { ...snakeInput.consentments, consent_date: consentAt };
             // Multi-sites : garde le single legacy training_site = 1er site choisi
             // (utilisé pour le routage Drive / stats / filtres).
             if (Array.isArray(snakeInput.training_sites)) {
@@ -327,6 +382,15 @@ export const resolvers = {
                 created_at: new Date(),
                 ...snakeInput,
             });
+
+            await recordConsentHistory(
+                id,
+                consentEvents(id, undefined, newCandidate.consentments, {
+                    source: 'CREATE',
+                    recordedBy: Number(context.user.id),
+                    recordedAt: consentAt,
+                }),
+            );
 
             // KPI RH : le +1 « entretien » va au RH qui a mené l'entretien (champ
             // « Entretien fait par »), pas au créateur du dossier. Rien si aucun
@@ -379,14 +443,43 @@ export const resolvers = {
             // État avant mise à jour : statut (transitions KPI) + interviewer (crédit
             // entretien une seule fois). On ne relit le dossier que si l'un des deux change.
             const newInterviewer = snakeInput.synthesis?.interviewed_by?.trim();
-            const previous = snakeInput.status || newInterviewer ? await candidateService.findById(id) : undefined;
+            const previous =
+                snakeInput.status || newInterviewer || snakeInput.consentments
+                    ? await candidateService.findById(id)
+                    : undefined;
             const previousStatus = previous?.status;
             const previousInterviewer = previous?.synthesis?.interviewed_by?.trim();
+
+            // Consentements : seul un changement réel (choix ou version) est appliqué et
+            // historisé, avec l'horodatage serveur ; sinon on n'y touche pas, ce qui
+            // conserve la date du consentement d'origine.
+            let pendingConsentEvents: ConsentEventInput[] = [];
+            if (snakeInput.consentments) {
+                const before = previous?.consentments;
+                const after = { ...before, ...snakeInput.consentments };
+                if (!consentChanged(before, after)) {
+                    delete snakeInput.consentments;
+                } else {
+                    if (!isAcceptedConsentVersion(after.consent_version)) {
+                        throw new Error(UNKNOWN_CONSENT_VERSION_ERROR);
+                    }
+                    const consentAt = new Date();
+                    snakeInput.consentments = { ...snakeInput.consentments, consent_date: consentAt };
+                    pendingConsentEvents = consentEvents(id, before, after, {
+                        source: 'UPDATE',
+                        recordedBy: Number(context.user.id),
+                        recordedAt: consentAt,
+                    });
+                }
+            }
+
             const updated = await candidateService.update(id, snakeInput);
 
             if (!updated) {
                 throw new Error(`Candidate with id ${id} not found`);
             }
+
+            await recordConsentHistory(id, pendingConsentEvents);
 
             // KPI RH : transition de statut vers immersion / contrat / rupture (compté pour le RH agissant).
             const column = STATUS_KPI_COLUMN[updated.status];
@@ -403,6 +496,30 @@ export const resolvers = {
             }
 
             return candidateToGql(updated);
+        },
+
+        /**
+         * Retrait de consentement (RGPD art. 7.3, GDPR_INF_08.2), enregistré par un RH
+         * à la demande du candidat. Effet immédiat sur le traitement qui en dépend
+         * (ex. `ai_processing` : la fiche sort des outils MCP). Aucun effacement
+         * automatique : il relève d'une demande d'effacement distincte (GDPR_INF_06.4).
+         */
+        withdrawCandidateConsent: async (_: unknown, { id, types }: { id: string; types: string[] }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const consentTypes = parseConsentTypes(types);
+            const result = await candidateService.withdrawConsents(id, consentTypes);
+            if (!result) {
+                throw new Error(`Candidate with id ${id} not found`);
+            }
+            await recordConsentHistory(
+                id,
+                consentEvents(id, result.previous.consentments, result.updated.consentments, {
+                    source: 'WITHDRAWAL',
+                    recordedBy: Number(context.user.id),
+                    recordedAt: new Date(),
+                }),
+            );
+            return candidateToGql(result.updated);
         },
 
         deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {

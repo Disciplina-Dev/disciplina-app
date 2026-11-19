@@ -450,6 +450,26 @@ CREATE TABLE IF NOT EXISTS `mcp_audit_log` (
   KEY `idx_mcp_audit_date` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- Historique des consentements candidats (RGPD art. 7.1, GDPR_INF_08.2) :
+-- journal en ajout seul, une ligne par type de consentement et par événement
+-- (octroi / retrait). Aucune donnée identifiante : candidate_id = UUID de la
+-- fiche MongoDB (pas de FK possible, base différente). Conservé après
+-- suppression de la fiche, à titre de preuve (durée à valider par le DPO).
+CREATE TABLE IF NOT EXISTS `candidate_consent_history` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `candidate_id` varchar(36) NOT NULL,
+  `consent_type` enum('data_processing','data_sharing','ai_processing','photo_processing') NOT NULL,
+  `action` enum('GRANT','WITHDRAW') NOT NULL,
+  `consent_version` varchar(32) NOT NULL,
+  `source` enum('CREATE','UPDATE','WITHDRAWAL','BACKFILL') NOT NULL,
+  `recorded_by` int DEFAULT NULL,
+  `recorded_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_consent_history_candidate` (`candidate_id`, `consent_type`, `recorded_at`),
+  KEY `idx_consent_history_recorded_by` (`recorded_by`),
+  CONSTRAINT `fk_consent_history_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `relance_history` (
   `id` int NOT NULL AUTO_INCREMENT,
   `company_id` int NOT NULL,
@@ -552,6 +572,7 @@ CREATE TABLE disciplina_annemasse.user_sectors LIKE disciplina.user_sectors;
 CREATE TABLE disciplina_annemasse.company_sectors LIKE disciplina.company_sectors;
 CREATE TABLE disciplina_annemasse.todo_groups LIKE disciplina.todo_groups;
 CREATE TABLE disciplina_annemasse.todos LIKE disciplina.todos;
+CREATE TABLE disciplina_annemasse.candidate_consent_history LIKE disciplina.candidate_consent_history;
 
 -- Contraintes de clés étrangères (non copiées par LIKE) — mêmes noms et
 -- mêmes règles que dans `disciplina`.
@@ -609,6 +630,9 @@ ALTER TABLE disciplina_annemasse.todos
   ADD CONSTRAINT fk_todos_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES disciplina_annemasse.todo_groups (id) ON DELETE SET NULL;
+
+ALTER TABLE disciplina_annemasse.candidate_consent_history
+  ADD CONSTRAINT fk_consent_history_recorded_by FOREIGN KEY (recorded_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Référentiel des secteurs : FK recréées (non copiées par LIKE). Seed au boot backend.
 ALTER TABLE disciplina_annemasse.sectors

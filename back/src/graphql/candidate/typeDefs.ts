@@ -675,6 +675,37 @@ export const typeDefs = gql`
         createdAt: String!
     }
 
+    "Type de consentement candidat (GDPR_INF_08.2)."
+    enum ConsentType {
+        DATA_PROCESSING
+        DATA_SHARING
+        AI_PROCESSING
+        PHOTO_PROCESSING
+    }
+
+    enum ConsentAction {
+        GRANT
+        WITHDRAW
+    }
+
+    enum ConsentSource {
+        CREATE
+        UPDATE
+        WITHDRAWAL
+        BACKFILL
+    }
+
+    "Un événement de l'historique des consentements (octroi ou retrait, horodatage serveur)."
+    type CandidateConsentEvent {
+        id: ID!
+        consentType: ConsentType!
+        action: ConsentAction!
+        consentVersion: String!
+        source: ConsentSource!
+        recordedByName: String
+        recordedAt: String!
+    }
+
     type DriveTpFolder {
         tp: TitleProfessionalType!
         region: String!
@@ -717,6 +748,7 @@ export const typeDefs = gql`
         candidateByEmail(email: String!): CandidateEmailCheck!
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
+        candidateConsentHistory(candidateId: String!): [CandidateConsentEvent!]!
         driveFolderConfig: DriveFolderConfig!
         unmaskCandidateSsn(id: String!): String
     }
@@ -724,6 +756,7 @@ export const typeDefs = gql`
     type Mutation {
         createCandidate(input: CreateCandidateInput!): Candidate!
         updateCandidate(id: String!, input: UpdateCandidateInput!): Candidate!
+        withdrawCandidateConsent(id: String!, types: [ConsentType!]!): Candidate!
         deleteCandidate(id: String!): Boolean!
         createCandidateDriveFolder(id: String!): Candidate!
         addCandidateHistoryEntry(candidateId: String!, description: String!): CandidateHistoryEntry!
