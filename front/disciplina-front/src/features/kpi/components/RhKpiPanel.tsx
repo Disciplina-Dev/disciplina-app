@@ -160,10 +160,15 @@ export default function RhKpiPanel({
   // Entrées (utilisateur × secteur) des semaines retenues, filtrées par secteurs choisis.
   const entries = useMemo(() => {
     const flat = selectedWeeks.flatMap((w) => w.users)
+    // Un RH ne reçoit déjà que ses propres lignes (scope serveur) : le filtre
+    // secteur ne doit pas en masquer. Sinon les buckets historiques (secteur vide,
+    // avant le filtre secteur) et les dossiers sans secteur disparaissent des
+    // compteurs (ex. « Contrats » à 0 après un passage en contrat « Non renseigné »).
+    if (!isAggregate) return flat
     if (!effectiveSectors) return flat
     const set = new Set(effectiveSectors.map((s) => normalizeUserSecteurForRegion(s, region)))
     return flat.filter((u) => set.has(normalizeUserSecteurForRegion(u.sector, region)))
-  }, [selectedWeeks, effectiveSectors, region])
+  }, [selectedWeeks, effectiveSectors, region, isAggregate])
 
   // Détail par RH / responsable (somme par utilisateur) — uniquement en vue agrégée.
   const perUser = useMemo(() => {
