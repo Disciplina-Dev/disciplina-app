@@ -484,7 +484,15 @@ export const resolvers = {
             // KPI RH : transition de statut vers immersion / contrat / rupture (compté pour le RH agissant).
             const column = STATUS_KPI_COLUMN[updated.status];
             if (column && snakeInput.status && previousStatus !== updated.status) {
-                await rhKpiService.bump(Number(context.user.id), updated.owner?.sector ?? '', new Date(), {
+                // Le compteur est crédité au RH agissant : le secteur du bucket doit donc
+                // être le sien, comme pour les entretiens (`creditInterviewKpi`). Utiliser
+                // le snapshot `owner.sector` du dossier attribuait la ligne à un secteur
+                // qui n'est pas celui du RH crédité : le filtre secteur du tableau de bord
+                // la masquait (dossier importé sans `owner` → secteur vide → « Contrats »
+                // à 0). Repli sur l'owner uniquement si le RH n'a aucun secteur.
+                const acting = await userService.findById(context.user.id);
+                const sector = primarySector(acting?.sectors) ?? updated.owner?.sector ?? '';
+                await rhKpiService.bump(Number(context.user.id), sector, new Date(), {
                     [column]: 1,
                 });
             }

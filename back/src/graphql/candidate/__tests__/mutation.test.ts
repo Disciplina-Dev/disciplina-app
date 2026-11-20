@@ -6,6 +6,8 @@ import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { OfferStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
+import { getModels } from '../../../db/mongo/tenant';
+import pool from '../../../db/mysql/connection';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -626,6 +628,79 @@ describe('GraphQL candidate mutations', () => {
 
             const offer = await offerRepo.findById(offerId);
             expect(offer?.matching?.status).toBe(OfferStatus.CONTRACT);
+        });
+
+        it('credits the CONTRACT KPI to the acting RH sector even without a contract company', async () => {
+            // Accident #1186 : un dossier sans `owner` (import) passe en contrat via
+            // « Non renseigné » ; le KPI était rangé dans un secteur vide et disparaissait
+            // du tableau de bord RH filtré sur le secteur du RH.
+            const suffix = Date.now();
+            const conn = await pool.getConnection();
+            let rhId: number;
+            try {
+                const [result] = await conn.execute(
+                    'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                    [`kpi-contract-${suffix}@test.local`, 'Kpi', 'Contrat', 'pwd', 2, 3],
+                );
+                rhId = (result as any).insertId;
+                await conn.execute(
+                    "INSERT INTO user_sectors (user_id, sector_id) SELECT ?, id FROM sectors WHERE level IN ('region', 'sector') AND label = ?",
+                    [rhId, 'Sud'],
+                );
+            } finally {
+                conn.release();
+            }
+            const auth = mintAuthCookies({
+                id: rhId,
+                email: `kpi-contract-${suffix}@test.local`,
+                role: 'RH',
+                permission: 'EMPLOYEE',
+            });
+            const repo = new CandidateRepository();
+            const candidateId = `update-contract-kpi-${suffix}`;
+
+            const seeded = await repo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Hana ${suffix}`,
+                    email: `hana-${suffix}@test.local`,
+                    phone: '0100000012',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) { id status contractCompanyName }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            status: 'CONTRACT',
+                            contractCompanyName: 'Non renseigné',
+                            contractStartDate: '2026-10-01',
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('CONTRACT');
+
+            const buckets = await getModels().Kpi.find({ kind: 'rh', user_id: rhId }).lean();
+            expect(buckets).toHaveLength(1);
+            expect(buckets[0].sector).toBe('Sud');
+            expect((buckets[0].metrics as Record<string, number>).contracts).toBe(1);
         });
 
         it('does not sync linked offer status when moving to a non-contract status', async () => {
