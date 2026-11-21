@@ -21,7 +21,7 @@
     "@opentelemetry/instrumentation-express": "^0.70.0",
     "@opentelemetry/instrumentation-graphql": "^0.70.0",
     "@opentelemetry/instrumentation-http": "^0.222.0",
-    "@opentelemetry/instrumentation-mongodb": "^0.75.0",
+    "@opentelemetry/instrumentation-mongodb": "^0.76.0",
     "@opentelemetry/instrumentation-mysql2": "^0.68.0",
     "@opentelemetry/instrumentation-pino": "^0.68.0",
     "@opentelemetry/resources": "^2.11.0",
