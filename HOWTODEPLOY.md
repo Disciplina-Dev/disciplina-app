@@ -340,6 +340,23 @@ the multi-tenant setup, and feature-specific conventions live in `CLAUDE.md` /
 
 **Rule:** any new script run at deployment time must be documented here.
 
+### System mail mailbox (`SYSTEM_MAIL_SENDER`)
+
+The "système" emails — HR notification of a new *Analyse du Besoin*, external
+access codes — are sent from a real Google mailbox, looked up **in each tenant's
+own `users` table** (`external/google/system-mail.ts`). The historical default is
+`dev@disciplina.re`; override it per tenant with `SYSTEM_MAIL_SENDER`.
+
+- The account must exist in the tenant DB **and** have a valid Google consent
+  (`oauth_token` + `refresh_token`): sign in with it once via the Google button.
+- If it is missing, soft-deleted or its refresh token is revoked, the backend now
+  falls back to any connected staff account (responsable → RH → gestion →
+  commercial) and logs `[SystemMail]` at `error`. Restore the dedicated mailbox
+  (sign in again) to stop the fallback.
+- Checks after a deploy: search the logs for `[SystemMail]` and run
+  `SELECT email, oauth_token IS NOT NULL, refresh_token IS NOT NULL, is_deleted
+  FROM users WHERE email = '<SYSTEM_MAIL_SENDER>';` on each tenant.
+
 ### Claude.ai MCP connector (OAuth)
 
 The MCP endpoint also acts as an OAuth 2.1 authorization server so Claude.ai
