@@ -1,8 +1,10 @@
-import { IconBell, IconCalendar, IconCheck, IconClose, IconCompany, IconCopy, IconEdit, IconFile, IconHash, IconJob, IconMail, IconMapPin, IconPhone, IconTaskList, IconTrash, IconUser, IconUserCheck } from '@/components/ui/icons'
+import { IconBell, IconCalendar, IconCheck, IconClose, IconCompany, IconCopy, IconEdit, IconFile, IconFolder, IconHash, IconJob, IconMail, IconMapPin, IconPhone, IconTaskList, IconTrash, IconUser, IconUserCheck } from '@/components/ui/icons'
 import { useState } from 'react'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise } from '@/types/entreprise'
+import { isAbArchivedOnDrive } from '@/types/needsAnalysis'
+import { needsAnalysisAbDriveUrl } from '@/api/needsAnalysis'
 import type { AppUser } from '@/store/authStore'
 import { fullName } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
@@ -308,6 +310,18 @@ export default function DetailModal({ entreprise, currentUser, onClose, onEdit, 
                         <span className="ml-2 text-xs text-[var(--ds-text-subtle)]">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {isAbArchivedOnDrive(ab.status) && (
+                          <a
+                            href={needsAnalysisAbDriveUrl(ab.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Ouvrir l'AB dans le Drive"
+                            className="rounded-lg p-1 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface)] hover:text-blue"
+                          >
+                            <IconFolder width={14} height={14} />
+                          </a>
+                        )}
                         {ab.createdAt && (
                           <span className="text-xs text-[var(--ds-text-subtle)]">{formatDate(ab.createdAt)}</span>
                         )}

@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { IconAlert, IconArrowLeft, IconCar, IconCheck, IconChevronRight, IconClose, IconCompany, IconEye, IconFavorite, IconInfo, IconJob, IconLoader, IconMail, IconMailSent, IconMapPin, IconPhone, IconPlay, IconPlus, IconRefresh, IconSchedule, IconSend, IconSparkles, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers } from '@/components/ui/icons'
+import { IconAlert, IconArrowLeft, IconCar, IconCheck, IconChevronRight, IconClose, IconCompany, IconEye, IconFavorite, IconFolder, IconInfo, IconJob, IconLoader, IconMail, IconMailSent, IconMapPin, IconPhone, IconPlay, IconPlus, IconRefresh, IconSchedule, IconSend, IconSparkles, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers } from '@/components/ui/icons'
 import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
@@ -27,7 +27,8 @@ import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/Edit
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus, useUpdateOfferActive } from '@/graphql/hooks'
 import Badge from '@/components/ui/Badge'
-import { abStatusBadge } from '@/types/needsAnalysis'
+import { abStatusBadge, isAbArchivedOnDrive } from '@/types/needsAnalysis'
+import { needsAnalysisAbDriveUrl } from '@/api/needsAnalysis'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatScheduleSlots } from '@/utils/schedule'
@@ -2586,6 +2587,18 @@ function AbHeader({
       </div>
       {ab && (
         <div className="flex items-center gap-2">
+          {isAbArchivedOnDrive(ab.status) && (
+            <a
+              href={needsAnalysisAbDriveUrl(ab.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
+              title="Ouvrir l'AB dans le Drive"
+            >
+              <IconFolder width={16} height={16} />
+              <span className="hidden md:inline">AB dans le Drive</span>
+            </a>
+          )}
           <button
             onClick={() => setShowAbDetail(true)}
             className="flex items-center gap-1.5 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"

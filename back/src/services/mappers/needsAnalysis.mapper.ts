@@ -277,6 +277,9 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         trainingDays: doc.training_days ?? '{}',
         yousignSignatureRequestID: doc.signature_request_id ?? null,
         signatureUrl: doc.signature_url ?? null,
+        // Lien Drive du PDF d'AB archivé (rempli à l'archivage ; null pour les AB
+        // antérieures, résolues à la demande par la route `/ab-drive`).
+        abDriveUrl: doc.ab_drive_url ?? null,
         signatureSentAt: doc.signature_sent_at ? new Date(doc.signature_sent_at).toISOString() : null,
         lastRelanceAt: doc.last_relance_at ? new Date(doc.last_relance_at).toISOString() : null,
         signedAt: doc.signed_at ? new Date(doc.signed_at).toISOString() : null,

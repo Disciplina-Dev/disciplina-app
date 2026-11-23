@@ -1,4 +1,4 @@
-import { IconArrowLeft, IconBell, IconCalendar, IconCheck, IconCompany, IconCopy, IconFile, IconForbidden, IconHash, IconJob, IconMail, IconMapPin, IconPhone, IconTaskList, IconTrash, IconUser, IconUserCheck } from '@/components/ui/icons'
+import { IconArrowLeft, IconBell, IconCalendar, IconCheck, IconCompany, IconCopy, IconFile, IconFolder, IconForbidden, IconHash, IconJob, IconMail, IconMapPin, IconPhone, IconTaskList, IconTrash, IconUser, IconUserCheck } from '@/components/ui/icons'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation, useBlocker } from 'react-router-dom'
 import { useQuery } from 'urql'
@@ -6,6 +6,8 @@ import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import { isAbArchivedOnDrive } from '@/types/needsAnalysis'
+import { needsAnalysisAbDriveUrl } from '@/api/needsAnalysis'
 import { STATUS_VALUES } from '@/types/entreprise'
 import { ALL_COMPANY_SECTEURS } from '@/constants/secteurs'
 import { useSectors } from '@/hooks/useSectors'
@@ -700,6 +702,18 @@ export default function EntreprisePage() {
                         <span className="ml-2 text-xs text-[var(--ds-text-subtle)]">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {isAbArchivedOnDrive(ab.status) && (
+                          <a
+                            href={needsAnalysisAbDriveUrl(ab.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Ouvrir l'AB dans le Drive"
+                            className="rounded-lg p-1 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface)] hover:text-blue"
+                          >
+                            <IconFolder width={14} height={14} />
+                          </a>
+                        )}
                         {ab.createdAt && <span className="text-xs text-[var(--ds-text-subtle)]">{formatDate(ab.createdAt)}</span>}
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>
                       </div>

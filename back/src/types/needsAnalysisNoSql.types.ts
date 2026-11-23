@@ -179,6 +179,13 @@ export interface NeedsAnalysis {
     signature_sent_at?: Date | null;
     /** Lien DocuSeal de signature, conservé pour générer le bouton des relances. */
     signature_url?: string | null;
+    /**
+     * URL Drive du PDF d'AB archivé (copie non signée à l'envoi en signature,
+     * remplacée par la copie signée une fois l'AB signée). Sert au bouton
+     * « Ouvrir l'AB dans le Drive » ; absent des AB antérieures à ce champ
+     * (résolu à la demande, cf. `AbDriveConfigService.resolveAbPdfLink`).
+     */
+    ab_drive_url?: string | null;
     /** Date de la dernière relance de signature envoyée automatiquement (null = jamais). */
     last_relance_at?: Date | null;
     /** Si vrai, la relance automatique de signature est désactivée (toggle commercial). */
