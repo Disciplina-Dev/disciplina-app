@@ -22,6 +22,27 @@ export enum Sector {
   ENERGIE = 'ENERGIE',
   IMPORT_EXPORT = 'IMPORT_EXPORT',
   SOCIAL = 'SOCIAL',
+  // Secteurs d'activité « entreprise » élargis (AB). Ils n'ont pas
+  // d'équivalent dans le référentiel candidat (secteurs de TP) : le matching
+  // les traite comme des secteurs libres, faute de pouvoir les comparer.
+  ADMINISTRATION_PUBLIQUE = 'ADMINISTRATION_PUBLIQUE',
+  EDUCATION_FORMATION = 'EDUCATION_FORMATION',
+  COMPTABILITE_PAIE_CONSEIL = 'COMPTABILITE_PAIE_CONSEIL',
+  BANQUE_FINANCE = 'BANQUE_FINANCE',
+  RECRUTEMENT_INTERIM = 'RECRUTEMENT_INTERIM',
+  JURIDIQUE = 'JURIDIQUE',
+  TRANSPORT_LOGISTIQUE = 'TRANSPORT_LOGISTIQUE',
+  HOTELLERIE_TOURISME = 'HOTELLERIE_TOURISME',
+  COMMUNICATION_MARKETING = 'COMMUNICATION_MARKETING',
+  INFORMATIQUE_NUMERIQUE = 'INFORMATIQUE_NUMERIQUE',
+  INDUSTRIE_PRODUCTION = 'INDUSTRIE_PRODUCTION',
+  AGRICULTURE_PECHE = 'AGRICULTURE_PECHE',
+  SERVICES_ENTREPRISES = 'SERVICES_ENTREPRISES',
+  SERVICES_PERSONNE = 'SERVICES_PERSONNE',
+  COIFFURE_ESTHETIQUE = 'COIFFURE_ESTHETIQUE',
+  CULTURE_LOISIRS = 'CULTURE_LOISIRS',
+  ENVIRONNEMENT_RECYCLAGE = 'ENVIRONNEMENT_RECYCLAGE',
+  COMMERCE_GROS_DISTRIBUTION = 'COMMERCE_GROS_DISTRIBUTION',
   NONE = 'NONE',
 }
 
@@ -49,6 +70,24 @@ export const SECTOR_LABELS: Record<string, string> = {
   [Sector.ENERGIE]: 'Energie',
   [Sector.IMPORT_EXPORT]: 'Import / Export',
   [Sector.SOCIAL]: 'Social',
+  [Sector.ADMINISTRATION_PUBLIQUE]: 'Administration publique / collectivités',
+  [Sector.EDUCATION_FORMATION]: 'Éducation / formation',
+  [Sector.COMPTABILITE_PAIE_CONSEIL]: 'Comptabilité / paie / conseil',
+  [Sector.BANQUE_FINANCE]: 'Banque / finance',
+  [Sector.RECRUTEMENT_INTERIM]: 'Recrutement / intérim',
+  [Sector.JURIDIQUE]: 'Juridique',
+  [Sector.TRANSPORT_LOGISTIQUE]: 'Transport / logistique / livraison',
+  [Sector.HOTELLERIE_TOURISME]: 'Hôtellerie / tourisme',
+  [Sector.COMMUNICATION_MARKETING]: 'Communication / marketing / événementiel',
+  [Sector.INFORMATIQUE_NUMERIQUE]: 'Informatique / numérique',
+  [Sector.INDUSTRIE_PRODUCTION]: 'Industrie / production',
+  [Sector.AGRICULTURE_PECHE]: 'Agriculture / pêche',
+  [Sector.SERVICES_ENTREPRISES]: 'Services aux entreprises',
+  [Sector.SERVICES_PERSONNE]: 'Services à la personne',
+  [Sector.COIFFURE_ESTHETIQUE]: 'Coiffure / esthétique / bien-être',
+  [Sector.CULTURE_LOISIRS]: 'Culture / loisirs',
+  [Sector.ENVIRONNEMENT_RECYCLAGE]: 'Environnement / recyclage',
+  [Sector.COMMERCE_GROS_DISTRIBUTION]: 'Commerce de gros / distribution et commerce en ligne',
   [Sector.NONE]: 'Aucun',
 }
 
@@ -86,5 +125,32 @@ export const AD_SECTORS: Sector[] = [
   Sector.TELEPHONIE,
 ]
 
+/**
+ * Secteurs d'activité « entreprise » élargis, proposés dans le formulaire AB
+ * (« Secteur(s) d'activité »). Ajoutés à la suite des secteurs historiques.
+ */
+export const ACTIVITY_SECTORS: Sector[] = [
+  Sector.ADMINISTRATION_PUBLIQUE,
+  Sector.EDUCATION_FORMATION,
+  Sector.COMPTABILITE_PAIE_CONSEIL,
+  Sector.BANQUE_FINANCE,
+  Sector.RECRUTEMENT_INTERIM,
+  Sector.JURIDIQUE,
+  Sector.TRANSPORT_LOGISTIQUE,
+  Sector.HOTELLERIE_TOURISME,
+  Sector.COMMUNICATION_MARKETING,
+  Sector.INFORMATIQUE_NUMERIQUE,
+  Sector.INDUSTRIE_PRODUCTION,
+  Sector.AGRICULTURE_PECHE,
+  Sector.SERVICES_ENTREPRISES,
+  Sector.SERVICES_PERSONNE,
+  Sector.COIFFURE_ESTHETIQUE,
+  Sector.CULTURE_LOISIRS,
+  Sector.ENVIRONNEMENT_RECYCLAGE,
+  Sector.COMMERCE_GROS_DISTRIBUTION,
+]
+
 /** Union de tous les secteurs sélectionnables (offres entreprises, filtres). */
-export const ALL_SECTORS: Sector[] = Array.from(new Set([...COMMERCE_SECTORS, ...AD_SECTORS]))
+export const ALL_SECTORS: Sector[] = Array.from(
+  new Set([...COMMERCE_SECTORS, ...AD_SECTORS, ...ACTIVITY_SECTORS]),
+)
