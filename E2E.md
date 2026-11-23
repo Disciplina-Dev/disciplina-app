@@ -91,10 +91,10 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 ### 3.5 Analyse de Besoin (AB)
 
 - **Étapes** : ENTREPRISE `FormulaireAB` ou COMMERCIAL `CreateAB` → remplir → soumettre ; générer le PDF.
-- **Chaîne** : GraphQL `/api/graphql/needs-analysis` — `createNeedsAnalysis`, `updateNeedsAnalysis`, `needsAnalysesByCompany` → Mongo. PDF : `GET /api/needs-analysis/:id/pdf`, `/signature/mandat-pdf`, `/catalogue-pdf` → `NeedsAnalysisService` → `PdfService`.
-- **Résultat attendu** : (1) AB persistée ; (2) relue via `needsAnalysesByCompany` ; PDF généré (content-type `application/pdf`).
+- **Chaîne** : GraphQL `/api/graphql/needs-analysis` — `createNeedsAnalysis`, `updateNeedsAnalysis`, `needsAnalysesByCompany` → Mongo. PDF : `GET /api/needs-analysis/:id/pdf`, `/signature/mandat-pdf`, `/catalogue-pdf` → `NeedsAnalysisService` → `PdfService`. Lien Drive : `GET /api/needs-analysis/:id/ab-drive` (302 vers le PDF archivé, résolu à la demande pour les AB antérieures à `ab_drive_url`).
+- **Résultat attendu** : (1) AB persistée ; (2) relue via `needsAnalysesByCompany` ; PDF généré (content-type `application/pdf`) ; (3) le bouton « Ouvrir l'AB dans le Drive » redirige vers le PDF du Drive (copie signée si l'AB est signée), 404 si aucune archive.
 - **External** : Drive (upload signé). ⚠️
-- **Test vitest** : `graphql/needsAnalysis/__tests__/needsAnalysis.test.ts` (partiel).
+- **Test vitest** : `graphql/needsAnalysis/__tests__/needsAnalysis.test.ts` (partiel), `rest/needsAnalysis/__tests__/abDrive.test.ts` (lien Drive), `services/__tests__/abDriveArchive.test.ts` (archivage).
 - **Statut** : _à remplir_
 
 ### 3.6 Matching
