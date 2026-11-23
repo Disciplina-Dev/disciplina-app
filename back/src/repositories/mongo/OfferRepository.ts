@@ -11,24 +11,6 @@ import {
 
 const PLACEMENT_CONCLUSIONS = [InterviewConclusion.IMMERSING, InterviewConclusion.CONTRACT];
 
-// Retire les champs de proposition d'un candidat rebasculé en simple « retenu ».
-function resetProposal(candidate: MatchingCandidate): MatchingCandidate {
-    const {
-        description: _description,
-        cv_webview: _cv_webview,
-        comment: _comment,
-        interview_location: _interview_location,
-        booked_interview_slot: _booked_interview_slot,
-        interview_conclusion: _interview_conclusion,
-        immersion_start_date: _immersion_start_date,
-        immersion_end_date: _immersion_end_date,
-        immersion_location: _immersion_location,
-        immersion_conclusion: _immersion_conclusion,
-        ...identity
-    } = candidate;
-    return { ...identity, status: MatchedCandidateStatus.ACCEPTED };
-}
-
 function buildOfferAbMongoFilter(filter: OfferAbFilter): Record<string, unknown> {
     const mongo: Record<string, unknown> = {};
     if (filter.statuses?.length) mongo['matching.status'] = { $in: filter.statuses };
@@ -225,7 +207,8 @@ export class OfferRepository {
 
     /**
      * Marque le sous-ensemble proposé (status SEND + champs de proposition) et
-     * rebascule les anciens proposés hors liste en simples retenus. Passe l'offre en CV_SEND.
+     * passe l'offre en CV_SEND. Les candidats déjà envoyés lors d'un envoi
+     * précédent restent SEND : les envois successifs s'ajoutent au lieu de se remplacer.
      */
     async setProposedCandidates(offerId: string, proposed: MatchingCandidate[]): Promise<Offer | null> {
         const offer = await this.findById(offerId);
@@ -234,8 +217,7 @@ export class OfferRepository {
         const proposedById = new Map(proposed.map((candidate) => [candidate.id, candidate]));
         const merged = (offer.matching?.candidates ?? []).map((candidate: MatchingCandidate) => {
             const update = proposedById.get(candidate.id);
-            if (update) return { ...candidate, ...update, status: MatchedCandidateStatus.SEND };
-            return candidate.status === MatchedCandidateStatus.SEND ? resetProposal(candidate) : candidate;
+            return update ? { ...candidate, ...update, status: MatchedCandidateStatus.SEND } : candidate;
         });
         for (const candidate of proposed) {
             if (!merged.some((existing: MatchingCandidate) => existing.id === candidate.id)) {
