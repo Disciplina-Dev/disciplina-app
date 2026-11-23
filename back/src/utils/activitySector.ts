@@ -11,7 +11,10 @@ import { Sector } from '../types/matching.types';
  * coché « Restauration » ne matcherait pas une offre « RESTAURATION ».
  *
  * Les libellés sont repris de `front/disciplina-front/src/data/sectors.ts` :
- * une évolution du référentiel doit être répercutée des deux côtés.
+ * une évolution du référentiel **candidat** doit être répercutée des deux
+ * côtés. Les secteurs d'activité « entreprise » sans équivalent candidat
+ * (`ACTIVITY_SECTORS` côté front, ex. « Informatique / numérique ») en sont
+ * volontairement absents : le matching les ignore comme tout secteur libre.
  */
 const SECTOR_ALIASES: Record<Sector, readonly string[]> = {
     [Sector.BOULANGERIE]: ['Boulangerie'],
