@@ -214,6 +214,12 @@ const data = {
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 
+    // Boîte Google d'envoi des mails « système » (notifications internes,
+    // codes d'accès externes). Doit exister dans la base du tenant ET avoir un
+    // consentement Google valide ; sinon repli sur un compte du staff connecté
+    // (cf. external/google/system-mail.ts). Un compte par tenant.
+    SYSTEM_MAIL_SENDER: stringWithDefault('SYSTEM_MAIL_SENDER', 'dev@disciplina.re'),
+
     // Dossier partagé racine "Candidat Nord" (fallback si pas de sous-dossier par TP).
     DRIVE_CANDIDATS_NORD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_FOLDER_ID'),
     // Sous-dossiers par type de Titre Professionnel, dans "Candidat Nord".
