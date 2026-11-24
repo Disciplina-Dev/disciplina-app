@@ -1607,6 +1607,8 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
 
   const [savingAtt, setSavingAtt] = useState<Attendance | null>(null)
   const [attErr, setAttErr] = useState<string | null>(null)
+  // Distingue « À reprogrammer » (date à définir) de « Déplacer et marquer reporté » dans les spinners.
+  const [savingPending, setSavingPending] = useState(false)
   const isPast = new Date(event.end).getTime() < Date.now()
   // « Reporté » d'un entretien : on demande d'abord la nouvelle date/heure, puis on déplace le créneau.
   const [rescheduling, setRescheduling] = useState(false)
@@ -1614,15 +1616,17 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
   const [newStart, setNewStart] = useState(() => toTimeInput(new Date(event.start)))
   const [newEnd, setNewEnd] = useState(() => toTimeInput(new Date(event.end)))
 
-  const mark = async (status: Attendance) => {
+  const mark = async (status: Attendance): Promise<boolean> => {
     setSavingAtt(status); setAttErr(null)
     try {
       const updated = await setEventAttendance(event.id, status, event.ownerId)
       onAttendance(updated)
       // « Arrivé » (entretien uniquement) → création du candidat pré-rempli puis redirection vers sa fiche.
       if (status === 'arrived' && event.isInterview) onArrived(updated)
+      return true
     } catch (e) {
       setAttErr(e instanceof Error ? e.message : 'Erreur')
+      return false
     } finally {
       setSavingAtt(null)
     }
@@ -1711,14 +1715,24 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
                 <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} disabled={savingAtt !== null}
                   className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
               </div>
-              <div className="mt-2 flex items-center justify-end gap-2">
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                {/* Date pas encore fixée : on marque reporté sans déplacer le créneau (à reprogrammer plus tard). */}
+                <button onClick={async () => {
+                  setSavingPending(true)
+                  if (await mark('postponed')) setRescheduling(false)
+                  setSavingPending(false)
+                }} disabled={savingAtt !== null}
+                  className="mr-auto flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-[12px] font-bold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] disabled:opacity-60">
+                  {savingPending && <IconLoader width={13} height={13} className="animate-spin" />} À reprogrammer
+                </button>
                 <button onClick={() => setRescheduling(false)} disabled={savingAtt !== null}
                   className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] disabled:opacity-60">Annuler</button>
                 <button onClick={confirmReport} disabled={savingAtt !== null}
                   className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-1.5 text-[12px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
-                  {savingAtt === 'postponed' && <IconLoader width={13} height={13} className="animate-spin" />} Déplacer et marquer reporté
+                  {!savingPending && savingAtt === 'postponed' && <IconLoader width={13} height={13} className="animate-spin" />} Déplacer et marquer reporté
                 </button>
               </div>
+              <p className="mt-2 text-[11px] text-[var(--ds-text-subtle)]">Nouvelle date pas encore fixée ? Choisissez « À reprogrammer » : le créneau reste reporté en attendant.</p>
             </div>
           )}
           {event.isInterview && event.attendance === 'noshow' && (
