@@ -499,6 +499,26 @@ CREATE TABLE IF NOT EXISTS `candidate_consent_history` (
   CONSTRAINT `fk_consent_history_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- Journal d'accès aux données candidat (RGPD art. 5.2 / 15 / 32, GDPR_INF_06.5) :
+-- qui a lu une fiche, un fichier, un export PDF ou démasqué un NIR. Ajout seul.
+-- candidate_id = UUID de la fiche MongoDB (NULL pour une liste en masse), aucune
+-- donnée identifiante. Pas de FK sur actor_id (comme mcp_audit_log) : la ligne doit
+-- survivre à la suppression du compte et ne jamais être refusée. Purgé à 365 jours
+-- par expiredAccessScheduler.
+CREATE TABLE IF NOT EXISTS `candidate_access_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `candidate_id` varchar(128) DEFAULT NULL,
+  `actor_id` int DEFAULT NULL,
+  `actor_type` enum('STAFF','EXTERNAL') NOT NULL,
+  `action` enum('VIEW','LIST','SSN_UNMASK','PDF_EXPORT','CV_READ','FILE_READ','AVATAR_READ') NOT NULL,
+  `result_count` int NOT NULL DEFAULT 1,
+  `created_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_access_log_candidate` (`candidate_id`, `created_at`),
+  KEY `idx_access_log_actor` (`actor_id`, `created_at`),
+  KEY `idx_access_log_date` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 CREATE TABLE IF NOT EXISTS `relance_history` (
   `id` int NOT NULL AUTO_INCREMENT,
   `company_id` int NOT NULL,
@@ -603,6 +623,7 @@ CREATE TABLE disciplina_annemasse.company_sectors LIKE disciplina.company_sector
 CREATE TABLE disciplina_annemasse.todo_groups LIKE disciplina.todo_groups;
 CREATE TABLE disciplina_annemasse.todos LIKE disciplina.todos;
 CREATE TABLE disciplina_annemasse.candidate_consent_history LIKE disciplina.candidate_consent_history;
+CREATE TABLE disciplina_annemasse.candidate_access_log LIKE disciplina.candidate_access_log;
 
 -- Contraintes de clés étrangères (non copiées par LIKE) — mêmes noms et
 -- mêmes règles que dans `disciplina`.

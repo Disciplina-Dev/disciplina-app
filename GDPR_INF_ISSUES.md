@@ -215,7 +215,7 @@ No general processing register (`rgpd/README.md:50-53`, F3); DPAs "to archive" f
 **Labels:** `gdpr` `severity:high` · **Standard:** Art. 15-22
 
 ### Finding
-No export/portability, rectification, objection or consent-withdrawal endpoint for candidates (`RGPD.md` F4, `:222-290`). Erasure only by an HR employee (`deleteCandidate`, `graphql/candidate/resolver.ts:408`). No journal showing a candidate who consulted their data (F14).
+No export/portability, rectification, objection or consent-withdrawal endpoint for candidates (`RGPD.md` F4, `:222-290`). Erasure only by an HR employee (`deleteCandidate`, `graphql/candidate/resolver.ts`). No journal showing a candidate who consulted their data (F14).
 
 #### [GDPR_INF_06.1] Export / portability
 **Labels:** `gdpr` `severity:high`
@@ -235,11 +235,13 @@ No export/portability, rectification, objection or consent-withdrawal endpoint f
 **Labels:** `gdpr` `severity:high`
 - Extend `deleteCandidate` cascade to Drive, Filiz, DocuSeal, avatars; document backup expiry vs. erasure.
 - **AC:** erasure leaves no copy except backups expiring within the stated delay.
+- **Status (2026-11-25):** implemented in `CandidateService.delete` (Drive, avatar, history, matching, external access, notifications, alternant unlink). Filiz = manual deletion from the `[Erasure]` log line (no API); DocuSeal = N/A (no candidate data); backups expire ≤ 7 days (`scripts/backup-db.sh`). Linked `alternants` records are detached (`candidate_id` = null), not erased (decision 2026-11-25).
 
 #### [GDPR_INF_06.5] Access journal for candidate data (F14)
 **Labels:** `gdpr` `severity:high`
 - Record who read candidate files, exports, and `unmaskCandidateSsn`; able to answer a candidate's access request.
 - **AC:** read/export events logged and queryable. (Shared with GDPR_INF_15.3.)
+- **Status (2026-11-25):** implemented. `candidate_access_log` (append-only, UUID only, 365 days, purged by `expiredAccessScheduler`) records sheet views, bulk lists (size only), `unmaskCandidateSsn`, AB PDF export, CV download, Drive listing/content, and the external signed-link CV. Queryable via GraphQL `candidateAccessLog(candidateId)` (RESPONSABLE+). Not logged: avatar thumbnails (UI noise), the public `GET /:id/avatar`, questionnaire PDFs, and which sheets a bulk list contained. MCP reads stay in `mcp_audit_log`.
 
 ---
 
@@ -450,6 +452,7 @@ Docker `json-file` logs with no rotation or retention (no `logging:` in compose 
 **Labels:** `gdpr` `severity:medium`
 - Shared with GDPR_INF_06.5.
 - **AC:** events for reads, exports and `unmaskCandidateSsn`.
+- **Status (2026-11-25):** done with GDPR_INF_06.5 (`candidate_access_log`).
 
 #### [GDPR_INF_15.4] Stop printing log lines in `deploy.sh:241`
 **Labels:** `gdpr` `severity:medium`

@@ -179,6 +179,9 @@ justice.
 en cours de mise en œuvre. Dans l'intervalle, les suppressions sont réalisées sur
 demande et lors des revues périodiques des dossiers.
 
+**Sauvegardes** : lorsqu'un dossier est effacé, ses copies dans nos sauvegardes chiffrées
+sont supprimées par expiration automatique au plus tard 7 jours après l'effacement.
+
 ## 8. Décision automatisée et profilage
 
 Aucune décision produisant des effets juridiques à l'égard d'une personne ou
@@ -228,11 +231,13 @@ adaptées, parmi lesquelles :
   email, téléphones, numéros de sécurité sociale, dates de naissance) ;
 - habilitations par rôle et journalisation des modifications apportées aux
   dossiers ;
+- journalisation des consultations et des exports des dossiers candidats
+  (qui, quand, quelle opération), sans reproduire le contenu consulté, conservée
+  un an ;
 - accès aux portails externes par liens signés à durée limitée.
 
 **Engagements en cours** : le chiffrement au repos du numéro de sécurité sociale et
-des photographies, ainsi que la journalisation des consultations et des exports,
-font l'objet de travaux en cours.
+des photographies fait l'objet de travaux en cours.
 
 En cas de violation de données susceptible d'engendrer un risque élevé pour les
 droits et libertés des personnes concernées, [[NOM_ORGANISME]] en informe ces

@@ -488,6 +488,23 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Journal d'accès aux données candidat (GDPR_INF_06.5) : ajout seul, UUID uniquement.
+        // candidate_id NULL = consultation d'une liste en masse (result_count = taille).
+        table: 'candidate_access_log',
+        ddl: `CREATE TABLE IF NOT EXISTS candidate_access_log (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            candidate_id VARCHAR(128) DEFAULT NULL,
+            actor_id INT DEFAULT NULL,
+            actor_type ENUM('STAFF', 'EXTERNAL') NOT NULL,
+            action ENUM('VIEW', 'LIST', 'SSN_UNMASK', 'PDF_EXPORT', 'CV_READ', 'FILE_READ', 'AVATAR_READ') NOT NULL,
+            result_count INT NOT NULL DEFAULT 1,
+            created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+            INDEX idx_access_log_candidate (candidate_id, created_at),
+            INDEX idx_access_log_actor (actor_id, created_at),
+            INDEX idx_access_log_date (created_at)
+        )`,
+    },
+    {
         // Référentiel hiérarchique région > secteur > commune (seedé par migrateSectors).
         // `code` n'est unique que par niveau : la commune ANNECY et le secteur ANNECY coexistent.
         table: 'sectors',

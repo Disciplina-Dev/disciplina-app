@@ -706,6 +706,31 @@ export const typeDefs = gql`
         recordedAt: String!
     }
 
+    enum CandidateAccessAction {
+        VIEW
+        LIST
+        SSN_UNMASK
+        PDF_EXPORT
+        CV_READ
+        FILE_READ
+        AVATAR_READ
+    }
+
+    enum CandidateAccessActorType {
+        STAFF
+        EXTERNAL
+    }
+
+    "Une lecture ou un export de données d'une fiche candidat (journal d'accès, horodatage serveur)."
+    type CandidateAccessEvent {
+        id: ID!
+        action: CandidateAccessAction!
+        actorType: CandidateAccessActorType!
+        actorId: Int
+        actorName: String
+        occurredAt: String!
+    }
+
     type DriveTpFolder {
         tp: TitleProfessionalType!
         region: String!
@@ -749,6 +774,8 @@ export const typeDefs = gql`
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
         candidateConsentHistory(candidateId: String!): [CandidateConsentEvent!]!
+        "Journal des lectures / exports d'une fiche, du plus récent au plus ancien (RESPONSABLE+)."
+        candidateAccessLog(candidateId: String!, limit: Int): [CandidateAccessEvent!]!
         driveFolderConfig: DriveFolderConfig!
         unmaskCandidateSsn(id: String!): String
     }

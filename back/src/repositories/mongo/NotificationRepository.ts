@@ -39,6 +39,11 @@ export class NotificationRepository {
         await getModels().Notification.updateMany({ user_id: userId, read: false }, { $set: { read: true } });
     }
 
+    /** Effacement candidat : purge les notifications pointant vers la fiche du candidat. */
+    async deleteByCandidateLink(candidateId: string): Promise<number> {
+        return (await getModels().Notification.deleteMany({ link: `/rh/candidats/${candidateId}` })).deletedCount;
+    }
+
     /** Purge définitive des notifications d'un compte (soft-)supprimé. */
     async deleteAllForUser(userId: number): Promise<number> {
         return (await getModels().Notification.deleteMany({ user_id: userId })).deletedCount;
