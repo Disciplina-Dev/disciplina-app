@@ -18,6 +18,7 @@ import { JobRole, User } from '../../types/user.types';
 import { canAccessAllSectors, primarySector, shareSector } from '../../utils/sector';
 import { logger } from '../../external/logger';
 import { RhKpiService } from '../../services/RhKpiService';
+import { SlotOccupationRepository } from '../../repositories/mysql/SlotOccupationRepository';
 
 export interface Slot {
     /** ISO datetime UTC du début. */
@@ -172,6 +173,7 @@ function calendarForUser(user: User): GoogleCalendarService {
 export class BookingService {
     private repo = new BookingRepository();
     private blockRepo = new DayBlockRepository();
+    private occupationRepo = new SlotOccupationRepository();
 
     /** Renvoie les réglages de l'utilisateur, en les créant (slug aléatoire) au premier accès. */
     async getOrCreate(userId: number): Promise<BookingSettings> {
@@ -398,6 +400,15 @@ export class BookingService {
         const rangeStart = zonedToUtc(fy, fm, fd, 0, 0, tz);
         const rangeEnd = zonedToUtc(ty, tm, td, 23, 59, tz);
         const busy = await calendarForUser(host).freeBusy(rangeStart.toISOString(), rangeEnd.toISOString());
+        // Entretiens des RH du même secteur : leur créneau est pris, il ne doit pas
+        // être proposé ici non plus (les occupations de l'hôte couvrent aussi les
+        // entretiens réservés côté candidat, qui n'existent pas dans Google).
+        const occupations = await this.occupationRepo.findVisibleBusy(
+            settings.userId,
+            rangeStart.toISOString(),
+            rangeEnd.toISOString(),
+        );
+        const busyIntervals: BusyInterval[] = [...busy, ...occupations];
         // Jours bloqués par le RH (ou par un blocage « pour tout le monde ») :
         // ils ne sont jamais proposés, quelles que soient les plages hebdomadaires.
         const blockedDays = await this.blockRepo.blockedDays(settings.userId, fromDate, toDate);
@@ -421,7 +432,7 @@ export class BookingService {
                 let slotStart = zonedToUtc(y, mo, d, sh, sm, tz).getTime();
                 while (slotStart + durMs <= winEnd) {
                     const slotEnd = slotStart + durMs;
-                    if (slotStart >= earliest && slotStart <= horizon && !overlapsBusy(slotStart, slotEnd, busy)) {
+                    if (slotStart >= earliest && slotStart <= horizon && !overlapsBusy(slotStart, slotEnd, busyIntervals)) {
                         slots.push({ start: new Date(slotStart).toISOString(), end: new Date(slotEnd).toISOString() });
                     }
                     slotStart += stepMs;
@@ -468,7 +479,7 @@ export class BookingService {
         // Le nom et l'email de l'invité sont stockés en propriétés privées pour le
         // pré-remplissage de la fiche et le dédoublonnage KPI par email (cf. RhKpiService).
         const countsForKpi = await rhKpiService.isFirstMeetingForEmail(calendar, guest.email, startIsoFinal);
-        await calendar.createEvent(
+        const event = await calendar.createEvent(
             {
                 summary: `${settings.title} — ${fullName}`,
                 description,
@@ -483,6 +494,21 @@ export class BookingService {
             },
             'none', // Pas d'email d'invitation Google : on envoie notre propre confirmation.
         );
+
+        // Bloque le créneau pour les RH du même secteur. Best-effort : l'événement
+        // Google est déjà posé, on n'échoue pas la réservation pour autant.
+        try {
+            await this.occupationRepo.upsert({
+                ownerUserId: host.id,
+                start: startIsoFinal,
+                end: endIsoFinal,
+                label: `${settings.title} — ${fullName}`,
+                source: 'PUBLIC_BOOKING',
+                sourceEventId: event.id,
+            });
+        } catch (err) {
+            logger.error({ err, ownerId: host.id }, 'Booking slot occupation sync failed');
+        }
 
         // KPI « entretien placé » au profit du RH dont le lien a été utilisé, crédité au
         // bucket de la date (un seul rendez-vous compté par email, comme côté calendrier).

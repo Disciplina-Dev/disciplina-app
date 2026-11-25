@@ -26,6 +26,8 @@ const CLEARED_TABLES = [
     'todo_groups',
     'calendar_day_block_targets',
     'calendar_day_blocks',
+    'calendar_slot_occupations',
+    'booking_settings',
     'user_sectors',
     'users',
     'refresh_tokens',

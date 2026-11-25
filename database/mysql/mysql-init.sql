@@ -132,6 +132,35 @@ CREATE TABLE IF NOT EXISTS `calendar_day_block_targets` (
   CONSTRAINT `fk_calendar_day_block_targets_block_id` FOREIGN KEY (`block_id`) REFERENCES `calendar_day_blocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
+-- Créneaux (date + heure) occupés par un entretien dans l'agenda d'un RH.
+-- Un entretien posé sur l'agenda d'un RH bloque le même créneau pour les RH
+-- partageant au moins un secteur avec lui : plus proposé sur leur page de
+-- réservation, marqué « pris » sur la page de créneaux candidat, et affiché
+-- comme occupé dans l'agenda interne. Le rattachement au secteur est calculé à
+-- la lecture via `user_sectors` : une personne qui change de secteur suit donc
+-- les blocages de son nouveau secteur.
+-- `source` dit d'où vient le créneau : événement Google posé depuis l'agenda,
+-- réservation via la page publique, ou créneau d'entretien réservé par un
+-- candidat. `source_event_id` référence l'événement Google d'origine (suivi des
+-- déplacements/suppressions) ; NULL pour un créneau réservé côté candidat.
+-- (owner_user_id, start_at) est unique : reposer le même créneau met à jour la
+-- ligne au lieu de la dupliquer.
+CREATE TABLE IF NOT EXISTS `calendar_slot_occupations` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `owner_user_id` int NOT NULL,
+  `start_at` datetime NOT NULL,
+  `end_at` datetime NOT NULL,
+  `label` varchar(255) NOT NULL DEFAULT '',
+  `source` enum('CALENDAR','PUBLIC_BOOKING','EXTERNAL_INTERVIEW') NOT NULL DEFAULT 'CALENDAR',
+  `source_event_id` varchar(255) DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `uniq_calendar_slot_occupations_owner_start` (`owner_user_id`,`start_at`),
+  KEY `idx_calendar_slot_occupations_start` (`start_at`,`end_at`),
+  KEY `idx_calendar_slot_occupations_source_event` (`source_event_id`),
+  CONSTRAINT `fk_calendar_slot_occupations_owner` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
 
 -- Référentiel hiérarchique des secteurs : région > secteur > commune (adjacency
 -- list, parcours via WITH RECURSIVE). Seed en fin de fichier (base fraîche) ; le
@@ -573,6 +602,7 @@ CREATE TABLE disciplina_annemasse.users LIKE disciplina.users;
 CREATE TABLE disciplina_annemasse.booking_settings LIKE disciplina.booking_settings;
 CREATE TABLE disciplina_annemasse.calendar_day_blocks LIKE disciplina.calendar_day_blocks;
 CREATE TABLE disciplina_annemasse.calendar_day_block_targets LIKE disciplina.calendar_day_block_targets;
+CREATE TABLE disciplina_annemasse.calendar_slot_occupations LIKE disciplina.calendar_slot_occupations;
 CREATE TABLE disciplina_annemasse.companies LIKE disciplina.companies;
 CREATE TABLE disciplina_annemasse.company_conflict LIKE disciplina.company_conflict;
 CREATE TABLE disciplina_annemasse.companies_blacklist LIKE disciplina.companies_blacklist;
@@ -610,6 +640,9 @@ ALTER TABLE disciplina_annemasse.calendar_day_blocks
 
 ALTER TABLE disciplina_annemasse.calendar_day_block_targets
   ADD CONSTRAINT fk_calendar_day_block_targets_block_id FOREIGN KEY (block_id) REFERENCES disciplina_annemasse.calendar_day_blocks (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.calendar_slot_occupations
+  ADD CONSTRAINT fk_calendar_slot_occupations_owner FOREIGN KEY (owner_user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE disciplina_annemasse.companies
   ADD CONSTRAINT fk_companies_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON UPDATE CASCADE;
