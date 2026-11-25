@@ -158,7 +158,8 @@ souveraineté, hébergement séparé) — pas pour un gain d'organisation.
   `OAUTH_ENCRYPTION_KEY`). Hachage écarté : le SDK MCP compare le secret en clair
   (`clientAuth`), il faut donc pouvoir le restituer. Les secrets legacy en clair sont chiffrés
   par `migrations.ts` (colonne élargie à `VARCHAR(512)`).
-- Avatars (`candidate_avatars`, Buffer Mongo) : **décision = pas de chiffrement applicatif**.
+- Avatars (`candidate_avatars`, Buffer Mongo) supprimés par `deleteCandidate` (GDPR_INF_06.4) ;
+  `candidate_consent_history` conservée volontairement après effacement (preuve, art. 7.1) : **décision = pas de chiffrement applicatif**.
   Photo non catégorie spéciale (Art. 9), accès déjà conditionné au consentement
   (`avatarConsent`) ; le chiffrement par document alourdirait lecture/rotation de clé pour un
   gain faible. Risque résiduel (disque) couvert par FileVault (#1117) et purge (INF audit).

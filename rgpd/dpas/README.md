@@ -26,7 +26,7 @@ Statuts : `Archivé` · `À signer` · `À confirmer` · `Sans objet`.
 | ClassMarker | T5 (transition) | Résultats, identifiant candidat | Hors UE | À confirmer | Remplacé par les questionnaires internes : confirmer la résiliation et la suppression des données historiques ; sinon archiver le DPA |
 | Yousign | — | — | — | Sans objet | Non utilisé en production (confirmé équipe) : supprimer ou documenter `back/src/external/yousign/` |
 | Hébergement (Mac mini auto-hébergé) | Tous | Toutes | France, hébergement interne | Sans objet | Aucun tiers d'hébergement ; à revalider si migration (`INFRA_MIGRATION_STUDY.md`) |
-| Sauvegardes | Tous | Dumps des bases | À qualifier | À confirmer | Identifier où et chez qui sont stockées les sauvegardes ; DPA si tiers |
+| Sauvegardes | Tous | Dumps des bases | À qualifier | À confirmer | Identifier où et chez qui sont stockées les sauvegardes ; DPA si tiers. Rétention actuelle : 7 jours, chiffrées (age), sur le serveur ; effacement des personnes : voir `registre-traitements.md` (GDPR_INF_06.4). Si copie hors site ajoutée : même rétention requise |
 | Ollama | T1 | Résumé IA | Local, aucun transfert | Sans objet | — |
 
 Brevo n'est pas utilisé (confirmé) : aucun DPA à obtenir.

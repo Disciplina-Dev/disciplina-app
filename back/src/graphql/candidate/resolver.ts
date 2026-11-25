@@ -532,7 +532,16 @@ export const resolvers = {
 
         deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            return candidateService.delete(id);
+
+            // Les copies Drive sont supprimées avec les jetons du RH agissant (GDPR_INF_06.4).
+            const user = await userService.findById(context.user.id);
+            const drive = user?.oauthToken
+                ? GoogleDriveService.fromTokens(
+                      { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                      userService.googleTokenPersister(user.id),
+                  )
+                : null;
+            return candidateService.delete(id, drive);
         },
 
         createCandidateDriveFolder: async (_: unknown, { id }: { id: string }, context: any) => {

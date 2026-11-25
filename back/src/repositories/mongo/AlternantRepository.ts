@@ -73,6 +73,18 @@ export class AlternantRepository {
             .lean();
     }
 
+    /**
+     * Effacement candidat : détache le candidat des alternants (le dossier Filiz
+     * reste côté Filiz, à supprimer manuellement). Retourne les folder_id Filiz concernés.
+     */
+    async unlinkCandidate(candidateId: string): Promise<string[]> {
+        const linked: { filiz?: { folder_id?: string } }[] = await getModels()
+            .Alternant.find({ candidate_id: candidateId }, { 'filiz.folder_id': 1 })
+            .lean();
+        await getModels().Alternant.updateMany({ candidate_id: candidateId }, { $set: { candidate_id: null } });
+        return linked.map((a) => a.filiz?.folder_id).filter((f): f is string => !!f);
+    }
+
     async findByFilizClassId(classId: string, includeArchived = false): Promise<Alternant[]> {
         const filter: Record<string, unknown> = { 'filiz.class_id': classId };
         if (!includeArchived) filter.archived_at = null;

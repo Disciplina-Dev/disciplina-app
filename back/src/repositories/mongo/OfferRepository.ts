@@ -168,6 +168,15 @@ export class OfferRepository {
         ).lean();
     }
 
+    /** Effacement candidat : retire le candidat du matching de toutes les offres. */
+    async removeCandidateFromAllMatchings(candidateId: string): Promise<number> {
+        const result = await getModels().Offer.updateMany(
+            { 'matching.candidates.id': candidateId },
+            { $pull: { 'matching.candidates': { id: candidateId } } },
+        );
+        return result.modifiedCount;
+    }
+
     async clearMatchedCandidates(offerId: string): Promise<Offer | null> {
         return getModels().Offer.findOneAndUpdate(
             { _id: offerId },

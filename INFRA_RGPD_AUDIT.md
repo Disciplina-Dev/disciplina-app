@@ -134,7 +134,7 @@ Légende gravité : **Critique** (risque immédiat de perte/fuite) · **Élevée
 - **Correctif** : registre Art. 30 complet ; archiver les DPAs ; DPIA (IA, données sensibles, NIR) ; analyse du transfert (CCT + TIA) ou désactivation de MCP tant que non réglé.
 
 #### 6. Droits des personnes — Élevée
-- **Constat** : aucun endpoint d'export/portabilité, rectification, opposition ou retrait de consentement pour les candidats (`RGPD.md` F4, `:222-290`). L'effacement se fait uniquement par un employé RH (`deleteCandidate`, `graphql/candidate/resolver.ts:408`). Aucun journal montrant à un candidat qui a consulté ses données (F14).
+- **Constat** : aucun endpoint d'export/portabilité, rectification, opposition ou retrait de consentement pour les candidats (`RGPD.md` F4, `:222-290`). L'effacement se fait uniquement par un employé RH (`deleteCandidate`, `graphql/candidate/resolver.ts`). **Mise à jour 06.4** : la cascade couvre désormais Drive, avatars, historique, matching, accès externes ; Filiz = suppression manuelle journalisée (pas d'API) ; DocuSeal = sans objet (aucune donnée candidat) ; sauvegardes expirent sous 7 jours (`scripts/backup-db.sh`). Aucun journal montrant à un candidat qui a consulté ses données (F14).
 - **Correctif** : procédure documentée (délai 1 mois) + endpoints/outils internes ; inclure les copies (Drive, Filiz, DocuSeal) et la gestion des sauvegardes.
 
 #### 7. Rétention et purge — Élevée
