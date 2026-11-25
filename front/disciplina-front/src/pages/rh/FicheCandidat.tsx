@@ -1853,7 +1853,7 @@ export default function FicheCandidat() {
                 ) : <p className={valueCls}>{formData.job_info?.questions_concerns || '—'}</p>}
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Disponible le week-end">
+                <Field label="Inconvénient de travailler le week-end">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" className="rounded" checked={!!formData.job_info?.weekend_work}
