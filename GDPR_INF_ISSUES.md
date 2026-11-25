@@ -215,7 +215,7 @@ No general processing register (`rgpd/README.md:50-53`, F3); DPAs "to archive" f
 **Labels:** `gdpr` `severity:high` · **Standard:** Art. 15-22
 
 ### Finding
-No export/portability, rectification, objection or consent-withdrawal endpoint for candidates (`RGPD.md` F4, `:222-290`). Erasure only by an HR employee (`deleteCandidate`, `graphql/candidate/resolver.ts:408`). No journal showing a candidate who consulted their data (F14).
+No export/portability, rectification, objection or consent-withdrawal endpoint for candidates (`RGPD.md` F4, `:222-290`). Erasure only by an HR employee (`deleteCandidate`, `graphql/candidate/resolver.ts`). No journal showing a candidate who consulted their data (F14).
 
 #### [GDPR_INF_06.1] Export / portability
 **Labels:** `gdpr` `severity:high`
@@ -235,6 +235,7 @@ No export/portability, rectification, objection or consent-withdrawal endpoint f
 **Labels:** `gdpr` `severity:high`
 - Extend `deleteCandidate` cascade to Drive, Filiz, DocuSeal, avatars; document backup expiry vs. erasure.
 - **AC:** erasure leaves no copy except backups expiring within the stated delay.
+- **Status (2026-11-25):** implemented in `CandidateService.delete` (Drive, avatar, history, matching, external access, notifications, alternant unlink). Filiz = manual deletion from the `[Erasure]` log line (no API); DocuSeal = N/A (no candidate data); backups expire ≤ 7 days (`scripts/backup-db.sh`). Linked `alternants` records are detached (`candidate_id` = null), not erased (decision 2026-11-25).
 
 #### [GDPR_INF_06.5] Access journal for candidate data (F14)
 **Labels:** `gdpr` `severity:high`

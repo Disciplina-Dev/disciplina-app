@@ -179,6 +179,9 @@ justice.
 en cours de mise en œuvre. Dans l'intervalle, les suppressions sont réalisées sur
 demande et lors des revues périodiques des dossiers.
 
+**Sauvegardes** : lorsqu'un dossier est effacé, ses copies dans nos sauvegardes chiffrées
+sont supprimées par expiration automatique au plus tard 7 jours après l'effacement.
+
 ## 8. Décision automatisée et profilage
 
 Aucune décision produisant des effets juridiques à l'égard d'une personne ou

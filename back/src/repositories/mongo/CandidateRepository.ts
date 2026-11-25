@@ -648,6 +648,11 @@ export class CandidateRepository {
         return (await getModels().Candidate.deleteOne({ _id: id })).deletedCount > 0;
     }
 
+    /** Effacement : supprime l'avatar stocké en base (collection candidate_avatars). */
+    async deleteAvatar(id: string): Promise<boolean> {
+        return (await getModels().CandidateAvatar.deleteOne({ candidate_id: id })).deletedCount > 0;
+    }
+
     /**
      * Réassigne (ou détache) le RH propriétaire des dossiers candidat d'un user
      * supprimé. `owner = null` détache les dossiers (ils vivent sans propriétaire).
