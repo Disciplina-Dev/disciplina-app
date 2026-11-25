@@ -50,12 +50,35 @@ import { canAccessAllSectors, primarySector, regionFromSector, sanitizeSectors }
 import { ConsentHistoryService, consentChanged, consentEvents } from '../../services/ConsentHistoryService';
 import { CONSENT_TYPES, ConsentType, isAcceptedConsentVersion } from '../../services/consentGuard';
 import { ConsentEventInput, ConsentHistoryEntry } from '../../types/consent.types';
+import { AccessLogService } from '../../services/AccessLogService';
+import { AccessAction } from '../../types/accessLog.types';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
 const rhKpiService = new RhKpiService();
 const candidateHistoryService = new CandidateHistoryService();
 const consentHistoryService = new ConsentHistoryService();
+const accessLogService = new AccessLogService();
+
+/**
+ * Journalise une lecture de données candidat (GDPR_INF_06.5). `candidateId` null =
+ * liste en masse (`resultCount` = taille). Ne lève jamais (cf. AccessLogService.record).
+ */
+async function recordAccess(
+    context: any,
+    candidateId: string | null,
+    action: AccessAction,
+    resultCount = 1,
+): Promise<void> {
+    const actorId = Number(context.user?.id);
+    await accessLogService.record({
+        candidateId,
+        actorId: Number.isFinite(actorId) ? actorId : null,
+        actorType: 'STAFF',
+        action,
+        resultCount,
+    });
+}
 
 const UNKNOWN_CONSENT_VERSION_ERROR = 'Version du texte de consentement inconnue : rechargez la page.';
 
@@ -187,6 +210,7 @@ export const resolvers = {
         candidates: async (_: unknown, __: unknown, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidates = await candidateService.findAll();
+            await recordAccess(context, null, 'LIST', candidates.length);
             return candidates.map(candidateToGql);
         },
         candidatesPage: async (
@@ -238,6 +262,7 @@ export const resolvers = {
                 : undefined;
             const candidates = await candidateService.findPage(pageSize, after, search, filters, searchFieldValue);
             const totalCount = await candidateService.countPage(search, filters, searchFieldValue);
+            await recordAccess(context, null, 'LIST', candidates.length);
             const conn = buildConnection(
                 candidates,
                 encodeCandidateCursor,
@@ -257,6 +282,7 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) return null;
+            await recordAccess(context, id, 'VIEW');
             // Backfill unique de la date de création pour les fiches antérieures au champ.
             if (!candidate.created_at) {
                 try {
@@ -285,6 +311,7 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
+            await recordAccess(context, id, 'VIEW');
             const matchedOffers = await candidateService.matchOffers(id);
             return {
                 ...candidateToGql(candidate),
@@ -312,7 +339,9 @@ export const resolvers = {
             const ssn = candidate?.identity?.social_security_number;
             if (!ssn) return null;
             try {
-                return decryptSsn(ssn);
+                const clear = decryptSsn(ssn);
+                await recordAccess(context, id, 'SSN_UNMASK');
+                return clear;
             } catch (err) {
                 logger.error({ err, candidateId: id }, 'SSN unmask failed');
                 throw new Error(
