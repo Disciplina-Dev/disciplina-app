@@ -49,6 +49,15 @@ d'un export ou d'un effacement sur demande d'un collaborateur.
 Données personnelles de **tiers** (référents légaux de prospects) : durée de conservation
 distincte de celle des collaborateurs.
 
+### Journal d'accès candidat (GDPR_INF_06.5)
+
+| Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
+|---|---|---|---|---|
+| `candidate_access_log` | S1 | `candidate_id` (UUID de la fiche Mongo, pseudonyme), `actor_id` | `AccessLogRepository`, `AccessLogService`, `graphql/candidate`, `rest/candidates` | Journal en ajout seul, 365 jours (purge `expiredAccessScheduler`), **conservé après suppression de la fiche** ; durée à valider avec le DPO |
+
+Aucune donnée identifiante en clair. Pas de clé étrangère sur `actor_id` (comme `mcp_audit_log`) :
+l'identifiant survit à la suppression du compte, la ligne n'est jamais refusée.
+
 ### Preuves de consentement (GDPR_INF_08.2)
 
 | Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
