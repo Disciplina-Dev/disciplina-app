@@ -452,7 +452,7 @@ Docker `json-file` logs with no rotation or retention (no `logging:` in compose 
 **Labels:** `gdpr` `severity:medium`
 - Shared with GDPR_INF_06.5.
 - **AC:** events for reads, exports and `unmaskCandidateSsn`.
-- **Status (2026-11-25):** done with GDPR_INF_06.5 (`candidate_access_log`).
+- **Status (2026-11-25):** done with GDPR_INF_06.5 (#1136). Events go to `candidate_access_log` (`VIEW`, `LIST`, `SSN_UNMASK`, `PDF_EXPORT`, `CV_READ`, `FILE_READ`), queryable via GraphQL `candidateAccessLog(candidateId)` (RESPONSABLE+).
 
 #### [GDPR_INF_15.4] Stop printing log lines in `deploy.sh:241`
 **Labels:** `gdpr` `severity:medium`
