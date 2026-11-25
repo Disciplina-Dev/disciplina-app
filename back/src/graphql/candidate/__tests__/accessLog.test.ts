@@ -125,4 +125,41 @@ describe('candidate access log (GDPR_INF_06.5)', () => {
 
         expect(await accessRows()).toHaveLength(0);
     });
+
+    describe('candidateAccessLog query', () => {
+        const QUERY = `query($id: String!) {
+            candidateAccessLog(candidateId: $id) { action actorType actorId actorName occurredAt }
+        }`;
+
+        it('lets a RESPONSABLE answer an access request: who read this sheet, newest first', async () => {
+            const id = await seedCandidate('query');
+            await gql(`query($id: String!) { candidate(id: $id) { id } }`, { id });
+            await gql(`query($id: String!) { unmaskCandidateSsn(id: $id) }`, { id });
+            const other = await seedCandidate('other');
+            await gql(`query($id: String!) { candidate(id: $id) { id } }`, { id: other });
+
+            const json = await gql(QUERY, { id });
+
+            expect(json.errors).toBeUndefined();
+            const events = json.data.candidateAccessLog;
+            expect(events.map((e: any) => e.action)).toEqual(['SSN_UNMASK', 'VIEW']);
+            expect(events[0]).toMatchObject({ actorType: 'STAFF', actorId: RH_USER_ID, actorName: 'Rita Log' });
+            expect(new Date(events[0].occurredAt).getTime()).toBeGreaterThan(Date.now() - 60_000);
+        });
+
+        it('refuses an EMPLOYEE (the journal exposes staff activity)', async () => {
+            const id = await seedCandidate('forbidden');
+            const employee = mintAuthCookies({
+                id: RH_USER_ID,
+                email: 'rh-access-log@test.local',
+                role: 'RH',
+                permission: 'EMPLOYEE',
+            });
+
+            const json = await gql(QUERY, { id }, employee);
+
+            expect(json.errors?.[0]?.message).toMatch(/Forbidden/);
+            expect(json.data).toBeNull();
+        });
+    });
 });

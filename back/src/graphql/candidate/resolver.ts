@@ -1,4 +1,4 @@
-import { authGuardRole } from '../authGuard';
+import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
@@ -51,7 +51,7 @@ import { ConsentHistoryService, consentChanged, consentEvents } from '../../serv
 import { CONSENT_TYPES, ConsentType, isAcceptedConsentVersion } from '../../services/consentGuard';
 import { ConsentEventInput, ConsentHistoryEntry } from '../../types/consent.types';
 import { AccessLogService } from '../../services/AccessLogService';
-import { AccessAction } from '../../types/accessLog.types';
+import { AccessAction, AccessLogEntry } from '../../types/accessLog.types';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
@@ -106,6 +106,17 @@ function parseConsentTypes(types: string[]): ConsentType[] {
         throw new Error('Type de consentement invalide.');
     }
     return [...new Set(parsed)];
+}
+
+function accessLogToGql(entry: AccessLogEntry): object {
+    return {
+        id: String(entry.id),
+        action: entry.action,
+        actorType: entry.actorType,
+        actorId: entry.actorId,
+        actorName: entry.actorName,
+        occurredAt: entry.createdAt.toISOString(),
+    };
 }
 
 function consentHistoryToGql(entry: ConsentHistoryEntry): object {
@@ -327,6 +338,17 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const entries = await consentHistoryService.findByCandidate(candidateId);
             return entries.map(consentHistoryToGql);
+        },
+        // Journal des lectures / exports d'une fiche (GDPR_INF_06.5) : révèle l'activité du
+        // personnel, d'où RESPONSABLE minimum (pas le seuil EMPLOYEE des lectures de fiche).
+        candidateAccessLog: async (
+            _: unknown,
+            { candidateId, limit }: { candidateId: string; limit?: number | null },
+            context: any,
+        ) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const entries = await accessLogService.findByCandidate(candidateId, limit ?? undefined);
+            return entries.map(accessLogToGql);
         },
         driveFolderConfig: async (_: unknown, __: unknown, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
