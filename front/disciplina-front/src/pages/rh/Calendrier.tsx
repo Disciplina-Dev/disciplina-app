@@ -31,10 +31,13 @@ type View = 'month' | 'week'
 /** Event enrichi de son propriétaire (pour vue multi-agendas). */
 type OwnedEvent = CalendarEvent & { ownerId: number }
 
+/** Gris des créneaux occupés par l'entretien d'un RH du même secteur (#1241). */
+const OCCUPATION_HEX = '#6B7280'
+
 /** Couleur des cases déterminée uniquement par le statut : rouge = pas venu, vert = venu,
- * violet = reporté, noir = décliné, bleu = défaut. */
+ * violet = reporté, noir = décliné, bleu = défaut ; gris = créneau bloqué par un collègue. */
 function displayHex(e: OwnedEvent): string {
-  return calendarHex(e.attendance)
+  return e.isOccupation ? OCCUPATION_HEX : calendarHex(e.attendance)
 }
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -319,7 +322,17 @@ export default function Calendrier() {
       )
       // Cumule les échecs (un rechargement sans erreur ne masque pas la bannière : fermeture via la croix).
       setUnavailableIds((prev) => (failed.length ? Array.from(new Set([...prev, ...failed])) : prev))
-      setEvents(perUser.flat())
+      // Un créneau occupé par un entretien du secteur est renvoyé par l'agenda de
+      // chaque RH concerné : on ne le garde qu'une fois (id `occupation-<n>` stable).
+      const seenOccupations = new Set<string>()
+      setEvents(
+        perUser.flat().filter((e) => {
+          if (!e.isOccupation) return true
+          if (seenOccupations.has(e.id)) return false
+          seenOccupations.add(e.id)
+          return true
+        }),
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {
@@ -636,7 +649,9 @@ export default function Calendrier() {
         </div>
       )}
 
-      {detail && (
+      {detail && (detail.isOccupation ? (
+        <OccupationModal event={detail} onClose={() => setDetail(null)} />
+      ) : (
         <EventModal
           event={detail}
           isOwn={detail.ownerId === selfId}
@@ -646,7 +661,7 @@ export default function Calendrier() {
           onAttendance={(e) => { setDetail((d) => (d ? { ...d, ...e } : d)); void load() }}
           onArrived={(e) => { setDetail(null); setCreateFromEvent(e) }}
         />
-      )}
+      ))}
       {createFromEvent && (
         <CandidateQuickCreateModal
           prefill={{
@@ -1447,9 +1462,13 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds, b
                   const isHighlighted = highlightedIds?.has(event.id) ?? false
                   return (
                     <button key={event.id} onClick={(e) => { e.stopPropagation(); onEvent(event) }}
+                      title={event.isOccupation ? `Occupé${event.occupationOwnerName ? ` — ${event.occupationOwnerName}` : ''}` : undefined}
                       className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-left transition-opacity hover:opacity-90 ${isHighlighted ? 'z-10 ring-2 ring-amber-400 ring-offset-0 shadow-md' : ''}`}
                       style={{ top, height, width, left, backgroundColor: isHighlighted ? `${hex}40` : `${hex}26`, borderLeft: `3px solid ${hex}`, ...(isHighlighted ? { boxShadow: '0 0 0 1px #f59e0b, 0 2px 6px rgba(0,0,0,0.12)' } : {}) }}>
-                      <div className="truncate text-[11px] font-bold" style={{ color: hex }}>{event.summary}</div>
+                      <div className="flex items-center gap-1 truncate text-[11px] font-bold" style={{ color: hex }}>
+                        {event.isOccupation && <IconLock width={10} height={10} className="flex-shrink-0" />}
+                        <span className="truncate">{event.summary}</span>
+                      </div>
                       {height > 30 && <div className="truncate text-[10px] font-medium text-[var(--ds-text-subtle)]">{formatTime(event.start)} – {formatTime(event.end)}</div>}
                     </button>
                   )
@@ -1591,6 +1610,43 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
         {isConnecting ? 'Connexion...' : 'Connecter Google'}
       </button>
       {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
+    </div>
+  )
+}
+
+/**
+ * Détail en lecture seule d'un créneau occupé par l'entretien d'un RH du même
+ * secteur (#1241) : l'agenda est bloqué pour ce créneau, rien n'est modifiable ici.
+ */
+function OccupationModal({ event, onClose }: { event: OwnedEvent; onClose: () => void }) {
+  const start = new Date(event.start)
+  const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const timeLabel = `${formatTime(event.start)} – ${formatTime(event.end)}`
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start gap-3">
+          <IconLock width={17} height={17} className="mt-1 flex-shrink-0 text-[var(--ds-text-subtle)]" />
+          <div className="flex-1">
+            <h2 className="text-[17px] font-extrabold leading-snug text-[var(--ds-text)]">{event.summary}</h2>
+            <p className="text-[12px] text-[var(--ds-text-subtle)]">
+              Créneau occupé : les RH de votre secteur sont bloqués sur ce créneau.
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2 text-[13px] text-[var(--ds-text-muted)]">
+          {event.occupationOwnerName && (
+            <p className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ backgroundColor: `${OCCUPATION_HEX}22`, color: OCCUPATION_HEX }}>
+              <IconUser width={12} height={12} /> {event.occupationOwnerName}
+            </p>
+          )}
+          <p className="font-semibold capitalize text-[var(--ds-text)]">{dateLabel}</p>
+          <p>{timeLabel}</p>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Fermer</button>
+        </div>
+      </div>
     </div>
   )
 }

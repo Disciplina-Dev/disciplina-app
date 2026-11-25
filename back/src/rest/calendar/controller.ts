@@ -17,10 +17,23 @@ import { RhKpiService } from '../../services/RhKpiService';
 import { primarySector, shareSector } from '../../utils/sector';
 import { hasMinPermission } from '../../graphql/authGuard';
 import { isValidEmail } from '../../services/validation';
+import { SlotOccupation, SlotOccupationRepository } from '../../repositories/mysql/SlotOccupationRepository';
 
 const userService = new UserService();
 const bookingService = new BookingService();
 const rhKpiService = new RhKpiService();
+const occupationRepository = new SlotOccupationRepository();
+
+/**
+ * Créneau exposé par `GET /api/calendar/events` : un événement Google, ou un
+ * créneau occupé par l'entretien d'un RH du même secteur (`isOccupation`).
+ */
+export interface CalendarEventView extends CalendarEvent {
+    /** Créneau bloqué par l'entretien d'un collègue : non modifiable depuis l'agenda. */
+    isOccupation?: boolean;
+    /** RH dont l'entretien occupe le créneau (absent pour ses propres créneaux). */
+    occupationOwnerName?: string;
+}
 
 /**
  * Delta KPI pour une transition de présence old→next.
@@ -142,6 +155,74 @@ async function resolveOwner(req: AuthRequest, res: Response): Promise<User | nul
     return target;
 }
 
+/**
+ * Refuse (409) de poser un entretien sur un créneau déjà occupé par l'entretien
+ * d'un RH partageant un secteur avec le propriétaire de l'agenda (#1241).
+ * Renvoie false après avoir répondu.
+ */
+async function ensureSlotFree(owner: User, start: string, end: string, res: Response): Promise<boolean> {
+    const conflicts = await occupationRepository.findPeerOverlapping(owner.id, start, end);
+    if (conflicts.length === 0) return true;
+    const other = conflicts[0].ownerName;
+    res.status(409).json({
+        error: other
+            ? `Créneau déjà réservé par un entretien de ${other} (même secteur)`
+            : 'Créneau déjà réservé par un entretien d’un collègue de votre secteur',
+    });
+    return false;
+}
+
+/**
+ * Répercute un entretien dans `calendar_slot_occupations` : le créneau est bloqué
+ * pour les RH du même secteur (page de réservation, créneaux candidat) et affiché
+ * comme occupé dans leur agenda. Un créneau repassé en « autre » ou supprimé
+ * libère le blocage. Best-effort : l'événement Google reste la source de vérité.
+ */
+async function syncOccupation(
+    owner: User,
+    event: CalendarEvent,
+    start: string,
+    end: string,
+    isInterview: boolean,
+): Promise<void> {
+    try {
+        if (!isInterview) {
+            await occupationRepository.deleteForEvent(owner.id, event.id);
+            return;
+        }
+        await occupationRepository.replaceForEvent({
+            ownerUserId: owner.id,
+            start,
+            end,
+            label: event.summary,
+            source: 'CALENDAR',
+            sourceEventId: event.id,
+        });
+    } catch (err) {
+        logger.error({ err, ownerId: owner.id, eventId: event.id }, 'Calendar slot occupation sync failed');
+    }
+}
+
+/**
+ * Créneaux occupés par les entretiens des RH du même secteur, exposés comme des
+ * créneaux non modifiables de l'agenda. Ceux du propriétaire ne sont repris que
+ * s'ils n'ont pas d'événement Google (entretien réservé côté candidat), pour ne
+ * pas afficher deux fois le même rendez-vous.
+ */
+function occupationEvents(ownerId: number, occupations: SlotOccupation[]): CalendarEventView[] {
+    return occupations
+        .filter((occupation) => occupation.ownerUserId !== ownerId || occupation.source === 'EXTERNAL_INTERVIEW')
+        .map((occupation) => ({
+            id: `occupation-${occupation.id}`,
+            summary: occupation.label || 'Créneau réservé',
+            start: occupation.start,
+            end: occupation.end,
+            allDay: false,
+            isOccupation: true,
+            occupationOwnerName: occupation.ownerName ?? undefined,
+        }));
+}
+
 /** GET /api/calendar/users — liste RH + responsables avec état de connexion Google. */
 export async function listCalendarUsers(req: AuthRequest, res: Response): Promise<void> {
     const selfId = Number(req.user.id);
@@ -256,7 +337,11 @@ export async function getEvents(req: AuthRequest, res: Response): Promise<void> 
     }
     if (!calendar) return;
     try {
-        res.json({ events: await calendar.listEvents(timeMin, timeMax) });
+        const [events, occupations] = await Promise.all([
+            calendar.listEvents(timeMin, timeMax),
+            occupationRepository.findVisible(requestedId, timeMin, timeMax),
+        ]);
+        res.json({ events: [...events, ...occupationEvents(requestedId, occupations)] });
     } catch (error) {
         await replyCalendarError(res, error, requestedId, 'Échec de récupération du calendrier Google');
     }
@@ -273,12 +358,16 @@ export async function createEvent(req: AuthRequest, res: Response): Promise<void
     const actor = await userService.findById(Number(req.user.id));
     try {
         const calendar = calendarForUser(owner);
+        // Un entretien ne peut pas se superposer à celui d'un RH du même secteur (#1241).
+        if (input.isInterview && !(await ensureSlotFree(owner, input.start, input.end, res))) return;
         // KPI « entretien placé » : seulement si c'est le premier rendez-vous de cet invité
         // (un même email ne compte qu'une fois, cf. isFirstMeetingForEmail).
         const countsForKpi = input.isInterview
             ? await rhKpiService.isFirstMeetingForEmail(calendar, input.attendeeEmail, input.start)
             : false;
         const event = await calendar.createEvent(input);
+        // Bloque le créneau pour les RH du même secteur (page de réservation, agenda).
+        await syncOccupation(owner, event, input.start, input.end, Boolean(input.isInterview));
         // KPI : un entretien placé compte au bucket de sa date de début, dans le secteur de l'acteur.
         if (countsForKpi && actor) {
             await rhKpiService.bump(actor.id, primarySector(actor.sectors), new Date(input.start), {
@@ -364,7 +453,11 @@ export async function updateEvent(req: AuthRequest, res: Response): Promise<void
     const calendar = calendarForUser(owner);
     try {
         const before = await calendar.getEvent(req.params.id as string);
+        // Un entretien déplacé ne doit pas atterrir sur le créneau d'un collègue du secteur.
+        if (input.isInterview && !(await ensureSlotFree(owner, input.start, input.end, res))) return;
         const event = await calendar.updateEvent(req.params.id as string, input);
+        // Le créneau bloqué suit l'événement (déplacement) ou disparaît (type « autre »).
+        await syncOccupation(owner, event, input.start, input.end, Boolean(input.isInterview));
         // KPI : rééquilibre le compteur « entretiens placés » si le flag ou la date a changé (acteur).
         const dayMoved = dayKey(before.start) !== dayKey(input.start);
         const toggled = before.isInterview !== input.isInterview;
@@ -405,6 +498,8 @@ export async function deleteEvent(req: AuthRequest, res: Response): Promise<void
     try {
         const before = await calendar.getEvent(req.params.id as string);
         await calendar.deleteEvent(req.params.id as string);
+        // Le créneau n'est plus occupé : il redevient proposable aux collègues du secteur.
+        await syncOccupation(owner, before, before.start, before.end, false);
         // KPI : on retire les compteurs portés par ce créneau (placé pour les entretiens, présence pour tous), acteur.
         // Seul le premier rendez-vous d'un même invité porte des KPI (cf. createEvent).
         if (actor) {
@@ -483,10 +578,14 @@ export async function reportEvent(req: AuthRequest, res: Response): Promise<void
             res.status(400).json({ error: 'Seul un entretien peut être reporté' });
             return;
         }
+        // La nouvelle date ne doit pas tomber sur l'entretien d'un collègue du secteur.
+        if (!(await ensureSlotFree(owner, start, end, res))) return;
         const event = await calendar.updateEvent(req.params.id as string, {
             ...toCalendarEventInput(before, start, end),
             attendance: 'postponed',
         });
+        // Le créneau bloqué suit le report.
+        await syncOccupation(owner, event, start, end, true);
         // Seul le premier rendez-vous d'un même invité porte des KPI (cf. createEvent).
         if (
             actor &&

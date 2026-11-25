@@ -245,6 +245,27 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
         )`,
     },
     {
+        // Créneaux occupés par un entretien (date + heure) : un entretien posé
+        // sur l'agenda d'un RH bloque le même créneau pour les RH du même
+        // secteur (page de réservation, créneaux candidat, agenda interne).
+        // `source_event_id` lie la ligne à l'événement Google d'origine.
+        table: 'calendar_slot_occupations',
+        ddl: `CREATE TABLE IF NOT EXISTS calendar_slot_occupations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            owner_user_id INT NOT NULL,
+            start_at DATETIME NOT NULL,
+            end_at DATETIME NOT NULL,
+            label VARCHAR(255) NOT NULL DEFAULT '',
+            source ENUM('CALENDAR','PUBLIC_BOOKING','EXTERNAL_INTERVIEW') NOT NULL DEFAULT 'CALENDAR',
+            source_event_id VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_calendar_slot_occupations_owner_start (owner_user_id, start_at),
+            INDEX idx_calendar_slot_occupations_start (start_at, end_at),
+            INDEX idx_calendar_slot_occupations_source_event (source_event_id),
+            FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
+        )`,
+    },
+    {
         // Public booking ("Calendly"-style) settings per RH/responsable.
         table: 'booking_settings',
         ddl: `CREATE TABLE IF NOT EXISTS booking_settings (
