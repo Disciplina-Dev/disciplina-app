@@ -144,6 +144,17 @@ export interface FilizRow {
 }
 
 /** Ligne de `candidate_consent_history` (GDPR_INF_08.2), avec le nom de l'auteur joint. */
+export interface AccessLogRow {
+    id: number;
+    candidate_id: string | null;
+    actor_id: number | null;
+    actor_name: string | null;
+    actor_type: 'STAFF' | 'EXTERNAL';
+    action: 'VIEW' | 'LIST' | 'SSN_UNMASK' | 'PDF_EXPORT' | 'CV_READ' | 'FILE_READ' | 'AVATAR_READ';
+    result_count: number;
+    created_at_epoch: string | number;
+}
+
 export interface ConsentHistoryRow {
     id: number;
     candidate_id: string;

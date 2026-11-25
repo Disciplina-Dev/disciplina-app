@@ -1054,7 +1054,7 @@ const html = `
 
 - [ ] **F10** Chiffrer les avatars stockés en base
 - [ ] **F13** Restreindre les accès Drive par dossier + valider la minimisation
-- [ ] **F14** Ajouter les logs d'accès (consultation, export) en base
+- [x] **F14** Ajouter les logs d'accès (consultation, export) en base — `candidate_access_log` (GDPR_INF_06.5)
 - [ ] **F7** Basculer DocuSeal vers `api.docuseal.eu`
 - [ ] **F11** Remplacer les secrets faibles (`JWTSecret974` → `openssl rand -hex 32`)
 

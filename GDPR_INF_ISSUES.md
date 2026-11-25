@@ -241,6 +241,7 @@ No export/portability, rectification, objection or consent-withdrawal endpoint f
 **Labels:** `gdpr` `severity:high`
 - Record who read candidate files, exports, and `unmaskCandidateSsn`; able to answer a candidate's access request.
 - **AC:** read/export events logged and queryable. (Shared with GDPR_INF_15.3.)
+- **Status (2026-11-25):** implemented. `candidate_access_log` (append-only, UUID only, 365 days, purged by `expiredAccessScheduler`) records sheet views, bulk lists (size only), `unmaskCandidateSsn`, AB PDF export, CV download, Drive listing/content, and the external signed-link CV. Queryable via GraphQL `candidateAccessLog(candidateId)` (RESPONSABLE+). Not logged: avatar thumbnails (UI noise), the public `GET /:id/avatar`, questionnaire PDFs, and which sheets a bulk list contained. MCP reads stay in `mcp_audit_log`.
 
 ---
 
@@ -451,6 +452,7 @@ Docker `json-file` logs with no rotation or retention (no `logging:` in compose 
 **Labels:** `gdpr` `severity:medium`
 - Shared with GDPR_INF_06.5.
 - **AC:** events for reads, exports and `unmaskCandidateSsn`.
+- **Status (2026-11-25):** done with GDPR_INF_06.5 (`candidate_access_log`).
 
 #### [GDPR_INF_15.4] Stop printing log lines in `deploy.sh:241`
 **Labels:** `gdpr` `severity:medium`
