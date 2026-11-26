@@ -419,6 +419,14 @@ export class NeedsAnalysisService {
             logger.error({ companyID: data.companyID }, '[NeedsAnalysis] Company not found');
             throw new Error(`Company with ID ${data.companyID} not found`);
         }
+        // Le représentant légal est facultatif (parfois inconnu), mais une AB doit
+        // toujours porter au moins un contact référent : représentant légal (porté
+        // par l'entreprise) ou responsable de recrutement.
+        if (!company.legalReferent?.trim() && !data.recruitmentResponsibleName?.trim()) {
+            throw new Error(
+                'Un représentant légal ou un responsable de recrutement est requis pour créer une analyse du besoin.',
+            );
+        }
 
         const saler = data.userID ? await this.userRepository.findById(data.userID) : null;
         const id = randomUUID();
