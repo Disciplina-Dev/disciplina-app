@@ -155,7 +155,20 @@ export class OfferRepository {
     async addMatchedCandidate(offerId: string, candidate: MatchingCandidate): Promise<Offer | null> {
         return getModels().Offer.findOneAndUpdate(
             { _id: offerId, 'matching.candidates.id': { $ne: candidate.id } },
-            { $push: { 'matching.candidates': candidate } },
+            {
+                $push: { 'matching.candidates': candidate },
+                // Un candidat retenu manuellement ne doit plus être marqué comme écarté.
+                $pull: { 'matching.dismissed_candidate_ids': candidate.id },
+            },
+            { new: true },
+        ).lean();
+    }
+
+    /** Écarte un candidat des suggestions automatiques (bouton « Non »), de façon persistante. */
+    async dismissSuggestedCandidate(offerId: string, candidateId: string): Promise<Offer | null> {
+        return getModels().Offer.findOneAndUpdate(
+            { _id: offerId },
+            { $addToSet: { 'matching.dismissed_candidate_ids': candidateId } },
             { new: true },
         ).lean();
     }

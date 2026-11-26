@@ -101,6 +101,14 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.removeCandidate(offerId, candidateId);
         },
+        dismissSuggestedCandidate: async (
+            _: unknown,
+            { offerId, candidateId }: { offerId: string; candidateId: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.dismissSuggestedCandidate(offerId, candidateId);
+        },
         updateMatchedCandidateStatus: async (
             _: unknown,
             { offerId, candidateId, status }: { offerId: string; candidateId: string; status: string },

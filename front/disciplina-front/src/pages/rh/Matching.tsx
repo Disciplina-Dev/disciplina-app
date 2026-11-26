@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { IconAlert, IconArrowLeft, IconCar, IconCheck, IconChevronRight, IconClose, IconCompany, IconEye, IconFavorite, IconFolder, IconInfo, IconJob, IconLoader, IconMail, IconMailSent, IconMapPin, IconPhone, IconPlay, IconPlus, IconRefresh, IconSchedule, IconSend, IconSparkles, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers } from '@/components/ui/icons'
-import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION, DISMISS_SUGGESTED_CANDIDATE } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
@@ -1731,6 +1731,24 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJob?.id])
 
+  const handleDismissCandidate = async (candidate: MatchedCandidate) => {
+    setDecisions((p) => ({ ...p, [candidate.id]: 'dismissed' }))
+    if (!selectedJob) return
+    try {
+      const result = await offerGraphqlClient.mutation(DISMISS_SUGGESTED_CANDIDATE, {
+        offerId: selectedJob.id,
+        candidateId: candidate.id,
+      }).toPromise()
+      if (result.error) throw new Error(result.error.message)
+    } catch (err: unknown) {
+      // Échec de persistance : on annule l'écartement pour ne pas laisser croire
+      // que le candidat ne reviendra pas au prochain chargement.
+      setMatchError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setDecisions((p) => { const n = { ...p }; delete n[candidate.id]; return n })
+      setSuggestedCandidates((p) => (p.some((c) => c.id === candidate.id) ? p : [candidate, ...p]))
+    }
+  }
+
   const handleSaveMatch = async (candidateId: string): Promise<boolean> => {
     if (!selectedJob) return false
     setSavingIds((p) => new Set(p).add(candidateId))
@@ -2220,7 +2238,10 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
         relaxedCriteria={jobData?.relaxedCriteria}
         onLaunch={() => runMatch(selectedJob)}
         onAccept={(id) => setDecisions((p) => ({ ...p, [id]: 'accepted' }))}
-        onDismiss={(id) => setDecisions((p) => ({ ...p, [id]: 'dismissed' }))}
+        onDismiss={(id) => {
+          const candidate = suggestedCandidates.find((c) => c.id === id)
+          if (candidate) handleDismissCandidate(candidate)
+        }}
         onRemove={(id) => {
           setSuggestedCandidates((p) => p.filter((c) => c.id !== id))
           setDecisions((p) => { const n = { ...p }; delete n[id]; return n })

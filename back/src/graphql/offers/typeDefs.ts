@@ -421,6 +421,7 @@ export const typeDefs = gql`
         unmatchOffer(id: String!): Offer
         addCandidateToOffer(offerId: String!, candidateId: String!): Offer
         removeCandidateFromOffer(offerId: String!, candidateId: String!): Offer
+        dismissSuggestedCandidate(offerId: String!, candidateId: String!): Offer
         updateMatchedCandidateStatus(offerId: String!, candidateId: String!, status: MatchedCandidateStatus!): Offer
         addManualProposedCandidate(
             offerId: String!

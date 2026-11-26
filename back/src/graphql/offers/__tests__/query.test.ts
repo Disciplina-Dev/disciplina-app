@@ -262,6 +262,61 @@ describe('GraphQL job queries', () => {
         expect(json.data.matchOffer.suggestedCandidates[0].fullName).toBe(`Jane ${suffix}`);
     });
 
+    it('never suggests a candidate dismissed from the automatic matching', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        const candidateId = `cand-dismissed-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Paul ${suffix}`,
+                email: `paul-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 26,
+                driving_license_b: true,
+            },
+            desired_sectors: ['RESTAURATION'],
+            job_info: {
+                geographic_mobility: [Localisation.ENTRE_DEUX],
+            },
+        });
+
+        const offerId = `job-dismissed-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Dismiss Corp ${suffix}`,
+            desired_tp: 'AD',
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            status: OfferStatus.NOT_MATCHED,
+            localisation: [Localisation.ENTRE_DEUX],
+            dismissed_candidate_ids: [candidateId],
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchOffer(id: $id) { id suggestedCandidates { id } } }`,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(false);
+    });
+
     it('relaxes the activity-sector matching criterion when only custom sectors are set', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();

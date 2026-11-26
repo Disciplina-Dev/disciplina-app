@@ -385,7 +385,12 @@ export class OfferService {
         };
 
         const candidates = await this.candidateRepository.findByfilter(await buildFilter());
-        const suggestedCandidates = candidates.map(candidateToMatchingCandidate);
+        // Les candidats écartés à la main (« Non » sur le matching automatique)
+        // ne sont plus jamais re-suggérés, même après rechargement ou relance.
+        const dismissedIds = new Set(offer.matching?.dismissed_candidate_ids ?? []);
+        const suggestedCandidates = candidates
+            .filter((candidate) => !dismissedIds.has(candidate._id))
+            .map(candidateToMatchingCandidate);
 
         // Statut CV en direct (source de vérité = fiche candidat) pour les
         // candidats déjà retenus, même si le snapshot de matching est plus ancien.
@@ -472,6 +477,12 @@ export class OfferService {
 
         const synced = await this.syncDerivedStatus(offerId, offer);
         return toGql(synced);
+    }
+
+    /** Enregistre « Non » sur une suggestion : le candidat ne sera plus re-proposé pour cette offre. */
+    async dismissSuggestedCandidate(offerId: string, candidateId: string): Promise<object | null> {
+        const offer = await this.offerRepository.dismissSuggestedCandidate(offerId, candidateId);
+        return offer ? toGql(offer) : null;
     }
 
     async removeCandidate(offerId: string, candidateId: string): Promise<object | null> {

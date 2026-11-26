@@ -164,6 +164,64 @@ describe('GraphQL job mutations', () => {
         });
     });
 
+    describe('dismissSuggestedCandidate', () => {
+        it('persists « Non » and excludes the candidate from later suggestions', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const candidateRepo = new CandidateRepository();
+
+            const candidateId = `cand-dismiss-${suffix}`;
+            await candidateRepo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Sam ${suffix}`,
+                    email: `sam-${suffix}@test.local`,
+                    phone: '0600000000',
+                    age: 27,
+                    driving_license_b: true,
+                },
+                desired_sectors: ['RESTAURATION'],
+                job_info: { geographic_mobility: [Localisation.SAINT_DENIS] },
+            });
+
+            const offerId = `job-dismiss-${suffix}`;
+            await seedOffer({
+                _id: offerId,
+                company_name: `Dismiss Corp ${suffix}`,
+                desired_tp: TitleProfessionalType.AD,
+                driving_license_b: true,
+                desired_sex: DesiredSex.MIXTE,
+                age_range: '20-40',
+                status: OfferStatus.NOT_MATCHED,
+                localisation: [Localisation.SAINT_DENIS],
+            });
+
+            const { res, json } = await gql(auth, {
+                query: `mutation($offerId: String!, $candidateId: String!) {
+                    dismissSuggestedCandidate(offerId: $offerId, candidateId: $candidateId) { id }
+                }`,
+                variables: { offerId, candidateId },
+            });
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.dismissSuggestedCandidate.id).toBe(offerId);
+
+            const stored = await new OfferRepository().findById(offerId);
+            expect(stored?.matching?.dismissed_candidate_ids).toContain(candidateId);
+
+            const { json: queryJson } = await gql(auth, {
+                query: `query($id: String!) { matchOffer(id: $id) { suggestedCandidates { id } } }`,
+                variables: { id: offerId },
+            });
+            expect(
+                queryJson.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId),
+            ).toBe(false);
+        });
+    });
+
     describe('addCandidateToOffer', () => {
         it('adds a matching candidate and sets status to MATCHED', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
