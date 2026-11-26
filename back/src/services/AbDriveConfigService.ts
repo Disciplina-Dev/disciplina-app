@@ -42,6 +42,23 @@ export class AbDriveConfigService {
         return config.sectorFolders[abFolderKey(sector, kind)] || undefined;
     }
 
+    private async resolveCompanyFolder(
+        drive: GoogleDriveService,
+        parentFolderId: string,
+        companyName: string,
+    ): Promise<string> {
+        const folderName = companyName.trim() || 'Entreprise';
+        const existing = await drive.findFolder(folderName, parentFolderId);
+        if (existing) return existing.id;
+
+        const created = await drive.createFolder(folderName, parentFolderId);
+        logger.info(
+            { parentFolderId, folderName, folderId: created.id },
+            '[AbDrive] Sous-dossier entreprise créé sur le Drive',
+        );
+        return created.id;
+    }
+
     /**
      * Secteur Drive d'une AB : tenant Annemasse = dossier unique, sinon secteur
      * dérivé de la région de l'entreprise, avec repli sur le secteur par défaut.
@@ -148,23 +165,6 @@ export class AbDriveConfigService {
         }
 
         return folderUrl ? { url: folderUrl, isFile: false } : null;
-    }
-
-    private async resolveCompanyFolder(
-        drive: GoogleDriveService,
-        parentFolderId: string,
-        companyName: string,
-    ): Promise<string> {
-        const folderName = companyName.trim() || 'Entreprise';
-        const existing = await drive.findFolder(folderName, parentFolderId);
-        if (existing) return existing.id;
-
-        const created = await drive.createFolder(folderName, parentFolderId);
-        logger.info(
-            { parentFolderId, folderName, folderId: created.id },
-            '[AbDrive] Sous-dossier entreprise créé sur le Drive',
-        );
-        return created.id;
     }
 
     /**

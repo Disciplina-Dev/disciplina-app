@@ -283,6 +283,10 @@ export const router = createBrowserRouter([
     path: "/legal/mentions",
     element: <MentionsLegalesPage />,
   },
+  // Redirections rétro-compatibles vers l'espace légal
+  { path: "/legal", element: <Navigate to="/legal/mentions" replace /> },
+  { path: "/privacy", element: <Navigate to="/legal/confidentialite" replace /> },
+  { path: "/cgu", element: <Navigate to="/legal/cgu" replace /> },
   {
     path: "/legal/confidentialite",
     element: <ConfidentialitePage />,
@@ -299,14 +303,6 @@ export const router = createBrowserRouter([
   { path: "/public/match/:signature", element: <LegacyExternalRedirect /> },
   { path: "/public/interview/:signature", element: <LegacyExternalRedirect /> },
   { path: "/public/cv-import/:signature", element: <LegacyExternalRedirect /> },
-  {
-    path: "/public/cv-import",
-    element: <CvImportGate />,
-  },
-  {
-    path: "/public/cv-import/:signature",
-    element: <CvImportUpload />,
-  },
   {
     path: "*",
     element: <NotFound />,
