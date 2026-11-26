@@ -5,7 +5,7 @@ import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
-import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
+import { OfferStatus, DesiredSex, Localisation, Sector, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 import { OfferModel } from '../../../db/mongo/schemas/offer.schema';
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
@@ -622,6 +622,81 @@ describe('GraphQL job queries', () => {
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             expect(json.data.candidateMatchedOfferIds).toEqual([]);
+        });
+    });
+
+    describe('candidateMatchPropositions', () => {
+        const query = `query($candidateId: String!) {
+            candidateMatchPropositions(candidateId: $candidateId) {
+                offerId companyName status title jobRole needsAnalysisId
+            }
+        }`;
+
+        async function fetchPropositions(candidateId: string) {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query, variables: { candidateId } }),
+            });
+            return { res, json: await res.json() };
+        }
+
+        it('returns the propositions and the candidate answer (oui / non / en attente)', async () => {
+            const suffix = Date.now();
+            const candidateId = `cand-props-${suffix}`;
+
+            const acceptedId = `job-props-yes-${suffix}`;
+            const declinedId = `job-props-no-${suffix}`;
+            const pendingId = `job-props-pending-${suffix}`;
+            const sentId = `job-props-sent-${suffix}`;
+
+            await seedOffer({
+                _id: acceptedId,
+                company_name: `Oui Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.ACCEPTED }],
+            });
+            await seedOffer({
+                _id: declinedId,
+                company_name: `Non Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.DECLINED }],
+            });
+            await seedOffer({
+                _id: pendingId,
+                company_name: `Attente Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }],
+            });
+            // Déjà transmis à l'entreprise : ce n'est plus une proposition ouverte.
+            await seedOffer({
+                _id: sentId,
+                company_name: `Envoyé Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.SEND }],
+            });
+
+            const { res, json } = await fetchPropositions(candidateId);
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            const propositions = json.data.candidateMatchPropositions as Array<{ offerId: string; status: string }>;
+            expect(propositions).toHaveLength(3);
+            expect(propositions.map((p) => p.status).sort()).toEqual([
+                MatchedCandidateStatus.ACCEPTED,
+                MatchedCandidateStatus.DECLINED,
+                MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+            ]);
+            expect(propositions.map((p) => p.offerId).sort()).toEqual([acceptedId, declinedId, pendingId].sort());
+        });
+
+        it('returns an empty array when the candidate was never proposed an offer', async () => {
+            const { res, json } = await fetchPropositions(`no-props-${Date.now()}`);
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.candidateMatchPropositions).toEqual([]);
         });
     });
 });

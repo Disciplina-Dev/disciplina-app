@@ -6,6 +6,7 @@ import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import ImmersionScheduleEditor from '@/features/candidats/components/ImmersionScheduleEditor'
 import CandidateSentCompaniesCallout from '@/features/candidats/components/CandidateSentCompaniesCallout'
+import CandidateMatchPropositionsCallout from '@/features/candidats/components/CandidateMatchPropositionsCallout'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -1041,6 +1042,9 @@ export default function FicheCandidat() {
 
         {/* ── Déjà envoyé en entreprise via le matching ── */}
         {id && <CandidateSentCompaniesCallout candidateId={id} />}
+
+        {/* ── Propositions de matching et réponses oui / non du candidat ── */}
+        {id && <CandidateMatchPropositionsCallout candidateId={id} />}
 
         {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
           <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4 flex flex-col gap-3">
