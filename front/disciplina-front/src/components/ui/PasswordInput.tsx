@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock } from 'lucide-react'
+import { IconEye, IconEyeOff, IconLock } from '@/components/ui/icons'
 import type { InputHTMLAttributes } from 'react'
 import InputField from './InputField'
 
@@ -16,10 +16,10 @@ export default function PasswordInput({ label, id, error, ...props }: PasswordIn
     <button
       type="button"
       onClick={() => setVisible((v) => !v)}
-      className="text-gray-300 hover:text-gray-700 transition-colors"
+      className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors"
       aria-label={visible ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
     >
-      {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+      {visible ? <IconEyeOff width={18} height={18} /> : <IconEye width={18} height={18} />}
     </button>
   )
 
@@ -28,7 +28,7 @@ export default function PasswordInput({ label, id, error, ...props }: PasswordIn
       label={label}
       id={id}
       type={visible ? 'text' : 'password'}
-      icon={<Lock size={18} />}
+      icon={<IconLock width={18} height={18} />}
       rightElement={toggle}
       error={error}
       {...props}

@@ -48,6 +48,65 @@ export const typeDefs = gql`
         LA_PLAINE_DES_PALMISTES
         SALAZIE
         SAINTE_ANNE
+        ANNEMASSE
+        AMBILLY
+        GAILLARD
+        VILLE_LA_GRAND
+        VETRAZ_MONTHOUX
+        ETREMBIERES
+        CRANVES_SALES
+        SAINT_CERGUES
+        JUVIGNY
+        BONNE
+        MACHILLY
+        DOUVAINE
+        VEIGY_FONCENEX
+        BONS_EN_CHABLAIS
+        SCIEZ
+        THONON_LES_BAINS
+        EVIAN_LES_BAINS
+        SAINT_JULIEN_EN_GENEVOIS
+        ARCHAMPS
+        NEYDENS
+        COLLONGES_SOUS_SALEVE
+        PRESILLY
+        BEAUMONT
+        FEIGERES
+        VIRY
+        VALLEIRY
+        VULBENS
+        CHENEX
+        REIGNIER_ESERY
+        ARENTHON
+        CONTAMINE_SUR_ARVE
+        BONNEVILLE
+        AYSE
+        MARIGNIER
+        VOUGY
+        CLUSES
+        SCIONZIER
+        MARNAZ
+        LA_ROCHE_SUR_FORON
+        AMANCY
+        SAINT_PIERRE_EN_FAUCIGNY
+        ETAUX
+        CORNIER
+        PERS_JUSSY
+        SCIENTRIER
+        ARBUSIGNY
+        ANNECY
+        PRINGY
+        EPAGNY_METZ_TESSY
+        POISY
+        MEYTHET
+        SEYNOD
+        CRAN_GEVRIER
+        ARGONAY
+        PERRIGNIER
+        BOEGE
+        FILLINGES
+        VIUZ_EN_SALLAZ
+        SAINT_JEOIRE
     }
 
     enum DesiredTP {
@@ -55,6 +114,8 @@ export const typeDefs = gql`
         CC
         NTC
         REM
+        CADGA
+        # Legacy : ancien code du TP CADGA, conservé pour les clients existants.
         SA
     }
 
@@ -95,6 +156,9 @@ export const typeDefs = gql`
         REJECTED
         IMMERSING
         CONTRACT
+        PRESENT
+        ABSENT
+        APPOINTMENT_CANCELLED
     }
 
     enum ImmersionConclusion {
@@ -115,6 +179,8 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
+        isRupture: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -137,6 +203,8 @@ export const typeDefs = gql`
         identityDescription: String
         comment: String
         cvWebview: String
+        hasCv: Boolean
+        isRupture: Boolean
         interviewLocation: String
         bookedInterviewSlot: String
         interviewConclusion: InterviewConclusion
@@ -190,6 +258,12 @@ export const typeDefs = gql`
         otherDescriptionMissions: String
     }
 
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
     type Offer {
         needsAnalysisId: String
         id: String!
@@ -198,8 +272,14 @@ export const typeDefs = gql`
         desiredTp: [OfferTp!]!
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
+        """
+        Statut actif/inactif propre à l'offre (annuaire entreprises). null
+        signifie que l'offre hérite du statut de son AB parente.
+        """
+        isActive: Boolean
         localisation: [Localisation]
         sector: Sector
         matchedCandidate: [MatchingCandidate]
@@ -213,6 +293,8 @@ export const typeDefs = gql`
         title: String
         jobRole: String
         softSkills: String
+        schedule: [ScheduleSlot]
+        relaxedCriteria: [String!]
     }
 
     input MatchingCandidateInput {
@@ -232,6 +314,7 @@ export const typeDefs = gql`
         ageRange: String
         desiredSex: Sex
         drivingLicencseB: Boolean
+        hasVehicle: Boolean
         professionalExperience: Boolean
         status: OfferStatus
         localisation: [Localisation]
@@ -285,12 +368,44 @@ export const typeDefs = gql`
         createdAt: String!
     }
 
+    """
+    Entreprise à laquelle un candidat a déjà été envoyé via le matching
+    (CV transmis à l'entreprise ou étape ultérieure).
+    """
+    type CandidateSentCompany {
+        offerId: String!
+        companyName: String
+        status: MatchedCandidateStatus
+        title: String
+        jobRole: String
+        needsAnalysisId: String
+    }
+
+    """
+    Offre proposée au candidat via le matching, avec sa réponse éventuelle
+    (PRE_SELECTED_MAIL_SEND = en attente, ACCEPTED = oui, DECLINED = non).
+    """
+    type CandidateMatchProposition {
+        offerId: String!
+        companyName: String
+        status: MatchedCandidateStatus
+        title: String
+        jobRole: String
+        needsAnalysisId: String
+    }
+
     type Query {
-        offers: [Offer!]!
+        """
+        Offres du matching. Le paramètre includeClosed ajoute les offres déjà
+        contractualisées (annuaire entreprises RH) ; par défaut elles sont exclues.
+        """
+        offers(includeClosed: Boolean): [Offer!]!
         matchOffer(id: String!): Offer!
         offerCompanyInfo(offerId: String!): OfferCompanyInfo!
         offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!
         candidateMatchedOfferIds(candidateId: String!): [String!]!
+        candidateSentCompanies(candidateId: String!): [CandidateSentCompany!]!
+        candidateMatchPropositions(candidateId: String!): [CandidateMatchProposition!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
         offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
         offerHistory(offerId: String!): [OfferHistoryEntry!]!
@@ -298,9 +413,15 @@ export const typeDefs = gql`
 
     type Mutation {
         updateOffer(id: String!, offer: OfferInput!): Offer
+        """
+        Override actif/inactif d'une offre (annuaire entreprises). active à
+        null rétablit l'héritage : l'offre suit le statut de son AB parente.
+        """
+        updateOfferActive(id: String!, active: Boolean): Offer
         unmatchOffer(id: String!): Offer
         addCandidateToOffer(offerId: String!, candidateId: String!): Offer
         removeCandidateFromOffer(offerId: String!, candidateId: String!): Offer
+        dismissSuggestedCandidate(offerId: String!, candidateId: String!): Offer
         updateMatchedCandidateStatus(offerId: String!, candidateId: String!, status: MatchedCandidateStatus!): Offer
         addManualProposedCandidate(
             offerId: String!
@@ -321,6 +442,7 @@ export const typeDefs = gql`
             companyEmail: String!
             candidates: [ProposedCandidateInput!]!
             templateId: String
+            cc: [String!]
         ): String!
         setInterviewConclusion(
             offerId: String!

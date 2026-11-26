@@ -6,6 +6,8 @@ import {
     NeedsAnalysis as NeedsAnalysisNoSql,
     NeedsAnalysisWriteInput,
     NeedsAnalysisStatus,
+    CompanyIndicator,
+    CompanyRegion,
 } from '../types/needsAnalysisNoSql.types';
 import { toNeedsAnalysis, toNeedsAnalysisDocument, NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { buildOffers, mergeOfferIdentity } from './mappers/offer.mapper';
@@ -13,6 +15,8 @@ import { CompaniesService } from './CompaniesService';
 import { PdfService } from './PdfService';
 import { DocuSealService } from '../external/docuseal/docuseal.service';
 import { MailTemplateService } from './MailTemplateService';
+import { CommercialSignatureService } from './CommercialSignatureService';
+import { DEFAULT_COMMERCIAL_SIGNATURE } from './commercialSignatureTemplate';
 import { UserService } from './UserService';
 import { GoogleGmailService } from '../external/google/gmail.service';
 import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
@@ -20,8 +24,11 @@ import { UserRepository } from '../repositories/mysql/UserRepository';
 import { NotificationService } from './NotificationService';
 import { TodoService } from './TodoService';
 import { JobRole, Permission } from '../types/user.types';
+import { getRegion } from '../db/tenant';
+import { isSector, sectorFromRegion } from '../utils/sector';
 import { abDriveConfigService } from './AbDriveConfigService';
 import { sendSystemEmail } from '../external/google/system-mail';
+import { withNoReply } from '../external/google/no-reply';
 import { env } from '../config/env';
 import { logger } from '../external/logger';
 import { PDFDocument } from 'pdf-lib';
@@ -42,21 +49,18 @@ function hasActiveOfferFilter(filter: OfferAbFilter): boolean {
     );
 }
 
-// Région de l'AB (NORD/OUEST/SUD) → libellé du secteur des users (Nord-Est/Ouest/Sud).
-const REGION_TO_USER_SECTOR: Record<string, string> = {
-    NORD: 'Nord-Est',
-    OUEST: 'Ouest',
-    SUD: 'Sud',
-};
-
 /** Vrai si l'utilisateur est rattaché au secteur de l'AB (ou n'a pas de secteur défini). */
 function userBelongsToSector(user: { sectors?: string | string[] | null }, region: string | undefined): boolean {
     if (!region) return true;
-    const sector = REGION_TO_USER_SECTOR[region];
-    if (!sector) return true;
     const raw = user.sectors;
     const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? (JSON.parse(raw) as string[]) : [];
-    return list.length === 0 || list.includes(sector);
+    if (list.length === 0) return true;
+    // Tenant Annemasse : dossier Drive et notifications uniques — tout secteur
+    // connu du tenant (les 6 opérationnels comme les 3 historiques) appartient.
+    if (getRegion() === 'annemasse') return list.some((s) => isSector(s));
+    const sector = sectorFromRegion(region as CompanyRegion);
+    if (!sector) return true;
+    return list.includes(sector);
 }
 
 async function countPdfPages(buffer: Buffer): Promise<number> {
@@ -85,6 +89,7 @@ export class NeedsAnalysisService {
     private companiesService: CompaniesService;
     private docusealService: DocuSealService;
     private mailTemplateService: MailTemplateService;
+    private commercialSignatureService: CommercialSignatureService;
     private userService: UserService;
     private gmailService: GoogleGmailService;
     private userRepository: UserRepository;
@@ -97,6 +102,7 @@ export class NeedsAnalysisService {
         this.companiesService = new CompaniesService();
         this.docusealService = new DocuSealService();
         this.mailTemplateService = new MailTemplateService();
+        this.commercialSignatureService = new CommercialSignatureService();
         this.userService = new UserService();
         this.gmailService = new GoogleGmailService();
         this.userRepository = new UserRepository();
@@ -112,9 +118,10 @@ export class NeedsAnalysisService {
     async findPage(first: number, after?: string, filter?: OfferAbFilter): Promise<NeedsAnalysisNoSql[]> {
         const hasOfferFilter = Boolean(filter && hasActiveOfferFilter(filter));
         const abStatus = filter?.abStatus;
+        const hasAdminFilter = Boolean(filter?.administrationTypes?.length);
 
         // Aucune contrainte : liste brute (la liste « Tous » inclut les AB inactives).
-        if (!hasOfferFilter && !abStatus) {
+        if (!hasOfferFilter && !abStatus && !hasAdminFilter) {
             return this.repository.findPage(first, after);
         }
 
@@ -132,31 +139,53 @@ export class NeedsAnalysisService {
             if (statusIds.length === 0) return [];
         }
 
-        // Intersection des deux contraintes, sinon celle présente seule.
-        let restrictIds: string[] | undefined;
-        if (offerIds && statusIds) {
-            const statusSet = new Set(statusIds);
-            restrictIds = offerIds.filter((id) => statusSet.has(id));
-        } else {
-            restrictIds = offerIds ?? statusIds;
+        // Contrainte par type d'administration (directement sur needs_analysis).
+        let adminIds: string[] | undefined;
+        if (hasAdminFilter) {
+            adminIds = await this.repository.findIdsByAdministrationTypes(filter!.administrationTypes!);
+            if (adminIds.length === 0) return [];
         }
-        if (restrictIds && restrictIds.length === 0) return [];
+
+        // Intersection de toutes les contraintes présentes.
+        const allSets: string[][] = [offerIds, statusIds, adminIds].filter((a): a is string[] => !!a);
+        if (allSets.length === 0) return this.repository.findPage(first, after);
+        if (allSets.length === 1) {
+            const only = allSets[0];
+            if (only.length === 0) return [];
+            return this.repository.findPage(first, after, only);
+        }
+        let restrictIds = allSets[0];
+        for (let i = 1; i < allSets.length; i++) {
+            const set = new Set(allSets[i]);
+            restrictIds = restrictIds.filter((id) => set.has(id));
+            if (restrictIds.length === 0) return [];
+        }
 
         return this.repository.findPage(first, after, restrictIds);
     }
 
-    /** Ids des AB correspondant à l'onglet choisi, hors AB supprimées pour Actif/Archivé. */
+    /**
+     * Ids des AB correspondant à l'onglet choisi, hors AB supprimées pour Actif/Archivé.
+     * Le statut d'onglet peut être forcé manuellement (`ab_status`) : il prime alors
+     * sur le calcul dérivé des offres. Les AB à statut manuel sont exclues du calcul
+     * dérivé pour ne jamais apparaître dans deux onglets à la fois.
+     */
     private async resolveAbStatusIds(abStatus: AbStatus): Promise<string[]> {
-        if (abStatus === 'INACTIVE') {
-            return this.repository.findDeletedIds();
-        }
-
         const deletedIds = await this.repository.findDeletedIds();
         const deletedSet = new Set(deletedIds);
 
+        if (abStatus === 'INACTIVE') {
+            const manualInactive = await this.repository.findIdsByManualStatus('INACTIVE');
+            return [...new Set([...manualInactive, ...deletedIds])];
+        }
+
+        const manualIds = (await this.repository.findIdsByManualStatus(abStatus)).filter((id) => !deletedSet.has(id));
+        const manualSet = new Set(await this.repository.findIdsWithManualStatus());
+
         if (abStatus === 'ARCHIVED') {
             const ids = await this.offerRepository.findNeedsAnalysisIdsByAbStatus('ARCHIVED');
-            return ids.filter((id) => !deletedSet.has(id));
+            const derived = ids.filter((id) => !deletedSet.has(id) && !manualSet.has(id));
+            return [...new Set([...manualIds, ...derived])];
         }
 
         // ACTIVE : au moins une offre pas encore en contrat, ou aucune offre du tout
@@ -166,12 +195,182 @@ export class NeedsAnalysisService {
             this.repository.findIdsWithoutOffers(),
         ]);
         const unique = [...new Set([...withOffers, ...withoutOffers])];
-        return unique.filter((id) => !deletedSet.has(id));
+        const derived = unique.filter((id) => !deletedSet.has(id) && !manualSet.has(id));
+        return [...new Set([...manualIds, ...derived])];
+    }
+
+    /**
+     * Statut d'onglet effectif d'une AB : INACTIVE si soft-deletée, sinon manuel
+     * (`ab_status`) s'il est posé, sinon dérivé des offres (ACTIVE/ARCHIVED).
+     */
+    async getAbStatus(id: string): Promise<AbStatus> {
+        const doc = await this.repository.findById(id);
+        if (!doc) {
+            throw new Error('Needs analysis not found');
+        }
+        if (doc.is_deleted) return 'INACTIVE';
+        if (doc.ab_status) return doc.ab_status;
+        return this.offerRepository.findDerivedAbStatus(id);
+    }
+
+    /**
+     * Force le statut d'onglet d'une AB (onglets de la liste matching RH). `null`
+     * réinitialise le calcul automatique (dérivé des offres / soft delete).
+     */
+    async setAbStatus(id: string, abStatus: AbStatus | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        const before = await this.getAbStatus(id);
+        const updated = await this.repository.update(id, { ab_status: abStatus ?? null });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        await this.refreshActivationStamp(id, before);
+        // Relecture : le stamp d'activation a pu modifier le document après `update`.
+        const final = await this.repository.findById(id);
+        return toNeedsAnalysis(final ?? updated);
+    }
+
+    /**
+     * Pose la pastille couleur manuelle du suivi entreprise (annuaire RH).
+     * `null` réinitialise la couleur automatique dérivée (immersion → vert,
+     * mandat signé → jaune, sinon blanc).
+     */
+    async setIndicator(id: string, indicator: CompanyIndicator | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (indicator !== null && !Object.values(CompanyIndicator).includes(indicator)) {
+            throw new Error('Invalid company indicator');
+        }
+        const updated = await this.repository.update(id, { company_indicator: indicator ?? null });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, indicator }, '[NeedsAnalysis] company indicator updated');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Met à jour les références libres du suivi entreprise (annuaire RH) :
+     * « France Travail » et « KOANN ». Chaîne vide / blanche = `null`
+     * (non renseigné). Tronque à 500 caractères (garde-fou de saisie libre).
+     */
+    async setTrackingRefs(id: string, franceTravail?: string | null, koann?: string | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        const patch: Record<string, string | null> = {};
+        if (franceTravail !== undefined) {
+            const trimmed = (franceTravail ?? '').trim();
+            patch.france_travail = trimmed ? trimmed.slice(0, 500) : null;
+        }
+        if (koann !== undefined) {
+            const trimmed = (koann ?? '').trim();
+            patch.koann = trimmed ? trimmed.slice(0, 500) : null;
+        }
+        const updated = await this.repository.update(id, patch as any);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id }, '[NeedsAnalysis] company tracking refs updated');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Corrige manuellement la date d'activation (`last_active_at`) affichée
+     * dans l'annuaire des entreprises. `null` / vide l'efface (repli sur la
+     * date de création côté front). N'interfère pas avec le tampon
+     * automatique : une future (ré)activation la ré-horodatera.
+     */
+    async setActivationDate(id: string, lastActiveAt?: string | null): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        let date: Date | null = null;
+        const raw = (lastActiveAt ?? '').trim();
+        if (raw) {
+            const parsed = new Date(raw);
+            if (Number.isNaN(parsed.getTime())) {
+                throw new Error('Invalid activation date');
+            }
+            date = parsed;
+        }
+        const updated = await this.repository.update(id, { last_active_at: date });
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id }, '[NeedsAnalysis] activation date updated manually');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Met à jour `last_active_at` si l'AB vient de (re)devenir effectivement
+     * ACTIVE alors qu'elle ne l'était pas juste avant (`before`). Appelé après
+     * chaque mutation susceptible de faire basculer le statut effectif
+     * (forçage manuel, ajout/retrait d'offres, évolution du matching).
+     * Best-effort : n'échoue jamais l'opération appelante.
+     */
+    async refreshActivationStamp(id: string, before: AbStatus | null): Promise<void> {
+        if (!id || before === 'ACTIVE') return;
+        let after: AbStatus;
+        try {
+            after = await this.getAbStatus(id);
+        } catch (err) {
+            logger.error({ err, id }, '[NeedsAnalysis] Failed to compute status for activation stamp');
+            return;
+        }
+        if (after !== 'ACTIVE') return;
+        try {
+            await this.repository.update(id, { last_active_at: new Date() });
+        } catch (err) {
+            logger.error({ err, id }, '[NeedsAnalysis] Failed to stamp activation date');
+        }
     }
 
     async findById(id: string): Promise<NeedsAnalysisGql | null> {
         const doc = await this.repository.findById(id);
         return doc ? toNeedsAnalysis(doc) : null;
+    }
+
+    /**
+     * Lien Drive du PDF d'AB : lien mémorisé à l'archivage, sinon résolution à
+     * la demande pour les AB antérieures au champ (avec mémorisation au
+     * passage). `null` si l'AB n'a jamais été archivée (brouillon) ou reste
+     * introuvable sur le Drive.
+     */
+    async resolveAbDriveUrl(analysis: NeedsAnalysisGql, actingUserId?: number): Promise<string | null> {
+        if (analysis.abDriveUrl) return analysis.abDriveUrl;
+        // Seules les AB envoyées en signature / signées sont archivées sur le Drive.
+        if (analysis.status === NeedsAnalysisStatus.BROUILLON) return null;
+
+        const resolved = await abDriveConfigService.resolveAbPdfLink(analysis, actingUserId);
+        if (!resolved) return null;
+        // On ne mémorise que le fichier : le repli dossier peut devenir obsolète
+        // dès que le PDF apparaît, il doit donc être résolu à chaque clic.
+        if (resolved.isFile) {
+            await this.repository.update(analysis.id, { ab_drive_url: resolved.url }).catch((err) => {
+                logger.warn({ err, id: analysis.id }, "[NeedsAnalysis] Impossible d'enregistrer le lien Drive de l'AB");
+            });
+        }
+        return resolved.url;
     }
 
     async findByCompanyId(companyId: number): Promise<NeedsAnalysisGql[]> {
@@ -220,6 +419,14 @@ export class NeedsAnalysisService {
             logger.error({ companyID: data.companyID }, '[NeedsAnalysis] Company not found');
             throw new Error(`Company with ID ${data.companyID} not found`);
         }
+        // Le représentant légal est facultatif (parfois inconnu), mais une AB doit
+        // toujours porter au moins un contact référent : représentant légal (porté
+        // par l'entreprise) ou responsable de recrutement.
+        if (!company.legalReferent?.trim() && !data.recruitmentResponsibleName?.trim()) {
+            throw new Error(
+                'Un représentant légal ou un responsable de recrutement est requis pour créer une analyse du besoin.',
+            );
+        }
 
         const saler = data.userID ? await this.userRepository.findById(data.userID) : null;
         const id = randomUUID();
@@ -230,6 +437,14 @@ export class NeedsAnalysisService {
         );
         const created = await this.repository.create(document);
         await this.companiesService.setAbId(company.id, id);
+        // Brouillon publié dans le matching : offres créées sans envoi en
+        // signature, statut BROUILLON conservé (affiché « Non envoyée »).
+        // Hors du chemin critique : on log mais on ne fait pas échouer la création.
+        if (data.isVisibleInMatching) {
+            await this.createOffersAndNotifyRh(created, id, company.name || 'Entreprise').catch((err) => {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+            });
+        }
         logger.info({ id, status: created.status }, '[NeedsAnalysis] create() complete');
         return toNeedsAnalysis(created);
     }
@@ -332,21 +547,32 @@ export class NeedsAnalysisService {
         // Archivage Drive du PDF non signé, dans le dossier du secteur de l'AB
         // (région de l'entreprise), pas celui du commercial.
         // Best-effort : n'échoue pas l'envoi en signature.
-        await abDriveConfigService.archiveAbPdf(
+        const driveLink = await abDriveConfigService.archiveAbPdf(
             analysis.companyInfos?.sector,
             'UNSIGNED',
             buffer,
             filename,
+            company.name || 'Entreprise',
             analysis.salerInfo?.id ?? undefined,
             actingUserId,
         );
+        if (driveLink) {
+            // Mémorise le lien pour le bouton « Ouvrir l'AB dans le Drive ».
+            await this.repository.update(id, { ab_drive_url: driveLink }).catch((err) => {
+                logger.warn({ err, id }, "[NeedsAnalysis] Impossible d'enregistrer le lien Drive de l'AB");
+            });
+        }
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.
+        // Un brouillon déjà publié dans le matching a ses offres : pas de doublon.
         if (wasDraft) {
-            await this.createOffersAndNotifyRh(doc, analysis.id, company.name || 'Entreprise').catch((err) => {
-                logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
-            });
+            const existingOffers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (existingOffers.length === 0) {
+                await this.createOffersAndNotifyRh(doc, analysis.id, company.name || 'Entreprise').catch((err) => {
+                    logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                });
+            }
         }
 
         const updated = await this.repository.findById(id);
@@ -360,6 +586,8 @@ export class NeedsAnalysisService {
      * Construit le mail « AB à signer » à partir de l'override (édité dans l'aperçu),
      * sinon du modèle système `ab_signature`, sinon du modèle par défaut. Remplace
      * les variables : {{entreprise}}, {{lien_signature}} (bouton), {{signature}}.
+     * Ajoute la signature commerciale textuelle du commercial (sauvegardée par-user)
+     * à la fin du corps.
      */
     private async buildSignatureEmail(
         userId: number,
@@ -376,6 +604,17 @@ export class NeedsAnalysisService {
             const tpl = await this.mailTemplateService.findCommercialTemplateByKind('ab_signature');
             subject = tpl?.subject ?? AB_SIGNATURE_SUBJECT;
             body = tpl?.body ?? AB_SIGNATURE_BODY;
+        }
+
+        // Signature commerciale textuelle (deuxième section, par commercial).
+        // Ajoutée à la fin du mail avant le remplacement des variables.
+        const commercialSig = await this.commercialSignatureService
+            .getForUser(userId)
+            .catch(() => DEFAULT_COMMERCIAL_SIGNATURE);
+        // Evite le double ajout si le front a déjà concaténé la signature
+        // (cas d'une requête directe avec body déjà complet).
+        if (!body.includes(commercialSig) && commercialSig.trim()) {
+            body = `${body}${commercialSig}`;
         }
 
         const signatureHtml = await this.mailTemplateService.getSignatureHtml(userId, 'commercial').catch(() => '');
@@ -469,10 +708,11 @@ export class NeedsAnalysisService {
         await Promise.all(
             emailRecipients.map((user) => {
                 const recipientName = [user.first_name, user.last_name].filter(Boolean).join(' ');
-                return sendSystemEmail({
-                    to: user.email,
-                    subject: `Nouvelle Analyse du Besoin — ${companyName}`,
-                    html: `
+                return sendSystemEmail(
+                    withNoReply({
+                        to: user.email,
+                        subject: `Nouvelle Analyse du Besoin — ${companyName}`,
+                        html: `
                         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                             <p>Bonjour${recipientName ? ` ${recipientName}` : ''},</p>
                             <p>Une nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.</p>
@@ -488,8 +728,9 @@ export class NeedsAnalysisService {
                             <p style="margin-top: 4px; font-weight: bold; color: #1130A7;">L'équipe Disciplina</p>
                         </div>
                     `,
-                    text: `Bonjour${recipientName ? ` ${recipientName}` : ''},\n\nUne nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.\n\n${companyName} — ${positionsHtml} à pourvoir\n\nAccéder au matching : ${env.FRONTEND_BASE_URL}/rh/matching?needsAnalysis=${analysisId}\n\nCordialement,\nL'équipe Disciplina`,
-                });
+                        text: `Bonjour${recipientName ? ` ${recipientName}` : ''},\n\nUne nouvelle Analyse du Besoin en recrutement a été initiée par l'équipe commerciale.\n\n${companyName} — ${positionsHtml} à pourvoir\n\nAccéder au matching : ${env.FRONTEND_BASE_URL}/rh/matching?needsAnalysis=${analysisId}\n\nCordialement,\nL'équipe Disciplina`,
+                    }),
+                );
             }),
         );
         logger.info({ id: analysisId, recipients: emailRecipients.length }, '[NeedsAnalysis] RH emailed');
@@ -539,17 +780,21 @@ export class NeedsAnalysisService {
             referralSource: data.referralSource ?? existing.company_infos?.referral_source ?? null,
             postalCode: data.postalCode ?? existing.company_infos?.postal_code ?? null,
             commune: data.commune ?? existing.company_infos?.commune ?? null,
+            administrationType: data.administrationType ?? (existing as any).administration_type ?? null,
             positions: data.positions ?? existing.positions ?? [],
             recruitmentMethod: data.recruitmentMethod ?? existing.recruitment_method,
             immersionPeriod: data.immersionPeriod ?? existing.immersion_period,
             trainingDays: data.trainingDays ?? existing.training_days,
             yousignSignatureRequestID: data.yousignSignatureRequestID ?? existing.signature_request_id ?? null,
             status: data.status ?? existing.status,
+            isVisibleInMatching: data.isVisibleInMatching ?? (existing as any).is_visible_in_matching ?? false,
         };
 
         if (!companyID) {
             throw new Error(`Company with ID ${companyID} not found`);
         }
+        this.validateData(merged);
+        const before = await this.getAbStatus(id);
         const company = await this.companiesService.findById(companyID);
         if (!company) {
             throw new Error(`Company with ID ${companyID} not found`);
@@ -562,9 +807,34 @@ export class NeedsAnalysisService {
         }
 
         // L'AB n'a d'offres que si elle a déjà été envoyée en signature au moins une
-        // fois : dans ce cas, on répercute les changements de poste sur les offres
-        // existantes en préservant leur id stable et leur état de matching.
+        // fois (ou publiée dans le matching à l'état brouillon) : dans ce cas, on
+        // répercute les changements de poste sur les offres existantes en
+        // préservant leur id stable et leur état de matching.
         await this.syncOffers(id, updated);
+
+        // Publication vers le matching (brouillon rendu visible sans envoi) :
+        // crée les offres si elles n'existent pas encore. Dépublier supprime
+        // les offres (best-effort) : l'AB redevient un simple brouillon.
+        const wasVisible = !!(existing as any).is_visible_in_matching;
+        const nowVisible = !!merged.isVisibleInMatching;
+        if (nowVisible && !wasVisible) {
+            const offers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (offers.length === 0) {
+                await this.createOffersAndNotifyRh(updated, id, company.name || 'Entreprise').catch((err) => {
+                    logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                });
+            }
+        } else if (!nowVisible && wasVisible) {
+            try {
+                const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
+                logger.info({ id, removed }, '[NeedsAnalysis] offers cleared (unpublished from matching)');
+            } catch (err) {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers on unpublish');
+            }
+        }
+
+        // L'ajout/retrait de postes peut réactiver une AB archivée (retour à ACTIVE).
+        await this.refreshActivationStamp(id, before);
 
         return toNeedsAnalysis(updated);
     }
@@ -650,6 +920,88 @@ export class NeedsAnalysisService {
         return this.repository.markDeleted(id);
     }
 
+    /**
+     * Active/désactive la relance automatique de signature pour une AB.
+     * Non destructif : l'AB reste visible et ses offres conservées.
+     */
+    async setRelanceDisabled(id: string, disabled: boolean): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (existing.is_deleted) {
+            throw new Error('Cannot change relance on a deleted needs analysis');
+        }
+        await this.repository.update(id, { is_relance_disabled: disabled } as any);
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, disabled }, '[NeedsAnalysis] relance disabled toggled');
+        return toNeedsAnalysis(updated);
+    }
+
+    /**
+     * Publie un brouillon dans le matching (crée ses offres, sans envoi en
+     * signature — l'AB reste BROUILLON, affichée « Non envoyée ») ou l'en
+     * retire (supprime ses offres, best-effort). Réservé aux AB BROUILLON :
+     * une AB déjà envoyée/signée est déjà matchable.
+     */
+    async setMatchingVisibility(id: string, visible: boolean): Promise<NeedsAnalysisGql> {
+        if (!id) {
+            throw new Error('Valid needs analysis ID is required');
+        }
+        const existing = await this.repository.findById(id);
+        if (!existing) {
+            throw new Error('Needs analysis not found');
+        }
+        if (existing.is_deleted) {
+            throw new Error('Cannot change matching visibility on a deleted needs analysis');
+        }
+        if (existing.status !== NeedsAnalysisStatus.BROUILLON) {
+            throw new Error('Only draft needs analyses can be published to matching');
+        }
+        const before = await this.getAbStatus(id);
+        await this.repository.update(id, { is_visible_in_matching: visible } as any);
+        if (visible) {
+            const offers = await this.offerRepository.findByNeedsAnalysisId(id);
+            if (offers.length === 0) {
+                const doc = await this.repository.findById(id);
+                if (doc) {
+                    const companyName =
+                        doc.company_infos?.name ??
+                        (doc.company_infos?.id
+                            ? await this.companiesService
+                                  .findById(doc.company_infos.id)
+                                  .then((c) => c?.name)
+                                  .catch(() => null)
+                            : null) ??
+                        'Entreprise';
+                    await this.createOffersAndNotifyRh(doc, id, companyName).catch((err) => {
+                        logger.error({ err, id }, '[NeedsAnalysis] Failed to create offers / notify RH');
+                    });
+                }
+            }
+        } else {
+            try {
+                const removed = await this.offerRepository.deleteByNeedsAnalysisId(id);
+                logger.info({ id, removed }, '[NeedsAnalysis] offers cleared (unpublished from matching)');
+            } catch (err) {
+                logger.error({ err, id }, '[NeedsAnalysis] Failed to clear offers on unpublish');
+            }
+        }
+        await this.refreshActivationStamp(id, before);
+        const updated = await this.repository.findById(id);
+        if (!updated) {
+            throw new Error('Needs analysis not found after update');
+        }
+        logger.info({ id, visible }, '[NeedsAnalysis] matching visibility updated');
+        return toNeedsAnalysis(updated);
+    }
+
     private validateData(data: Partial<NeedsAnalysisWriteInput>): void {
         if (!data.companyID) {
             throw new Error('Company ID is required');
@@ -659,6 +1011,14 @@ export class NeedsAnalysisService {
         }
         if (!data.positions?.[0]?.title) {
             throw new Error('Job title is required');
+        }
+        for (const position of data.positions ?? []) {
+            const criteria = (position as any).criteria ?? {};
+            const ageMin = criteria.age_min ?? criteria.ageMin ?? null;
+            const ageMax = criteria.age_max ?? criteria.ageMax ?? null;
+            if (ageMin != null && ageMax != null && ageMax < ageMin) {
+                throw new Error("L'âge maximum ne peut pas être inférieur à l'âge minimum.");
+            }
         }
     }
 }

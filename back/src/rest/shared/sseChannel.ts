@@ -1,4 +1,15 @@
 import type { Response } from 'express';
+import type { Region } from '../../types/tenant';
+
+/**
+ * Clé de canal régionalisée (`<region>:<key>`) : les ids utilisateurs MySQL et
+ * candidats ne sont pas uniques entre tenants (auto-increment par schéma).
+ * Sans préfixe, une notification poussée à `user 7` serait fan-out vers les
+ * connexions du `user 7` de l'autre région — fuite de données inter-tenant.
+ */
+export function sseKey(region: Region, key: string | number): string {
+    return `${region}:${key}`;
+}
 
 /**
  * Registre SSE générique : des connexions `Response` groupées par clé (candidat,

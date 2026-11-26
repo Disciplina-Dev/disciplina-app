@@ -27,7 +27,7 @@ export default function CguPage() {
   return (
     <LegalLayout title="Conditions d'utilisation">
       <nav aria-label="Choix de l'annexe" className="mb-8">
-        <p className="mb-2 text-[13px] text-gray-500">
+        <p className="mb-2 text-[13px] text-[var(--ds-text-subtle)]">
           Les conditions se composent d'un socle commun et d'une annexe propre à votre
           situation :
         </p>
@@ -37,7 +37,7 @@ export default function CguPage() {
             className={
               selected === null
                 ? 'rounded border border-purple bg-purple-light px-3 py-1.5 text-[13px] font-bold text-purple-dark'
-                : 'rounded border border-gray-100 px-3 py-1.5 text-[13px] text-gray-700 transition-colors hover:border-gray-300'
+                : 'rounded border border-[var(--ds-border)] px-3 py-1.5 text-[13px] text-[var(--ds-text-muted)] transition-colors hover:border-[var(--ds-border-strong)]'
             }
           >
             Socle commun
@@ -49,7 +49,7 @@ export default function CguPage() {
               className={
                 selected === key
                   ? 'rounded border border-purple bg-purple-light px-3 py-1.5 text-[13px] font-bold text-purple-dark'
-                  : 'rounded border border-gray-100 px-3 py-1.5 text-[13px] text-gray-700 transition-colors hover:border-gray-300'
+                  : 'rounded border border-[var(--ds-border)] px-3 py-1.5 text-[13px] text-[var(--ds-text-muted)] transition-colors hover:border-[var(--ds-border-strong)]'
               }
             >
               {ANNEXES[key].label}

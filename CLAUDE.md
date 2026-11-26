@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Structure
 
 Polyrepo, no root package.json:
-- `back/` — Node.js + TypeScript, Express + 4 Apollo GraphQL servers + MCP server (`src/mcp/`, `POST /api/mcp`)
+- `back/` — Node.js + TypeScript, Express + 4 Apollo GraphQL servers + MCP server (`src/mcp/`, `POST /api/mcp`, 48 read-only tools incl. péda)
 - `front/disciplina-front/` — React 19 + Vite + TypeScript + Tailwind v4 + urql + Zustand + React Router v7
 - `database/` — MySQL (`database/mysql/`) and MongoDB (`database/mongodb/`) init scripts, seeds, migrations
 - `scripts/` — Python 3.12+ data import/seed scripts (`startup.py` is the Docker seed entrypoint)
@@ -34,15 +34,21 @@ Frontend (`front/disciplina-front/`):
 ## Local setup
 
 - `cp .env.example .env` (root, DB creds) — a second env file `back/.env.back.example` → `back/.env` holds app secrets (JWT_SECRET, MCP_API_KEY must be ≥32 chars, OAuth, DOCUSEAL, etc.)
-- `MYSQL_PASSWORD` is **required** in the root `.env` — the app runs as `disciplina_app`, not `root`. On a database created before that account existed, either apply `database/mysql/migrations/2026-08-06-app-user.sql` or set `MYSQL_USER=root`. See `back/CONVENTION.md` → *Least-privilege account* for the grant set and the two queries it forbids.
+- `MYSQL_PASSWORD` is **required** in the root `.env` — the app runs as `disciplina_app`, not `root`. On a database created before that account existed, set `MYSQL_USER=root` until the account is created (`database/mysql/mysql-init.sql` carries the canonical grant set). See `back/CONVENTION.md` → *Least-privilege account* for the grant set and the two queries it forbids.
 - `docker compose up` — services: sql-db (MySQL), nosql-db (MongoDB), ollama (pulls `qwen2.5:3b`, slow first boot), backend, startup-script (idempotent CSV seed), frontend
 - Backend tests require live Dockerized DBs: `docker compose up -d sql-db nosql-db` first
 - **MySQL port gotcha**: three different ports depending on context — `sql-db:3306` inside the compose network, `3307` in `docker-compose.test.yml`/CI, `5001` for local host dev per `.env.back.example`. Mismatched ports are the most common cause of `npm test` failing in `back/`.
+
+## Deployment
+
+- `scripts/deploy.sh` automates the production deploy (pre-flight → git sync → backup → build/up → post-deploy verification); `scripts/rollback.sh` reverts it. See `HOWTODEPLOY.md` for the full guide.
+- **Rule:** any new script run at deployment time (called by `deploy.sh`/`rollback.sh`, or run manually on the prod machine) must be documented in `HOWTODEPLOY.md`.
 
 ## Backend conventions (see `@back/CONVENTION.md` for the full, load-bearing rulebook)
 
 - `console.*` is banned in `back/src` — use the `logger` singleton from `external/logger/`, error logging as `{ err: error }`
 - `zod` is banned in backend application code except inside `src/mcp/` (required by the MCP SDK)
+- MCP tools expose personal data to a third-party LLM: register via `readTool`, filter through `candidateExposure.ts` / `pedaExposure.ts`, keep `rgpd/registre-mcp.md` in sync — see `back/CONVENTION.md` § MCP tools (RGPD), `MCP_RGPD_AUDIT.md`, `.claude/rules/backend-mcp.md`
 - Named exports only; the sole default export is the MySQL connection pool
 - MySQL domain types are camelCase (converted at repository); MongoDB domain types stay snake_case (converted at resolver) — this asymmetry is intentional, not a bug
 - New MySQL columns must be added in **two places**: `database/mysql/mysql-init.sql` and `REQUIRED_COLUMNS` in `back/src/db/mysql/migrations.ts` — the init script only runs on fresh volumes, the migrations file backfills existing ones

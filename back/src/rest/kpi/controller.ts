@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { AuthRequest } from '../middleware/auth';
 import { KpiService } from '../../services/KpiService';
-import { KPI_SITES, KpiSite } from '../../types/kpi.types';
+import { ALL_KPI_SITES, KpiSite } from '../../types/kpi.types';
 import { logger } from '../../external/logger';
 
 const kpiService = new KpiService();
@@ -13,7 +13,7 @@ function parseYear(value: unknown): number | null {
 
 function parseSite(value: unknown): KpiSite | null {
     const site = String(value ?? 'NORD').toUpperCase();
-    return KPI_SITES.includes(site as KpiSite) ? (site as KpiSite) : null;
+    return ALL_KPI_SITES.includes(site as KpiSite) ? (site as KpiSite) : null;
 }
 
 /** ADMIN/RESPONSABLE permission voient tout ; les autres ne voient que leurs propres chiffres. */
@@ -45,7 +45,7 @@ export async function getActivity(req: AuthRequest, res: Response): Promise<void
     const year = parseYear(req.query.year);
     const site = parseSite(req.query.site);
     if (!year || !site) {
-        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${KPI_SITES.join('|')})` });
+        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${ALL_KPI_SITES.join('|')})` });
         return;
     }
     try {
@@ -60,7 +60,7 @@ export async function getCombined(req: AuthRequest, res: Response): Promise<void
     const year = parseYear(req.query.year);
     const site = parseSite(req.query.site);
     if (!year || !site) {
-        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${KPI_SITES.join('|')})` });
+        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${ALL_KPI_SITES.join('|')})` });
         return;
     }
     try {
@@ -124,7 +124,7 @@ export async function getAnnualSummary(req: AuthRequest, res: Response): Promise
     const year = parseYear(req.query.year);
     const site = parseSite(req.query.site);
     if (!year || !site) {
-        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${KPI_SITES.join('|')})` });
+        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${ALL_KPI_SITES.join('|')})` });
         return;
     }
     try {
@@ -139,7 +139,7 @@ export async function getMonthlyDetail(req: AuthRequest, res: Response): Promise
     const year = parseYear(req.query.year);
     const site = parseSite(req.query.site);
     if (!year || !site) {
-        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${KPI_SITES.join('|')})` });
+        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${ALL_KPI_SITES.join('|')})` });
         return;
     }
     try {
@@ -154,7 +154,7 @@ export async function getWeeklyDetail(req: AuthRequest, res: Response): Promise<
     const year = parseYear(req.query.year);
     const site = parseSite(req.query.site);
     if (!year || !site) {
-        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${KPI_SITES.join('|')})` });
+        res.status(400).json({ error: `Expected query params year (2000-2100) and site (${ALL_KPI_SITES.join('|')})` });
         return;
     }
     try {
@@ -184,7 +184,7 @@ export async function importExcel(req: AuthRequest, res: Response): Promise<void
     }
     const site = parseSite(req.body?.site ?? req.query.site);
     if (!site) {
-        res.status(400).json({ error: `Expected site (${KPI_SITES.join('|')})` });
+        res.status(400).json({ error: `Expected site (${ALL_KPI_SITES.join('|')})` });
         return;
     }
     try {

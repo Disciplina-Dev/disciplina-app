@@ -37,17 +37,18 @@ Rapport HTML : `playwright-report/`.
 |---|---|
 | `setup/auth.setup.ts` | Login réel via UI pour chaque rôle → `e2e/.auth/<role>.json` (storageState, cookies httpOnly) |
 | `fixtures/roles.ts` | Comptes de test, URLs `home`, chemins storageState, `API_URL` |
-| `fixtures/mocks.ts` | `mockExternal()` / `mockSignedToken()` — interception réseau des services tiers |
+| `fixtures/mocks.ts` | `mockExternal()` — interception réseau des services tiers |
 | `fixtures/csrf.ts` | Header `x-csrf-token` pour les requêtes REST state-changing |
 | `tests/*.spec.ts` | Un spec par flux, nommé d'après E2E.md (+ `portefeuille.spec.ts` : CRM commercial, hors numérotation E2E.md) |
 
 ## Couverture des flux
 
-Les 16 flux numérotés de E2E.md (3.1 → 3.16) ont chacun leur spec. S'y ajoute le CRM commercial, non numéroté dans E2E.md (décrit au §2 « Rôles × espaces ») :
+Les 16 flux numérotés de E2E.md (3.1 → 3.16) ont chacun leur spec. S'y ajoutent le CRM commercial, non numéroté dans E2E.md (décrit au §2 « Rôles × espaces »), et une garde RGPD sur les polices :
 
 | Spec | Périmètre | Rôle | External |
 |---|---|---|---|
 | `portefeuille.spec.ts` | Portefeuille entreprises (liste + recherche nom/SIRET), ouverture du formulaire « Nouvelle fiche », liste noire | commercial | non |
+| `self-hosted-fonts.spec.ts` | GDPR_INF_11.2 (#1149) : aucune requête vers `fonts.googleapis.com` / `fonts.gstatic.com`, polices Figtree/Outfit servies par l'app | non authentifié | non |
 
 > Les routes commerciales `sourcing`, `analyses-besoin`, `mail`, `relance` et `todos` sont couvertes par leurs specs de flux respectifs (`sourcing`, `needs-analysis`, `email-relance`, `notifs-todos`). `portefeuille.spec.ts` complète le cœur CRM (portefeuille + fiche entreprise + liste noire) qui n'était rattaché à aucun flux numéroté.
 
@@ -70,8 +71,8 @@ Les parcours d'écriture (création candidat/utilisateur, modification entrepris
 
 - **Sélecteurs** : rôle/label/texte uniquement (aucun `data-testid` dans le front). Pas de `waitForTimeout`.
 - **Auth** : cookies httpOnly capturés en storageState ; l'app réhydrate via `GET /api/auth/me`.
-- **Tag `@external`** : tout test touchant/mockant un service tiers (Google, INSEE, Ollama, DocuSeal, ClassMarker) ou un token signé. Exclus par `test:e2e:ci`.
-- **ENTREPRISE** : rôle invité JWT-only (pas de user en base) → couvert par token mocké (`mockSignedToken`).
+- **Tag `@external`** : tout test touchant/mockant un service tiers (Google, INSEE, Ollama, DocuSeal, ClassMarker) ou un lien magique invité. Exclus par `test:e2e:ci`.
+- **ENTREPRISE** : rôle invité JWT-only (pas de user en base) → couvert par lien magique mocké (`POST /api/external/:signature/authenticate`).
 
 ## Calibration au premier run
 

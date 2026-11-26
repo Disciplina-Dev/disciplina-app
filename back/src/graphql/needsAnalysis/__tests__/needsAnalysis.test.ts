@@ -4,7 +4,7 @@ import { truncateMysql, dropMongo } from '../../../../test/helpers/db';
 import { env } from '../../../config/env';
 import { CompanyRepository } from '../../../repositories/mysql/CompanyRepository';
 import pool from '../../../db/mysql/connection';
-import { JobRole, Permission } from '../../../types/user.types';
+import { NeedsAnalysisModel } from '../../../db/mongo/schemas/needsAnalysis.schema';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/needs-analysis`;
 
@@ -214,6 +214,64 @@ describe('GraphQL Needs Analysis integration', () => {
         },
     );
 
+    // Le représentant légal est facultatif (parfois inconnu), mais l'AB doit
+    // toujours porter au moins un contact référent : représentant légal ou
+    // responsable de recrutement.
+    describe('referent requirement', () => {
+        const minimalInput = () => ({
+            companyID: companyId,
+            userID: userId,
+            positions: [
+                {
+                    trainingDomain: 'VENTE',
+                    title: 'Apprenti Conseiller de Vente',
+                    localisation: ['SAINT_DENIS'],
+                    desiredTp: [{ missions: ['Accueil client'] }],
+                    criteria: {
+                        educationLevel: 'BAC',
+                        drivingLicense: false,
+                        experienceRequired: false,
+                    },
+                },
+            ],
+            recruitmentMethod: 'PRESELECTION',
+            immersionPeriod: 'OUI',
+            trainingDays: JSON.stringify({ monday: ['MATIN'] }),
+            status: 'BROUILLON',
+        });
+
+        const createMutation = `
+            mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
+                createNeedsAnalysis(input: $input) { id referents { recruitmentReferents { name } } }
+            }
+        `;
+
+        it('rejects an AB with neither a legal referent nor a recruitment responsible', async () => {
+            const { json } = await graphql(createMutation, { input: minimalInput() });
+            expect(json.errors?.[0]?.message).toContain(
+                'Un représentant légal ou un responsable de recrutement est requis',
+            );
+            expect(json.data?.createNeedsAnalysis).toBeUndefined();
+        });
+
+        it('accepts an AB without recruitment responsible when the company has a legal referent', async () => {
+            const companyRepo = new CompanyRepository();
+            await companyRepo.update(companyId, { legal_referent: 'Marie Martin' });
+
+            const { json } = await graphql(createMutation, { input: minimalInput() });
+            expect(json.errors).toBeUndefined();
+            expect(json.data.createNeedsAnalysis.id).toBeTruthy();
+        });
+
+        it('accepts an AB without legal referent when a recruitment responsible is given', async () => {
+            const { json } = await graphql(createMutation, {
+                input: { ...minimalInput(), recruitmentResponsibleName: 'Jean Dupont' },
+            });
+            expect(json.errors).toBeUndefined();
+            expect(json.data.createNeedsAnalysis.referents.recruitmentReferents.name).toBe('Jean Dupont');
+        });
+    });
+
     it('receives Yousign webhook and updates status to SIGNE', { timeout: 30000 }, async () => {
         const input = {
             companyID: companyId,
@@ -371,5 +429,57 @@ describe('GraphQL Needs Analysis integration', () => {
         const offersJson = await offersRes.json();
         expect(offersJson.errors).toBeUndefined();
         expect(offersJson.data.offersByNeedsAnalysis.length).toBeGreaterThan(0);
+    });
+
+    it('serves legacy needs analyses whose positions predate the schedule field', async () => {
+        // Insertion brute (hors Mongoose) : un AB créé avant le passage aux créneaux
+        // structurés porte des `schedule_options: string[]`, ou aucun critère du tout.
+        await NeedsAnalysisModel.collection.insertOne({
+            _id: `ab-legacy-${suffix}`,
+            company_infos: { id: companyId, name: `Test Company ${suffix}` },
+            saler_info: { id: userId, email: `sp-${suffix}@test.local` },
+            referents: { is_same: true },
+            positions: [
+                {
+                    localisation: ['SAINT_DENIS'],
+                    title: 'Apprenti Legacy',
+                    desired_tp: [{ missions: ['Accueil client'] }],
+                    criteria: {
+                        education_level: 'BAC',
+                        schedule_options: ['Lundi : 8h-12h', 'Mardi : 14h-17h'],
+                    },
+                },
+                {
+                    localisation: ['SAINT_PIERRE'],
+                    title: 'Poste sans critères',
+                    desired_tp: [],
+                },
+            ],
+            recruitment_method: 'PRESELECTION',
+            immersion_period: 'OUI',
+            status: 'SIGNE',
+        });
+
+        const query = `
+            query FetchLegacy($id: ID!) {
+                needsAnalysis(id: $id) {
+                    id
+                    positions {
+                        title
+                        criteria { scheduleOptions { day startHour endHour } }
+                    }
+                }
+            }
+        `;
+        const { status, json } = await graphql(query, { id: `ab-legacy-${suffix}` });
+
+        expect(status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.needsAnalysis.id).toBe(`ab-legacy-${suffix}`);
+        expect(json.data.needsAnalysis.positions[0].criteria.scheduleOptions).toEqual([
+            { day: null, startHour: 'Lundi : 8h-12h', endHour: null },
+            { day: null, startHour: 'Mardi : 14h-17h', endHour: null },
+        ]);
+        expect(json.data.needsAnalysis.positions[1].criteria).toBeNull();
     });
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil } from 'lucide-react'
+import { IconEdit } from '@/components/ui/icons'
 
 import type { KpiMetrics, KpiUserSummary } from '@/api/kpi'
 import { KPI_METRICS, MONTH_FULL_LABELS, emptyMetrics } from '../config'
@@ -36,12 +36,13 @@ export default function KpiTable({ users, totals, onEdit, readOnly = false }: Pr
         }, emptyMetrics())
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
-      <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+    <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-[var(--shadow-sm)]">
+      <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-4 py-3">
         <select
           value={month}
+          aria-label="Période affichée"
           onChange={(e) => setMonth(Number(e.target.value))}
-          className="rounded-lg border border-gray-100 bg-white px-3 py-1.5 text-[13px] font-semibold text-gray-900 outline-none transition-colors focus:border-blue"
+          className="rounded-[var(--radius-md)] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-[13px] font-semibold text-[var(--ds-text)] outline-none transition-colors focus:border-[var(--ds-accent)]"
         >
           <option value={0}>Année entière</option>
           {MONTH_FULL_LABELS.map((label, i) => (
@@ -49,43 +50,44 @@ export default function KpiTable({ users, totals, onEdit, readOnly = false }: Pr
           ))}
         </select>
         {month !== 0 && !readOnly && (
-          <span className="text-[12px] text-gray-400">Crayon : modifier le mois pour un commercial</span>
+          <span className="text-[12px] text-[var(--ds-text-subtle)]">Crayon : modifier le mois pour un commercial</span>
         )}
       </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-[13px]">
           <thead>
-            <tr className="border-b border-gray-100 bg-gray-50/60">
-              <th className="px-4 py-3 text-left font-semibold text-gray-500">Catégorie</th>
+            <tr className="border-b border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+              <th scope="col" className="px-4 py-3 text-left font-semibold text-[var(--ds-text-subtle)]">Catégorie</th>
               {columns.map(({ user, metrics }) => (
-                <th key={user.userName} className="whitespace-nowrap px-3 py-3 text-right font-semibold text-gray-700">
+                <th key={user.userName} scope="col" className="whitespace-nowrap px-3 py-3 text-right font-semibold text-[var(--ds-text-muted)]">
                   <span className="inline-flex items-center gap-1.5">
                     {user.userName}
                     {user.userId == null && (
-                      <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">
+                      <span className="rounded-full bg-[var(--ds-surface-sunken)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--ds-text-subtle)]">
                         archivé
                       </span>
                     )}
                     {month !== 0 && !readOnly && user.userId != null && (
                       <button
                         onClick={() => onEdit(user.userId!, user.userName, month, metrics)}
-                        className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                        className="rounded-full p-1 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]"
+                        aria-label={`Modifier ${MONTH_FULL_LABELS[month - 1]} pour ${user.userName}`}
                         title={`Modifier ${MONTH_FULL_LABELS[month - 1]} pour ${user.userName}`}
                       >
-                        <Pencil className="h-3 w-3" />
+                        <IconEdit className="h-3 w-3" />
                       </button>
                     )}
                   </span>
                 </th>
               ))}
-              <th className="whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-500">Total</th>
+              <th scope="col" className="whitespace-nowrap px-4 py-3 text-right font-semibold text-[var(--ds-text-subtle)]">Total</th>
             </tr>
           </thead>
           <tbody>
             {users.length === 0 && (
               <tr>
-                <td colSpan={2} className="px-4 py-10 text-center text-gray-400">
+                <td colSpan={2} className="px-4 py-10 text-center text-[var(--ds-text-subtle)]">
                   Aucune donnée pour cette année. Importez un fichier Excel ou ajoutez une saisie manuelle.
                 </td>
               </tr>
@@ -93,24 +95,24 @@ export default function KpiTable({ users, totals, onEdit, readOnly = false }: Pr
 
             {users.length > 0 &&
               KPI_METRICS.map((metric) => (
-                <tr key={metric.key} className="border-b border-gray-50 transition-colors last:border-0 hover:bg-gray-50/40">
-                  <td className="whitespace-nowrap px-4 py-2.5">
-                    <span className="inline-flex items-center gap-2 font-semibold text-gray-900">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: metric.color }} />
+                <tr key={metric.key} className="border-b border-[var(--ds-border)] transition-colors last:border-0 hover:bg-[var(--ds-surface-sunken)]">
+                  <th scope="row" className="whitespace-nowrap px-4 py-2.5 text-left">
+                    <span className="inline-flex items-center gap-2 font-semibold text-[var(--ds-text)]">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: metric.color }} aria-hidden="true" />
                       {metric.label}
                     </span>
-                  </td>
+                  </th>
                   {columns.map(({ user, metrics }) => (
                     <td
                       key={user.userName}
                       className={`whitespace-nowrap px-3 py-2.5 text-right tabular-nums ${
-                        metrics[metric.key] === 0 ? 'text-gray-300' : 'text-gray-900'
+                        metrics[metric.key] === 0 ? 'text-[var(--ds-text-subtle)]' : 'text-[var(--ds-text)]'
                       }`}
                     >
                       {metrics[metric.key].toLocaleString('fr-FR')}
                     </td>
                   ))}
-                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-gray-900">
+                  <td className="whitespace-nowrap px-4 py-2.5 text-right font-bold tabular-nums text-[var(--ds-text)]">
                     {totalColumn[metric.key].toLocaleString('fr-FR')}
                   </td>
                 </tr>

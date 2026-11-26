@@ -1,0 +1,379 @@
+{
+  "title": "Partie 2 - Test de pré-sélection Responsable d'établissement marchand",
+  "description": "19 questions (30 points).",
+  "tp_types": [
+    "REM"
+  ],
+  "duration_minutes": 20,
+  "pass_threshold": 50,
+  "immediate_feedback": false,
+  "allow_skip": false,
+  "shuffle_choices": false,
+  "questions": [
+    {
+      "type": "single",
+      "text": "Orthographe :\nQuelle phrase est correcte ?",
+      "points": 1,
+      "choices": [
+        {
+          "text": "La responsable a préparer le planning.",
+          "correct": false
+        },
+        {
+          "text": "La responsable a préparé le planning.",
+          "correct": true
+        },
+        {
+          "text": "La responsable a préparée le planning.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Orthographe :\nChoisir la solution adaptée :\nMerci d'organiser ______ rendez-vous avant la fin de la semaine.",
+      "points": 1,
+      "choices": [
+        {
+          "text": "ces",
+          "correct": true
+        },
+        {
+          "text": "ses",
+          "correct": false
+        },
+        {
+          "text": "c'est",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Synonyme :\nQuel est le synonyme le plus proche de « fidéliser » ?",
+      "points": 1,
+      "choices": [
+        {
+          "text": "Conserver",
+          "correct": true
+        },
+        {
+          "text": "Attirer",
+          "correct": false
+        },
+        {
+          "text": "Remplacer",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nLe chiffre d'affaires d'une entreprise est passé de 80 000 € à 100 000 € cette année.\nQuelle formule permet de calculer le taux de progression ?",
+      "points": 2,
+      "choices": [
+        {
+          "text": "(100 000 + 80 000) ÷ 100 000",
+          "correct": false
+        },
+        {
+          "text": "80 000 ÷ 100 000",
+          "correct": false
+        },
+        {
+          "text": "(100 000 − 80 000) ÷ 80 000",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nUne remise de 25 % est appliquée sur un produit vendu 120 €. Quel est le prix final ?",
+      "points": 1,
+      "choices": [
+        {
+          "text": "90 €",
+          "correct": true
+        },
+        {
+          "text": "95 €",
+          "correct": false
+        },
+        {
+          "text": "100 €",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nLe chiffre d'affaires est de 240 000 € en 2023. Il augmente de 12 % en 2024. Quel est le CA en 2024 ?",
+      "points": 2,
+      "choices": [
+        {
+          "text": "270 000 €",
+          "correct": false
+        },
+        {
+          "text": "266 000 €",
+          "correct": false
+        },
+        {
+          "text": "268 800 €",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nLe magasin dispose de 200 articles en stock. Il en vend 20 par jour.\nCombien de jours le stock va-t-il durer ?",
+      "points": 1,
+      "choices": [
+        {
+          "text": "10 jours",
+          "correct": true
+        },
+        {
+          "text": "5 jours",
+          "correct": false
+        },
+        {
+          "text": "20 jours",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nVous devez envoyer un mail groupé à 50 collaborateurs sans que chacun voie les adresses des autres. Quelle fonction utilisez-vous ?",
+      "points": 1,
+      "choices": [
+        {
+          "text": "CC",
+          "correct": false
+        },
+        {
+          "text": "CCI",
+          "correct": true
+        },
+        {
+          "text": "Répondre à tous",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQuel logiciel est le plus adapté pour créer un planning d'équipe ?",
+      "points": 1,
+      "choices": [
+        {
+          "text": "Outlook",
+          "correct": false
+        },
+        {
+          "text": "Excel",
+          "correct": true
+        },
+        {
+          "text": "PowerPoint",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQuel format est utilisé pour un document texte Word ?",
+      "points": 2,
+      "choices": [
+        {
+          "text": ".xls",
+          "correct": false
+        },
+        {
+          "text": ".pptx",
+          "correct": false
+        },
+        {
+          "text": ".docx",
+          "correct": true
+        },
+        {
+          "text": ".pdf",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nPour imprimer uniquement la page 2 d'un document Word, que faut-il faire ?",
+      "points": 1,
+      "choices": [
+        {
+          "text": "Imprimer toutes les pages",
+          "correct": false
+        },
+        {
+          "text": "Sélectionner la page 2 dans les options d'impression",
+          "correct": true
+        },
+        {
+          "text": "Copier-coller la page 2 dans un nouveau document",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Question métier :\nPour suivre les ventes en temps réel, quel outil est le plus utilisé ?",
+      "points": 2,
+      "choices": [
+        {
+          "text": "Excel",
+          "correct": false
+        },
+        {
+          "text": "Keep",
+          "correct": false
+        },
+        {
+          "text": "Le tableau de bord",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Gestion d'équipe :\n« Votre équipe n'atteint pas ses objectifs de vente. Quelle est la meilleure démarche ? »",
+      "points": 2,
+      "choices": [
+        {
+          "text": "Mettre en œuvre une démarche de recadrage",
+          "correct": false
+        },
+        {
+          "text": "Les laisser se débrouiller, ils vont finir par y arriver.",
+          "correct": false
+        },
+        {
+          "text": "Les motiver et analyser les causes ensemble.",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Gestion d'équipe :\n« Un de vos vendeurs performe très bien mais a un comportement négatif avec ses collègues. Que faites-vous ? »",
+      "points": 2,
+      "choices": [
+        {
+          "text": "Laisser faire car il rapporte beaucoup de ventes.",
+          "correct": false
+        },
+        {
+          "text": "Faire un entretien pour valoriser ses résultats mais rappeler les règles de respect.",
+          "correct": true
+        },
+        {
+          "text": "Le sanctionner immédiatement sans discussion.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Gestion des clients :\n« Un client se plaint du temps d'attente en caisse. Quelle est la meilleure réponse ? »",
+      "points": 2,
+      "choices": [
+        {
+          "text": "J'ignore sa remarque.",
+          "correct": false
+        },
+        {
+          "text": "Je m'excuse et lui explique que je cherche à améliorer le service.",
+          "correct": true
+        },
+        {
+          "text": "Je lui dis que ce n'est pas de ma faute.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Styles de management :\n« Lors d'une réunion, un collaborateur propose une idée intéressante pour améliorer les ventes. Quelle est la meilleure réaction ? »",
+      "points": 2,
+      "choices": [
+        {
+          "text": "Écouter et valoriser sa proposition.",
+          "correct": true
+        },
+        {
+          "text": "Rejeter sa proposition sans explication.",
+          "correct": false
+        },
+        {
+          "text": "Lui dire que seule la direction décide.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Styles de management :\n« Quel style de management est le plus adapté en situation de conflit entre salariés ? »",
+      "points": 2,
+      "choices": [
+        {
+          "text": "Le style directif",
+          "correct": true
+        },
+        {
+          "text": "Le style délégatif",
+          "correct": false
+        },
+        {
+          "text": "Le style participatif",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Rôle du manager :\n« Le rôle principal d'un manager est : »",
+      "points": 2,
+      "choices": [
+        {
+          "text": "Contrôler uniquement la productivité des équipes",
+          "correct": false
+        },
+        {
+          "text": "Motiver, organiser et accompagner les collaborateurs",
+          "correct": true
+        },
+        {
+          "text": "Prendre toutes les décisions seul",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Piloter une offre :\n« Quel indicateur est le plus pertinent pour mesurer la performance d'une offre commerciale ? »",
+      "points": 2,
+      "choices": [
+        {
+          "text": "Le nombre d'employés de l'entreprise",
+          "correct": false
+        },
+        {
+          "text": "Le chiffre d'affaires généré",
+          "correct": true
+        },
+        {
+          "text": "Le nombre de publications sur les réseaux sociaux",
+          "correct": false
+        }
+      ]
+    }
+  ]
+}

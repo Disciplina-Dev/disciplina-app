@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { env } from '../../config/env';
+import { tenantDocuments } from '../../config/tenantDocuments';
+import { getRegion } from '../../db/tenant';
+import type { Region } from '../../types/tenant';
 import { logger } from '../logger/logger';
 
 const PLACEHOLDER_KEY = 'docuseal_key_placeholder';
@@ -49,11 +52,7 @@ interface DocuSealSubmissionResponse {
 // Mandat de publication d'offre d'emploi, joint à l'Analyse du Besoin comme
 // document distinct et signé par le même signataire (rôle Responsable). Le PDF
 // est conservé tel quel ; seule une zone de signature est ajoutée (bas-gauche).
-const MANDAT_FILENAME = 'Mandat pour la publication d’une offre d’emploi (1).pdf';
-
-// Catalogue Disciplina, joint à l'envoi en signature comme document distinct
-// SANS champ : le signataire le consulte mais n'a rien à y signer.
-const CATALOGUE_FILENAME = 'Catalogue Disciplina.pdf';
+// Le fichier dépend du tenant (cf. config/tenantDocuments.ts).
 
 /**
  * Charge un PDF depuis assets/. Essaie d'abord un chemin relatif à
@@ -62,10 +61,7 @@ const CATALOGUE_FILENAME = 'Catalogue Disciplina.pdf';
  * local / `node dist`). Renvoie null si introuvable.
  */
 function loadAssetPdf(filename: string): Buffer | null {
-    const candidates = [
-        path.join(process.cwd(), 'assets', filename),
-        path.join(__dirname, '../../assets', filename),
-    ];
+    const candidates = [path.join(process.cwd(), 'assets', filename), path.join(__dirname, '../../assets', filename)];
     for (const candidate of candidates) {
         try {
             return fs.readFileSync(candidate);
@@ -77,18 +73,21 @@ function loadAssetPdf(filename: string): Buffer | null {
     return null;
 }
 
-function loadMandatPdf(): Buffer | null {
-    return loadAssetPdf(MANDAT_FILENAME);
+function loadMandatPdf(region: Region = getRegion()): Buffer | null {
+    return loadAssetPdf(tenantDocuments(region).signatureAssets.mandatFile);
 }
 
-function loadCataloguePdf(): Buffer | null {
-    return loadAssetPdf(CATALOGUE_FILENAME);
+function loadCataloguePdf(region: Region = getRegion()): Buffer | null {
+    return loadAssetPdf(tenantDocuments(region).signatureAssets.catalogueFile);
 }
 
-/** Exposé pour l'aperçu avant envoi : sert les PDF statiques (mandat / catalogue). */
+/**
+ * Exposé pour l'aperçu avant envoi : sert les PDF statiques (mandat / catalogue)
+ * du tenant courant. La région reste surchargeable pour les tests.
+ */
 export const signatureAssets = {
-    mandat: loadMandatPdf,
-    catalogue: loadCataloguePdf,
+    mandat: (region?: Region) => loadMandatPdf(region),
+    catalogue: (region?: Region) => loadCataloguePdf(region),
 };
 
 /**
@@ -291,19 +290,23 @@ export class DocuSealService {
                 },
             ];
 
-            const mandatBuffer = loadMandatPdf();
+            const region = getRegion();
+            const mandatBuffer = loadMandatPdf(region);
             if (mandatBuffer) {
                 documents.push(buildMandatDocument(mandatBuffer));
             } else {
-                logger.warn('[DocuSeal] Mandat non joint (PDF introuvable) — envoi de l’AB seule.');
+                logger.warn({ region }, '[DocuSeal] Mandat non joint (PDF introuvable) — envoi de l’AB seule.');
             }
 
             // Catalogue joint comme document à consulter, SANS champ (rien à signer).
-            const catalogueBuffer = loadCataloguePdf();
+            const catalogueBuffer = loadCataloguePdf(region);
             if (catalogueBuffer) {
-                documents.push({ name: 'Catalogue Disciplina', file: catalogueBuffer.toString('base64') });
+                documents.push({
+                    name: tenantDocuments(region).signatureAssets.catalogueName,
+                    file: catalogueBuffer.toString('base64'),
+                });
             } else {
-                logger.warn('[DocuSeal] Catalogue non joint (PDF introuvable).');
+                logger.warn({ region }, '[DocuSeal] Catalogue non joint (PDF introuvable).');
             }
 
             logger.info(

@@ -109,7 +109,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-005",
-    tp_types: [TitleProfessionalType.SA],
+    tp_types: [TitleProfessionalType.CADGA],
     status: CandidateStatus.CANCELLED,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {
@@ -334,7 +334,7 @@ export const mockCandidates: Candidate[] = [
   },
   {
     _id: "cand-014",
-    tp_types: [TitleProfessionalType.SA],
+    tp_types: [TitleProfessionalType.CADGA],
     status: CandidateStatus.SEEKING,
     training_site: TrainingSite.SUD_SAINT_PIERRE,
     identity: {

@@ -116,8 +116,8 @@ services:
       - ./.env
     environment:
       # Compte applicatif à droits limités. Sur une base ANTÉRIEURE à sa création,
-      # mettre MYSQL_USER=root dans le .env le temps d'appliquer
-      # database/mysql/migrations/2026-08-06-app-user.sql.
+      # mettre MYSQL_USER=root dans le .env le temps de créer le compte applicatif
+      # (grant set canonique dans database/mysql/mysql-init.sql).
       MYSQL_USER: ${MYSQL_USER:-disciplina_app}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD}
       MYSQL_DATABASE: disciplina
@@ -162,19 +162,6 @@ services:
       - frontend-net
     ports:
       - "5173:5173"
-  dozzle:
-    image: amir20/dozzle:latest
-    restart: always
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./dozzle-data:/data
-    environment:
-      - DOZZLE_AUTH_PROVIDER=simple
-    networks:
-      - backend-net
-      - frontend-net
-    ports:
-      - "9999:8080"
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     command: ["--config", "/etc/otel/config.yaml"]

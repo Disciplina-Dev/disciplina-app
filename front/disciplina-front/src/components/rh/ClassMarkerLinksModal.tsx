@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { X, Copy, Check, Download, Loader2, AlertCircle, ClipboardCheck, ArrowLeft } from 'lucide-react';
+import { IconAlert, IconArrowLeft, IconCheck, IconClipboardCheck, IconClose, IconCopy, IconDownload, IconLoader } from '@/components/ui/icons'
 import Button from '@/components/ui/Button';
 import { TitleProfessionalType } from '@/types/candidate';
 import type { ClassMarkerLink } from '@/types/classmarker';
@@ -109,24 +109,24 @@ export default function ClassMarkerLinksModal({
       aria-labelledby="cm-modal-title"
     >
       <div
-        className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--ds-text)] backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-4xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col animate-[fadeIn_0.2s_ease-out]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+      <div className="relative w-full max-w-4xl max-h-[90vh] bg-[var(--ds-surface)] rounded-2xl shadow-2xl flex flex-col animate-[fadeIn_0.2s_ease-out]">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--ds-border)] shrink-0">
           <div className="flex items-center gap-3">
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ backgroundColor: 'var(--color-purple-light)' }}
             >
-              <ClipboardCheck size={18} style={{ color: 'var(--color-purple)' }} />
+              <IconClipboardCheck width={18} height={18} style={{ color: 'var(--color-purple)' }} />
             </div>
             <div>
-              <h2 id="cm-modal-title" className="text-lg font-bold text-gray-900">
+              <h2 id="cm-modal-title" className="text-lg font-bold text-[var(--ds-text)]">
                 Liens de test ClassMarker
               </h2>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <p className="text-xs text-[var(--ds-text-subtle)] mt-0.5">
                 {firstName} {lastName}
                 {alreadyExists && ' — candidat déjà existant'}
               </p>
@@ -135,24 +135,24 @@ export default function ClassMarkerLinksModal({
           <button
             ref={closeBtnRef}
             onClick={onClose}
-            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+            className="p-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] rounded-full transition-colors"
             aria-label="Fermer"
           >
-            <X size={20} />
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
           {loading && (
-            <div className="flex items-center justify-center gap-3 py-16 text-gray-500">
-              <Loader2 size={20} className="animate-spin" />
+            <div className="flex items-center justify-center gap-3 py-16 text-[var(--ds-text-subtle)]">
+              <IconLoader width={20} height={20} className="animate-spin" />
               <span className="text-sm">Génération des liens…</span>
             </div>
           )}
 
           {error && !loading && (
-            <div className="flex items-start gap-3 p-4 rounded-lg bg-danger-bg text-danger">
-              <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-4 rounded-lg bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]">
+              <IconAlert width={18} height={18} className="shrink-0 mt-0.5" />
               <div className="text-sm">{error}</div>
             </div>
           )}
@@ -162,9 +162,9 @@ export default function ClassMarkerLinksModal({
               {selectedId && (
                 <button
                   onClick={() => setSelectedId(null)}
-                  className="flex items-center gap-1.5 mb-4 text-sm font-medium text-gray-500 hover:text-gray-800 transition-colors"
+                  className="flex items-center gap-1.5 mb-4 text-sm font-medium text-[var(--ds-text-subtle)] hover:text-[var(--ds-text)] transition-colors"
                 >
-                  <ArrowLeft size={15} />
+                  <IconArrowLeft width={15} height={15} />
                   Tous les tests
                 </button>
               )}
@@ -189,12 +189,12 @@ export default function ClassMarkerLinksModal({
           )}
 
           {!loading && !error && entries.length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-12">Aucun lien disponible.</p>
+            <p className="text-sm text-[var(--ds-text-subtle)] text-center py-12">Aucun lien disponible.</p>
           )}
         </div>
 
         {resolvedId && (
-          <div className="px-6 py-3 border-t border-gray-100 text-xs text-gray-500">
+          <div className="px-6 py-3 border-t border-[var(--ds-border)] text-xs text-[var(--ds-text-subtle)]">
             ID candidat: <span className="font-mono">{resolvedId}</span>
           </div>
         )}
@@ -238,7 +238,7 @@ function LinkCard({ entry, candidateName, selectable = false, onSelect }: LinkCa
 
   return (
     <div
-      className={`rounded-xl border border-gray-200 p-4 flex flex-col gap-3 bg-white transition-all ${
+      className={`rounded-xl border border-[var(--ds-border)] p-4 flex flex-col gap-3 bg-[var(--ds-surface)] transition-all ${
         selectable ? 'cursor-pointer hover:border-purple hover:shadow-md' : ''
       }`}
       style={{ borderRadius: 'var(--radius-lg)' }}
@@ -257,16 +257,16 @@ function LinkCard({ entry, candidateName, selectable = false, onSelect }: LinkCa
       }
     >
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 leading-tight">
+        <h3 className="text-sm font-semibold text-[var(--ds-text)] leading-tight">
           {entry.link.link_name}
         </h3>
         {entry.link.test_name && (
-          <p className="text-xs text-gray-500 mt-1">{entry.link.test_name}</p>
+          <p className="text-xs text-[var(--ds-text-subtle)] mt-1">{entry.link.test_name}</p>
         )}
       </div>
 
       <div className="flex items-center gap-3">
-        <div ref={canvasWrapperRef} className="shrink-0 p-2 bg-white rounded-md border border-gray-100">
+        <div ref={canvasWrapperRef} className="shrink-0 p-2 bg-[var(--ds-surface)] rounded-md border border-[var(--ds-border)]">
           <QRCodeCanvas value={entry.url} size={120} includeMargin={false} />
         </div>
         <div className="flex-1 min-w-0 space-y-2">
@@ -289,7 +289,7 @@ function LinkCard({ entry, candidateName, selectable = false, onSelect }: LinkCa
                 e.stopPropagation();
                 onCopy();
               }}
-              leftIcon={copied ? <Check size={14} /> : <Copy size={14} />}
+              leftIcon={copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />}
               aria-label="Copier le lien"
             >
               {copied ? 'Copié !' : 'Copier'}
@@ -301,7 +301,7 @@ function LinkCard({ entry, candidateName, selectable = false, onSelect }: LinkCa
                 e.stopPropagation();
                 onDownload();
               }}
-              leftIcon={<Download size={14} />}
+              leftIcon={<IconDownload width={14} height={14} />}
               aria-label="Télécharger le QR Code en PNG"
             >
               QR PNG

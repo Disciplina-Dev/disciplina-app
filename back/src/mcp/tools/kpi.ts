@@ -4,6 +4,12 @@ import { KpiService } from '../../services/KpiService';
 import { RhKpiService } from '../../services/RhKpiService';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
+import { mcpToolScope } from '../rbac';
+import { JobRole, Permission } from '../../types/user.types';
+
+// KPI commerciaux : données commerciales. Rapport RH : donnée RH.
+const COMMERCIAL_KPI_SCOPE = mcpToolScope(Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+const RH_KPI_SCOPE = mcpToolScope(Permission.EMPLOYEE, [JobRole.RH]);
 
 const kpi = new KpiService();
 const rhKpi = new RhKpiService();
@@ -14,6 +20,7 @@ export function registerKpiTools(server: McpServer): void {
         'kpi_available_years',
         'Années disponibles pour les KPI commerciaux.',
         {},
+        COMMERCIAL_KPI_SCOPE,
         async () => toolResult(await kpi.getAvailableYears()),
     );
 
@@ -22,6 +29,7 @@ export function registerKpiTools(server: McpServer): void {
         'kpi_overview',
         "Vue d'ensemble des KPI commerciaux pour une année (tous sites / commerciaux).",
         { year: z.number().int().describe('Année (ex: 2026)') },
+        COMMERCIAL_KPI_SCOPE,
         async ({ year }) => toolResult(await kpi.getOverview(year)),
     );
 
@@ -31,20 +39,22 @@ export function registerKpiTools(server: McpServer): void {
         'Résumé annuel des KPI commerciaux pour un site donné.',
         {
             year: z.number().int().describe('Année'),
-            site: z.string().describe('Site (ex: NORD, SUD)'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
         },
+        COMMERCIAL_KPI_SCOPE,
         async ({ year, site }) => toolResult(await kpi.getAnnualSummary(year, site)),
     );
 
     readTool(
         server,
         'kpi_activity',
-        "Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.",
+        'Activité détaillée (appels, RDV, AB…) des KPI commerciaux pour un site, optionnellement filtrée sur un commercial.',
         {
             year: z.number().int().describe('Année'),
-            site: z.string().describe('Site (ex: NORD, SUD)'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
             userId: z.number().int().optional().describe('Filtrer sur un commercial précis'),
         },
+        COMMERCIAL_KPI_SCOPE,
         async ({ year, site, userId }) => toolResult(await kpi.getActivity(year, site, userId)),
     );
 
@@ -53,6 +63,40 @@ export function registerKpiTools(server: McpServer): void {
         'rh_kpi_report',
         'Rapport des KPI RH (matching, entretiens, placements) pour une année.',
         { year: z.number().int().describe('Année') },
+        RH_KPI_SCOPE,
         async ({ year }) => toolResult(await rhKpi.getReport(year)),
+    );
+
+    readTool(
+        server,
+        'kpi_live',
+        'Instantané temps réel des KPI commerciaux, calculé depuis le portefeuille et les contact logs : totaux + vue par site (tous commerciaux).',
+        {},
+        COMMERCIAL_KPI_SCOPE,
+        async () => toolResult(await kpi.getLiveSnapshot()),
+    );
+
+    readTool(
+        server,
+        'kpi_monthly_detail',
+        "Détail mensuel des KPI commerciaux d'un site pour une année.",
+        {
+            year: z.number().int().describe('Année'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
+        },
+        COMMERCIAL_KPI_SCOPE,
+        async ({ year, site }) => toolResult(await kpi.getMonthlyDetail(year, site)),
+    );
+
+    readTool(
+        server,
+        'kpi_weekly_detail',
+        "Détail hebdomadaire des KPI commerciaux d'un site pour une année.",
+        {
+            year: z.number().int().describe('Année'),
+            site: z.string().describe('Site (Réunion : NORD, OUEST, SUD ; Annemasse : ANNEMASSE)'),
+        },
+        COMMERCIAL_KPI_SCOPE,
+        async ({ year, site }) => toolResult(await kpi.getWeeklyDetail(year, site)),
     );
 }

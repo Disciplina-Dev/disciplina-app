@@ -1,6 +1,25 @@
-import { query } from '../../db/mysql/connection';
+import { query, getConnection } from '../../db/mysql/connection';
 import { UserRow, UserRowJoined } from '../../types/db-rows.types';
-import { JobRole } from '../../types/user.types';
+
+/** users.sectors (json de libellés, déjà parsé ou en chaîne) → liste de libellés. */
+function parseSectorLabels(raw: unknown): string[] {
+    let labels = raw;
+    if (typeof labels === 'string') {
+        try {
+            labels = JSON.parse(labels);
+        } catch {
+            return [];
+        }
+    }
+    return Array.isArray(labels) ? labels.filter((l): l is string => typeof l === 'string') : [];
+}
+
+// Lecture depuis user_sectors (libellés, dans l'ordre du référentiel) ; NULL si aucun secteur.
+const USER_SECTORS_SUBQUERY = `(
+    SELECT CAST(CONCAT('[', GROUP_CONCAT(JSON_QUOTE(s.label) ORDER BY s.id), ']') AS JSON)
+    FROM user_sectors us JOIN sectors s ON s.id = us.sector_id
+    WHERE us.user_id = u.id
+) AS sectors`;
 
 const USER_SELECT_COLUMNS = [
     'u.id',
@@ -10,10 +29,12 @@ const USER_SELECT_COLUMNS = [
     'u.password',
     'u.role_id',
     'u.permission_id',
-    'u.sectors',
+    USER_SECTORS_SUBQUERY,
     'u.oauth_token',
     'u.refresh_token',
     'u.is_interviewer',
+    'u.is_deleted',
+    'u.deleted_at',
 ];
 
 const USER_JOIN = `
@@ -24,16 +45,28 @@ const USER_JOIN = `
     LEFT JOIN permissions p ON p.id = u.permission_id
 `;
 
+// Les users soft-deleted (markDeleted) sortent de tous les workflows :
+// login, listes, directory, sélecteurs. Seul findByIdIncludingDeleted les voit.
+const USER_ACTIVE = 'u.is_deleted = 0';
+
 export class UserRepository {
     async findByEmail(email: string): Promise<UserRowJoined | null> {
         const result = await query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.email = ?`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.email = ? AND ${USER_ACTIVE}`,
             [email],
         );
         return result.length > 0 ? result[0] : null;
     }
 
     async findById(id: number): Promise<UserRowJoined | null> {
+        const result = await query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id = ? AND ${USER_ACTIVE}`,
+            [id],
+        );
+        return result.length > 0 ? result[0] : null;
+    }
+
+    async findByIdIncludingDeleted(id: number): Promise<UserRowJoined | null> {
         const result = await query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id = ?`,
             [id],
@@ -42,14 +75,17 @@ export class UserRepository {
     }
 
     async findByRoleId(roleId: number): Promise<UserRowJoined[]> {
-        return query<UserRowJoined[]>(`SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ?`, [
-            roleId,
-        ]);
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ? AND ${USER_ACTIVE}`,
+            [roleId],
+        );
     }
 
     async findByRoleIdAndPermissionId(roleId: number, permissionId: number): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id = ? AND u.permission_id = ?`,
+            `SELECT ${USER_SELECT_COLUMNS.join(
+                ', ',
+            )}, ${USER_JOIN} WHERE u.role_id = ? AND u.permission_id = ? AND ${USER_ACTIVE}`,
             [roleId, permissionId],
         );
     }
@@ -58,14 +94,14 @@ export class UserRepository {
         if (roleIds.length === 0) return [];
         const placeholders = roleIds.map(() => '?').join(', ');
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id IN (${placeholders})`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.role_id IN (${placeholders}) AND ${USER_ACTIVE}`,
             roleIds,
         );
     }
 
     async findByPermissionId(permissionId: number): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id = ?`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id = ? AND ${USER_ACTIVE}`,
             [permissionId],
         );
     }
@@ -74,24 +110,57 @@ export class UserRepository {
         if (permissionIds.length === 0) return [];
         const placeholders = permissionIds.map(() => '?').join(', ');
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.permission_id IN (${placeholders})`,
+            `SELECT ${USER_SELECT_COLUMNS.join(
+                ', ',
+            )}, ${USER_JOIN} WHERE u.permission_id IN (${placeholders}) AND ${USER_ACTIVE}`,
             permissionIds,
         );
     }
 
-    /** Users habilités à mener les entretiens AB (is_interviewer ou rôle RH). */
+    /** Users habilités à mener les entretiens AB (is_interviewer ou rôles RH/GESTION). */
     async findInterviewers(): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
             `SELECT ${USER_SELECT_COLUMNS.join(
                 ', ',
-            )}, ${USER_JOIN} WHERE u.is_interviewer = 1 OR r.name = 'RH' ORDER BY u.first_name, u.last_name`,
+            )}, ${USER_JOIN} WHERE (u.is_interviewer = 1 OR r.name IN ('RH', 'GESTION')) AND ${USER_ACTIVE} ORDER BY u.first_name, u.last_name`,
         );
     }
 
+    /**
+     * Remplace les liaisons `user_sectors` de l'utilisateur (le JSON `users.sectors`
+     * n'est ni lu ni écrit). Les libellés hors référentiel sont ignorés.
+     */
+    private async syncUserSectors(userId: number, rawSectors: unknown): Promise<void> {
+        const labels = [...new Set(parseSectorLabels(rawSectors))];
+        const conn = await getConnection();
+        try {
+            await conn.beginTransaction();
+            await conn.execute('DELETE FROM user_sectors WHERE user_id = ?', [userId]);
+            if (labels.length > 0) {
+                const [rows] = await conn.execute(
+                    `SELECT id FROM sectors WHERE level IN ('region', 'sector') AND label IN (${labels.map(() => '?').join(', ')})`,
+                    labels,
+                );
+                const ids = (rows as { id: number }[]).map((r) => r.id);
+                if (ids.length > 0) {
+                    await conn.execute(
+                        `INSERT IGNORE INTO user_sectors (user_id, sector_id) VALUES ${ids.map(() => '(?, ?)').join(', ')}`,
+                        ids.flatMap((id) => [userId, id]),
+                    );
+                }
+            }
+            await conn.commit();
+        } catch (err) {
+            await conn.rollback();
+            throw err;
+        } finally {
+            conn.release();
+        }
+    }
+
     async create(user: Omit<UserRow, 'id'>): Promise<number> {
-        const sectorsJson = user.sectors ? JSON.stringify(user.sectors) : null;
         const result = await query<any>(
-            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, sectors, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id, oauth_token, refresh_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
             [
                 user.email,
                 user.first_name,
@@ -99,28 +168,62 @@ export class UserRepository {
                 user.password,
                 user.role_id,
                 user.permission_id,
-                sectorsJson,
                 user.oauth_token,
                 user.refresh_token,
             ],
         );
+        await this.syncUserSectors(result.insertId, user.sectors);
         return result.insertId;
+    }
+
+    /** Lookup batché pour enrichir des lignes KPI avec les noms d'affichage. */
+    async findByIds(ids: number[]): Promise<UserRowJoined[]> {
+        if (ids.length === 0) return [];
+        const placeholders = ids.map(() => '?').join(', ');
+        return query<UserRowJoined[]>(
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE u.id IN (${placeholders}) AND ${USER_ACTIVE}`,
+            ids,
+        );
     }
 
     async findAll(): Promise<UserRowJoined[]> {
         return query<UserRowJoined[]>(
-            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} ORDER BY u.role_id, u.first_name, u.last_name`,
+            `SELECT ${USER_SELECT_COLUMNS.join(', ')}, ${USER_JOIN} WHERE ${USER_ACTIVE} ORDER BY u.role_id, u.first_name, u.last_name`,
         );
+    }
+
+    /**
+     * Soft delete : la ligne reste en base (les historiques FK continuent de
+     * pointer dessus) mais le user sort de tous les workflows. Le mot de passe
+     * est remplacé par une valeur aléatoire invalide et les tokens OAuth sont
+     * purgés en défense supplémentaire.
+     */
+    async markDeleted(id: number, invalidatedPassword: string): Promise<boolean> {
+        const result = await query<any>(
+            'UPDATE users SET is_deleted = 1, deleted_at = NOW(), password = ?, oauth_token = NULL, refresh_token = NULL WHERE id = ? AND is_deleted = 0',
+            [invalidatedPassword, id],
+        );
+        return result.affectedRows > 0;
+    }
+
+    /** Comptes ADMIN encore actifs (pour interdire la suppression du dernier admin). */
+    async countActiveByPermissionId(permissionId: number): Promise<number> {
+        const rows = await query<{ total: number }[]>(
+            `SELECT COUNT(*) AS total FROM users u WHERE u.permission_id = ? AND ${USER_ACTIVE}`,
+            [permissionId],
+        );
+        return rows[0].total;
     }
 
     async updateSectors(id: number, sectors: string[]): Promise<void> {
         const sectorsJson = sectors.length > 0 ? JSON.stringify(sectors) : null;
         await query('UPDATE users SET sectors = ? WHERE id = ?', [sectorsJson, id]);
+        await this.syncUserSectors(id, sectors);
     }
 
     /**
      * Met à jour les colonnes éditables d'un user (whitelist stricte des champs).
-     * Aucune suppression possible : pas de méthode delete exposée.
+     * La suppression passe exclusivement par markDeleted (soft delete).
      */
     async updateProfile(
         id: number,
@@ -139,9 +242,13 @@ export class UserRepository {
         ];
         const entries = Object.entries(fields).filter(([k]) => allowed.includes(k as keyof UserRow));
         if (entries.length === 0) return;
-        const sets = entries.map(([k]) => `${k} = ?`).join(', ');
-        const values = entries.map(([, v]) => v);
-        await query(`UPDATE users SET ${sets} WHERE id = ?`, [...values, id]);
+        // `users.sectors` (JSON) n'est plus écrit : seule user_sectors porte les secteurs.
+        const columns = entries.filter(([k]) => k !== 'sectors');
+        if (columns.length > 0) {
+            const sets = columns.map(([k]) => `${k} = ?`).join(', ');
+            await query(`UPDATE users SET ${sets} WHERE id = ?`, [...columns.map(([, v]) => v), id]);
+        }
+        if (entries.some(([k]) => k === 'sectors')) await this.syncUserSectors(id, fields.sectors);
     }
 
     async updateTokens(id: number, oauthToken: string | null, refreshToken: string | null): Promise<void> {

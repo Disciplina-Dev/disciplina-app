@@ -4,13 +4,19 @@ import { UserService } from '../../services/UserService';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { User } from '../../types/user.types';
 import { logger } from '../../external/logger';
+import { tenantTimezone } from '../../config/tenant';
 
 const gmailService = new GoogleGmailService();
 const userService = new UserService();
 const mailTemplateService = new MailTemplateService();
 
-/** Fuseau par défaut de la plateforme (La Réunion). */
-const DEFAULT_TZ = 'Indian/Reunion';
+/** Fuseau du tenant courant, évalué à chaque appel.
+ *  Volontairement une fonction et non une constante : `tenantTimezone()` lit l'ALS,
+ *  qui est vide au chargement du module — une constante figerait le fuseau du
+ *  tenant par défaut pour tous les tenants, TZ-07. */
+function defaultTz(): string {
+    return tenantTimezone();
+}
 
 /** Formate un instant pour affichage (ex "lundi 16 juin 2026 à 09:00"). */
 function formatInTz(iso: string, tz: string): string {
@@ -81,7 +87,7 @@ export async function sendRdvConfirmation({
     title,
     startIso,
     location,
-    tz = DEFAULT_TZ,
+    tz = defaultTz(),
     durationMin,
     confirmationSubject,
     confirmationBody,

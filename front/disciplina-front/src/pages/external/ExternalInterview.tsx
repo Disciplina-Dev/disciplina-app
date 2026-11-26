@@ -1,0 +1,176 @@
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { IconAlert, IconCheckCircle, IconLoader, IconMapPin, IconSchedule } from '@/components/ui/icons'
+import {
+  getInterviewSlots,
+  bookInterviewSlot,
+  ExternalAuthError,
+  SlotUnavailableError,
+  SessionCompletedError,
+  type InterviewSlotsResult,
+} from '@/api/externalInterview'
+import { getExternalProfile } from '@/api/external'
+import ExternalExpiryNotice from '@/features/external/components/ExternalExpiryNotice'
+import ExternalGuestCloseButton from '@/features/external/components/ExternalGuestCloseButton'
+import { REGION_TIMEZONE } from '@/lib/timezone'
+
+function Centered({ children }: { children: React.ReactNode }) {
+  return <div className="flex min-h-screen items-center justify-center bg-[var(--ds-surface-sunken)] p-6">{children}</div>
+}
+
+function formatSlot(iso: string, tz: string): string {
+  return new Date(iso).toLocaleString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: tz,
+  })
+}
+
+function AlreadyDone() {
+  return (
+    <Centered>
+      <div className="flex max-w-sm flex-col items-center gap-3 text-center">
+        <IconCheckCircle width={32} height={32} className="text-[var(--ds-success)]" />
+        <p className="text-[17px] font-extrabold text-[var(--ds-text)]">Démarche déjà finalisée</p>
+        <p className="text-[13px] text-[var(--ds-text-subtle)]">Vous avez déjà réservé votre créneau d'entretien.</p>
+      </div>
+    </Centered>
+  )
+}
+
+export default function ExternalInterview() {
+  const { signature = '' } = useParams()
+  const navigate = useNavigate()
+
+  const [data, setData] = useState<InterviewSlotsResult | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [busySlot, setBusySlot] = useState<string | null>(null)
+  const [bookedSlot, setBookedSlot] = useState<string | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  // Fuseau du tenant : le candidat externe n'a pas de session staff, donc
+  // /api/auth/me est indisponible. /:signature/profile est le porteur.
+  const [timezone, setTimezone] = useState(REGION_TIMEZONE.reunion)
+
+  const load = () => {
+    getInterviewSlots(signature)
+      .then(setData)
+      .catch((e) => {
+        if (e instanceof ExternalAuthError) {
+          navigate(`/external/authenticate?sig=${signature}`, { replace: true })
+          return
+        }
+        setLoadError(e instanceof Error ? e.message : 'Erreur')
+      })
+  }
+
+  useEffect(() => {
+    if (!signature) {
+      navigate('/external/authenticate', { replace: true })
+      return
+    }
+    load()
+    getExternalProfile(signature)
+      .then((profile) => {
+        setExpiresAt(profile.expiresAt)
+        if (profile.timezone) setTimezone(profile.timezone)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature, navigate])
+
+  const pickSlot = async (slot: string) => {
+    setBusySlot(slot)
+    setLoadError(null)
+    try {
+      await bookInterviewSlot(signature, slot)
+      setBookedSlot(slot)
+    } catch (e) {
+      if (e instanceof ExternalAuthError) {
+        navigate(`/external/authenticate?sig=${signature}`, { replace: true })
+        return
+      }
+      setLoadError(e instanceof Error ? e.message : 'Erreur')
+      if (e instanceof SlotUnavailableError || e instanceof SessionCompletedError) load()
+    } finally {
+      setBusySlot(null)
+    }
+  }
+
+  if (bookedSlot) return <AlreadyDone />
+
+  if (!data) {
+    if (loadError) {
+      return (
+        <Centered>
+          <div className="flex flex-col items-center gap-3 text-center">
+            <IconAlert width={32} height={32} className="text-[var(--ds-danger)]" />
+            <p className="text-[13px] text-[var(--ds-text-subtle)]">{loadError}</p>
+          </div>
+        </Centered>
+      )
+    }
+    return (
+      <Centered>
+        <IconLoader width={28} height={28} className="animate-spin text-purple" />
+      </Centered>
+    )
+  }
+
+  if (data.bookedSlot) return <AlreadyDone />
+
+  return (
+    <div className="min-h-screen bg-[var(--ds-surface-sunken)] px-4 py-8">
+      <div className="mx-auto max-w-lg">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-[12px] font-bold uppercase tracking-wider text-purple">Disciplina</p>
+            <h1 className="mt-1 text-[20px] font-extrabold text-[var(--ds-text)]">Choisissez votre créneau d'entretien</h1>
+          </div>
+          <div className="shrink-0 pt-1">
+            <ExternalGuestCloseButton signature={signature} onClosed={() => setBookedSlot('closed')} />
+          </div>
+        </div>
+        <ExternalExpiryNotice expiresAt={expiresAt} />
+
+        {data.location && (
+          <p className="mt-2 flex items-center gap-1.5 text-[13px] text-[var(--ds-text-muted)]">
+            <IconMapPin width={14} height={14} /> {data.location}
+          </p>
+        )}
+
+        {loadError && <p className="mt-3 text-[12px] text-[var(--ds-danger)]">{loadError}</p>}
+
+        <div className="mt-5 flex flex-col gap-2">
+          {data.slots.map(({ slot, taken }) => (
+            <button
+              key={slot}
+              onClick={() => pickSlot(slot)}
+              disabled={taken || busySlot !== null}
+              className={`flex items-center justify-between gap-2 rounded-lg border px-4 py-3 text-left text-[14px] font-medium transition-colors ${
+                taken
+                  ? 'border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]'
+                  : 'border-[var(--ds-border)] text-[var(--ds-text)] hover:border-purple hover:bg-purple/5'
+              } disabled:opacity-60`}
+            >
+              <span className="flex items-center gap-2">
+                <IconSchedule width={15} height={15} /> {formatSlot(slot, timezone)}
+              </span>
+              {taken ? (
+                <span className="text-[11px] font-semibold text-[var(--ds-text-subtle)]">Pris</span>
+              ) : busySlot === slot ? (
+                <IconLoader width={15} height={15} className="animate-spin text-purple" />
+              ) : null}
+            </button>
+          ))}
+          {data.slots.length === 0 && (
+            <p className="text-[13px] text-[var(--ds-text-subtle)]">Aucun créneau n'est disponible pour le moment.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

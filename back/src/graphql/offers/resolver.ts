@@ -1,23 +1,23 @@
-import { authGuard, authGuardRole } from '../authGuard';
+import { authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { InterviewConclusion, ImmersionConclusion } from '../../types/matching.types';
 import { OfferService } from '../../services/OfferService';
 import { OfferHistoryService } from '../../services/OfferHistoryService';
 import { UserService } from '../../services/UserService';
-import { MatchLinkService } from '../../services/MatchLinkService';
+import { MatchAccessService } from '../../services/MatchAccessService';
 import { MatchMailService } from '../../services/MatchMailService';
 
 const offerService = new OfferService();
 const offerHistoryService = new OfferHistoryService();
 const userService = new UserService();
-const matchLinkService = new MatchLinkService();
+const matchAccessService = new MatchAccessService();
 const matchMailService = new MatchMailService();
 
 export const resolvers = {
     Query: {
-        offers: async (_: unknown, __: unknown, context: any) => {
+        offers: async (_: unknown, { includeClosed }: { includeClosed?: boolean | null }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            return await offerService.findAll();
+            return await offerService.findAll(Boolean(includeClosed));
         },
         matchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -38,6 +38,14 @@ export const resolvers = {
         candidateMatchedOfferIds: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getMatchedOfferIds(candidateId);
+        },
+        candidateSentCompanies: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.getCandidateSentCompanies(candidateId);
+        },
+        candidateMatchPropositions: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.getCandidateMatchPropositions(candidateId);
         },
         candidatePlacement: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
@@ -65,6 +73,14 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.update(id, offer);
         },
+        updateOfferActive: async (
+            _: unknown,
+            { id, active }: { id: string; active?: boolean | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH, JobRole.COMMERCIAL]);
+            return await offerService.setActive(id, active ?? null);
+        },
         unmatchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.unmatchAll(id);
@@ -84,6 +100,14 @@ export const resolvers = {
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.removeCandidate(offerId, candidateId);
+        },
+        dismissSuggestedCandidate: async (
+            _: unknown,
+            { offerId, candidateId }: { offerId: string; candidateId: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.dismissSuggestedCandidate(offerId, candidateId);
         },
         updateMatchedCandidateStatus: async (
             _: unknown,
@@ -233,23 +257,50 @@ export const resolvers = {
                 companyEmail,
                 candidates,
                 templateId,
+                cc,
             }: {
                 offerId: string;
                 companyEmail: string;
                 candidates: { id: string; description?: string }[];
                 templateId?: string;
+                cc?: string[];
             },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            const credentials = await matchLinkService.createSession({
+            const ccList = normalizeCcList(cc, companyEmail);
+            const invitation = await matchAccessService.createSession({
                 offerId,
+                rhUserId: context.user.id,
                 rhEmail: context.user.email,
                 companyEmail,
+                cc: ccList.length ? ccList : undefined,
                 candidates,
             });
-            await matchMailService.sendInvitation(credentials, templateId ?? undefined);
-            return credentials.signature;
+            await matchMailService.sendInvitation(invitation, templateId ?? undefined);
+            return invitation.signature;
         },
     },
 };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_CC_RECIPIENTS = 10;
+
+/**
+ * Normalise les CC : trim, minuscules, dédoublonnés, email principal exclu,
+ * adresses invalides rejetées. Plafonné pour éviter les abus.
+ */
+function normalizeCcList(cc: string[] | undefined, companyEmail: string): string[] {
+    if (!cc?.length) return [];
+    const main = companyEmail.trim().toLowerCase();
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const raw of cc) {
+        const addr = raw.trim().toLowerCase();
+        if (!addr || !EMAIL_RE.test(addr) || addr === main || seen.has(addr)) continue;
+        seen.add(addr);
+        out.push(addr);
+        if (out.length >= MAX_CC_RECIPIENTS) break;
+    }
+    return out;
+}

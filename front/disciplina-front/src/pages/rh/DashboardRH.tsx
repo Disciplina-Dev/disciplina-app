@@ -1,3 +1,4 @@
+import { useSectors } from '@/hooks/useSectors';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -13,23 +14,16 @@ import {
   Tooltip,
   Legend,
 } from 'recharts';
-import {
-  Users,
-  FileSignature,
-  Search,
-  Briefcase,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
-  Bell,
-  X,
-} from 'lucide-react';
+import { IconAlert, IconBell, IconClose, IconCompany, IconJob, IconLoader, IconRefresh, IconSearch, IconSignature, IconUsers } from '@/components/ui/icons'
 import { useCurrentUser, Permission } from '@/store/authStore';
-import { useCandidateStats, useNeedsAnalysesForDashboard, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import { useCandidateStats, useCandidatesPage, useNeedsAnalysesForDashboard, type StatBucket, type TpStatusBucket } from '@/graphql/hooks';
+import CompanyDirectory from '@/features/entreprises/CompanyDirectory';
 import RhKpiPanel from '@/features/kpi/components/RhKpiPanel';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '@/types/candidate';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_CHART_COLOR, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
-import { SECTEUR_LABELS, SECTEUR_VALUES } from '@/constants/secteurs';
+import { SECTEUR_LABELS } from '@/constants/secteurs';
+import { getTrialPeriodStatus } from '@/utils/trialPeriod';
+import ChipGroup from '@/components/ui/ChipGroup'
 
 // --- Charte graphique (cf. index.css) ---
 const COLORS = {
@@ -48,7 +42,7 @@ const TP_LABELS: Record<string, string> = {
   [TitleProfessionalType.CC]: 'CC · Conseiller Commercial',
   [TitleProfessionalType.NTC]: 'NTC · Négociateur technico-commercial',
   [TitleProfessionalType.REM]: "REM · Responsable d'établissement Marchand",
-  [TitleProfessionalType.SA]: 'SA',
+  [TitleProfessionalType.CADGA]: "CADGA · Chargé d'accueil et de gestion administrative",
 };
 
 // Palette dédiée aux TP (cf. ListeCandidats).
@@ -57,13 +51,10 @@ const TP_COLORS: Record<string, string> = {
   [TitleProfessionalType.CC]: '#4338CA',
   [TitleProfessionalType.NTC]: '#A21CAF',
   [TitleProfessionalType.REM]: '#4D7C0F',
-  [TitleProfessionalType.SA]: '#334155',
+  [TitleProfessionalType.CADGA]: '#334155',
 };
 
 const TP_ORDER = Object.values(TitleProfessionalType) as string[];
-
-// Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
-const CANON_SECTORS: string[] = SECTEUR_VALUES;
 
 const SITE_LABELS: Record<string, string> = {
   [TrainingSite.NORD_SAINTE_MARIE]: `${SECTEUR_LABELS.NORD} · Sainte-Marie`,
@@ -72,6 +63,15 @@ const SITE_LABELS: Record<string, string> = {
 };
 
 const DISMISSED_AB_KEY = 'disciplina:dismissed-ab-ids';
+
+function formatDirectoryDate(iso?: string | null): string {
+  if (!iso) return '—';
+  try {
+    return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return '—';
+  }
+}
 
 /** Index un tableau de buckets `{ key, count }` en map clé → count. */
 function indexBuckets(buckets: StatBucket[]): Record<string, number> {
@@ -105,12 +105,12 @@ function AbCallout() {
   }
 
   return (
-    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+    <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <Bell className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <IconBell className="mt-0.5 h-5 w-5 shrink-0 text-[var(--ds-warning)]" />
           <div>
-            <p className="text-sm font-bold text-amber-900">
+            <p className="text-sm font-bold text-[var(--ds-warning)]">
               {totalCount > visible.length
                 ? `${visible.length} analyse${visible.length > 1 ? 's' : ''} de besoin récente${visible.length > 1 ? 's' : ''} à traiter`
                 : `${visible.length} analyse${visible.length > 1 ? 's' : ''} de besoin à traiter`}
@@ -120,17 +120,17 @@ function AbCallout() {
                 <li key={item.id} className="group flex items-center justify-between gap-2">
                   <button
                     onClick={() => navigate(`/rh/matching?needsAnalysis=${item.id}`)}
-                    className="flex items-center gap-2 text-left text-sm text-amber-800 underline-offset-2 hover:underline"
+                    className="flex items-center gap-2 text-left text-sm text-[var(--ds-warning)] underline-offset-2 hover:underline"
                   >
                     <span className="font-medium">{item.companyName ?? 'Entreprise'}</span>
-                    <span className="text-amber-600">· {item.positionsCount} poste{item.positionsCount > 1 ? 's' : ''}</span>
+                    <span className="text-[var(--ds-warning)]">· {item.positionsCount} poste{item.positionsCount > 1 ? 's' : ''}</span>
                   </button>
                   <button
                     onClick={(e) => { e.stopPropagation(); dismiss(item.id) }}
-                    className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition hover:text-amber-600 group-hover:opacity-100"
+                    className="shrink-0 rounded p-0.5 text-amber-400 opacity-0 transition hover:text-[var(--ds-warning)] group-hover:opacity-100"
                     title="Ignorer"
                   >
-                    <X size={14} />
+                    <IconClose width={14} height={14} />
                   </button>
                 </li>
               ))}
@@ -147,23 +147,31 @@ function KpiCard({
   label,
   value,
   accent,
+  onClick,
 }: {
-  icon: typeof Users;
+  icon: typeof IconUsers;
   label: string;
   value: number;
   accent: string;
+  onClick?: () => void;
 }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+      className={`flex items-center gap-4 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm${onClick ? ' cursor-pointer transition hover:border-[var(--ds-border-strong)] hover:shadow-md' : ''}`}
+    >
       <div
         className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg"
         style={{ backgroundColor: `${accent}14`, color: accent }}
       >
-        <Icon size={24} />
+        <Icon width={24} height={24} />
       </div>
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-gray-500">{label}</p>
-        <p className="text-2xl font-extrabold text-black">{value}</p>
+        <p className="truncate text-sm font-medium text-[var(--ds-text-subtle)]">{label}</p>
+        <p className="text-2xl font-extrabold text-[var(--ds-text)]">{value}</p>
       </div>
     </div>
   );
@@ -171,9 +179,339 @@ function KpiCard({
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-      <h3 className="mb-4 text-lg font-bold text-gray-900">{title}</h3>
+    <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
+      <h3 className="mb-4 text-lg font-bold text-[var(--ds-text)]">{title}</h3>
       {children}
+    </div>
+  );
+}
+
+const CONTRACTED_PAGE_SIZE = 500;
+
+const IMMERSING_PAGE_SIZE = 500;
+
+function TrialStatusBadge({ trialEndDate }: { trialEndDate?: string }) {
+  const status = getTrialPeriodStatus(trialEndDate);
+  if (status === 'done') {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
+        Période d'essai terminée
+      </span>
+    );
+  }
+  if (status === 'ongoing') {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-warning-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-warning)] ring-1 ring-inset ring-amber-200">
+        En période d'essai
+      </span>
+    );
+  }
+  return <span className="text-xs text-[var(--ds-text-subtle)]">—</span>;
+}
+
+/**
+ * Liste des candidats en contrat, avec le statut de leur période d'essai
+ * (45 jours ouvrés depuis le début du contrat). Triée par fin d'essai
+ * croissante (sans date en dernier).
+ */
+function ContractedCandidatesModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const { candidates, totalCount, loading, error, refetch } = useCandidatesPage(
+    CONTRACTED_PAGE_SIZE,
+    undefined,
+    undefined,
+    { status: CandidateStatus.CONTRACT },
+  );
+
+  const rows = useMemo(() => {
+    const timeOf = (iso?: string) => {
+      if (!iso) return Number.MAX_SAFE_INTEGER;
+      const t = new Date(iso).getTime();
+      return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+    };
+    return [...candidates].sort((a, b) => {
+      const diff = timeOf(a.contract_trial_end_date) - timeOf(b.contract_trial_end_date);
+      if (diff !== 0) return diff;
+      return (a.identity.full_name ?? '').localeCompare(b.identity.full_name ?? '', 'fr');
+    });
+  }, [candidates]);
+
+  const ongoingCount = useMemo(
+    () => candidates.filter((c) => getTrialPeriodStatus(c.contract_trial_end_date) === 'ongoing').length,
+    [candidates],
+  );
+  const doneCount = useMemo(
+    () => candidates.filter((c) => getTrialPeriodStatus(c.contract_trial_end_date) === 'done').length,
+    [candidates],
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Candidats en contrat">
+      <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
+      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-5 py-4">
+          <div>
+            <h2 className="text-base font-bold text-[var(--ds-text)]">Candidats en contrat</h2>
+            <p className="text-xs text-[var(--ds-text-subtle)]">
+              {rows.length} candidat{rows.length > 1 ? 's' : ''} · {ongoingCount} en période d'essai · {doneCount} terminée{doneCount > 1 ? 's' : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
+            title="Fermer"
+          >
+            <IconClose width={18} height={18} />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {loading && rows.length === 0 ? (
+            <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+              <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des candidats…
+            </div>
+          ) : error ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-[var(--ds-danger)]">
+              <p className="font-medium">Erreur de chargement des candidats</p>
+              <button
+                onClick={() => refetch()}
+                className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
+              >
+                <IconRefresh width={16} height={16} /> Réessayer
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="py-12 text-center text-sm text-[var(--ds-text-subtle)]">
+              Aucun candidat en contrat.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">Candidat</th>
+                      <th className="px-4 py-2.5 font-semibold">Entreprise</th>
+                      <th className="px-4 py-2.5 font-semibold">Début</th>
+                      <th className="px-4 py-2.5 font-semibold">Fin de période d'essai</th>
+                      <th className="px-4 py-2.5 font-semibold">Session</th>
+                      <th className="px-4 py-2.5 font-semibold">Statut essai</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--ds-border)]">
+                    {rows.map((candidate) => (
+                      <tr
+                        key={candidate._id}
+                        onClick={() => navigate(`/rh/candidats/${candidate._id}`)}
+                        className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
+                        title="Ouvrir la fiche candidat"
+                      >
+                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{candidate.identity.full_name}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.contract_company_name ?? '—'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.contract_start_date)}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.contract_trial_end_date)}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.contract_session_name ?? '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <TrialStatusBadge trialEndDate={candidate.contract_trial_end_date} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalCount > CONTRACTED_PAGE_SIZE && (
+                <p className="mt-3 text-xs text-[var(--ds-text-subtle)]">
+                  Liste limitée aux {CONTRACTED_PAGE_SIZE} premiers candidats — affinez la recherche depuis la page Candidats.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Jours calendaires restant avant `iso` (négatif = date passée, null = absente/invalide). */
+function daysUntil(iso?: string): number | null {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  date.setHours(0, 0, 0, 0);
+  return Math.round((date.getTime() - today.getTime()) / 86_400_000);
+}
+
+function ImmersionStatusBadge({ immersionEndDate }: { immersionEndDate?: string }) {
+  const days = daysUntil(immersionEndDate);
+  if (days === null) {
+    return <span className="text-xs text-[var(--ds-text-subtle)]">—</span>;
+  }
+  if (days < 0) {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]">
+        Terminée
+      </span>
+    );
+  }
+  if (days <= 7) {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-warning-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-warning)] ring-1 ring-inset ring-amber-200">
+        {days === 0 ? "Se termine aujourd'hui" : `Se termine dans ${days} j`}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
+      En cours
+    </span>
+  );
+}
+
+/**
+ * Liste des candidats en immersion et de leur entreprise d'accueil.
+ * Triée par fin d'immersion croissante (sans date en dernier).
+ */
+function ImmersingCandidatesModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const { candidates, totalCount, loading, error, refetch } = useCandidatesPage(
+    IMMERSING_PAGE_SIZE,
+    undefined,
+    undefined,
+    { status: CandidateStatus.IMMERSING },
+  );
+
+  const rows = useMemo(() => {
+    const timeOf = (iso?: string) => {
+      if (!iso) return Number.MAX_SAFE_INTEGER;
+      const t = new Date(iso).getTime();
+      return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+    };
+    return [...candidates].sort((a, b) => {
+      const diff = timeOf(a.immersion_end_date) - timeOf(b.immersion_end_date);
+      if (diff !== 0) return diff;
+      const startDiff = timeOf(a.immersion_start_date) - timeOf(b.immersion_start_date);
+      if (startDiff !== 0) return startDiff;
+      return (a.identity.full_name ?? '').localeCompare(b.identity.full_name ?? '', 'fr');
+    });
+  }, [candidates]);
+
+  const endingSoonCount = useMemo(
+    () => candidates.filter((c) => {
+      const days = daysUntil(c.immersion_end_date);
+      return days !== null && days >= 0 && days <= 7;
+    }).length,
+    [candidates],
+  );
+  const finishedCount = useMemo(
+    () => candidates.filter((c) => {
+      const days = daysUntil(c.immersion_end_date);
+      return days !== null && days < 0;
+    }).length,
+    [candidates],
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Candidats en immersion">
+      <button type="button" aria-label="Fermer" onClick={onClose} className="absolute inset-0 cursor-default bg-black/40" />
+      <div className="relative flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--ds-border)] px-5 py-4">
+          <div>
+            <h2 className="text-base font-bold text-[var(--ds-text)]">Candidats en immersion</h2>
+            <p className="text-xs text-[var(--ds-text-subtle)]">
+              {rows.length} candidat{rows.length > 1 ? 's' : ''} en immersion
+              {endingSoonCount > 0 ? ` · ${endingSoonCount} se terminant sous 7 jours` : ''}
+              {finishedCount > 0 ? ` · ${finishedCount} terminée${finishedCount > 1 ? 's' : ''}` : ''}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={loading}
+              title="Actualiser la liste des candidats en immersion"
+              aria-label="Actualiser la liste des candidats en immersion"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-xs font-semibold text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <IconRefresh width={14} height={14} className={loading ? 'animate-spin' : ''} />
+              Actualiser
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
+              title="Fermer"
+            >
+              <IconClose width={18} height={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          {loading && rows.length === 0 ? (
+            <div className="flex h-48 items-center justify-center gap-2 text-sm text-[var(--ds-text-subtle)]">
+              <IconLoader width={18} height={18} className="animate-spin text-blue" /> Chargement des candidats…
+            </div>
+          ) : error && rows.length === 0 ? (
+            <div className="flex h-48 flex-col items-center justify-center gap-3 text-sm text-[var(--ds-danger)]">
+              <p className="font-medium">Erreur de chargement des candidats</p>
+              <button
+                onClick={() => refetch()}
+                className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
+              >
+                <IconRefresh width={16} height={16} /> Réessayer
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="py-12 text-center text-sm text-[var(--ds-text-subtle)]">
+              Aucun candidat en immersion.
+            </p>
+          ) : (
+            <>
+              <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-[var(--ds-surface-sunken)] text-xs uppercase tracking-wide text-[var(--ds-text-subtle)]">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">Candidat</th>
+                      <th className="px-4 py-2.5 font-semibold">Entreprise</th>
+                      <th className="px-4 py-2.5 font-semibold">Début</th>
+                      <th className="px-4 py-2.5 font-semibold">Fin</th>
+                      <th className="px-4 py-2.5 font-semibold">Convention</th>
+                      <th className="px-4 py-2.5 font-semibold">Statut immersion</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--ds-border)]">
+                    {rows.map((candidate) => (
+                      <tr
+                        key={candidate._id}
+                        onClick={() => navigate(`/rh/candidats/${candidate._id}`)}
+                        className="cursor-pointer transition hover:bg-[var(--ds-surface-sunken)]"
+                        title="Ouvrir la fiche candidat"
+                      >
+                        <td className="px-4 py-2.5 font-medium text-[var(--ds-text)]">{candidate.identity.full_name}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.immersion_company_name ?? '—'}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.immersion_start_date)}</td>
+                        <td className="px-4 py-2.5 whitespace-nowrap text-[var(--ds-text-muted)]">{formatDirectoryDate(candidate.immersion_end_date)}</td>
+                        <td className="px-4 py-2.5 text-[var(--ds-text-muted)]">{candidate.immersion_convention_number ?? '—'}</td>
+                        <td className="px-4 py-2.5">
+                          <ImmersionStatusBadge immersionEndDate={candidate.immersion_end_date} />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {totalCount > IMMERSING_PAGE_SIZE && (
+                <p className="mt-3 text-xs text-[var(--ds-text-subtle)]">
+                  Liste limitée aux {IMMERSING_PAGE_SIZE} premiers candidats — affinez la recherche depuis la page Candidats.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -181,8 +519,11 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 export default function DashboardRH() {
   const currentUser = useCurrentUser();
   const canViewAll = currentUser?.permission === Permission.ADMIN || currentUser?.permission === Permission.RESPONSABLE;
+  // Secteurs géographiques (créateur du dossier). Filtre global du tableau de bord.
+  // Réunion : Nord-Est/Ouest/Sud ; Annemasse : les 6 secteurs opérationnels.
+  const { userSectors: canonSectors } = useSectors();
 
-  // Filtre secteur global : null = tous ; sinon 1, 2 ou 3 secteurs cumulés.
+  // Filtre secteur global : null = tous ; sinon les secteurs cochés cumulés.
   // Pilote à la fois les indicateurs candidats, les diagrammes et les KPI RH.
   // RH -> restreint à son secteur ; Admin/Resp -> libre (tous par défaut).
   const [selectedSectors, setSelectedSectors] = useState<Set<string> | null>(
@@ -193,6 +534,9 @@ export default function DashboardRH() {
     [selectedSectors],
   );
   const { stats, loading, error, refetch } = useCandidateStats(sectorArray);
+  const [showCompanies, setShowCompanies] = useState(false);
+  const [showContracted, setShowContracted] = useState(false);
+  const [showImmersing, setShowImmersing] = useState(false);
 
   const toggleSector = (s: string) =>
     setSelectedSectors((prev) => {
@@ -201,7 +545,7 @@ export default function DashboardRH() {
       const next = new Set(prev);
       if (next.has(s)) next.delete(s); else next.add(s);
       // Plus rien coché, ou tout coché = retour à « Tous ».
-      if (next.size === 0 || next.size === CANON_SECTORS.length) return null;
+      if (next.size === 0 || next.size === canonSectors.length) return null;
       return next;
     });
   const isSectorOn = (s: string) => !selectedSectors || selectedSectors.has(s);
@@ -265,21 +609,21 @@ export default function DashboardRH() {
   if (loading) {
     return (
       <div className="flex h-96 items-center justify-center">
-        <Loader2 className="animate-spin text-blue" size={36} />
+        <IconLoader className="animate-spin text-blue" width={36} height={36} />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex h-96 flex-col items-center justify-center gap-3 text-danger">
-        <AlertCircle size={36} />
+      <div className="flex h-96 flex-col items-center justify-center gap-3 text-[var(--ds-danger)]">
+        <IconAlert width={36} height={36} />
         <p className="font-medium">Erreur de chargement des statistiques</p>
         <button
           onClick={refetch}
           className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white"
         >
-          <RefreshCw size={16} /> Réessayer
+          <IconRefresh width={16} height={16} /> Réessayer
         </button>
       </div>
     );
@@ -290,34 +634,31 @@ export default function DashboardRH() {
       <div className="flex items-center justify-between">
         <div>
           <h1>Tableau de bord RH</h1>
-          <p className="mt-1 text-gray-500">Vue d'ensemble des candidats</p>
+          <p className="mt-1 text-[var(--ds-text-subtle)]">Vue d'ensemble des candidats</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Filtre secteur global — réservé Admin/Resp ; RH voit uniquement son secteur. */}
           {canViewAll && (
-            <div className="flex items-center gap-1 rounded-[10px] border border-gray-100 bg-white p-0.5 shadow-sm">
-              <button
-                onClick={() => setSelectedSectors(null)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${!selectedSectors ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
-              >
-                Tous
-              </button>
-              {CANON_SECTORS.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => toggleSector(s)}
-                  className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${selectedSectors && isSectorOn(s) ? 'bg-blue text-white' : 'text-gray-500 hover:text-gray-800'}`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            <ChipGroup
+              label="Secteurs affichés"
+              tone="accent"
+              selected={selectedSectors ? canonSectors.filter((s) => isSectorOn(s)) : []}
+              onSelectAll={() => setSelectedSectors(null)}
+              onToggle={toggleSector}
+              options={canonSectors.map((s) => ({ value: s, label: s }))}
+            />
           )}
           <button
-            onClick={refetch}
-            className="flex items-center gap-2 rounded-md border border-gray-100 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+            onClick={() => setShowCompanies(true)}
+            className="flex items-center gap-2 rounded-md bg-blue px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-90"
           >
-            <RefreshCw size={16} /> Actualiser
+            <IconCompany width={16} height={16} /> Entreprises
+          </button>
+          <button
+            onClick={refetch}
+            className="flex items-center gap-2 rounded-md border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2 text-sm font-medium text-[var(--ds-text-muted)] shadow-sm transition hover:bg-[var(--ds-surface-sunken)]"
+          >
+            <IconRefresh width={16} height={16} /> Actualiser
           </button>
         </div>
       </div>
@@ -325,16 +666,16 @@ export default function DashboardRH() {
       <AbCallout />
 
       {/* KPI RH par semaine / mois / année — piloté par le filtre secteur global */}
-      <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
         <RhKpiPanel sectors={sectorArray ?? null} hideSelector />
       </div>
 
       {/* KPI */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <KpiCard icon={Users} label="Total candidats" value={stats?.total ?? 0} accent={COLORS.blue} />
-        <KpiCard icon={FileSignature} label="En contrat" value={contracted} accent={COLORS.success} />
-        <KpiCard icon={Search} label="En recherche" value={seeking} accent={COLORS.blue} />
-        <KpiCard icon={Briefcase} label="En immersion" value={immersing} accent={COLORS.pink} />
+        <KpiCard icon={IconUsers} label="Total candidats" value={stats?.total ?? 0} accent={COLORS.blue} />
+        <KpiCard icon={IconSignature} label="En contrat" value={contracted} accent={COLORS.success} onClick={() => setShowContracted(true)} />
+        <KpiCard icon={IconSearch} label="En recherche" value={seeking} accent={COLORS.blue} />
+        <KpiCard icon={IconJob} label="En immersion" value={immersing} accent={COLORS.pink} onClick={() => setShowImmersing(true)} />
       </div>
 
       {/* Répartition par statut + par TP */}
@@ -432,13 +773,17 @@ export default function DashboardRH() {
           </ResponsiveContainer>
         </ChartCard>
       )}
+
+      {showCompanies && <CompanyDirectory onClose={() => setShowCompanies(false)} />}
+      {showContracted && <ContractedCandidatesModal onClose={() => setShowContracted(false)} />}
+      {showImmersing && <ImmersingCandidatesModal onClose={() => setShowImmersing(false)} />}
     </div>
   );
 }
 
 function EmptyChart() {
   return (
-    <div className="flex h-[300px] items-center justify-center text-gray-300">
+    <div className="flex h-[300px] items-center justify-center text-[var(--ds-text-subtle)]">
       Aucune donnée disponible
     </div>
   );

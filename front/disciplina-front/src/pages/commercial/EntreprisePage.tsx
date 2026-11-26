@@ -1,34 +1,21 @@
-import {
-  ArrowLeft,
-  Building2,
-  Phone,
-  Mail,
-  MapPin,
-  Briefcase,
-  Hash,
-  FileText,
-  User,
-  Calendar,
-  Bell,
-  UserCheck,
-  Copy,
-  Check,
-  ClipboardList,
-  Trash2,
-  Ban,
-  PhoneCall,
-} from 'lucide-react'
+import { IconArrowLeft, IconBell, IconCalendar, IconCheck, IconCompany, IconCopy, IconFile, IconFolder, IconForbidden, IconHash, IconJob, IconMail, IconMapPin, IconPhone, IconTaskList, IconTrash, IconUser, IconUserCheck } from '@/components/ui/icons'
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation, useBlocker } from 'react-router-dom'
+import { useQuery } from 'urql'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
-import { STATUS_VALUES, SECTEUR_VALUES, DEFAULT_SECTEUR } from '@/types/entreprise'
+import { isAbArchivedOnDrive } from '@/types/needsAnalysis'
+import { needsAnalysisAbDriveUrl } from '@/api/needsAnalysis'
+import { STATUS_VALUES } from '@/types/entreprise'
+import { ALL_COMPANY_SECTEURS } from '@/constants/secteurs'
+import { useSectors } from '@/hooks/useSectors'
 import { useCurrentUser, UserRole, Permission } from '@/store/authStore'
 import { useStaffDirectory } from '@/hooks/useStaffDirectory'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useNeedsAnalysesByCompany, useDeleteNeedsAnalysis, useUpdateCompany, useCreateCompany } from '@/graphql/hooks'
+import { GET_COMPANIES, GET_COMPANY } from '@/graphql/queries'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import Button from '@/components/ui/Button'
@@ -52,39 +39,41 @@ import type { CompanyWithSalePerson } from '@/types/entreprise'
 const STATUS_OPTIONS: EntrepriseStatus[] = STATUS_VALUES
 
 const STATUS_CONFIG: Record<EntrepriseStatus, { bg: string; text: string; dot: string; border: string }> = {
-  Oui:          { bg: 'bg-success-bg',  text: 'text-success',  dot: 'bg-success',  border: 'border-success/30' },
-  Non:          { bg: 'bg-danger-bg',   text: 'text-danger',   dot: 'bg-danger',   border: 'border-danger/30' },
-  'À Réfléchir':{ bg: 'bg-warning-bg',  text: 'text-warning',  dot: 'bg-warning',  border: 'border-warning/30' },
+  Oui:          { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  dot: 'bg-success',  border: 'border-success/30' },
+  'Oui OF':     { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  dot: 'bg-success',  border: 'border-success/30' },
+  Non:          { bg: 'bg-[var(--ds-danger-bg)]',   text: 'text-[var(--ds-danger)]',   dot: 'bg-danger',   border: 'border-danger/30' },
+  'À Réfléchir':{ bg: 'bg-[var(--ds-warning-bg)]',  text: 'text-[var(--ds-warning)]',  dot: 'bg-warning',  border: 'border-warning/30' },
   Relance:      { bg: 'bg-blue/10',     text: 'text-blue',     dot: 'bg-blue',     border: 'border-blue/30' },
-  'Réponds pas':{ bg: 'bg-gray-100',    text: 'text-gray-500', dot: 'bg-gray-400', border: 'border-gray-300' },
-  Fermé:        { bg: 'bg-gray-200',    text: 'text-gray-700', dot: 'bg-gray-700', border: 'border-gray-400' },
+  'Réponds pas':{ bg: 'bg-[var(--ds-surface-sunken)]',    text: 'text-[var(--ds-text-subtle)]', dot: 'bg-[var(--ds-text-subtle)]', border: 'border-[var(--ds-border-strong)]' },
+  Fermé:        { bg: 'bg-[var(--ds-surface-sunken)]',    text: 'text-[var(--ds-text-muted)]', dot: 'bg-[var(--ds-text-muted)]', border: 'border-[var(--ds-border-strong)]' },
 }
 
 const STATUS_BADGE: Record<string, { bg: string; text: string; label: string }> = {
-  BROUILLON:            { bg: 'bg-gray-100',   text: 'text-gray-600',   label: 'Brouillon' },
-  EN_ATTENTE_SIGNATURE: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'En attente de signature' },
-  SIGNE:                { bg: 'bg-green-100',  text: 'text-green-700',  label: 'Signé' },
-  EXPIRE:               { bg: 'bg-red-100',    text: 'text-red-600',    label: 'Expiré' },
+  BROUILLON:            { bg: 'bg-[var(--ds-surface-sunken)]',   text: 'text-[var(--ds-text-muted)]',   label: 'Brouillon' },
+  NON_ENVOYEE:          { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'Non envoyée' },
+  EN_ATTENTE_SIGNATURE: { bg: 'bg-[var(--ds-warning-bg)]', text: 'text-[var(--ds-warning)]', label: 'En attente de signature' },
+  SIGNE:                { bg: 'bg-[var(--ds-success-bg)]',  text: 'text-[var(--ds-success)]',  label: 'Signé' },
+  EXPIRE:               { bg: 'bg-[var(--ds-danger-bg)]',    text: 'text-[var(--ds-danger)]',    label: 'Expiré' },
 }
 
 // ─── Inline input styles ──────────────────────────────────────────────────────
 const INLINE_INPUT = [
-  'w-full bg-transparent border-b border-transparent text-sm text-gray-900',
+  'w-full bg-transparent border-b border-transparent text-sm text-[var(--ds-text)]',
   'transition-colors duration-100 outline-none px-0 py-0.5',
-  'hover:border-gray-200 focus:border-blue placeholder:text-gray-300',
+  'hover:border-[var(--ds-border)] focus:border-blue placeholder:text-[var(--ds-text-subtle)]',
 ].join(' ')
 
 const INLINE_TEXTAREA = [
-  'w-full bg-transparent border border-transparent rounded-lg text-sm text-gray-700',
+  'w-full bg-transparent border border-transparent rounded-lg text-sm text-[var(--ds-text-muted)]',
   'transition-colors duration-100 outline-none px-3 py-2 resize-none leading-relaxed',
-  'hover:border-gray-200 hover:bg-gray-50 focus:border-blue focus:bg-white',
-  'placeholder:text-gray-300',
+  'hover:border-[var(--ds-border)] hover:bg-[var(--ds-surface-sunken)] focus:border-blue focus:bg-[var(--ds-surface)]',
+  'placeholder:text-[var(--ds-text-subtle)]',
 ].join(' ')
 
 const INLINE_SELECT = [
-  'bg-transparent border-b border-transparent text-sm text-gray-900',
+  'bg-transparent border-b border-transparent text-sm text-[var(--ds-text)]',
   'transition-colors duration-100 outline-none px-0 py-0.5 cursor-pointer',
-  'hover:border-gray-200 focus:border-blue',
+  'hover:border-[var(--ds-border)] focus:border-blue',
 ].join(' ')
 
 function formatDate(iso: string | null | undefined) {
@@ -99,14 +88,14 @@ function ReadField({ icon, label, value, copyable }: { icon: React.ReactNode; la
   const copy = () => value && navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000) })
   return (
     <div className="flex gap-3">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300">{icon}</span>
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]">{icon}</span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+        <p className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide">{label}</p>
         <div className="flex items-center gap-2 mt-0.5">
-          <p className="text-sm text-gray-900 break-all">{value ?? <span className="text-gray-300 italic text-xs">—</span>}</p>
+          <p className="text-sm text-[var(--ds-text)] break-all">{value ?? <span className="text-[var(--ds-text-subtle)] italic text-xs">—</span>}</p>
           {copyable && value && (
-            <button onClick={copy} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-gray-300 transition-colors hover:bg-blue-light hover:text-blue">
-              {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+            <button onClick={copy} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[var(--ds-text-subtle)] transition-colors hover:bg-blue-light hover:text-blue">
+              {copied ? <IconCheck className="h-3.5 w-3.5 text-[var(--ds-success)]" /> : <IconCopy className="h-3.5 w-3.5" />}
             </button>
           )}
         </div>
@@ -121,9 +110,9 @@ function EditField({ icon, label, value, onChange, placeholder, type = 'text' }:
 }) {
   return (
     <div className="flex gap-3">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300">{icon}</span>
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]">{icon}</span>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">{label}</p>
+        <p className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide mb-0.5">{label}</p>
         <input
           type={type}
           value={value}
@@ -138,7 +127,12 @@ function EditField({ icon, label, value, onChange, placeholder, type = 'text' }:
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function EntreprisePage() {
-  const { slug } = useParams<{ slug: string }>()
+  const { id: idParam } = useParams<{ id: string }>()
+  // URL canonique : /commercial/portefeuille/<id>/<slug>. Un segment non
+  // numérique vient d'un ancien favori (`/portefeuille/<slug>`) : on résout
+  // l'entreprise par son nom quand il est unique, puis on redirige.
+  const companyId = idParam && /^\d+$/.test(idParam) ? Number(idParam) : null
+  const legacySlug = companyId == null ? idParam : undefined
   const navigate = useNavigate()
   const location = useLocation()
   const currentUser = useCurrentUser()
@@ -163,10 +157,51 @@ export default function EntreprisePage() {
   const [banOpen, setBanOpen] = useState(false)
   const [contactOpen, setContactOpen] = useState(false)
   const [contactRefresh, setContactRefresh] = useState(0)
+  const { companySectors: secteurOptions } = useSectors()
 
   const stateEntreprise = location.state?.entreprise as Entreprise | undefined
-  const baseEntreprise: Entreprise | undefined =
-    stateEntreprise ?? companies.find((c) => toSlug(c.nom_commercial ?? '') === slug)
+  const storeEntreprise = companyId != null ? companies.find((c) => c.id === String(companyId)) : undefined
+
+  // Fiche complète chargée côté serveur : indispensable sur un lien profond ou
+  // un rafraîchissement, quand le portefeuille paginé n'est pas en mémoire.
+  const [companyResult] = useQuery({
+    query: GET_COMPANY,
+    variables: { id: companyId ?? 0 },
+    pause: companyId == null || !!stateEntreprise || !!storeEntreprise,
+    requestPolicy: 'network-only',
+  })
+  const fetchedEntreprise: Entreprise | undefined = companyResult.data?.company
+    ? {
+        ...toEntrepriseFromCompanyWithSalePerson(companyResult.data.company),
+        // Le propriétaire n'est exposé que via `salePerson` : sans ça, la fiche
+        // ouverte par lien direct serait en lecture seule pour son commercial.
+        proprietaire_id: companyResult.data.company.salePerson?.id ?? null,
+        proprietaire_contact: companyResult.data.company.salePerson?.email ?? null,
+      }
+    : undefined
+
+  const baseEntreprise: Entreprise | undefined = stateEntreprise ?? storeEntreprise ?? fetchedEntreprise
+
+  // Anciens favoris `/portefeuille/<slug>` : recherche serveur par nom, puis
+  // redirection vers l'URL portant l'id (uniquement si le nom est unique).
+  const [legacyResult] = useQuery({
+    query: GET_COMPANIES,
+    variables: { search: legacySlug?.replace(/-/g, ' ') ?? '', first: 20 },
+    pause: !legacySlug,
+    requestPolicy: 'network-only',
+  })
+  const legacyEdges: { node: CompanyWithSalePerson }[] = legacyResult.data?.companies?.edges ?? []
+  const legacyMatches: CompanyWithSalePerson[] = legacySlug
+    ? legacyEdges
+        .filter(({ node }) => toSlug(node.company.name ?? '') === legacySlug)
+        .map(({ node }) => node)
+    : []
+  const legacyMatchId = legacyMatches.length === 1 ? legacyMatches[0].company.id : null
+  useEffect(() => {
+    if (legacyMatchId != null && legacySlug) {
+      navigate(`/commercial/portefeuille/${legacyMatchId}/${legacySlug}`, { replace: true })
+    }
+  }, [legacyMatchId, legacySlug, navigate])
 
   const [draft, setDraft] = useState<Entreprise | null>(null)
 
@@ -196,13 +231,28 @@ export default function EntreprisePage() {
     return () => window.removeEventListener('beforeunload', handler)
   }, [isDirty])
 
-  if (!baseEntreprise || !draft) {
+  if (!baseEntreprise) {
+    if (companyResult.fetching || legacyResult.fetching || legacyMatchId != null) {
+      return (
+        <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
+          <div className="w-8 h-8 border-4 border-blue border-t-transparent rounded-full animate-spin" />
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
         <div className="text-center">
-          <p className="text-gray-400 text-sm mb-3">Entreprise introuvable.</p>
+          <p className="text-[var(--ds-text-subtle)] text-sm mb-3">Entreprise introuvable.</p>
           <Button size="sm" variant="secondary" onClick={() => navigate('/commercial/portefeuille')}>Retour au portefeuille</Button>
         </div>
+      </div>
+    )
+  }
+
+  if (!draft) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: 'var(--color-background)' }}>
+        <div className="w-8 h-8 border-4 border-blue border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -234,7 +284,7 @@ export default function EntreprisePage() {
     const ok = await persist()
     if (!ok) return
     bypassBlockRef.current = true
-    navigate(`/commercial/portefeuille/${toSlug(draft.nom_commercial ?? draft.id)}`, {
+    navigate(`/commercial/portefeuille/${draft.id}/${toSlug(draft.nom_commercial ?? '')}`, {
       replace: true,
       state: { entreprise: draft },
     })
@@ -253,7 +303,12 @@ export default function EntreprisePage() {
   }
 
   const toggleSelect = (id: string) => {
-    setSelectedAbIds((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+    setSelectedAbIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
   const handleBulkDelete = async () => {
     await Promise.all([...selectedAbIds].map((id) => deleteNeedsAnalysis(id)))
@@ -268,7 +323,7 @@ export default function EntreprisePage() {
 
   const handleOpenLinkedCompany = (item: CompanyWithSalePerson) => {
     const entreprise = toEntrepriseFromCompanyWithSalePerson(item)
-    navigate(`/commercial/portefeuille/${toSlug(entreprise.nom_commercial ?? entreprise.id)}`, {
+    navigate(`/commercial/portefeuille/${entreprise.id}/${toSlug(entreprise.nom_commercial ?? '')}`, {
       state: { entreprise },
     })
   }
@@ -302,9 +357,9 @@ export default function EntreprisePage() {
         {/* ─── Back ───────────────────────────────────────────────── */}
         <button
           onClick={() => navigate('/commercial/portefeuille')}
-          className="flex items-center gap-1.5 text-[12px] font-medium text-gray-400 hover:text-gray-700 transition-colors mb-6"
+          className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] transition-colors mb-6"
         >
-          <ArrowLeft className="h-3.5 w-3.5" />
+          <IconArrowLeft className="h-3.5 w-3.5" />
           Portefeuille
         </button>
 
@@ -312,7 +367,7 @@ export default function EntreprisePage() {
         <div className="mb-6">
           <div className="flex items-start gap-4 min-w-0 flex-1">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-light">
-              <Building2 className="h-6 w-6 text-blue" />
+              <IconCompany className="h-6 w-6 text-blue" />
             </div>
             <div className="min-w-0 flex-1">
               {canEdit ? (
@@ -321,10 +376,10 @@ export default function EntreprisePage() {
                   value={draft.nom_commercial ?? ''}
                   onChange={(e) => set('nom_commercial', e.target.value)}
                   placeholder="Nom de l'entreprise"
-                  className="text-[24px] font-extrabold tracking-tight text-gray-900 leading-tight w-full bg-transparent border-b border-transparent hover:border-gray-200 focus:border-blue outline-none transition-colors"
+                  className="text-[24px] font-extrabold tracking-tight text-[var(--ds-text)] leading-tight w-full bg-transparent border-b border-transparent hover:border-[var(--ds-border)] focus:border-blue outline-none transition-colors"
                 />
               ) : (
-                <h1 className="text-[24px] font-extrabold tracking-tight text-gray-900 leading-tight">
+                <h1 className="text-[24px] font-extrabold tracking-tight text-[var(--ds-text)] leading-tight">
                   {draft.nom_commercial ?? 'Entreprise sans nom'}
                 </h1>
               )}
@@ -348,17 +403,17 @@ export default function EntreprisePage() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap mt-4">
-            <Button size="sm" variant="secondary" leftIcon={<PhoneCall className="h-3.5 w-3.5" />} onClick={() => setContactOpen(true)}>
+            <Button size="sm" variant="secondary" leftIcon={<IconPhone className="h-3.5 w-3.5" />} onClick={() => setContactOpen(true)}>
               Prise de contact
             </Button>
-            <Button size="sm" variant="secondary" leftIcon={<Mail className="h-3.5 w-3.5" />} onClick={() => setMailOpen(true)}>
+            <Button size="sm" variant="secondary" leftIcon={<IconMail className="h-3.5 w-3.5" />} onClick={() => setMailOpen(true)}>
               Envoyer un mail
             </Button>
-            <Button size="sm" variant="primary" leftIcon={<FileText className="h-3.5 w-3.5" />} onClick={() => setAbOpen(true)}>
+            <Button size="sm" variant="primary" leftIcon={<IconFile className="h-3.5 w-3.5" />} onClick={() => setAbOpen(true)}>
               Créer une Analyse (AB)
             </Button>
             {canEdit && (
-              <Button size="sm" variant="danger" leftIcon={<Ban className="h-3.5 w-3.5" />} onClick={() => setBanOpen(true)}>
+              <Button size="sm" variant="danger" leftIcon={<IconForbidden className="h-3.5 w-3.5" />} onClick={() => setBanOpen(true)}>
                 Bannir
               </Button>
             )}
@@ -366,83 +421,111 @@ export default function EntreprisePage() {
         </div>
 
         {saveError && (
-          <div className="mb-4 rounded-xl border border-danger/20 bg-danger-bg px-4 py-2.5 text-sm text-danger">{saveError}</div>
+          <div className="mb-4 rounded-xl border border-danger/20 bg-[var(--ds-danger-bg)] px-4 py-2.5 text-sm text-[var(--ds-danger)]">{saveError}</div>
         )}
 
         {/* ─── Content ─────────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-gray-100 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] p-6">
+        <div className="rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-[0_2px_12px_-4px_rgba(0,0,0,0.06)] p-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
 
             {/* Left — Infos générales */}
             <div className="space-y-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Informations générales</p>
+              <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest">Informations générales</p>
 
               {/* SIRET — read only */}
-              <ReadField icon={<Hash className="h-4 w-4" />} label="SIRET" value={draft.siret} />
+              <ReadField icon={<IconHash className="h-4 w-4" />} label="SIRET" value={draft.siret} />
 
               {canEdit ? (
-                <EditField icon={<Briefcase className="h-4 w-4" />} label="Métier / Description" value={draft.metier ?? ''} onChange={(v) => set('metier', v)} />
+                <EditField icon={<IconJob className="h-4 w-4" />} label="Métier / Description" value={draft.metier ?? ''} onChange={(v) => set('metier', v)} />
               ) : (
-                <ReadField icon={<Briefcase className="h-4 w-4" />} label="Métier / Description" value={draft.metier} />
+                <ReadField icon={<IconJob className="h-4 w-4" />} label="Métier / Description" value={draft.metier} />
               )}
               {canEdit ? (
-                <EditField icon={<MapPin className="h-4 w-4" />} label="Adresse" value={draft.adresse ?? ''} onChange={(v) => set('adresse', v)} />
+                <EditField icon={<IconMapPin className="h-4 w-4" />} label="Adresse" value={draft.adresse ?? ''} onChange={(v) => set('adresse', v)} />
               ) : (
-                <ReadField icon={<MapPin className="h-4 w-4" />} label="Adresse" value={draft.adresse} />
+                <ReadField icon={<IconMapPin className="h-4 w-4" />} label="Adresse" value={draft.adresse} />
               )}
               {canEdit ? (
                 <div className="flex gap-3">
-                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><MapPin className="h-4 w-4" /></span>
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]"><IconMapPin className="h-4 w-4" /></span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Secteur</p>
-                    <select
-                      value={draft.secteur ?? DEFAULT_SECTEUR}
-                      onChange={(e) => set('secteur', e.target.value)}
-                      className={INLINE_INPUT}
-                    >
-                      {SECTEUR_VALUES.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <p className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide mb-1.5">Secteur</p>
+                    <div className="flex flex-wrap gap-2">
+                      {secteurOptions.map((s) => {
+                        const secteurs = (draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+                        const active = secteurs.includes(s)
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            onClick={() => {
+                              const current = (draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean)
+                              const valid = current.filter((x) => (ALL_COMPANY_SECTEURS as string[]).includes(x))
+                              const next = active ? valid.filter((x) => x !== s) : [...valid, s]
+                              // Valeurs du tenant d'abord, puis les valeurs stockées
+                              // hors vocabulaire (jamais perdues à l'édition).
+                              const ordered = [
+                                ...secteurOptions.filter((v) => next.includes(v)),
+                                ...next.filter((v) => !secteurOptions.includes(v)),
+                              ]
+                              set('secteur', ordered.length ? ordered.join(', ') : '')
+                            }}
+                            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                              active
+                                ? 'border-blue bg-blue text-white'
+                                : 'border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] hover:border-[var(--ds-border-strong)] hover:text-[var(--ds-text)]'
+                            }`}
+                          >
+                            {active && <IconCheck className="h-3 w-3" />}
+                            {s}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {!(draft.secteur ?? '').split(',').map((x) => x.trim()).filter(Boolean).length && (
+                      <p className="text-xs text-[var(--ds-danger)] mt-1.5">Sélectionnez au moins un secteur</p>
+                    )}
                   </div>
                 </div>
               ) : (
-                <ReadField icon={<MapPin className="h-4 w-4" />} label="Secteur" value={draft.secteur} />
+                <ReadField icon={<IconMapPin className="h-4 w-4" />} label="Secteur" value={draft.secteur} />
               )}
               {canEdit ? (
-                <EditField icon={<Hash className="h-4 w-4" />} label="IDCC" value={draft.idcc ?? ''} onChange={(v) => set('idcc', v)} />
+                <EditField icon={<IconHash className="h-4 w-4" />} label="IDCC" value={draft.idcc ?? ''} onChange={(v) => set('idcc', v)} />
               ) : (
-                <ReadField icon={<Hash className="h-4 w-4" />} label="IDCC" value={draft.idcc} />
+                <ReadField icon={<IconHash className="h-4 w-4" />} label="IDCC" value={draft.idcc} />
               )}
               {canEdit ? (
-                <EditField icon={<User className="h-4 w-4" />} label="Représentant légal" value={draft.representant_legal ?? ''} onChange={(v) => set('representant_legal', v)} />
+                <EditField icon={<IconUser className="h-4 w-4" />} label="Représentant légal" value={draft.representant_legal ?? ''} onChange={(v) => set('representant_legal', v)} />
               ) : (
-                <ReadField icon={<User className="h-4 w-4" />} label="Représentant légal" value={draft.representant_legal} />
+                <ReadField icon={<IconUser className="h-4 w-4" />} label="Représentant légal" value={draft.representant_legal} />
               )}
             </div>
 
             {/* Right — Contact + Suivi */}
             <div className="space-y-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest">Contact</p>
+              <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest">Contact</p>
 
               {canEdit ? (
-                <EditField icon={<Phone className="h-4 w-4" />} label="Téléphone" value={draft.telephone ?? ''} onChange={(v) => set('telephone', v)} type="tel" />
+                <EditField icon={<IconPhone className="h-4 w-4" />} label="Téléphone" value={draft.telephone ?? ''} onChange={(v) => set('telephone', v)} type="tel" />
               ) : (
-                <ReadField icon={<Phone className="h-4 w-4" />} label="Téléphone" value={draft.telephone} />
+                <ReadField icon={<IconPhone className="h-4 w-4" />} label="Téléphone" value={draft.telephone} />
               )}
               {canEdit ? (
-                <EditField icon={<Mail className="h-4 w-4" />} label="Adresse e-mail" value={draft.email ?? ''} onChange={(v) => set('email', v)} type="email" />
+                <EditField icon={<IconMail className="h-4 w-4" />} label="Adresse e-mail" value={draft.email ?? ''} onChange={(v) => set('email', v)} type="email" />
               ) : (
-                <ReadField icon={<Mail className="h-4 w-4" />} label="Adresse e-mail" value={draft.email} copyable />
+                <ReadField icon={<IconMail className="h-4 w-4" />} label="Adresse e-mail" value={draft.email} copyable />
               )}
 
-              <div className="pt-4 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-3">Suivi commercial</p>
+              <div className="pt-4 border-t border-[var(--ds-border)]">
+                <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-3">Suivi commercial</p>
                 <div className="space-y-4">
 
                   {/* Propriétaire */}
                   <div className="flex gap-3">
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><UserCheck className="h-4 w-4" /></span>
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]"><IconUserCheck className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Propriétaire</p>
+                      <p className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide mb-0.5">Propriétaire</p>
                       {canEdit ? (
                         <select
                           value={String(draft.proprietaire_id ?? '')}
@@ -461,23 +544,23 @@ export default function EntreprisePage() {
                       ) : owner ? (
                         <div className="flex items-center gap-1.5">
                           <span className="flex h-5 w-5 items-center justify-center rounded-full text-white text-[10px] font-bold" style={{ backgroundColor: owner.color }}>{owner.initials}</span>
-                          <span className="text-sm text-gray-900">{`${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim()}</span>
-                          <span className="text-xs text-gray-500">({owner.role})</span>
+                          <span className="text-sm text-[var(--ds-text)]">{`${owner.firstName ?? ''} ${owner.lastName ?? ''}`.trim()}</span>
+                          <span className="text-xs text-[var(--ds-text-subtle)]">({owner.role})</span>
                         </div>
                       ) : (
-                        <p className="text-sm text-gray-300 italic">Non attribué</p>
+                        <p className="text-sm text-[var(--ds-text-subtle)] italic">Non attribué</p>
                       )}
                     </div>
                   </div>
 
                   {/* Date insertion — read only */}
-                  <ReadField icon={<Calendar className="h-4 w-4" />} label="Date d'insertion" value={formatDate(draft.date_insertion)} />
+                  <ReadField icon={<IconCalendar className="h-4 w-4" />} label="Date d'insertion" value={formatDate(draft.date_insertion)} />
 
                   {/* Type de relance — editable, recalcule la date */}
                   <div className="flex gap-3">
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><Bell className="h-4 w-4" /></span>
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]"><IconBell className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Type de relance</p>
+                      <p className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide mb-0.5">Type de relance</p>
                       {canEdit ? (
                         <select
                           value={draft.type_relance ?? ''}
@@ -497,16 +580,16 @@ export default function EntreprisePage() {
                           ))}
                         </select>
                       ) : (
-                        <p className="text-sm text-gray-900">{getRelanceType(draft.type_relance)?.label ?? <span className="text-gray-300 italic text-xs">—</span>}</p>
+                        <p className="text-sm text-[var(--ds-text)]">{getRelanceType(draft.type_relance)?.label ?? <span className="text-[var(--ds-text-subtle)] italic text-xs">—</span>}</p>
                       )}
                     </div>
                   </div>
 
                   {/* Date relance — editable */}
                   <div className="flex gap-3">
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><Bell className="h-4 w-4" /></span>
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]"><IconBell className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Date de relance</p>
+                      <p className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide mb-0.5">Date de relance</p>
                       {canEdit ? (
                         <input
                           type="date"
@@ -515,16 +598,16 @@ export default function EntreprisePage() {
                           className={INLINE_INPUT}
                         />
                       ) : (
-                        <p className="text-sm text-gray-900">{formatDate(draft.date_relance) ?? <span className="text-gray-300 italic text-xs">—</span>}</p>
+                        <p className="text-sm text-[var(--ds-text)]">{formatDate(draft.date_relance) ?? <span className="text-[var(--ds-text-subtle)] italic text-xs">—</span>}</p>
                       )}
                     </div>
                   </div>
 
                   {/* Modèle de mail pour la relance */}
                   <div className="flex gap-3">
-                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-300"><Mail className="h-4 w-4" /></span>
+                    <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]"><IconMail className="h-4 w-4" /></span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">Mail type de relance</p>
+                      <p className="text-xs font-medium text-[var(--ds-text-subtle)] uppercase tracking-wide mb-0.5">IconMail type de relance</p>
                       {canEdit ? (
                         <select
                           value={draft.relance_template_id ?? ''}
@@ -537,7 +620,7 @@ export default function EntreprisePage() {
                           ))}
                         </select>
                       ) : (
-                        <p className="text-sm text-gray-900">{mailTemplates.find((t) => t.id === draft.relance_template_id)?.name ?? <span className="text-gray-300 italic text-xs">—</span>}</p>
+                        <p className="text-sm text-[var(--ds-text)]">{mailTemplates.find((t) => t.id === draft.relance_template_id)?.name ?? <span className="text-[var(--ds-text-subtle)] italic text-xs">—</span>}</p>
                       )}
                     </div>
                   </div>
@@ -547,10 +630,10 @@ export default function EntreprisePage() {
           </div>
 
           {/* Notes + Conclusion */}
-          <div className="mt-6 pt-6 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="mt-6 pt-6 border-t border-[var(--ds-border)] grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5" />Note
+              <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <IconFile className="h-3.5 w-3.5" />Note
               </p>
               {canEdit ? (
                 <textarea
@@ -561,14 +644,14 @@ export default function EntreprisePage() {
                   className={INLINE_TEXTAREA}
                 />
               ) : (
-                <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap leading-relaxed min-h-[80px]">
-                  {draft.note ?? <span className="text-gray-300 italic">Aucune note</span>}
+                <p className="text-sm text-[var(--ds-text-muted)] bg-[var(--ds-surface-sunken)] rounded-lg p-3 whitespace-pre-wrap leading-relaxed min-h-[80px]">
+                  {draft.note ?? <span className="text-[var(--ds-text-subtle)] italic">Aucune note</span>}
                 </p>
               )}
             </div>
             <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5" />Conclusion
+              <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                <IconFile className="h-3.5 w-3.5" />Conclusion
               </p>
               {canEdit ? (
                 <textarea
@@ -579,45 +662,59 @@ export default function EntreprisePage() {
                   className={INLINE_TEXTAREA}
                 />
               ) : (
-                <p className="text-sm text-gray-700 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap leading-relaxed min-h-[80px]">
-                  {draft.conclusion ?? <span className="text-gray-300 italic">Aucune conclusion</span>}
+                <p className="text-sm text-[var(--ds-text-muted)] bg-[var(--ds-surface-sunken)] rounded-lg p-3 whitespace-pre-wrap leading-relaxed min-h-[80px]">
+                  {draft.conclusion ?? <span className="text-[var(--ds-text-subtle)] italic">Aucune conclusion</span>}
                 </p>
               )}
             </div>
           </div>
 
           {/* Analyses du besoin */}
-          <div className="mt-6 pt-6 border-t border-gray-100">
+          <div className="mt-6 pt-6 border-t border-[var(--ds-border)]">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-widest flex items-center gap-1.5">
-                <ClipboardList className="h-3.5 w-3.5" />Analyses du besoin
+              <p className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-widest flex items-center gap-1.5">
+                <IconTaskList className="h-3.5 w-3.5" />Analyses du besoin
               </p>
               {selectedAbIds.size > 0 && (
-                <button onClick={handleBulkDelete} className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors">
-                  <Trash2 className="h-3.5 w-3.5" />Supprimer ({selectedAbIds.size})
+                <button onClick={handleBulkDelete} className="flex items-center gap-1.5 rounded-lg bg-[var(--ds-danger-bg)] px-3 py-1.5 text-xs font-medium text-[var(--ds-danger)] hover:bg-[var(--ds-danger-bg)] transition-colors">
+                  <IconTrash className="h-3.5 w-3.5" />Supprimer ({selectedAbIds.size})
                 </button>
               )}
             </div>
-            {abResult.fetching && <p className="text-sm text-gray-400 italic">Chargement...</p>}
-            {!abResult.fetching && abList.length === 0 && <p className="text-sm text-gray-400 italic">Aucune analyse du besoin pour cette entreprise.</p>}
+            {abResult.fetching && <p className="text-sm text-[var(--ds-text-subtle)] italic">Chargement...</p>}
+            {!abResult.fetching && abList.length === 0 && <p className="text-sm text-[var(--ds-text-subtle)] italic">Aucune analyse du besoin pour cette entreprise.</p>}
             {abList.length > 0 && (
               <ul className="space-y-2">
                 {abList.map((ab: any) => {
-                  const badge = STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON']
+                  const badge = ab.status === 'BROUILLON' && ab.isVisibleInMatching
+                    ? STATUS_BADGE['NON_ENVOYEE']
+                    : (STATUS_BADGE[ab.status] ?? STATUS_BADGE['BROUILLON'])
                   const isSelected = selectedAbIds.has(ab.id)
                   return (
                     <li
                       key={ab.id}
                       onClick={() => setSelectedAbId(ab.id)}
-                      className={['flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors', isSelected ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 hover:bg-blue-50'].join(' ')}
+                      className={['flex items-center gap-2 rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors', isSelected ? 'bg-[var(--ds-accent-soft)] border border-[var(--ds-accent)]' : 'bg-[var(--ds-surface-sunken)] hover:bg-[var(--ds-accent-soft)]'].join(' ')}
                     >
-                      <input type="checkbox" checked={isSelected} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(ab.id)} className="h-4 w-4 shrink-0 rounded border-gray-300 accent-blue cursor-pointer" />
+                      <input type="checkbox" checked={isSelected} onClick={(e) => e.stopPropagation()} onChange={() => toggleSelect(ab.id)} className="h-4 w-4 shrink-0 rounded border-[var(--ds-border-strong)] accent-blue cursor-pointer" />
                       <div className="min-w-0 flex-1">
-                        <span className="font-medium text-gray-900 truncate">{ab.positions?.[0]?.title ?? 'Analyse du besoin'}</span>
-                        <span className="ml-2 text-xs text-gray-400">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
+                        <span className="font-medium text-[var(--ds-text)] truncate">{ab.positions?.[0]?.title ?? 'Analyse du besoin'}</span>
+                        <span className="ml-2 text-xs text-[var(--ds-text-subtle)]">{ab.positionsCount} poste{ab.positionsCount > 1 ? 's' : ''}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {ab.createdAt && <span className="text-xs text-gray-400">{formatDate(ab.createdAt)}</span>}
+                        {isAbArchivedOnDrive(ab.status) && (
+                          <a
+                            href={needsAnalysisAbDriveUrl(ab.id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Ouvrir l'AB dans le Drive"
+                            className="rounded-lg p-1 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface)] hover:text-blue"
+                          >
+                            <IconFolder width={14} height={14} />
+                          </a>
+                        )}
+                        {ab.createdAt && <span className="text-xs text-[var(--ds-text-subtle)]">{formatDate(ab.createdAt)}</span>}
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>
                       </div>
                     </li>

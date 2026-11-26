@@ -2,11 +2,10 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
 import { truncateMysql } from '../../../../test/helpers/db';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
-import { NeedsAnalysisRepository } from '../../../repositories/mongo/NeedsAnalysisRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { CandidateStatus, TitleProfessionalType, TrainingSite } from '../../../types/candidate.types';
-import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
+import { OfferStatus, DesiredSex, Localisation, Sector, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateService } from '../../../services/CandidateService';
 import pool from '../../../db/mysql/connection';
 
@@ -74,6 +73,51 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidates[1].id).toBe(c2._id);
         expect(json.data.candidates[1].identity.fullName).toBe(`Bob ${suffix}`);
         expect(json.data.candidates[1].tpTypes).toEqual(['CC']);
+    });
+
+    it('maps a legacy continuous immersion schedule to morning start / afternoon end', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CandidateRepository();
+
+        const candidate = await repo.create({
+            _id: `legacy-imm-schedule-${suffix}`,
+            candidate_id: `legacy-imm-schedule-${suffix}`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.IMMERSING,
+            identity: { full_name: `Legacy ${suffix}`, email: `legacy-${suffix}@test.local`, phone: '0100000021' },
+            immersion_schedule: [{ day: 'Lundi', start_hour: '08:00', end_hour: '17:00' }],
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: String!) {
+                    candidate(id: $id) {
+                        immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
+                    }
+                }`,
+                variables: { id: candidate._id },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.candidate.immersionSchedule).toEqual([
+            {
+                day: 'Lundi',
+                morningStartHour: '08:00',
+                morningEndHour: null,
+                afternoonStartHour: null,
+                afternoonEndHour: '17:00',
+            },
+        ]);
     });
 
     it('paginates candidates with cursors via candidatesPage', async () => {
@@ -157,6 +201,54 @@ describe('GraphQL candidate queries', () => {
         expect(json.data.candidate.id).toBe(seeded._id);
         expect(json.data.candidate.identity.email).toBe(`target-${suffix}@test.local`);
         expect(json.data.candidate.desiredSectors).toEqual(['RESTAURATION', 'COMMERCIAL']);
+    });
+
+    it('exposes the stored consentments on a candidate', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const repo = new CandidateRepository();
+        const consentDate = new Date('2026-08-01T10:00:00.000Z');
+
+        const seeded = await repo.create({
+            _id: `consent-${suffix}`,
+            candidate_id: `consent-${suffix}`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: { full_name: `Consent ${suffix}`, email: `consent-${suffix}@test.local`, phone: '0600000001' },
+            consentments: {
+                data_processing: true,
+                data_sharing: true,
+                ai_processing: false,
+                photo_processing: true,
+                consent_date: consentDate,
+                consent_version: '2026-11-v2',
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: String!) { candidate(id: $id) { consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion } } }`,
+                variables: { id: seeded._id },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.candidate.consentments).toEqual({
+            dataProcessing: true,
+            dataSharing: true,
+            aiProcessing: false,
+            photoProcessing: true,
+            consentDate: consentDate.toISOString(),
+            consentVersion: '2026-11-v2',
+        });
     });
 
     it('returns null for a non-existent candidate id', async () => {
@@ -261,7 +353,14 @@ describe('candidateStats sector scoping', () => {
                     sectors.length > 0 ? JSON.stringify(sectors) : null,
                 ],
             );
-            return (result as any).insertId;
+            const userId = (result as any).insertId;
+            if (sectors.length > 0) {
+                await conn.execute(
+                    `INSERT INTO user_sectors (user_id, sector_id) SELECT ?, id FROM sectors WHERE level IN ('region', 'sector') AND label IN (${sectors.map(() => '?').join(', ')})`,
+                    [userId, ...sectors],
+                );
+            }
+            return userId;
         } finally {
             conn.release();
         }
@@ -389,6 +488,7 @@ describe('matchCandidate', () => {
             age_range: '20-40',
             localisation: [Localisation.SAINT_BENOIT],
             sector: Sector.STATION,
+            activities: [Sector.STATION],
             status: OfferStatus.NOT_MATCHED,
         });
 
@@ -408,6 +508,176 @@ describe('matchCandidate', () => {
         expect(json.data.matchCandidate.matchedOffers).toContainEqual(
             expect.objectContaining({ id: offerId, companyName: `Match Corp ${suffix}` }),
         );
+    });
+
+    it('does not propose offers in a sector the candidate did not tick', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `mc-sector-${Date.now()}`;
+        const candidateRepo = new CandidateRepository();
+
+        const candidateId = `cand-mc-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.NTC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Sector Me ${suffix}`,
+                email: `sectorme-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 28,
+                driving_license_b: true,
+                sex: DesiredSex.MIXTE,
+            },
+            // Le candidat ne veut pas de restauration.
+            desired_sectors: [Sector.STATION],
+            job_info: { geographic_mobility: [Localisation.SAINT_BENOIT] },
+        });
+
+        const offerId = `job-mc-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Restaurant Corp ${suffix}`,
+            desired_tp: TitleProfessionalType.NTC,
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            localisation: [Localisation.SAINT_BENOIT],
+            activities: [Sector.RESTAURATION],
+            status: OfferStatus.NOT_MATCHED,
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchCandidate(id: $id) { matchedOffers { id } } }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const matchedIds = (json.data.matchCandidate.matchedOffers ?? []).map((o: { id: string }) => o.id);
+        expect(matchedIds).not.toContain(offerId);
+    });
+
+    it('does not propose offers deactivated in the company directory', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `mc-inactive-${Date.now()}`;
+        const candidateRepo = new CandidateRepository();
+
+        const candidateId = `cand-mc-inactive-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.NTC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Inactive Match ${suffix}`,
+                email: `inactivematch-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 28,
+                driving_license_b: true,
+                sex: DesiredSex.MIXTE,
+            },
+            desired_sectors: [Sector.STATION],
+            job_info: { geographic_mobility: [Localisation.SAINT_BENOIT] },
+        });
+
+        const offerInput = {
+            desired_tp: TitleProfessionalType.NTC,
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            localisation: [Localisation.SAINT_BENOIT],
+            activities: [Sector.STATION],
+            status: OfferStatus.NOT_MATCHED,
+        };
+
+        const inactiveId = `job-mc-inactive-${suffix}`;
+        await seedOffer({ ...offerInput, _id: inactiveId, company_name: `Inactive Corp ${suffix}`, is_active: false });
+
+        // Offre sans override : elle hérite du statut de son AB et reste proposée.
+        const inheritedId = `job-mc-inherited-${suffix}`;
+        await seedOffer({ ...offerInput, _id: inheritedId, company_name: `Inherited Corp ${suffix}` });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchCandidate(id: $id) { matchedOffers { id } } }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const matchedIds = (json.data.matchCandidate.matchedOffers ?? []).map((o: { id: string }) => o.id);
+        expect(matchedIds).not.toContain(inactiveId);
+        expect(matchedIds).toContain(inheritedId);
+    });
+
+    it('hides an offer deactivated after being assigned to the candidate', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `mc-inactive-assigned-${Date.now()}`;
+        const candidateRepo = new CandidateRepository();
+
+        const candidateId = `cand-mc-inactive-assigned-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.NTC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Assigned Inactive ${suffix}`,
+                email: `assignedinactive-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 28,
+                driving_license_b: true,
+                sex: DesiredSex.MIXTE,
+            },
+            desired_sectors: [Sector.STATION],
+            job_info: { geographic_mobility: [Localisation.SAINT_BENOIT] },
+        });
+
+        const offerId = `job-mc-inactive-assigned-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Assigned Inactive Corp ${suffix}`,
+            desired_tp: TitleProfessionalType.NTC,
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            localisation: [Localisation.SAINT_BENOIT],
+            activities: [Sector.STATION],
+            status: OfferStatus.CV_SEND,
+            candidates: [
+                {
+                    id: candidateId,
+                    full_name: `Assigned Inactive ${suffix}`,
+                    status: MatchedCandidateStatus.SEND,
+                },
+            ],
+            is_active: false,
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchCandidate(id: $id) { matchedOffers { id } } }`,
+                variables: { id: candidateId },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const matchedIds = (json.data.matchCandidate.matchedOffers ?? []).map((o: { id: string }) => o.id);
+        expect(matchedIds).not.toContain(offerId);
     });
 
     it('errors when candidate is not found', async () => {
@@ -585,14 +855,14 @@ describe('candidatesPage with filters', () => {
         await repo.create({
             _id: `${suffix}-rem-1`,
             candidate_id: `${suffix}-rem-1`,
-            tp_types: [TitleProfessionalType.SA],
+            tp_types: [TitleProfessionalType.CADGA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} A`, email: `ftp-a-${suffix}@test.local`, phone: '0600000000' },
         });
         await repo.create({
             _id: `${suffix}-rem-2`,
             candidate_id: `${suffix}-rem-2`,
-            tp_types: [TitleProfessionalType.SA],
+            tp_types: [TitleProfessionalType.CADGA],
             status: CandidateStatus.SEEKING,
             identity: { full_name: `FLT-TP-${suffix} B`, email: `ftp-b-${suffix}@test.local`, phone: '0600000001' },
         });
@@ -614,7 +884,7 @@ describe('candidatesPage with filters', () => {
                         totalCount
                     }
                 }`,
-                variables: { search: `FLT-TP-${suffix}`, filters: { tpType: 'SA' } },
+                variables: { search: `FLT-TP-${suffix}`, filters: { tpType: 'CADGA' } },
             }),
         });
         const json = await res.json();
@@ -624,9 +894,48 @@ describe('candidatesPage with filters', () => {
         const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
         expect(nodes).toHaveLength(2);
         expect(json.data.candidatesPage.totalCount).toBe(2);
-        expect(nodes.every((n: any) => n.tpTypes.includes('SA'))).toBe(true);
+        expect(nodes.every((n: any) => n.tpTypes.includes('CADGA'))).toBe(true);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-1`);
         expect(nodes.map((n: any) => n.id)).toContain(`${suffix}-rem-2`);
+    });
+
+    it('returns legacy SA TP documents as CADGA and filters them by CADGA', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `flt-tp-legacy-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-legacy`,
+            candidate_id: `${suffix}-legacy`,
+            tp_types: ['SA' as TitleProfessionalType],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-TP-LEGACY-${suffix}`,
+                email: `ftp-legacy-${suffix}@test.local`,
+                phone: '0600000002',
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id tpTypes } }
+                        totalCount
+                    }
+                }`,
+                variables: { search: `FLT-TP-LEGACY-${suffix}`, filters: { tpType: 'CADGA' } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].tpTypes).toEqual(['CADGA']);
     });
 
     it('filters by status', async () => {
@@ -721,6 +1030,69 @@ describe('candidatesPage with filters', () => {
         expect(nodes).toHaveLength(1);
         expect(nodes[0].id).toBe(`${suffix}-with`);
         expect(nodes[0].identity.drivingLicenseB).toBe(true);
+    });
+
+    it('filters by sex (exclusif)', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `flt-sx-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-fille`,
+            candidate_id: `${suffix}-fille`,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-SX-${suffix} FILLE`,
+                email: `fsx-f-${suffix}@test.local`,
+                phone: '0600000000',
+                sex: 'FILLE',
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-garcon`,
+            candidate_id: `${suffix}-garcon`,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-SX-${suffix} GARCON`,
+                email: `fsx-g-${suffix}@test.local`,
+                phone: '0600000001',
+                sex: 'GARCON',
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-unknown`,
+            candidate_id: `${suffix}-unknown`,
+            tp_types: [TitleProfessionalType.CC],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `FLT-SX-${suffix} UNKNOWN`,
+                email: `fsx-u-${suffix}@test.local`,
+                phone: '0600000002',
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $filters: CandidateFiltersInput) {
+                    candidatesPage(first: 10, search: $search, filters: $filters) {
+                        edges { node { id identity { sex } } }
+                    }
+                }`,
+                variables: { search: `FLT-SX-${suffix}`, filters: { sex: 'FILLE' } },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes).toHaveLength(1);
+        expect(nodes[0].id).toBe(`${suffix}-fille`);
+        expect(nodes[0].identity.sex).toBe('FILLE');
     });
 
     it('filters by geographicMobility (OR sur les villes souhaitées)', async () => {
@@ -987,5 +1359,184 @@ describe('candidatesPage search (identity.description $text + $regex)', () => {
         expect(json.errors).toBeUndefined();
         const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
         expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-dup`]);
+    });
+
+    it('searches by phone number when searchField is PHONE', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-phone-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-target`,
+            candidate_id: `${suffix}-target`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice-${suffix}@test.local`,
+                phone: `0692${suffix.slice(-4)}1234`,
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-other`,
+            candidate_id: `${suffix}-other`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Bob ${suffix}`,
+                email: `bob-${suffix}@test.local`,
+                phone: '0600000001',
+                description: `Bob ${suffix}, boulanger.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $searchField: CandidateSearchField) {
+                    candidatesPage(first: 10, search: $search, searchField: $searchField) {
+                        edges { node { id } }
+                    }
+                }`,
+                // Suffixe partiel du numéro ciblé : seule la fiche Alice doit ressortir.
+                variables: { search: `${suffix.slice(-4)}1234`, searchField: 'PHONE' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-target`]);
+    });
+
+    it('does not match a phone number when searching by name (default searchField)', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-phone-neg-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-a`,
+            candidate_id: `${suffix}-a`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice-${suffix}@test.local`,
+                phone: `0692${suffix.slice(-4)}7777`,
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: `0692${suffix.slice(-4)}` },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.length).toBe(0);
+    });
+
+    it('searches by email when searchField is EMAIL', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-mail-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-target`,
+            candidate_id: `${suffix}-target`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice-${suffix.slice(-4)}@test.local`,
+                phone: '0600000000',
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+        await repo.create({
+            _id: `${suffix}-other`,
+            candidate_id: `${suffix}-other`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Bob ${suffix}`,
+                email: `bob-${suffix.slice(-4)}@test.local`,
+                phone: '0600000001',
+                description: `Bob ${suffix}, boulanger.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!, $searchField: CandidateSearchField) {
+                    candidatesPage(first: 10, search: $search, searchField: $searchField) {
+                        edges { node { id } }
+                    }
+                }`,
+                // Le préfixe local (avant le @) est unique à la fiche ciblée ; le match
+                // doit rester restreint au champ email et non s'étendre au nom.
+                variables: { search: `alice-${suffix.slice(-4)}@`, searchField: 'EMAIL' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.map((n: any) => n.id)).toEqual([`${suffix}-target`]);
+    });
+
+    it('does not match an email, phone or ID by default name search', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = `srch-mail-neg-${Date.now()}`;
+        const repo = new CandidateRepository();
+
+        await repo.create({
+            _id: `${suffix}-a`,
+            candidate_id: `${suffix}-a`,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Alice ${suffix}`,
+                email: `alice${suffix}@test.local`,
+                phone: '0600000000',
+                description: `Alice ${suffix}, boulangère.`,
+            },
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Cookie: auth.cookieHeader, 'x-csrf-token': auth.csrfHeader },
+            body: JSON.stringify({
+                query: `query($search: String!) {
+                    candidatesPage(first: 10, search: $search) {
+                        edges { node { id } }
+                    }
+                }`,
+                variables: { search: 'alice@' },
+            }),
+        });
+        const json = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        const nodes = json.data.candidatesPage.edges.map((e: any) => e.node);
+        expect(nodes.length).toBe(0);
     });
 });

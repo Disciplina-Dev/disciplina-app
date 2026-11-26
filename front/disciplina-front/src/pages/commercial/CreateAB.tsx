@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCompanies } from '@/graphql/hooks'
-import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useCurrentUser } from '@/store/authStore'
 import NeedsAnalysisModal from '@/features/abEntreprise/components/NeedsAnalysisModal'
 import type { Entreprise } from '@/types/entreprise'
@@ -12,10 +11,9 @@ export default function CreateAB() {
   const [selected, setSelected] = useState<Entreprise | null>(null)
   const [search, setSearch] = useState('')
 
-  useCompanies()
-  const companies = usePortefeuilleStore((s) => s.companies)
+  const { entreprises, fetching } = useCompanies()
 
-  const filtered = companies.filter((c) =>
+  const filtered = entreprises.filter((c) =>
     c.nom_commercial?.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -42,16 +40,18 @@ export default function CreateAB() {
       />
       <ul className="border rounded-lg divide-y max-h-96 overflow-y-auto">
         {filtered.length === 0 && (
-          <li className="px-4 py-3 text-gray-500 text-sm">Aucune entreprise trouvée</li>
+          <li className="px-4 py-3 text-[var(--ds-text-subtle)] text-sm">
+            {fetching ? 'Chargement…' : 'Aucune entreprise trouvée'}
+          </li>
         )}
         {filtered.map((c) => (
           <li
             key={c.id}
             onClick={() => setSelected(c)}
-            className="px-4 py-3 cursor-pointer hover:bg-blue-50 transition-colors"
+            className="px-4 py-3 cursor-pointer hover:bg-[var(--ds-accent-soft)] transition-colors"
           >
             <span className="font-medium">{c.nom_commercial}</span>
-            {c.siret && <span className="ml-2 text-xs text-gray-400">SIRET {c.siret}</span>}
+            {c.siret && <span className="ml-2 text-xs text-[var(--ds-text-subtle)]">SIRET {c.siret}</span>}
           </li>
         ))}
       </ul>

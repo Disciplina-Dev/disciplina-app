@@ -6,6 +6,8 @@ import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { env } from '../../../config/env';
 import { OfferStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
+import { getModels } from '../../../db/mongo/tenant';
+import pool from '../../../db/mysql/connection';
 
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/candidates`;
 
@@ -38,6 +40,14 @@ describe('GraphQL candidate mutations', () => {
                                 fullName: `Alice ${suffix}`,
                                 email: `alice-${suffix}@test.local`,
                                 phone: '0100000001',
+                            },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: '2026-11-v2',
                             },
                         },
                     },
@@ -99,6 +109,14 @@ describe('GraphQL candidate mutations', () => {
                                 englishLevel: 4,
                                 readyForChallenges: true,
                             },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: '2026-11-v2',
+                            },
                         },
                     },
                 }),
@@ -115,6 +133,89 @@ describe('GraphQL candidate mutations', () => {
             expect(c.profile.frenchLevel).toBe(7);
             expect(c.profile.englishLevel).toBe(4);
             expect(c.profile.readyForChallenges).toBe(true);
+        });
+
+        it('stores and returns the optional job search platforms field', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+
+            const createRes = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($input: CreateCandidateInput!) {
+                            createCandidate(input: $input) {
+                                id
+                                jobInfo { discoverySource jobSearchPlatforms }
+                            }
+                        }
+                    `,
+                    variables: {
+                        input: {
+                            status: CandidateStatus.SEEKING,
+                            tpTypes: ['CC'],
+                            identity: {
+                                fullName: `Plats ${suffix}`,
+                                email: `plats-${suffix}@test.local`,
+                                phone: '0100000003',
+                            },
+                            jobInfo: {
+                                discoverySource: 'SOCIAL_MEDIA',
+                                jobSearchPlatforms: 'Indeed, Leboncoin, France Travail',
+                            },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: '2026-11-v2',
+                            },
+                        },
+                    },
+                }),
+            });
+            const created = await createRes.json();
+
+            expect(createRes.status).toBe(200);
+            expect(created.errors).toBeUndefined();
+            expect(created.data.createCandidate.jobInfo.discoverySource).toBe('SOCIAL_MEDIA');
+            expect(created.data.createCandidate.jobInfo.jobSearchPlatforms).toBe(
+                'Indeed, Leboncoin, France Travail',
+            );
+
+            const updateRes = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) {
+                                id
+                                jobInfo { jobSearchPlatforms }
+                            }
+                        }
+                    `,
+                    variables: {
+                        id: created.data.createCandidate.id,
+                        input: { jobInfo: { jobSearchPlatforms: 'Hellowork' } },
+                    },
+                }),
+            });
+            const updated = await updateRes.json();
+
+            expect(updateRes.status).toBe(200);
+            expect(updated.errors).toBeUndefined();
+            expect(updated.data.updateCandidate.jobInfo.jobSearchPlatforms).toBe('Hellowork');
         });
 
         it('applies template defaults for skills_assessment when not provided', async () => {
@@ -144,6 +245,14 @@ describe('GraphQL candidate mutations', () => {
                                 fullName: `Carol ${suffix}`,
                                 email: `carol-${suffix}@test.local`,
                                 phone: '0100000003',
+                            },
+                            consentments: {
+                                dataProcessing: true,
+                                dataSharing: false,
+                                aiProcessing: false,
+                                photoProcessing: false,
+                                consentDate: new Date().toISOString(),
+                                consentVersion: '2026-11-v2',
                             },
                         },
                     },
@@ -316,6 +425,81 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.immersionEndDate).toContain('2026-09-15');
         });
 
+        it('stores an immersion schedule split into morning and afternoon shifts', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-imm-schedule-${suffix}`,
+                candidate_id: `update-imm-schedule-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Imm Schedule ${suffix}`,
+                    email: `imm-schedule-${suffix}@test.local`,
+                    phone: '0100000031',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) {
+                            id
+                            immersionSchedule {
+                                day morningStartHour morningEndHour afternoonStartHour afternoonEndHour
+                            }
+                        }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            status: 'IMMERSING',
+                            immersionSchedule: [
+                                {
+                                    day: 'Lundi',
+                                    morningStartHour: '08:00',
+                                    morningEndHour: '12:00',
+                                    afternoonStartHour: '14:00',
+                                    afternoonEndHour: '17:00',
+                                },
+                                // Journée sans coupure : fin de matinée et début
+                                // d'après-midi absents, ce qui reste accepté.
+                                { day: 'Mardi', morningStartHour: '09:00', afternoonEndHour: '16:00' },
+                            ],
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.immersionSchedule).toEqual([
+                {
+                    day: 'Lundi',
+                    morningStartHour: '08:00',
+                    morningEndHour: '12:00',
+                    afternoonStartHour: '14:00',
+                    afternoonEndHour: '17:00',
+                },
+                {
+                    day: 'Mardi',
+                    morningStartHour: '09:00',
+                    morningEndHour: null,
+                    afternoonStartHour: null,
+                    afternoonEndHour: '16:00',
+                },
+            ]);
+        });
+
         it('stores contract offer/company/start date when moving to CONTRACT', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();
@@ -339,7 +523,7 @@ describe('GraphQL candidate mutations', () => {
                 body: JSON.stringify({
                     query: `mutation($id: String!, $input: UpdateCandidateInput!) {
                         updateCandidate(id: $id, input: $input) {
-                            id status contractOfferId contractCompanyId contractCompanyName contractStartDate
+                            id status contractOfferId contractCompanyId contractCompanyName contractStartDate contractTrialEndDate contractSessionId contractSessionName
                         }
                     }`,
                     variables: {
@@ -350,6 +534,9 @@ describe('GraphQL candidate mutations', () => {
                             contractCompanyId: 42,
                             contractCompanyName: `Entreprise ${suffix}`,
                             contractStartDate: '2026-10-01',
+                            contractTrialEndDate: '2026-12-03',
+                            contractSessionId: 'session-1',
+                            contractSessionName: `Session ${suffix}`,
                         },
                     },
                 }),
@@ -363,6 +550,9 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.contractCompanyId).toBe(42);
             expect(json.data.updateCandidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
             expect(json.data.updateCandidate.contractStartDate).toContain('2026-10-01');
+            expect(json.data.updateCandidate.contractTrialEndDate).toContain('2026-12-03');
+            expect(json.data.updateCandidate.contractSessionId).toBe('session-1');
+            expect(json.data.updateCandidate.contractSessionName).toBe(`Session ${suffix}`);
 
             // Verify persisted via a follow-up query
             const verify = await fetch(ENDPOINT, {
@@ -373,13 +563,16 @@ describe('GraphQL candidate mutations', () => {
                     'x-csrf-token': auth.csrfHeader,
                 },
                 body: JSON.stringify({
-                    query: `query($id: String!) { candidate(id: $id) { contractCompanyName contractStartDate } }`,
+                    query: `query($id: String!) { candidate(id: $id) { contractCompanyName contractStartDate contractTrialEndDate contractSessionId contractSessionName } }`,
                     variables: { id: seeded._id },
                 }),
             });
             const vjson = await verify.json();
             expect(vjson.data.candidate.contractCompanyName).toBe(`Entreprise ${suffix}`);
             expect(vjson.data.candidate.contractStartDate).toContain('2026-10-01');
+            expect(vjson.data.candidate.contractTrialEndDate).toContain('2026-12-03');
+            expect(vjson.data.candidate.contractSessionId).toBe('session-1');
+            expect(vjson.data.candidate.contractSessionName).toBe(`Session ${suffix}`);
         });
 
         it('syncs linked offer status to CONTRACT when moving to CONTRACT', async () => {
@@ -435,6 +628,79 @@ describe('GraphQL candidate mutations', () => {
 
             const offer = await offerRepo.findById(offerId);
             expect(offer?.matching?.status).toBe(OfferStatus.CONTRACT);
+        });
+
+        it('credits the CONTRACT KPI to the acting RH sector even without a contract company', async () => {
+            // Accident #1186 : un dossier sans `owner` (import) passe en contrat via
+            // « Non renseigné » ; le KPI était rangé dans un secteur vide et disparaissait
+            // du tableau de bord RH filtré sur le secteur du RH.
+            const suffix = Date.now();
+            const conn = await pool.getConnection();
+            let rhId: number;
+            try {
+                const [result] = await conn.execute(
+                    'INSERT INTO users (email, first_name, last_name, password, role_id, permission_id) VALUES (?, ?, ?, ?, ?, ?)',
+                    [`kpi-contract-${suffix}@test.local`, 'Kpi', 'Contrat', 'pwd', 2, 3],
+                );
+                rhId = (result as any).insertId;
+                await conn.execute(
+                    "INSERT INTO user_sectors (user_id, sector_id) SELECT ?, id FROM sectors WHERE level IN ('region', 'sector') AND label = ?",
+                    [rhId, 'Sud'],
+                );
+            } finally {
+                conn.release();
+            }
+            const auth = mintAuthCookies({
+                id: rhId,
+                email: `kpi-contract-${suffix}@test.local`,
+                role: 'RH',
+                permission: 'EMPLOYEE',
+            });
+            const repo = new CandidateRepository();
+            const candidateId = `update-contract-kpi-${suffix}`;
+
+            const seeded = await repo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Hana ${suffix}`,
+                    email: `hana-${suffix}@test.local`,
+                    phone: '0100000012',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `mutation($id: String!, $input: UpdateCandidateInput!) {
+                        updateCandidate(id: $id, input: $input) { id status contractCompanyName }
+                    }`,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            status: 'CONTRACT',
+                            contractCompanyName: 'Non renseigné',
+                            contractStartDate: '2026-10-01',
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.status).toBe('CONTRACT');
+
+            const buckets = await getModels().Kpi.find({ kind: 'rh', user_id: rhId }).lean();
+            expect(buckets).toHaveLength(1);
+            expect(buckets[0].sector).toBe('Sud');
+            expect((buckets[0].metrics as Record<string, number>).contracts).toBe(1);
         });
 
         it('does not sync linked offer status when moving to a non-contract status', async () => {
@@ -541,6 +807,110 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.identity.fullName).toBe(`Eve Updated ${suffix}`);
             expect(json.data.updateCandidate.identity.city).toBe('Saint Paul');
             expect(json.data.updateCandidate.identity.transportMeans).toBe('Car');
+        });
+
+        it('protège une description manuelle lors d’une mise à jour partielle', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-manual-desc-${suffix}`,
+                candidate_id: `update-manual-desc-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Noah ${suffix}`,
+                    email: `noah-${suffix}@test.local`,
+                    phone: '0100000088',
+                    description: 'Résumé personnalisé par le RH.',
+                    description_source: 'manual',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) {
+                                id identity { description descriptionSource }
+                            }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: { status: CandidateStatus.NOT_SEEKING },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.identity.description).toBe('Résumé personnalisé par le RH.');
+            expect(json.data.updateCandidate.identity.descriptionSource).toBe('manual');
+        });
+
+        it('transmet descriptionSource au service (« Régénérer » repasse en auto)', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-desc-source-${suffix}`,
+                candidate_id: `update-desc-source-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Léa ${suffix}`,
+                    email: `lea-${suffix}@test.local`,
+                    phone: '0100000089',
+                    description: 'Résumé personnalisé par le RH.',
+                    description_source: 'manual',
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `
+                        mutation($id: String!, $input: UpdateCandidateInput!) {
+                            updateCandidate(id: $id, input: $input) {
+                                id identity { description descriptionSource }
+                            }
+                        }
+                    `,
+                    variables: {
+                        id: seeded._id,
+                        input: {
+                            identity: {
+                                fullName: `Léa ${suffix}`,
+                                email: `lea-${suffix}@test.local`,
+                                phone: '0100000089',
+                                description: 'Résumé régénéré depuis la fiche.',
+                                descriptionSource: 'auto',
+                            },
+                        },
+                    },
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.identity.description).toBe('Résumé régénéré depuis la fiche.');
+            expect(json.data.updateCandidate.identity.descriptionSource).toBe('auto');
         });
 
         it('rejects update when the new email is already used by another candidate', async () => {

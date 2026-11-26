@@ -13,6 +13,8 @@ import {
     getSignature,
     putSignature,
     deleteSignature,
+    getCommercialSignature,
+    putCommercialSignature,
 } from './controller';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -21,6 +23,10 @@ export const router: Router = Router();
 
 const access = [authenticate, requireRoles('AD', 'GESTION', 'RH', 'COMMERCIAL', 'PEDA')];
 const json = express.json({ limit: '2mb' });
+
+// Signature commerciale textuelle (section ajoutée au mail AB à signer) — par user commercial.
+router.get('/commercial-signature', ...access, getCommercialSignature);
+router.put('/commercial-signature', ...access, json, putCommercialSignature);
 
 // Signature (une par user + scope) — déclarée avant '/:id' pour ne pas être captée comme un id.
 router.get('/signature', ...access, getSignature);

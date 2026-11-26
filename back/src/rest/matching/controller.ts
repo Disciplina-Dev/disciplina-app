@@ -26,7 +26,16 @@ export async function handleMatchResponse(req: Request, res: Response) {
 
     try {
         const status = answer === 'oui' ? MatchedCandidateStatus.ACCEPTED : MatchedCandidateStatus.DECLINED;
-        await offerService.updateMatchedCandidateStatus(offerId, candidateId, status);
+        const updated = await offerService.updateMatchedCandidateStatus(offerId, candidateId, status);
+        if (!updated) {
+            // Lien signé mais candidat absent de l'offre (ex. mail envoyé avant
+            // l'enregistrement du match) : ne pas afficher une confirmation trompeuse.
+            logger.warn(
+                { offerId, candidateId, answer },
+                '[matching] response ignored: candidate not matched on offer',
+            );
+            return res.status(404).send(confirmationPage("Cette proposition n'est plus disponible.", false));
+        }
         logger.info({ offerId, candidateId, answer }, '[matching] response handled');
     } catch (err) {
         logger.error({ err }, '[matching] response error');

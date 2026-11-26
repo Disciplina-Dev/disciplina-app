@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { randomBytes } from 'crypto';
 import { env } from '../../config/env';
+import type { Region } from '../../types/tenant';
 
 export const ACCESS_TOKEN_COOKIE = 'disc_at';
 export const REFRESH_TOKEN_COOKIE = 'disc_rt';
@@ -8,14 +9,18 @@ export const CSRF_COOKIE = 'disc_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 
 export interface AccessTokenPayload {
-    id: number;
-    email: string;
+    id?: number;
+    email?: string;
     role: string;
     permission: string;
+    region?: Region;
+    signature?: string;
+    referenceId?: number;
 }
 
 export interface RefreshTokenPayload {
     id: number;
+    region?: Region;
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {

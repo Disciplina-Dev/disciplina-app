@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { X, Loader2, MessageSquare, Search } from 'lucide-react'
+import { IconClose, IconLoader, IconMessage, IconSearch } from '@/components/ui/icons'
 import type { EntrepriseConflit } from '@/types/entreprise'
 import { usePortefeuilleStore } from '@/store/portefeuilleStore'
 import { useSalePersons, useUpdateCompanyConflict, useResolveCompanyConflict } from '@/graphql/hooks'
@@ -37,7 +37,7 @@ function toForm(entreprise: EntrepriseConflit): ResolverForm {
 }
 
 const inputClass =
-  'w-full rounded-lg border border-gray-200 px-2.5 py-1.5 text-[13px] outline-none focus:border-blue'
+  'w-full rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-[13px] outline-none focus:border-blue'
 
 export default function ConflictResolverModal({ entreprise, onClose }: Props) {
   const salePersons = usePortefeuilleStore((s) => s.salePersons)
@@ -123,33 +123,33 @@ export default function ConflictResolverModal({ entreprise, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
       <div
-        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl mx-4 sm:mx-0"
+        className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl bg-[var(--ds-surface)] shadow-xl mx-4 sm:mx-0"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-gray-100">
+        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-[var(--ds-border)]">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-1">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ds-text-subtle)] mb-1">
               {conflictLabel(entreprise.conclusion)}
             </p>
-            <h3 className="text-[16px] font-bold text-gray-900">Résoudre le conflit</h3>
+            <h3 className="text-[16px] font-bold text-[var(--ds-text)]">Résoudre le conflit</h3>
           </div>
           <button
             onClick={onClose}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)] transition-colors"
           >
-            <X className="h-4 w-4" />
+            <IconClose className="h-4 w-4" />
           </button>
         </div>
 
         {entreprise.note?.trim() && (
-          <div className="mx-5 mt-4 rounded-lg bg-gray-50 border border-gray-100 px-3.5 py-3">
+          <div className="mx-5 mt-4 rounded-lg bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] px-3.5 py-3">
             <div className="flex gap-2.5">
-              <MessageSquare className="h-3.5 w-3.5 shrink-0 text-gray-300 mt-[1px]" />
+              <IconMessage className="h-3.5 w-3.5 shrink-0 text-[var(--ds-text-subtle)] mt-[1px]" />
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ds-text-subtle)] mb-0.5">
                   Détail du conflit
                 </p>
-                <p className="text-[13px] leading-relaxed text-gray-600 whitespace-pre-wrap">{entreprise.note}</p>
+                <p className="text-[13px] leading-relaxed text-[var(--ds-text-muted)] whitespace-pre-wrap">{entreprise.note}</p>
               </div>
             </div>
           </div>
@@ -177,15 +177,15 @@ export default function ConflictResolverModal({ entreprise, onClose }: Props) {
                   onClick={handleFetchSourcing}
                   disabled={sourcingLoading || normalizeSiret(form.siret).length !== 14}
                   title="Récupérer les infos via le SIRET"
-                  className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-gray-200 px-2.5 text-[12px] font-semibold text-gray-500 hover:bg-gray-50 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="shrink-0 flex items-center justify-center gap-1 rounded-lg border border-[var(--ds-border)] px-2.5 text-[12px] font-semibold text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {sourcingLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                  {sourcingLoading ? <IconLoader className="h-3.5 w-3.5 animate-spin" /> : <IconSearch className="h-3.5 w-3.5" />}
                 </button>
               </div>
-              {sourcingError && <p className="text-[11px] text-danger">{sourcingError}</p>}
+              {sourcingError && <p className="text-[11px] text-[var(--ds-danger)]">{sourcingError}</p>}
             </div>
           ) : form.siret ? (
-            <div className="flex items-center gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-[13px] font-mono text-gray-500">
+            <div className="flex items-center gap-2 rounded-lg bg-[var(--ds-surface-sunken)] px-2.5 py-1.5 text-[13px] font-mono text-[var(--ds-text-subtle)]">
               {form.siret}
             </div>
           ) : null}
@@ -225,7 +225,7 @@ export default function ConflictResolverModal({ entreprise, onClose }: Props) {
 
           {config.requiresCommercial && (
             <div>
-              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+              <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--ds-text-subtle)]">
                 Commercial à assigner
               </label>
               <select
@@ -244,14 +244,14 @@ export default function ConflictResolverModal({ entreprise, onClose }: Props) {
           )}
 
           {error && (
-            <div className="rounded-xl border border-danger/20 bg-danger-bg px-3 py-2 text-xs text-danger">{error}</div>
+            <div className="rounded-xl border border-danger/20 bg-[var(--ds-danger-bg)] px-3 py-2 text-xs text-[var(--ds-danger)]">{error}</div>
           )}
         </div>
 
         <div className="flex gap-2 px-5 pb-5 pt-2">
           <button
             onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-200 py-2 text-[12px] font-semibold text-gray-600 hover:bg-gray-50 transition-all"
+            className="flex-1 rounded-lg border border-[var(--ds-border)] py-2 text-[12px] font-semibold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] transition-all"
           >
             Annuler
           </button>
@@ -261,7 +261,7 @@ export default function ConflictResolverModal({ entreprise, onClose }: Props) {
             className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-blue/20 bg-blue-light py-2 text-[12px] font-semibold text-blue hover:bg-blue hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {(submitting || updateResult.fetching || resolveResult.fetching) && (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <IconLoader className="h-3.5 w-3.5 animate-spin" />
             )}
             Enregistrer et résoudre
           </button>

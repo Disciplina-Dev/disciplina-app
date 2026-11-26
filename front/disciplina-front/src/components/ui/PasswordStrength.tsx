@@ -1,7 +1,7 @@
 type StrengthLevel = 0 | 1 | 2 | 3 | 4
 
 const SEGMENT_COLORS: Record<StrengthLevel, string> = {
-  0: 'bg-gray-100',
+  0: 'bg-[var(--ds-surface-sunken)]',
   1: 'bg-danger',
   2: 'bg-warning',
   3: 'bg-success',
@@ -9,11 +9,11 @@ const SEGMENT_COLORS: Record<StrengthLevel, string> = {
 }
 
 const LABEL_COLORS: Record<StrengthLevel, string> = {
-  0: 'text-gray-300',
-  1: 'text-danger',
-  2: 'text-warning',
-  3: 'text-success',
-  4: 'text-success',
+  0: 'text-[var(--ds-text-subtle)]',
+  1: 'text-[var(--ds-danger)]',
+  2: 'text-[var(--ds-warning)]',
+  3: 'text-[var(--ds-success)]',
+  4: 'text-[var(--ds-success)]',
 }
 
 const LABELS: Record<StrengthLevel, string> = {
@@ -49,7 +49,7 @@ export default function PasswordStrength({ password }: PasswordStrengthProps) {
             key={i}
             className={[
               'h-1.5 flex-1 rounded-full transition-colors',
-              i <= strength ? SEGMENT_COLORS[strength] : 'bg-gray-100',
+              i <= strength ? SEGMENT_COLORS[strength] : 'bg-[var(--ds-surface-sunken)]',
             ].join(' ')}
           />
         ))}

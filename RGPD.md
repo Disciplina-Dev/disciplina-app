@@ -68,7 +68,7 @@
 export interface CandidateConsentments {
     data_processing: boolean       // Traitement général (obligatoire)
     data_sharing: boolean          // Partage avec entreprises
-    ai_processing: boolean         // Résumé IA via Ollama
+    ai_processing: boolean         // Résumé IA local (Ollama) + assistant IA tiers (MCP) depuis 2026-11-v2
     photo_processing: boolean      // Stockage photo/avatar
     data_retention_years: number   // Durée acceptée (ex: 3)
     consent_date: Date
@@ -210,6 +210,7 @@ Aucune trace d'un registre des activités de traitement. Obligatoire pour toute 
 | Gestion candidats | Accompagnement alternance | Contrat + consentement | Nom, email, tel, N° SS, CV, photo | Entreprises partenaires | 3 ans après dernier contact | Google Drive, Ollama | Google (USA) |
 | Matching offres | Mise en relation | Contrat + consentement | Nom, compétences, CV | Entreprises via portail | 1 an après offre | DocuSeal | DocuSeal (USA) |
 | Tests ClassMarker | Évaluation | Contrat | Nom, résultats | Interne | 2 ans | ClassMarker | ClassMarker (USA) |
+| Questionnaires internes (#968, remplace ClassMarker) | Évaluation du positionnement | Mesures précontractuelles | Réponses, score, durée, nb de changements d'onglet (nom/email lus depuis la fiche, non ressaisis) | Interne (RH) ; PDF sur le Drive du candidat si Google connecté | Avec la fiche candidat (supprimé avec elle) ; invitation jamais commencée purgée à expiration | Aucun (Google Drive pour le PDF) | Aucun hors Drive |
 | Monitoring Sentry | Détection d'erreurs | Intérêt légitime | Logs, replay UI | Sentry | 30 jours | Sentry.io | Sentry (Allemagne) |
 | Envoi d'emails | Communication | Contrat | Email, contenu | Google Gmail | 1 an | Google | Google (USA) |
 | Signature électronique | Analyse de besoin | Contrat | Nom, signature | DocuSeal | 5 ans | DocuSeal | DocuSeal (USA) |
@@ -1036,7 +1037,7 @@ const html = `
 - [ ] **F1** Ajouter le consentement explicite des candidats (checkbox + stockage)
 - [x] **F2** Créer et publier la politique de confidentialité (`/privacy`) — *corpus rédigé et publié ; placeholders et relecture juridique en attente*
 - [ ] **F3** Créer le registre des traitements
-- [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification
+- [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification — *retrait de consentement + historique faits (GDPR_INF_08.2, `withdrawCandidateConsent`)*
 - [x] **F5** Chiffrer le numéro de sécurité sociale en base — *AES-256-GCM, cf. `external/crypto/ssn-cipher.ts`*
 - [ ] **F11** Nettoyer les secrets du dépôt Git + `.gitignore`
 - [ ] **F15** Ajouter mentions légales + footer RGPD sur les portails publics — *fait côté portails et footer applicatif ; reste les templates d'emails*
@@ -1053,7 +1054,7 @@ const html = `
 
 - [ ] **F10** Chiffrer les avatars stockés en base
 - [ ] **F13** Restreindre les accès Drive par dossier + valider la minimisation
-- [ ] **F14** Ajouter les logs d'accès (consultation, export) en base
+- [x] **F14** Ajouter les logs d'accès (consultation, export) en base — `candidate_access_log` (GDPR_INF_06.5)
 - [ ] **F7** Basculer DocuSeal vers `api.docuseal.eu`
 - [ ] **F11** Remplacer les secrets faibles (`JWTSecret974` → `openssl rand -hex 32`)
 
@@ -1067,6 +1068,6 @@ const html = `
 - [x] Audit trails (company_history, candidate_history, offer_history)
 - [x] CSRF double-submit cookie
 - [x] Redaction des PII dans les logs (email, téléphone, N° SS, dates naissance)
-- [x] Ollama hébergé localement (pas de transfert IA vers le cloud)
+- [x] Ollama hébergé localement (pas de transfert IA vers le cloud) — **hors serveur MCP** : le MCP expose des données à un LLM tiers, voir [`MCP_RGPD_AUDIT.md`](MCP_RGPD_AUDIT.md) et [`rgpd/registre-mcp.md`](rgpd/registre-mcp.md)
 - [x] Webhooks vérifiés par HMAC (ClassMarker, DocuSeal, YouSign)
 - [x] CSP et HSTS activés en production

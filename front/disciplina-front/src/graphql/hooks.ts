@@ -31,24 +31,36 @@ import {
   GET_NEEDS_ANALYSIS,
   DELETE_NEEDS_ANALYSIS,
   UPDATE_NEEDS_ANALYSIS,
+  UPDATE_NEEDS_ANALYSIS_AB_STATUS,
+  UPDATE_NEEDS_ANALYSIS_INDICATOR,
+  UPDATE_NEEDS_ANALYSIS_TRACKING,
+  UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE,
+  SET_AB_RELANCE_DISABLED,
+  SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY,
   GET_COMPANY_HISTORY,
   GET_CONTACT_LOGS,
   GET_CONTACT_LOG_STATS,
   CREATE_CONTACT_LOG,
   GET_CANDIDATE_HISTORY,
+  GET_CANDIDATE_CONSENT_HISTORY,
+  WITHDRAW_CANDIDATE_CONSENT,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
   GET_OFFER_HISTORY,
   ADD_OFFER_HISTORY_ENTRY,
   DELETE_OFFER_HISTORY_ENTRY,
+  UPDATE_OFFER_ACTIVE,
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
-import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
+import type { Candidate, CandidateConsentEvent, CandidateConsentments, CandidateHistoryEntry, ConsentTypeKey } from '@/types/candidate'
+import type { Entreprise, CompanyWithSalePerson } from '@/types/entreprise'
+import { toEntreprise } from '@/types/companyMapper'
 import { apiJson } from '@/api/httpClient'
 import type { PageInfo } from '@/types/pagination'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import type { OfferFilterInput } from '@/features/matching/services/jobFilters'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
+import { toImmersionScheduleInput } from '@/utils/schedule'
 
 export interface CandidateServerFilters {
   trainingSite?: TrainingSite
@@ -56,6 +68,8 @@ export interface CandidateServerFilters {
   statusIn?: CandidateStatus[]
   schoolLevel?: SchoolLevel
   drivingLicenseB?: boolean
+  /** Sexe du candidat (FILLE / GARCON), exclusif. */
+  sex?: string
   ageMin?: number
   ageMax?: number
   tpType?: TitleProfessionalType[]
@@ -71,47 +85,24 @@ export interface CandidateServerFilters {
   /** Filtrer par le RH qui a mené l'entretien (nom complet). */
   interviewedBy?: string
 }
-import { candidateGraphqlClient, offerGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
+import { candidateGraphqlClient, offerGraphqlClient, needsAnalysisGraphqlClient, NEEDS_ANALYSIS_URL } from './client'
 
+/**
+ * Liste légère non paginée (première page) pour les sélecteurs simples, ex.
+ * « nouvelle analyse du besoin ». N'écrit plus dans le store du portefeuille :
+ * celui-ci est alimenté par `useInitializePortfolio` (paginé, filtré) et un jeu
+ * de résultats partiel ne doit jamais l'écraser.
+ */
 export function useCompanies() {
-  const setCompanies = usePortefeuilleStore((s) => s.setCompanies)
-  const setLoading = usePortefeuilleStore((s) => s.setLoading)
-  const setError = usePortefeuilleStore((s) => s.setError)
-
   const [result] = useQuery({ query: GET_COMPANIES })
-  useEffect(() => {
-    setLoading(result.fetching)
-    if (result.error) {
-      setError(result.error.message)
-    } else if (result.data?.companies) {
-      const entreprises = result.data.companies.edges.map(({ node: c }: any) => ({
-        id: String(c.company.id),
-        nom_commercial: c.company.name,
-        proprietaire_contact: c.salePerson?.email || null,
-        commercial: c.salePerson ? `${c.salePerson.firstName ?? ''} ${c.salePerson.lastName ?? ''}`.trim() || null : null,
-        proprietaire_id: c.salePerson?.id || null,
-        representant_legal: c.company.legalReferent || null,
-        telephone: c.company.phone,
-        email: c.company.email,
-        adresse: c.company.address,
-        secteur: c.company.sector,
-        metier: c.company.mainActivity,
-        siret: c.company.siret,
-        idcc: c.company.idcc,
-        note: c.company.notes,
-        conclusion: c.company.conclusion,
-        status: (c.company.status as any) || 'À Réfléchir',
-        date_insertion: new Date().toISOString().split('T')[0],
-        date_relance: c.company.relanceDate ?? null,
-        type_relance: c.company.relanceType ?? null,
-        relance_template_id: c.company.relanceTemplateId ?? null,
-      }))
-      setCompanies(entreprises)
-      setError(null)
-    }
-  }, [result])
-
-  return result
+  const edges: { node: CompanyWithSalePerson }[] = result.data?.companies?.edges ?? []
+  const entreprises: Entreprise[] = edges.map(({ node }) => ({
+    ...toEntreprise(node.company, node.salePerson),
+    // Le propriétaire vient du commercial rattaché, comme dans le portefeuille.
+    proprietaire_contact: node.salePerson?.email || null,
+    proprietaire_id: node.salePerson?.id ?? null,
+  }))
+  return { ...result, entreprises }
 }
 
 export function useSalePersons() {
@@ -157,8 +148,6 @@ export function useCreateCompany() {
 
   const createCompany = (input: any) => {
     return executeMutation({ input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.createCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.createCompany.userID);
@@ -201,8 +190,6 @@ export function useUpdateCompany() {
 
   const update = async (id: number, input: any) => {
     return executeMutation({ id, input }).then((response) => {
-      if (response.error) {
-      }
       if (response.data?.updateCompany) {
         const salePersons = usePortefeuilleStore.getState().salePersons;
         const salePerson = salePersons.find((sp) => sp.id === response.data.updateCompany.userID);
@@ -381,6 +368,9 @@ function fromGql(c: any): Candidate {
       : undefined,
     tp_types: (c.tpTypes?.length ? c.tpTypes : c.tpType ? [c.tpType] : []).map(mapTpType),
     status: c.status as CandidateStatus,
+    written_test_score: c.writtenTestScore ?? undefined,
+    test_average: c.testAverage ?? undefined,
+    test_failure_pending: c.testFailurePending ?? undefined,
     training_site: c.trainingSite,
     training_sites: c.trainingSites ?? (c.trainingSite ? [c.trainingSite] : []),
     immersion_agreement: c.immersionAgreement,
@@ -388,10 +378,17 @@ function fromGql(c: any): Candidate {
     immersion_end_date: c.immersionEndDate ?? undefined,
     immersion_company_id: c.immersionCompanyId ?? undefined,
     immersion_company_name: c.immersionCompanyName ?? undefined,
+    immersion_convention_number: c.immersionConventionNumber ?? undefined,
+    immersion_schedule: c.immersionSchedule
+      ? toImmersionScheduleInput(c.immersionSchedule)
+      : undefined,
     contract_offer_id: c.contractOfferId ?? undefined,
     contract_company_id: c.contractCompanyId ?? undefined,
     contract_company_name: c.contractCompanyName ?? undefined,
     contract_start_date: c.contractStartDate ?? undefined,
+    contract_trial_end_date: c.contractTrialEndDate ?? undefined,
+    contract_session_id: c.contractSessionId ?? undefined,
+    contract_session_name: c.contractSessionName ?? undefined,
     desired_sectors: c.desiredSectors,
     expected_company_skills: c.expectedCompanySkills,
     identity: {
@@ -476,6 +473,7 @@ function fromGql(c: any): Candidate {
           geographic_mobility: c.jobInfo.geographicMobility,
           weekend_work: c.jobInfo.weekendWork,
           discovery_source: c.jobInfo.discoverySource,
+          job_search_platforms: c.jobInfo.jobSearchPlatforms ?? undefined,
         }
       : undefined,
     synthesis: c.synthesis
@@ -498,10 +496,12 @@ function fromGql(c: any): Candidate {
               }
             : undefined,
           other_recommendations: c.synthesis.otherRecommendations,
+          important_note: c.synthesis.importantNote,
           location: c.synthesis.location,
           date: c.synthesis.date,
           recruiter_signature: c.synthesis.recruiterSignature,
           candidate_signature: c.synthesis.candidateSignature,
+          interviewed_by: c.synthesis.interviewedBy,
         }
       : undefined,
     pdf_link: c.pdfLink,
@@ -512,6 +512,16 @@ function fromGql(c: any): Candidate {
     created_at: c.createdAt,
     last_relance_at: c.lastRelanceAt ?? undefined,
     relance_response_at: c.relanceResponseAt ?? undefined,
+    relance_count: c.relanceCount ?? undefined,
+    relance_history: c.relanceHistory?.map((e: any) => ({
+      sent_at: e.sentAt,
+      kind: e.kind,
+      template_id: e.templateId ?? undefined,
+      subject: e.subject ?? undefined,
+      sent_by: e.sentBy ?? undefined,
+      response_at: e.responseAt ?? undefined,
+      answer: e.answer ?? undefined,
+    })),
     emergency_contact: c.emergencyContact
       ? {
           last_name: c.emergencyContact.lastName ?? undefined,
@@ -519,6 +529,16 @@ function fromGql(c: any): Candidate {
           relationship: c.emergencyContact.relationship ?? undefined,
           phone: c.emergencyContact.phone ?? undefined,
           email: c.emergencyContact.email ?? undefined,
+        }
+      : undefined,
+    consentments: c.consentments
+      ? {
+          data_processing: c.consentments.dataProcessing,
+          data_sharing: c.consentments.dataSharing,
+          ai_processing: c.consentments.aiProcessing,
+          photo_processing: c.consentments.photoProcessing,
+          consent_date: c.consentments.consentDate,
+          consent_version: c.consentments.consentVersion,
         }
       : undefined,
   }
@@ -529,15 +549,23 @@ function toGqlUpdateInput(c: Candidate): any {
   return {
     ...(c.tp_types !== undefined && { tpTypes: c.tp_types }),
     status: c.status,
+    ...(c.written_test_score !== undefined && { writtenTestScore: c.written_test_score }),
+    ...(c.test_average !== undefined && { testAverage: c.test_average }),
+    ...(c.test_failure_pending !== undefined && { testFailurePending: c.test_failure_pending }),
     ...(c.training_sites !== undefined && { trainingSites: c.training_sites }),
     ...(c.immersion_start_date !== undefined && { immersionStartDate: c.immersion_start_date }),
     ...(c.immersion_end_date !== undefined && { immersionEndDate: c.immersion_end_date }),
     ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
     ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
+    ...(c.immersion_convention_number !== undefined && { immersionConventionNumber: c.immersion_convention_number }),
+    ...(c.immersion_schedule !== undefined && { immersionSchedule: toImmersionScheduleInput(c.immersion_schedule) }),
     ...(c.contract_offer_id !== undefined && { contractOfferId: c.contract_offer_id }),
     ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
     ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
     ...(c.contract_start_date !== undefined && { contractStartDate: c.contract_start_date }),
+    ...(c.contract_trial_end_date !== undefined && { contractTrialEndDate: c.contract_trial_end_date }),
+    ...(c.contract_session_id !== undefined && { contractSessionId: c.contract_session_id }),
+    ...(c.contract_session_name !== undefined && { contractSessionName: c.contract_session_name }),
     identity: {
       fullName: c.identity.full_name,
       email: c.identity.email,
@@ -550,6 +578,7 @@ function toGqlUpdateInput(c: Candidate): any {
       ...(c.identity.address !== undefined && { address: c.identity.address }),
       ...(c.identity.city !== undefined && { city: c.identity.city }),
       ...(c.identity.description !== undefined && { description: c.identity.description }),
+      ...(c.identity.description_source !== undefined && { descriptionSource: c.identity.description_source }),
       ...(c.identity.had_apprenticeship_contract !== undefined && {
         hadApprenticeshipContract: c.identity.had_apprenticeship_contract,
       }),
@@ -589,6 +618,12 @@ function toGqlUpdateInput(c: Candidate): any {
         ...(c.synthesis.other_recommendations !== undefined && {
           otherRecommendations: c.synthesis.other_recommendations,
         }),
+        ...(c.synthesis.important_note !== undefined && { importantNote: c.synthesis.important_note }),
+        ...(c.synthesis.location !== undefined && { location: c.synthesis.location }),
+        ...(c.synthesis.date !== undefined && { date: c.synthesis.date }),
+        ...(c.synthesis.recruiter_signature !== undefined && { recruiterSignature: c.synthesis.recruiter_signature }),
+        ...(c.synthesis.candidate_signature !== undefined && { candidateSignature: c.synthesis.candidate_signature }),
+        ...(c.synthesis.interviewed_by !== undefined && { interviewedBy: c.synthesis.interviewed_by }),
         ...(c.synthesis.pedagogical_recommendations && {
           pedagogicalRecommendations: {
             officeToolsReinforcement: !!c.synthesis.pedagogical_recommendations.office_tools_reinforcement,
@@ -663,14 +698,16 @@ export function useCandidates() {
   }
 }
 
+export type CandidateSearchField = 'NAME' | 'PHONE' | 'EMAIL';
+
 /**
  * Fetches a cursor-paginated page of candidates from the dedicated MongoDB GraphQL endpoint.
  * Returns { candidates, pageInfo, totalCount, loading, error, refetch }.
  */
-export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters) {
+export function useCandidatesPage(first?: number, after?: string, search?: string, filters?: CandidateServerFilters, searchField?: CandidateSearchField) {
   const [result, reexecuteQuery] = useQuery({
     query: GET_CANDIDATES_PAGE,
-    variables: { first, after, search, filters },
+    variables: { first, after, search, searchField, filters },
     context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
     requestPolicy: 'network-only',
   })
@@ -794,6 +831,45 @@ export function useCandidateHistory(candidateId: string | null) {
   }
 }
 
+/** Historique des consentements d'un candidat (GDPR_INF_08.2), le plus récent d'abord. */
+export function useCandidateConsentHistory(candidateId: string | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CANDIDATE_CONSENT_HISTORY,
+    variables: { candidateId: candidateId ?? '' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
+    pause: candidateId === null,
+    requestPolicy: 'network-only',
+  })
+
+  const events: CandidateConsentEvent[] = result.data?.candidateConsentHistory ?? []
+
+  return {
+    events,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+/** Retire des consentements ; renvoie l'état des consentements après retrait (snake_case, comme `Candidate`). */
+export function useWithdrawCandidateConsent() {
+  const withdrawConsent = async (id: string, types: ConsentTypeKey[]): Promise<CandidateConsentments> => {
+    const response = await candidateGraphqlClient.mutation(WITHDRAW_CANDIDATE_CONSENT, { id, types })
+    if (response.error) throw new Error(response.error.message.replace(/^\[GraphQL\]\s*/, ''))
+    const c = response.data.withdrawCandidateConsent.consentments
+    return {
+      data_processing: c.dataProcessing,
+      data_sharing: c.dataSharing,
+      ai_processing: c.aiProcessing,
+      photo_processing: c.photoProcessing,
+      consent_date: c.consentDate,
+      consent_version: c.consentVersion,
+    }
+  }
+
+  return { withdrawConsent }
+}
+
 export function useAddCandidateHistoryEntry() {
   const addHistoryEntry = (candidateId: string, description: string) => {
     return candidateGraphqlClient.mutation(ADD_CANDIDATE_HISTORY_ENTRY, { candidateId, description })
@@ -844,6 +920,18 @@ export function useDeleteOfferHistoryEntry() {
   return { deleteEntry }
 }
 
+/**
+ * Override actif/inactif d'une offre de l'annuaire entreprises.
+ * `active` à null rétablit l'héritage du statut de l'AB parente.
+ */
+export function useUpdateOfferActive() {
+  const updateOfferActive = (id: string, active: boolean | null) => {
+    return offerGraphqlClient.mutation(UPDATE_OFFER_ACTIVE, { id, active }).toPromise()
+  }
+
+  return { updateOfferActive }
+}
+
 export function useCreateNeedsAnalysis() {
   const [result, executeMutation] = useMutation(CREATE_NEEDS_ANALYSIS)
 
@@ -883,6 +971,83 @@ export function useNeedsAnalysesPage(first?: number, after?: string, filter?: Of
     error: result.error?.message ?? null,
     refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
   }
+}
+
+/**
+ * Annuaire entreprises RH : charge toutes les analyses de besoin, page après page.
+ *
+ * L'annuaire filtre et recherche côté client, il lui faut donc l'intégralité des AB.
+ * Une première page s'affiche immédiatement, les suivantes s'ajoutent en arrière-plan.
+ * `maxPages` n'est qu'un garde-fou anti-boucle (curseur qui ne progresserait pas).
+ */
+export function useAllNeedsAnalysesPage(pageSize = 500, maxPages = 40) {
+  const [items, setItems] = useState<NeedsAnalysis[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [complete, setComplete] = useState(false)
+  const [truncated, setTruncated] = useState(false)
+  const [reloadTick, setReloadTick] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      const loaded: NeedsAnalysis[] = []
+      let after: string | undefined
+      for (let page = 0; page < maxPages; page++) {
+        const result = await needsAnalysisGraphqlClient
+          .query(GET_NEEDS_ANALYSES_PAGE, { first: pageSize, after }, { requestPolicy: 'network-only' })
+          .toPromise()
+        if (cancelled) return
+        if (result.error) {
+          setError(result.error.message)
+          setLoading(false)
+          return
+        }
+        const payload = result.data?.needsAnalysesPage as
+          | { edges?: { node: NeedsAnalysis }[]; pageInfo?: PageInfo }
+          | undefined
+        const edges = payload?.edges ?? []
+        loaded.push(...edges.map((edge) => edge.node))
+        setItems([...loaded])
+        const info = payload?.pageInfo
+        if (!info?.hasNextPage || !info.endCursor) {
+          setComplete(true)
+          setLoading(false)
+          return
+        }
+        after = info.endCursor
+      }
+      if (cancelled) return
+      // Sécurité : on s'arrête après `maxPages` pages pour ne pas boucler à l'infini.
+      setTruncated(true)
+      setComplete(true)
+      setLoading(false)
+    }
+
+    load().catch((err: unknown) => {
+      if (cancelled) return
+      setError(err instanceof Error ? err.message : 'Erreur de chargement')
+      setLoading(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [pageSize, maxPages, reloadTick])
+
+  // La remise à zéro se fait ici (gestionnaire d'événement) et non dans l'effet,
+  // pour ne pas déclencher de rendu en cascade depuis le corps de l'effet.
+  const refetch = () => {
+    setItems([])
+    setError(null)
+    setLoading(true)
+    setComplete(false)
+    setTruncated(false)
+    setReloadTick((tick) => tick + 1)
+  }
+
+  return { items, loading, error, complete, truncated, refetch }
 }
 
 export function useNeedsAnalysesByCompany(companyID: number | null) {
@@ -937,13 +1102,53 @@ export function useCreateContactLog() {
 }
 
 export function useNeedsAnalysis(id: string | null) {
-  const [result] = useQuery({
+  const [result, reexecuteQuery] = useQuery({
     query: GET_NEEDS_ANALYSIS,
     variables: { id: id ?? 0 },
     pause: id === null,
     context: { url: NEEDS_ANALYSIS_URL },
   })
-  return result
+  return { ...result, refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }) }
+}
+
+export function useUpdateNeedsAnalysisAbStatus() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_AB_STATUS)
+
+  const updateAbStatus = (id: string, abStatus: string | null) => {
+    return executeMutation({ id, abStatus }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateAbStatus, result }
+}
+
+export function useUpdateNeedsAnalysisIndicator() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_INDICATOR)
+
+  const updateIndicator = (id: string, indicator: string | null) => {
+    return executeMutation({ id, indicator }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateIndicator, result }
+}
+
+export function useUpdateNeedsAnalysisTracking() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_TRACKING)
+
+  const updateTracking = (id: string, fields: { franceTravail?: string | null; koann?: string | null }) => {
+    return executeMutation({ id, ...fields }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateTracking, result }
+}
+
+export function useUpdateNeedsAnalysisActivationDate() {
+  const [result, executeMutation] = useMutation(UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE)
+
+  const updateActivationDate = (id: string, lastActiveAt: string | null) => {
+    return executeMutation({ id, lastActiveAt }, { url: NEEDS_ANALYSIS_URL })
+  }
+
+  return { updateActivationDate, result }
 }
 
 export function useDeleteNeedsAnalysis() {
@@ -959,6 +1164,36 @@ export function useDeleteNeedsAnalysis() {
   }
 
   return { deleteNeedsAnalysis, result }
+}
+
+export function useSetAbRelanceDisabled() {
+  const [result, executeMutation] = useMutation(SET_AB_RELANCE_DISABLED)
+
+  const setAbRelanceDisabled = (id: string, disabled: boolean) => {
+    return executeMutation({ id, disabled }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('setAbRelanceDisabled failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { setAbRelanceDisabled, result }
+}
+
+export function useSetNeedsAnalysisMatchingVisibility() {
+  const [result, executeMutation] = useMutation(SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY)
+
+  const setMatchingVisibility = (id: string, visible: boolean) => {
+    return executeMutation({ id, visible }, { url: NEEDS_ANALYSIS_URL }).then((response) => {
+      if (response.error) {
+        console.error('setNeedsAnalysisMatchingVisibility failed:', response.error)
+      }
+      return response
+    })
+  }
+
+  return { setMatchingVisibility, result }
 }
 
 export function useUpdateNeedsAnalysis() {
@@ -1006,11 +1241,13 @@ export function useFilizClasses(degreeId: string | null) {
 
   useEffect(() => {
     if (!degreeId) { setClasses([]); return }
+    let stale = false
     setFetching(true)
     apiJson<{ classes?: typeof classes }>(`/api/filiz/classes?degreeId=${encodeURIComponent(degreeId)}`)
-      .then(data => { setClasses(data.classes ?? []); setError(null) })
-      .catch(err => setError(err.message))
-      .finally(() => setFetching(false))
+      .then(data => { if (!stale) { setClasses(data.classes ?? []); setError(null) } })
+      .catch(err => { if (!stale) setError(err.message) })
+      .finally(() => { if (!stale) setFetching(false) })
+    return () => { stale = true }
   }, [degreeId])
 
   return { classes, fetching, error }

@@ -1,38 +1,52 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import {
-  ArrowLeft, Mail, Edit2, ExternalLink, ClipboardCheck,
-  QrCode, User, Loader2, AlertCircle, FolderPlus, Upload, Download, FileText,
-  File, FileImage, FileSpreadsheet, RefreshCw, Trash2, Camera, HardDriveUpload,
-  Eye, EyeOff,
-} from 'lucide-react'
+import { IconAlert, IconArrowLeft, IconCamera, IconClipboardCheck, IconDownload, IconEdit, IconExternalLink, IconEye, IconEyeOff, IconFile, IconFolderPlus, IconImage, IconLoader, IconMail, IconQrCode, IconRefresh, IconSpreadsheet, IconTrash, IconUpload, IconUser } from '@/components/ui/icons'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
+import ImmersionScheduleEditor from '@/features/candidats/components/ImmersionScheduleEditor'
+import CandidateSentCompaniesCallout from '@/features/candidats/components/CandidateSentCompaniesCallout'
+import CandidateMatchPropositionsCallout from '@/features/candidats/components/CandidateMatchPropositionsCallout'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
-import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate } from '@/graphql/hooks'
+import { useCandidateById, useUpdateCandidate, useCreateCandidateDriveFolder, useDeleteCandidate, useAddCandidateHistoryEntry } from '@/graphql/hooks'
 import { offerGraphqlClient, graphqlClient, candidateGraphqlClient } from '@/graphql/client'
-import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_COMPANY_OPTIONS, UNMASK_SSN } from '@/graphql/queries'
-import type { MailAttachment } from '@/store/mailTemplatesStore'
-import { apiFetch } from '@/api/httpClient'
-import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS } from '@/types/candidate'
+import { GET_CANDIDATE_MATCHED_OFFER_IDS, GET_CANDIDATE_PLACEMENT, GET_CANDIDATE_SENT_COMPANIES, GET_COMPANY_OPTIONS, MATCH_OFFER, UNMASK_SSN, UPDATE_CANDIDATE_FULL } from '@/graphql/queries'
+import { useMailTemplatesStore, type MailAttachment } from '@/store/mailTemplatesStore'
+import { apiFetch, apiJson } from '@/api/httpClient'
+import { CandidateStatus, TrainingSite, TitleProfessionalType, SchoolLevel, SCHOOL_LEVEL_LABELS, NATIONALITY_LABELS } from '@/types/candidate'
 import { formatCommune } from '@/data/reunionCommunes'
 import { DISCOVERY_SOURCE_LABELS, ALL_DESIRED_SECTORS } from '@/data/candidateTemplates'
 import { SECTEUR_LABELS } from '@/constants/secteurs'
-import type { Candidate, DiscoverySource, PedagogicalRecommendations } from '@/types/candidate'
+import type { Candidate, DiscoverySource, ImmersionScheduleSlot, PedagogicalRecommendations } from '@/types/candidate'
+import type { ScheduleSlot } from '@/types/needsAnalysis'
+import { offerSlotToImmersionSlot } from '@/utils/schedule'
 import { computeAge, isSenior } from '@/utils/age'
+import { gateThresholdForTps } from '@/utils/testGateThreshold'
+import {
+  TEST_FAILURE_NO_SHARE_VALUE,
+  TEST_FAILURE_ORIENTATION_OPTIONS,
+  buildTestFailureComment,
+  buildTestFailureRedirectionBody,
+} from '@/constants/testFailureOrientation'
 import Button from '@/components/ui/Button'
 import MailModal from '@/components/ui/MailModal'
 import ClassMarkerLinksModal from '@/components/rh/ClassMarkerLinksModal'
+import QuestionnaireLinksModal from '@/components/rh/QuestionnaireLinksModal'
+import CandidateQuestionnaireStatus from '@/components/rh/CandidateQuestionnaireStatus'
 import FilizFolderModal from '@/components/rh/FilizFolderModal'
+import { DEPARTEMENTS } from '@/lib/departements'
 import ConfirmDeleteModal from '@/components/rh/ConfirmDeleteModal'
 import CandidateTestScore from '@/components/rh/CandidateTestScore'
 import PdfViewer from '@/components/rh/PdfViewer'
 import { useClassMarkerResult } from '@/hooks/useClassMarkerResult'
 import { splitFullName } from '@/utils/classmarker'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_BADGE_CLASS } from '@/constants/candidateStatus'
+import { useRegionStore } from '@/store/regionStore'
+
+// Création de dossier Filiz coupée en prod tant que le flux n'est pas validé (build avec VITE_FILIZ_FOLDER_CREATION=true pour réactiver).
+const FILIZ_FOLDER_CREATION_ENABLED = import.meta.env.DEV || import.meta.env.VITE_FILIZ_FOLDER_CREATION === 'true'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +68,7 @@ const TP_COLORS: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.CC]:  'bg-indigo-50 text-indigo-700 ring-indigo-200',
   [TitleProfessionalType.NTC]: 'bg-fuchsia-50 text-fuchsia-700 ring-fuchsia-200',
   [TitleProfessionalType.REM]: 'bg-lime-50 text-lime-700 ring-lime-200',
-  [TitleProfessionalType.SA]:  'bg-slate-50 text-slate-700 ring-slate-200',
+  [TitleProfessionalType.CADGA]: 'bg-slate-50 text-slate-700 ring-slate-200',
 }
 
 const getStatusLabel = (status: CandidateStatus): string => CANDIDATE_STATUS_LABELS[status]
@@ -179,18 +193,18 @@ function googleEmbedUrl(file: DriveFile): string {
 }
 
 function DriveFileIcon({ mimeType }: { mimeType: string }) {
-  if (mimeType === 'application/pdf') return <FileText size={15} className="shrink-0 text-red-400" />
-  if (mimeType.startsWith('image/')) return <FileImage size={15} className="shrink-0 text-blue-400" />
-  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <FileSpreadsheet size={15} className="shrink-0 text-green-500" />
-  return <File size={15} className="shrink-0 text-gray-400" />
+  if (mimeType === 'application/pdf') return <IconFile width={15} height={15} className="shrink-0 text-red-400" />
+  if (mimeType.startsWith('image/')) return <IconImage width={15} height={15} className="shrink-0 text-blue-400" />
+  if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <IconSpreadsheet width={15} height={15} className="shrink-0 text-[var(--ds-success)]" />
+  return <IconFile width={15} height={15} className="shrink-0 text-[var(--ds-text-subtle)]" />
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const inputCls = 'mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-purple focus:outline-none focus:ring-2 focus:ring-purple/20 transition-colors'
+const inputCls = 'mt-1 w-full rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm text-[var(--ds-text)] focus:border-purple focus:outline-none focus:ring-2 focus:ring-purple/20 transition-colors'
 const selectCls = inputCls
-const labelCls = 'block text-[11px] font-bold uppercase tracking-wider text-gray-500'
-const valueCls = 'mt-1 text-sm font-medium text-gray-900'
+const labelCls = 'block text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]'
+const valueCls = 'mt-1 text-sm font-medium text-[var(--ds-text)]'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -212,7 +226,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={`rounded-xl border border-gray-100 bg-white p-5 ${className}`}>
+    <div className={`rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 ${className}`}>
       {children}
     </div>
   )
@@ -229,9 +243,21 @@ export default function FicheCandidat() {
   const { deleteCandidate } = useDeleteCandidate()
   // Verdict du test : la moyenne est à 50%. L'AB n'est possible que si le candidat
   // a réussi au moins un test (>= 50%).
-  const { result: testResult } = useClassMarkerResult(id)
+  const { result: testResult, progress: testProgress } = useClassMarkerResult(id)
   const testPassed =
     !!testResult && typeof testResult.percentage === 'number' && testResult.percentage >= 50
+
+  // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — les
+  // badges et champs Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) sont
+  // masqués, la granularité passe par la mobilité (6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region)
+  const isAnnemasse = region === 'annemasse'
+
+  // Modèles RH (chargés une fois, dédupés par le store) : sert à préremplir le
+  // mail d'import CV avec le modèle « Import CV » par défaut.
+  const { templates: rhTemplates, load: loadRhTemplates } = useMailTemplatesStore('rh')
+  useEffect(() => { loadRhTemplates() }, [loadRhTemplates])
+  const cvImportTemplateId = rhTemplates.find((t) => t.name === 'Import CV')?.id
 
   const [formData, setFormData] = useState<Candidate | null>(null)
   // Édition de la fiche = même formulaire que la création (modal). L'édition inline
@@ -242,6 +268,7 @@ export default function FicheCandidat() {
   const [mailMode, setMailMode] = useState<'regular' | 'cv-import' | null>(null)
   const [cvChoiceOpen, setCvChoiceOpen] = useState<'top' | 'bottom' | null>(null)
   const [showClassMarker, setShowClassMarker] = useState(false)
+  const [showQuestionnaire, setShowQuestionnaire] = useState(false)
   const [showFilizModal, setShowFilizModal] = useState(false)
   const [capturingPhoto, setCapturingPhoto] = useState(false)
   const [creatingFolder, setCreatingFolder] = useState(false)
@@ -263,6 +290,8 @@ export default function FicheCandidat() {
   const [immersionStart, setImmersionStart] = useState('')
   const [immersionEnd, setImmersionEnd] = useState('')
   const [immersionCompanyId, setImmersionCompanyId] = useState('')
+  const [immersionConventionNumber, setImmersionConventionNumber] = useState('')
+  const [immersionSchedule, setImmersionSchedule] = useState<ImmersionScheduleSlot[]>([])
   const [companyOptions, setCompanyOptions] = useState<{ id: number; name: string }[]>([])
   const [companyQuery, setCompanyQuery] = useState('')
   const [unavailableModalOpen, setUnavailableModalOpen] = useState(false)
@@ -275,6 +304,82 @@ export default function FicheCandidat() {
   const [aiSummaryError, setAiSummaryError] = useState<string | null>(null)
   const [revealedSsn, setRevealedSsn] = useState<string | null>(null)
   const [revealingSsn, setRevealingSsn] = useState(false)
+  const [ssnError, setSsnError] = useState<string | null>(null)
+  const [showPendingComment, setShowPendingComment] = useState(false)
+  const [pendingComment, setPendingComment] = useState('')
+  const [pendingOrientations, setPendingOrientations] = useState<string[]>([])
+  const [sendPendingMail, setSendPendingMail] = useState(false)
+  const [pendingMailError, setPendingMailError] = useState<string | null>(null)
+  const [pendingCommentSaved, setPendingCommentSaved] = useState(false)
+  const [pendingCommentLoading, setPendingCommentLoading] = useState(false)
+  const [pendingCommentError, setPendingCommentError] = useState<string | null>(null)
+  const { addHistoryEntry } = useAddCandidateHistoryEntry()
+
+  const togglePendingOrientation = (value: string) =>
+    setPendingOrientations((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]))
+
+  const openPendingComment = () => {
+    setPendingComment('')
+    setPendingOrientations([])
+    setSendPendingMail(false)
+    setPendingMailError(null)
+    setPendingCommentSaved(false)
+    setPendingCommentError(null)
+    setShowPendingComment(true)
+  }
+
+  const handlePendingCommentSubmit = async () => {
+    if (!pendingComment.trim() || !id || !formData) return
+    setPendingCommentLoading(true)
+    setPendingCommentError(null)
+    setPendingMailError(null)
+    try {
+      // Évite un doublon d'historique si l'envoi du mail a échoué au premier
+      // essai et que l'utilisateur réessaie sans fermer le modal.
+      if (!pendingCommentSaved) {
+        const addRes = await addHistoryEntry(id, buildTestFailureComment(pendingComment, pendingOrientations))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((addRes as any)?.error) throw new Error(((addRes as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'))
+        setPendingCommentSaved(true)
+      }
+      if (sendPendingMail) {
+        const to = formData.identity.email?.trim() ?? ''
+        if (!to) {
+          setPendingMailError('Aucun email candidat : le mail de redirection n’a pas été envoyé.')
+          return
+        }
+        if (pendingOrientations.includes(TEST_FAILURE_NO_SHARE_VALUE)) {
+          setPendingMailError('Le candidat ne souhaite pas que sa candidature soit partagée : aucun mail envoyé.')
+          return
+        }
+        const firstName = formData.identity.full_name.split(' ')[0] ?? ''
+        try {
+          await apiJson('/api/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to,
+              subject: 'Votre candidature a été redirigée',
+              body: buildTestFailureRedirectionBody(firstName, pendingOrientations),
+            }),
+          })
+        } catch (err) {
+          setPendingMailError(err instanceof Error ? err.message : 'Échec de l’envoi du mail.')
+          return
+        }
+      }
+      const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id, input: { testFailurePending: false } })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((upd as any)?.error) throw new Error(((upd as any).error.message?.replace(/^\[GraphQL\]\s*/, '') ?? 'Erreur'))
+      setFormData(prev => prev ? { ...prev, test_failure_pending: false } as Candidate : prev)
+      setShowPendingComment(false)
+      setPendingComment('')
+    } catch (err) {
+      setPendingCommentError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement')
+    } finally {
+      setPendingCommentLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (candidate && !formData) setFormData(structuredClone(candidate))
@@ -283,14 +388,29 @@ export default function FicheCandidat() {
   // Ne jamais laisser le SSN en clair d'une fiche fuiter sur une autre.
   useEffect(() => {
     setRevealedSsn(null)
+    setSsnError(null)
   }, [id])
 
   const handleRevealSsn = async () => {
     if (!formData) return
     setRevealingSsn(true)
+    setSsnError(null)
     try {
       const result = await candidateGraphqlClient.query(UNMASK_SSN, { id: formData._id }).toPromise()
-      setRevealedSsn(result.data?.unmaskCandidateSsn ?? null)
+      // Sans ce contrôle, une erreur serveur laissait le champ sur "[chiffré]" sans
+      // aucun signal, ni en console, ni à l'écran.
+      if (result.error) {
+        setSsnError(result.error.graphQLErrors[0]?.message ?? 'Échec du déchiffrement du numéro de sécurité sociale.')
+        return
+      }
+      const ssn = result.data?.unmaskCandidateSsn ?? null
+      if (!ssn) {
+        setSsnError('Aucun numéro de sécurité sociale déchiffrable pour cette fiche.')
+        return
+      }
+      setRevealedSsn(ssn)
+    } catch (err) {
+      setSsnError(err instanceof Error ? err.message : 'Échec du déchiffrement du numéro de sécurité sociale.')
     } finally {
       setRevealingSsn(false)
     }
@@ -329,6 +449,12 @@ export default function FicheCandidat() {
     }
     let objectUrl: string | null = null
     let cancelled = false
+    // Sans ça, l'ancienne blob: URL (déjà révoquée par le cleanup ci-dessous) reste
+    // dans previewUrl le temps du fetch suivant : en passant d'une image à un PDF,
+    // PdfViewer se montait avec cette URL morte → pdf.js échouait avec
+    // "Invalid PDF structure" (#841). Un PDF ouvert en premier ne reproduisait pas
+    // le bug : previewUrl valait encore null au premier rendu.
+    setPreviewUrl(null)
     setPreviewLoading(true)
     setPreviewError(null)
     apiFetch(`/api/candidates/${id}/drive-files/${selectedFile.id}/content`)
@@ -431,8 +557,8 @@ export default function FicheCandidat() {
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center gap-3 text-gray-400 text-sm">
-        <Loader2 size={20} className="animate-spin" />
+      <div className="flex h-64 items-center justify-center gap-3 text-[var(--ds-text-subtle)] text-sm">
+        <IconLoader width={20} height={20} className="animate-spin" />
         Chargement…
       </div>
     )
@@ -441,10 +567,10 @@ export default function FicheCandidat() {
   if (error || !candidate) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3 text-center px-4">
-        <AlertCircle size={32} className="text-danger" />
-        <p className="text-sm font-medium text-gray-700">Candidat introuvable</p>
-        {error && <p className="text-xs text-gray-400 max-w-md">{error}</p>}
-        <p className="text-xs text-gray-400 font-mono">{id}</p>
+        <IconAlert width={32} height={32} className="text-[var(--ds-danger)]" />
+        <p className="text-sm font-medium text-[var(--ds-text-muted)]">Candidat introuvable</p>
+        {error && <p className="text-xs text-[var(--ds-text-subtle)] max-w-md">{error}</p>}
+        <p className="text-xs text-[var(--ds-text-subtle)] font-mono">{id}</p>
         <Button variant="secondary" onClick={() => navigate(-1)}>Retour</Button>
       </div>
     )
@@ -478,7 +604,14 @@ export default function FicheCandidat() {
     }
     const updated = { ...formData, identity: { ...formData.identity, description: summary } }
     setFormData(updated)
-    try { await update(updated._id, updated) } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
+    try {
+      // `description_source: 'auto'` : le résumé reste régénérable automatiquement
+      // lors des prochaines mises à jour du dossier.
+      await update(updated._id, {
+        ...updated,
+        identity: { ...updated.identity, description_source: 'auto' },
+      })
+    } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
   }
 
   const handleGenerateAiSummary = async () => {
@@ -507,7 +640,12 @@ export default function FicheCandidat() {
     const updated = { ...formData, identity: { ...formData.identity, description: aiSummaryText } }
     setFormData(updated)
     try {
-      await update(updated._id, updated)
+      // Résumé IA validé par un RH : marqué manuel pour ne plus être écrasé par
+      // la génération automatique.
+      await update(updated._id, {
+        ...updated,
+        identity: { ...updated.identity, description_source: 'manual' },
+      })
       setAiSummaryOpen(false)
     } catch {
       setAiSummaryError('Erreur lors de l\'enregistrement')
@@ -516,20 +654,60 @@ export default function FicheCandidat() {
 
   const handleStatusChange = async (newStatus: CandidateStatus) => {
     if (!formData) return
-    // Passage en immersion : demander les dates de début/fin via un modal avant d'enregistrer.
+    // Passage en immersion : demander entreprise, convention, horaires et dates via un modal.
     if (newStatus === CandidateStatus.IMMERSING) {
       setImmersionStart(formData.immersion_start_date?.slice(0, 10) ?? '')
       setImmersionEnd(formData.immersion_end_date?.slice(0, 10) ?? '')
       setImmersionCompanyId(formData.immersion_company_id != null ? String(formData.immersion_company_id) : '')
-      setCompanyQuery(formData.immersion_company_name ?? '')
+      setImmersionConventionNumber(formData.immersion_convention_number ?? '')
+      setImmersionSchedule(formData.immersion_schedule ?? [])
+      const initialCompanyName = formData.immersion_company_name ?? ''
+      setCompanyQuery(initialCompanyName)
       setCompanyListOpen(false)
       // Charge la liste des entreprises (MySQL) une seule fois pour le sélecteur.
-      if (companyOptions.length === 0) {
-        graphqlClient.query(GET_COMPANY_OPTIONS, {}).toPromise().then((res) => {
-          if (res.data?.companyOptions) setCompanyOptions(res.data.companyOptions as { id: number; name: string }[])
-        })
+      let options = companyOptions
+      if (options.length === 0) {
+        try {
+          const res = await graphqlClient.query(GET_COMPANY_OPTIONS, {}).toPromise()
+          if (res.data?.companyOptions) {
+            options = res.data.companyOptions as { id: number; name: string }[]
+            setCompanyOptions(options)
+          }
+        } catch { /* best-effort */ }
       }
       setImmersionModalOpen(true)
+      // Auto-remplissage de l'entreprise (+ horaires) depuis le matching si vide :
+      // 1ère entreprise où le candidat a été envoyé, avec les horaires de l'offre.
+      if (!initialCompanyName && id) {
+        try {
+          const sentRes = await offerGraphqlClient.query(GET_CANDIDATE_SENT_COMPANIES, { candidateId: id }).toPromise()
+          const sent = sentRes.data?.candidateSentCompanies as { offerId: string; companyName: string | null }[] | undefined
+          const first = sent?.[0]
+          let matchedByName = false
+          if (first?.companyName) {
+            setCompanyQuery(first.companyName)
+            const matchByName = options.find(c => c.name?.toLowerCase() === first.companyName!.toLowerCase())
+            if (matchByName) {
+              setImmersionCompanyId(String(matchByName.id))
+              matchedByName = true
+            }
+          }
+          if (first?.offerId && (formData.immersion_schedule ?? []).length === 0) {
+            const offerRes = await offerGraphqlClient.query(MATCH_OFFER, { id: first.offerId }).toPromise()
+            const offer = offerRes.data?.matchOffer
+            if (offer) {
+              if (!matchedByName && offer.companyInfos?.id) {
+                setImmersionCompanyId(String(offer.companyInfos.id))
+                if (offer.companyInfos?.name) setCompanyQuery(offer.companyInfos.name)
+              }
+              const schedule = (offer.schedule as ScheduleSlot[] | undefined)
+                ?.filter(s => s?.day)
+                .map(offerSlotToImmersionSlot) ?? []
+              if (schedule.length > 0) setImmersionSchedule(schedule)
+            }
+          }
+        } catch { /* best-effort : l'utilisateur renseigne manuellement */ }
+      }
       return
     }
     // Passage en indisponible : demander une date de disponibilité avant d'enregistrer.
@@ -562,7 +740,9 @@ export default function FicheCandidat() {
   const confirmImmersion = async () => {
     if (!formData) return
     const companyIdNum = immersionCompanyId ? Number(immersionCompanyId) : undefined
-    const companyName = companyOptions.find(c => c.id === companyIdNum)?.name
+    // Le nom peut venir du sélecteur (options) ou d'un auto-remplissage libre (matching) :
+    // on retombe sur le texte saisi pour ne jamais perdre l'entreprise affichée.
+    const companyName = companyOptions.find(c => c.id === companyIdNum)?.name ?? (companyQuery.trim() || undefined)
     await persistStatus({
       ...formData,
       status: CandidateStatus.IMMERSING,
@@ -570,6 +750,8 @@ export default function FicheCandidat() {
       immersion_end_date: immersionEnd || undefined,
       immersion_company_id: companyIdNum,
       immersion_company_name: companyName,
+      immersion_convention_number: immersionConventionNumber.trim() || undefined,
+      immersion_schedule: immersionSchedule.length > 0 ? immersionSchedule : undefined,
     })
     setImmersionModalOpen(false)
   }
@@ -611,8 +793,15 @@ export default function FicheCandidat() {
         attachments: mail.attachments.length ? mail.attachments : undefined,
       }),
     })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error ?? "L'envoi du mail a échoué")
+    if (!res.ok) {
+      // Un 413 (corps trop volumineux) ou une coupure de proxy peut renvoyer un
+      // corps vide : ne jamais parser sans garde, sinon l'erreur affichée est
+      // « Unexpected end of JSON input » au lieu de la vraie cause.
+      const body = (await res.json().catch(() => null)) as { error?: string | { message?: string } } | null
+      const raw = body?.error
+      const message = typeof raw === 'string' ? raw : raw?.message
+      throw new Error(message ?? `L'envoi du mail a échoué (${res.status})`)
+    }
   }
 
   const handleDownloadPdf = async () => {
@@ -690,9 +879,9 @@ export default function FicheCandidat() {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate(-1)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+              className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)] transition-colors"
             >
-              <ArrowLeft size={18} />
+              <IconArrowLeft width={18} height={18} />
             </button>
 
             <div className="flex items-center gap-3">
@@ -714,11 +903,11 @@ export default function FicheCandidat() {
                   onClick={() => setCapturingPhoto(true)}
                   className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-purple text-white flex items-center justify-center ring-2 ring-white hover:bg-purple/90"
                 >
-                  <Camera size={11} />
+                  <IconCamera width={11} height={11} />
                 </button>
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900 leading-tight">
+                <h1 className="text-xl font-bold text-[var(--ds-text)] leading-tight">
                   {formData.identity.full_name}
                 </h1>
                 <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -742,7 +931,7 @@ export default function FicheCandidat() {
                     </span>
                   ))}
                   {isSenior(computeAge(formData.identity.date_of_birth) ?? formData.identity.age) && (
-                    <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+                    <span className="px-2 py-0.5 rounded-md text-xs font-bold uppercase tracking-wider bg-[var(--ds-warning-bg)] text-[var(--ds-warning)] ring-1 ring-amber-200">
                       Senior
                     </span>
                   )}
@@ -763,59 +952,64 @@ export default function FicheCandidat() {
                         <>
                           En contrat{placement.companyName ? ` avec ${placement.companyName}` : ''}
                           {placement.since ? ` depuis le ${new Date(placement.since).toLocaleDateString('fr-FR')}` : ''}
+                          {formData.contract_trial_end_date ? ` (fin de période d'essai le ${new Date(formData.contract_trial_end_date).toLocaleDateString('fr-FR')})` : ''}
+                          {formData.contract_session_name ? ` · Session ${formData.contract_session_name}` : ''}
                         </>
                       )}
                     </span>
                   ) : formData.status === CandidateStatus.IMMERSING && (formData.immersion_company_name || formData.immersion_start_date || formData.immersion_end_date) ? (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       Immersion{formData.immersion_company_name ? ` chez ${formData.immersion_company_name}` : ''} : {formData.immersion_start_date ? new Date(formData.immersion_start_date).toLocaleDateString('fr-FR') : '?'} → {formData.immersion_end_date ? new Date(formData.immersion_end_date).toLocaleDateString('fr-FR') : '?'}
+                      {formData.immersion_convention_number ? ` · Conv. ${formData.immersion_convention_number}` : ''}
                     </span>
                   ) : formData.status === CandidateStatus.CONTRACT && (formData.contract_company_name || formData.contract_start_date) && (
                     <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-info/10 text-info ring-1 ring-info/20">
                       En contrat{formData.contract_company_name ? ` avec ${formData.contract_company_name}` : ''}
                       {formData.contract_start_date ? ` depuis le ${new Date(formData.contract_start_date).toLocaleDateString('fr-FR')}` : ''}
+                      {formData.contract_trial_end_date ? ` (fin de période d'essai le ${new Date(formData.contract_trial_end_date).toLocaleDateString('fr-FR')})` : ''}
+                      {formData.contract_session_name ? ` · Session ${formData.contract_session_name}` : ''}
                     </span>
                   )}
-                  {(() => {
+                  {!isAnnemasse && (() => {
                     const sites = formData.training_sites?.length
                       ? formData.training_sites
                       : formData.training_site
                         ? [formData.training_site]
                         : []
                     return sites.length ? (
-                      <span className="text-xs text-gray-400">
-                        {sites.map((s) => TRAINING_SITE_LABELS[s]).join(' · ')}
+                      <span className="text-xs text-[var(--ds-text-subtle)]">
+                        {sites.map((s) => TRAINING_SITE_LABELS[s] ?? prettyEnum(s)).join(' · ')}
                       </span>
                     ) : null
                   })()}
-                  {formData.immersion_agreement && (
-                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-green-50 text-green-700 ring-1 ring-green-200">
+                  {formData.status === CandidateStatus.IMMERSING && formData.immersion_agreement && (
+                    <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-[var(--ds-success-bg)] text-[var(--ds-success)] ring-1 ring-[var(--ds-success)]">
                       Convention immersion signée
                     </span>
                   )}
                   {formData.owner && (
-                    <span className="inline-flex items-center gap-1 text-xs text-gray-400">
-                      <User size={12} />
+                    <span className="inline-flex items-center gap-1 text-xs text-[var(--ds-text-subtle)]">
+                      <IconUser width={12} height={12} />
                       Créé par {formData.owner.name}
                       {formData.owner.sector && (
-                        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] font-medium">
                           {formData.owner.sector}
                         </span>
                       )}
                     </span>
                   )}
                   {formData.created_at && (
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-[var(--ds-text-subtle)]">
                       Créé le {new Date(formData.created_at).toLocaleDateString('fr-FR')}
                     </span>
                   )}
                   {formData.last_relance_at && (
-                    <span className="text-xs text-amber-600">
+                    <span className="text-xs text-[var(--ds-warning)]">
                       Dernière relance : {new Date(formData.last_relance_at).toLocaleDateString('fr-FR')}
                     </span>
                   )}
                   {formData.relance_response_at && (
-                    <span className="text-xs text-green-600">
+                    <span className="text-xs text-[var(--ds-success)]">
                       Réponse à la relance : {new Date(formData.relance_response_at).toLocaleDateString('fr-FR')}
                     </span>
                   )}
@@ -825,12 +1019,12 @@ export default function FicheCandidat() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="secondary" leftIcon={<Edit2 size={15} />} onClick={() => setEditOpen(true)}>
-              Modifier
+            <Button size="sm" variant="secondary" leftIcon={<IconEdit width={15} height={15} />} onClick={() => setEditOpen(true)}>
+              Compléter
             </Button>
             <Button
               size="sm"
-              leftIcon={<Trash2 size={15} />}
+              leftIcon={<IconTrash width={15} height={15} />}
               onClick={() => setShowDeleteModal(true)}
               style={{ backgroundColor: 'var(--color-danger)', color: 'white' }}
             >
@@ -841,21 +1035,46 @@ export default function FicheCandidat() {
 
         {saveError && (
           <div className="flex items-center gap-2 rounded-lg p-3 text-sm" style={{ backgroundColor: 'var(--color-danger-bg)', color: 'var(--color-danger)' }}>
-            <AlertCircle size={16} className="shrink-0" />
+            <IconAlert width={16} height={16} className="shrink-0" />
             {saveError}
+          </div>
+        )}
+
+        {/* ── Déjà envoyé en entreprise via le matching ── */}
+        {id && <CandidateSentCompaniesCallout candidateId={id} />}
+
+        {/* ── Propositions de matching et réponses oui / non du candidat ── */}
+        {id && <CandidateMatchPropositionsCallout candidateId={id} />}
+
+        {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
+          <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4 flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-[var(--ds-warning)] font-bold text-sm">
+              <IconAlert width={16} height={16} /> En attente de finalisation
+            </div>
+            <p className="text-sm text-[var(--ds-text-muted)]">
+              Ce candidat est en « Test non réussi » (moyenne {formData.test_average != null ? `${Number(formData.test_average).toFixed(2)} / 20` : `< ${gateThresholdForTps(formData.tp_types)} / 20`}). Un commentaire sur les actions entreprises doit être saisi pour finaliser la fiche. Tant que ce commentaire n’est pas enregistré, la fiche reste en attente.
+            </p>
+            <p className="text-xs text-[var(--ds-text-subtle)]">
+              Moyenne calculée à partir de l’épreuve écrite ({formData.written_test_score ?? '—'} / 20) et du score ClassMarker. Vous pouvez compléter à tout moment.
+            </p>
+            <div>
+              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white" onClick={openPendingComment}>
+                Ajouter le commentaire
+              </Button>
+            </div>
           </div>
         )}
 
         {/* ── Actions rapides ── */}
         <div className="flex flex-wrap gap-2">
           {formData.drive_folder_id ? (
-            <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={15} style={{ color: 'var(--color-purple)' }} />}
+            <Button variant="secondary" size="sm" leftIcon={<IconExternalLink width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={() => window.open(`https://drive.google.com/drive/folders/${formData.drive_folder_id}`, '_blank')}>
               Drive
             </Button>
           ) : (
             <Button variant="secondary" size="sm" isLoading={creatingFolder}
-              leftIcon={<FolderPlus size={15} style={{ color: 'var(--color-purple)' }} />}
+              leftIcon={<IconFolderPlus width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={handleCreateDriveFolder}>
               Créer dossier Drive
             </Button>
@@ -865,7 +1084,7 @@ export default function FicheCandidat() {
               <input id="cv-upload" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
               <div className="relative">
                 <Button variant="secondary" size="sm" isLoading={uploadingCV}
-                  leftIcon={<Upload size={15} style={{ color: 'var(--color-purple)' }} />}
+                  leftIcon={<IconUpload width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
                   onClick={() => setCvChoiceOpen(cvChoiceOpen === 'top' ? null : 'top')}>
                   Importer CV
                 </Button>
@@ -880,41 +1099,41 @@ export default function FicheCandidat() {
             </>
           )}
           {formData.filiz_folder_id ? (
-            <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={15} style={{ color: 'var(--color-purple)' }} />}
-              onClick={() => window.open(`https://app.filiz.io/folders/${formData.filiz_folder_id}`, '_blank')}>
+            <Button variant="secondary" size="sm" leftIcon={<IconExternalLink width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
+              onClick={() => window.open(`${import.meta.env.VITE_FILIZ_APP_URL ?? 'https://app.filiz.io'}/folders/${formData.filiz_folder_id}`, '_blank', 'noopener,noreferrer')}>
               Dossier Filiz
             </Button>
-          ) : (
-            <Button variant="secondary" size="sm" leftIcon={<FolderPlus size={15} style={{ color: 'var(--color-purple)' }} />}
+          ) : FILIZ_FOLDER_CREATION_ENABLED && (
+            <Button variant="secondary" size="sm" leftIcon={<IconFolderPlus width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
               onClick={() => setShowFilizModal(true)}>
               Créer dossier Filiz
             </Button>
           )}
-          <Button variant="secondary" size="sm" leftIcon={<ClipboardCheck size={15} style={{ color: 'var(--color-purple)' }} />}
+          <Button variant="secondary" size="sm" leftIcon={<IconClipboardCheck width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             disabled={!testPassed}
             title={testPassed ? undefined : "Indisponible : le candidat n'a réussi aucun test (moyenne < 50%)"}
             onClick={() => navigate(`/rh/candidats/${formData._id}/questionnaire`)}>
             Analyse de Besoin
           </Button>
           <Button variant="secondary" size="sm" isLoading={downloadingPdf}
-            leftIcon={<Download size={15} style={{ color: 'var(--color-purple)' }} />}
+            leftIcon={<IconDownload width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={handleDownloadPdf}>
             Télécharger le PDF
           </Button>
           <Button variant="secondary" size="sm" isLoading={savingAbToDrive}
             disabled={!formData.drive_folder_id}
             title={formData.drive_folder_id ? undefined : "Crée d'abord le dossier Drive du candidat"}
-            leftIcon={<HardDriveUpload size={15} style={{ color: 'var(--color-purple)' }} />}
+            leftIcon={<IconUpload width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={handleSaveAbToDrive}>
             Enregistrer l'AB dans le Drive
           </Button>
-          <Button variant="secondary" size="sm" leftIcon={<Mail size={15} style={{ color: 'var(--color-purple)' }} />}
+          <Button variant="secondary" size="sm" leftIcon={<IconMail width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
             onClick={() => setMailMode('regular')}>
             Envoyer un mail
           </Button>
-          <Button variant="secondary" size="sm" leftIcon={<QrCode size={15} style={{ color: 'var(--color-purple)' }} />}
-            onClick={() => setShowClassMarker(true)}>
-            Liens de test
+          <Button variant="secondary" size="sm" leftIcon={<IconQrCode width={15} height={15} style={{ color: 'var(--color-purple)' }} />}
+            onClick={() => setShowQuestionnaire(true)}>
+            Envoyer un test
           </Button>
         </div>
 
@@ -945,24 +1164,27 @@ export default function FicheCandidat() {
                   <input className={inputCls} value={formData.identity.social_security_number ?? ''}
                     onChange={e => updateIdentity('social_security_number', e.target.value)} />
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
-                    {formData.identity.social_security_number && (
-                      <button
-                        type="button"
-                        disabled={revealingSsn}
-                        onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
-                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
-                        {revealingSsn ? (
-                          <Loader2 size={12} className="animate-spin" />
-                        ) : revealedSsn ? (
-                          <EyeOff size={12} />
-                        ) : (
-                          <Eye size={12} />
-                        )}
-                        {revealedSsn ? 'Masquer' : 'Afficher'}
-                      </button>
-                    )}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className={valueCls}>{revealedSsn ?? formData.identity.social_security_number ?? '—'}</p>
+                      {formData.identity.social_security_number && (
+                        <button
+                          type="button"
+                          disabled={revealingSsn}
+                          onClick={() => revealedSsn ? setRevealedSsn(null) : handleRevealSsn()}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                          {revealingSsn ? (
+                            <IconLoader width={12} height={12} className="animate-spin" />
+                          ) : revealedSsn ? (
+                            <IconEyeOff width={12} height={12} />
+                          ) : (
+                            <IconEye width={12} height={12} />
+                          )}
+                          {revealedSsn ? 'Masquer' : 'Afficher'}
+                        </button>
+                      )}
+                    </div>
+                    {ssnError && <p className="mt-1 text-xs text-[var(--ds-danger)]">{ssnError}</p>}
                   </div>
                 )}
               </Field>
@@ -1006,22 +1228,28 @@ export default function FicheCandidat() {
                     onChange={e => updateIdentity('postal_code', e.target.value)} />
                 ) : <p className={valueCls}>{formData.identity.postal_code || '—'}</p>}
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Permis B">
-                  {isEditing ? (
-                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
-                      <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
-                        onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
-                      <span className="text-sm text-gray-700">Oui</span>
-                    </label>
-                  ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
-                </Field>
+              <Field label="Pays de résidence">
+                {isEditing ? (
+                  <input className={inputCls} value={formData.identity.country ?? ''} placeholder="France"
+                    onChange={e => updateIdentity('country', e.target.value)} />
+                ) : <p className={valueCls}>{formData.identity.country || '—'}</p>}
+              </Field>
+              <Field label="Permis B">
+                {isEditing ? (
+                  <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" className="rounded" checked={!!formData.identity.driving_license_b}
+                      onChange={e => updateIdentity('driving_license_b', e.target.checked)} />
+                    <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
+                  </label>
+                ) : <p className={valueCls}>{formData.identity.driving_license_b ? 'Oui' : 'Non'}</p>}
+              </Field>
+              <div className="ml-3 pl-4 border-l-2 border-[var(--ds-border)]">
                 <Field label="Véhiculé">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" className="rounded" checked={!!formData.identity.has_vehicle}
                         onChange={e => updateIdentity('has_vehicle', e.target.checked)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.identity.has_vehicle ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1037,7 +1265,7 @@ export default function FicheCandidat() {
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="rounded" checked={!!formData.identity.had_apprenticeship_contract}
                       onChange={e => updateIdentity('had_apprenticeship_contract', e.target.checked)} />
-                    <span className="text-sm text-gray-700">Oui</span>
+                    <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                   </label>
                 ) : <p className={valueCls}>{formData.identity.had_apprenticeship_contract ? 'Oui' : 'Non'}</p>}
               </Field>
@@ -1059,11 +1287,49 @@ export default function FicheCandidat() {
                 </Field>
                 <Field label="Département de naissance">
                   {isEditing ? (
-                    <input className={inputCls} value={formData.identity.department_of_birth ?? ''}
-                      onChange={e => updateIdentity('department_of_birth', e.target.value)} />
+                    <select className={selectCls} value={formData.identity.department_of_birth ?? ''}
+                      onChange={e => updateIdentity('department_of_birth', e.target.value)}>
+                      <option value="">Non renseigné</option>
+                      {DEPARTEMENTS.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                    </select>
                   ) : <p className={valueCls}>{formData.identity.department_of_birth || '—'}</p>}
                 </Field>
               </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Nationalité">
+                  {isEditing ? (
+                    <select className={selectCls} value={formData.identity.nationality ?? ''}
+                      onChange={e => updateIdentity('nationality', e.target.value ? Number(e.target.value) : undefined)}>
+                      <option value="">Non renseignée</option>
+                      <option value={1}>Française</option>
+                      <option value={2}>Pays européen</option>
+                      <option value={3}>Autre</option>
+                    </select>
+                  ) : <p className={valueCls}>{NATIONALITY_LABELS[formData.identity.nationality ?? 0] ?? '—'}</p>}
+                </Field>
+                <Field label="Né en France">
+                  {isEditing ? (
+                    <select className={selectCls}
+                      value={formData.identity.born_in_france == null ? '' : String(formData.identity.born_in_france)}
+                      onChange={e => updateIdentity('born_in_france', e.target.value === '' ? undefined : e.target.value === 'true')}>
+                      <option value="">Non renseigné</option>
+                      <option value="true">Oui</option>
+                      <option value="false">Non</option>
+                    </select>
+                  ) : <p className={valueCls}>{formData.identity.born_in_france == null ? '—' : formData.identity.born_in_france ? 'Oui' : 'Non'}</p>}
+                </Field>
+              </div>
+              {formData.identity.nationality === 3 && (
+                <Field label="Titre de séjour autorisant à travailler">
+                  {isEditing ? (
+                    <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" className="rounded" checked={!!formData.identity.residence_permit}
+                        onChange={e => updateIdentity('residence_permit', e.target.checked)} />
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
+                    </label>
+                  ) : <p className={valueCls}>{formData.identity.residence_permit ? 'Oui' : 'Non'}</p>}
+                </Field>
+              )}
               <Field label="Sexe">
                 {isEditing ? (
                   <select className={selectCls} value={formData.identity.sex ?? ''}
@@ -1094,7 +1360,7 @@ export default function FicheCandidat() {
                     </div>
                   </div>
                 {aiSummaryError && (
-                  <p className="mt-1 text-xs text-red-500">{aiSummaryError}</p>
+                  <p className="mt-1 text-xs text-[var(--ds-danger)]">{aiSummaryError}</p>
                 )}
                 {isEditing ? (
                   <textarea className={inputCls} rows={4} value={formData.identity.description ?? ''}
@@ -1156,6 +1422,7 @@ export default function FicheCandidat() {
                     } : prev)} />
                 ) : <p className={valueCls}>{formData.background?.previous_trainings || '—'}</p>}
               </Field>
+              {!isAnnemasse && (
               <Field label="Site(s) de formation">
                 {isEditing ? (
                   <div className="flex flex-col gap-1.5">
@@ -1181,6 +1448,7 @@ export default function FicheCandidat() {
                   return <p className={valueCls}>{sites.length ? sites.map(s => TRAINING_SITE_LABELS[s]).join(' · ') : '—'}</p>
                 })()}
               </Field>
+              )}
             </div>
           </Card>
 
@@ -1212,7 +1480,7 @@ export default function FicheCandidat() {
                 ) : (
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.profile?.qualities?.length ? formData.profile.qualities.map((q, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{q}</span>
+                      <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{q}</span>
                     )) : <p className={valueCls}>—</p>}
                   </div>
                 )}
@@ -1225,7 +1493,7 @@ export default function FicheCandidat() {
                 ) : (
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.profile?.defects?.length ? formData.profile.defects.map((d, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-md">{d}</span>
+                      <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs rounded-md">{d}</span>
                     )) : <p className={valueCls}>—</p>}
                   </div>
                 )}
@@ -1258,7 +1526,7 @@ export default function FicheCandidat() {
                 ) : (
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.profile?.other_languages?.length ? formData.profile.other_languages.map((l, i) => (
-                      <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{l}</span>
+                      <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{l}</span>
                     )) : <p className={valueCls}>—</p>}
                   </div>
                 )}
@@ -1268,7 +1536,7 @@ export default function FicheCandidat() {
                   <label className="mt-2 flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="rounded" checked={!!formData.profile?.ready_for_challenges}
                       onChange={e => updateProfile('ready_for_challenges', e.target.checked)} />
-                    <span className="text-sm text-gray-700">Oui</span>
+                    <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                   </label>
                 ) : <p className={valueCls}>{formData.profile?.ready_for_challenges ? 'Oui' : 'Non'}</p>}
               </Field>
@@ -1324,8 +1592,8 @@ export default function FicheCandidat() {
               <SectionTitle>Évaluation des compétences</SectionTitle>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {formData.skills_assessment.map((a, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
-                    <span className="text-sm font-medium text-gray-800">{a.competence}</span>
+                  <div key={i} className="flex items-center justify-between rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] px-3 py-2">
+                    <span className="text-sm font-medium text-[var(--ds-text)]">{a.competence}</span>
                     <span className="text-xs font-bold px-2 py-0.5 rounded-md border" style={{ color: 'var(--color-purple)', borderColor: 'var(--color-purple-light)', backgroundColor: 'var(--color-purple-light)' }}>
                       {a.level}
                     </span>
@@ -1341,13 +1609,13 @@ export default function FicheCandidat() {
               <SectionTitle>Expériences professionnelles</SectionTitle>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {formData.background.professional_experiences.map((exp, i) => (
-                  <div key={i} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                    <p className="text-sm font-semibold text-gray-900">{exp.position || '—'}</p>
-                    <p className="text-xs text-gray-500 mt-0.5">
+                  <div key={i} className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3">
+                    <p className="text-sm font-semibold text-[var(--ds-text)]">{exp.position || '—'}</p>
+                    <p className="text-xs text-[var(--ds-text-subtle)] mt-0.5">
                       {exp.company}{exp.duration ? ` · ${exp.duration}` : ''}
                     </p>
                     {exp.responsibilities && (
-                      <p className="text-xs text-gray-600 mt-2">{exp.responsibilities}</p>
+                      <p className="text-xs text-[var(--ds-text-muted)] mt-2">{exp.responsibilities}</p>
                     )}
                   </div>
                 ))}
@@ -1367,7 +1635,7 @@ export default function FicheCandidat() {
                       ...prev, synthesis: { ...prev.synthesis, feasibility_conclusion: e.target.value }
                     } : prev)} />
                 ) : (
-                  <p className="mt-1 text-sm text-gray-900 bg-gray-50 p-3 rounded-lg border border-gray-100 whitespace-pre-wrap">
+                  <p className="mt-1 text-sm text-[var(--ds-text)] bg-[var(--ds-surface-sunken)] p-3 rounded-lg border border-[var(--ds-border)] whitespace-pre-wrap">
                     {formData.synthesis?.feasibility_conclusion || 'Aucune synthèse renseignée.'}
                   </p>
                 )}
@@ -1411,7 +1679,7 @@ export default function FicheCandidat() {
                             },
                           } : prev)}
                         />
-                        <span className="text-sm text-gray-700">{label}</span>
+                        <span className="text-sm text-[var(--ds-text-muted)]">{label}</span>
                       </label>
                     ))}
                   </div>
@@ -1421,7 +1689,7 @@ export default function FicheCandidat() {
                       .filter(([key]) => formData.synthesis?.pedagogical_recommendations?.[key])
                       .map(([, label]) => label)
                     return on.length
-                      ? <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-gray-900">{on.map(l => <li key={l}>{l}</li>)}</ul>
+                      ? <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-[var(--ds-text)]">{on.map(l => <li key={l}>{l}</li>)}</ul>
                       : <p className={valueCls}>—</p>
                   })()
                 )}
@@ -1487,7 +1755,7 @@ export default function FicheCandidat() {
                         onChange={e => setFormData(prev => prev ? {
                           ...prev, support: { ...prev.support, france_travail_registered: e.target.checked }
                         } : prev)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.support?.france_travail_registered ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1498,7 +1766,7 @@ export default function FicheCandidat() {
                         onChange={e => setFormData(prev => prev ? {
                           ...prev, support: { ...prev.support, mission_locale_registered: e.target.checked }
                         } : prev)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.support?.mission_locale_registered ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1547,7 +1815,7 @@ export default function FicheCandidat() {
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.desired_sectors?.length
                       ? formData.desired_sectors.map((s, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{s}</span>
+                          <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{s}</span>
                         ))
                       : <p className={valueCls}>—</p>}
                   </div>
@@ -1564,7 +1832,7 @@ export default function FicheCandidat() {
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {formData.expected_company_skills?.length
                       ? formData.expected_company_skills.map((s, i) => (
-                          <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded-md">{s}</span>
+                          <span key={i} className="px-2 py-0.5 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)] text-xs font-medium rounded-md">{s}</span>
                         ))
                       : <p className={valueCls}>—</p>}
                   </div>
@@ -1589,14 +1857,14 @@ export default function FicheCandidat() {
                 ) : <p className={valueCls}>{formData.job_info?.questions_concerns || '—'}</p>}
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Disponible le week-end">
+                <Field label="Inconvénient de travailler le week-end">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" className="rounded" checked={!!formData.job_info?.weekend_work}
                         onChange={e => setFormData(prev => prev ? {
                           ...prev, job_info: { ...prev.job_info, weekend_work: e.target.checked }
                         } : prev)} />
-                      <span className="text-sm text-gray-700">Oui</span>
+                      <span className="text-sm text-[var(--ds-text-muted)]">Oui</span>
                     </label>
                   ) : <p className={valueCls}>{formData.job_info?.weekend_work ? 'Oui' : 'Non'}</p>}
                 </Field>
@@ -1614,6 +1882,15 @@ export default function FicheCandidat() {
                   ) : <p className={valueCls}>{formData.job_info?.discovery_source ? DISCOVERY_SOURCE_LABELS[formData.job_info.discovery_source] || prettyEnum(formData.job_info.discovery_source) : '—'}</p>}
                 </Field>
               </div>
+              <Field label="Sites / plateformes de recherche d'alternance">
+                {isEditing ? (
+                  <textarea rows={2} className={inputCls + ' resize-none'}
+                    value={formData.job_info?.job_search_platforms ?? ''}
+                    onChange={e => setFormData(prev => prev ? {
+                      ...prev, job_info: { ...prev.job_info, job_search_platforms: e.target.value }
+                    } : prev)} />
+                ) : <p className={valueCls}>{formData.job_info?.job_search_platforms || '—'}</p>}
+              </Field>
             </div>
           </Card>
 
@@ -1678,6 +1955,7 @@ export default function FicheCandidat() {
           {id && <div className="md:col-span-2"><CandidateHistory candidateId={id} /></div>}
 
           {/* Résultat ClassMarker */}
+          {id && <CandidateQuestionnaireStatus candidateId={id} live={testProgress} />}
           {id && <div className="md:col-span-2"><CandidateTestScore candidateId={id} /></div>}
 
           {/* Dossier Drive */}
@@ -1689,7 +1967,7 @@ export default function FicheCandidat() {
                   <input id="cv-upload-bottom" type="file" accept="application/pdf,image/jpeg,image/png" className="hidden" onChange={handleCVUpload} />
                   <div className="relative">
                     <Button variant="secondary" size="sm" isLoading={uploadingCV}
-                      leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
+                      leftIcon={<IconUpload width={14} height={14} style={{ color: 'var(--color-purple)' }} />}
                       onClick={() => setCvChoiceOpen(cvChoiceOpen === 'bottom' ? null : 'bottom')}>
                       {formData.cv_link ? 'Remplacer CV' : 'Importer CV'}
                     </Button>
@@ -1703,12 +1981,12 @@ export default function FicheCandidat() {
                   </div>
                   <input id="drive-upload" type="file" multiple className="hidden" onChange={handleDriveUpload} />
                   <Button variant="secondary" size="sm" isLoading={uploadingFiles}
-                    leftIcon={<Upload size={14} style={{ color: 'var(--color-purple)' }} />}
+                    leftIcon={<IconUpload width={14} height={14} style={{ color: 'var(--color-purple)' }} />}
                     onClick={() => document.getElementById('drive-upload')?.click()}>
                     Ajouter fichiers
                   </Button>
                   <Button variant="secondary" size="sm" isLoading={loadingFiles}
-                    leftIcon={<RefreshCw size={14} style={{ color: 'var(--color-purple)' }} />}
+                    leftIcon={<IconRefresh width={14} height={14} style={{ color: 'var(--color-purple)' }} />}
                     onClick={() => id && fetchDriveFiles(id)}>
                     Actualiser
                   </Button>
@@ -1724,17 +2002,17 @@ export default function FicheCandidat() {
                         key={selectedFile.id}
                         src={googleEmbedUrl(selectedFile)}
                         title={selectedFile.name}
-                        className="w-full h-full rounded-lg border border-gray-100"
+                        className="w-full h-full rounded-lg border border-[var(--ds-border)]"
                       />
                     ) : previewLoading ? (
-                      <div className="flex flex-col items-center justify-center h-full gap-2 rounded-lg border border-gray-100 bg-gray-50 text-gray-400">
-                        <Loader2 size={24} className="animate-spin" />
+                      <div className="flex flex-col items-center justify-center h-full gap-2 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]">
+                        <IconLoader width={24} height={24} className="animate-spin" />
                         <p className="text-sm">Chargement de l'aperçu…</p>
                       </div>
                     ) : previewError ? (
-                      <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
-                        <AlertCircle size={28} className="text-gray-300" />
-                        <p className="text-sm text-gray-400">{previewError}</p>
+                      <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+                        <IconAlert width={28} height={28} className="text-[var(--ds-text-subtle)]" />
+                        <p className="text-sm text-[var(--ds-text-subtle)]">{previewError}</p>
                         {selectedFile.webViewLink && (
                           <a href={selectedFile.webViewLink} target="_blank" rel="noopener noreferrer"
                             className="text-xs text-purple hover:underline">Ouvrir dans Google Drive</a>
@@ -1742,7 +2020,7 @@ export default function FicheCandidat() {
                       </div>
                     ) : previewUrl ? (
                       selectedFile.mimeType.startsWith('image/') ? (
-                        <div className="flex h-full w-full items-center justify-center rounded-lg border border-gray-100 bg-gray-50">
+                        <div className="flex h-full w-full items-center justify-center rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
                           <img
                             key={selectedFile.id}
                             src={previewUrl}
@@ -1757,30 +2035,30 @@ export default function FicheCandidat() {
                       )
                     ) : null
                   ) : (
-                    <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-gray-200 bg-gray-50">
-                      <FileText size={32} className="text-gray-300" />
-                      <p className="text-sm text-gray-400">Sélectionner un fichier</p>
+                    <div className="flex flex-col items-center justify-center h-full gap-3 rounded-lg border border-dashed border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+                      <IconFile width={32} height={32} className="text-[var(--ds-text-subtle)]" />
+                      <p className="text-sm text-[var(--ds-text-subtle)]">Sélectionner un fichier</p>
                     </div>
                   )}
                 </div>
 
                 {/* File list */}
-                <div className="w-64 shrink-0 overflow-y-auto rounded-lg border border-gray-100 bg-gray-50">
+                <div className="w-64 shrink-0 overflow-y-auto rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
                   {loadingFiles ? (
-                    <div className="flex items-center justify-center h-20 gap-2 text-gray-400 text-xs">
-                      <Loader2 size={14} className="animate-spin" />
+                    <div className="flex items-center justify-center h-20 gap-2 text-[var(--ds-text-subtle)] text-xs">
+                      <IconLoader width={14} height={14} className="animate-spin" />
                       Chargement…
                     </div>
                   ) : driveFiles.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-20 gap-2 text-gray-400 text-xs">
-                      <File size={20} />
+                    <div className="flex flex-col items-center justify-center h-20 gap-2 text-[var(--ds-text-subtle)] text-xs">
+                      <IconFile width={20} height={20} />
                       Dossier vide
                     </div>
                   ) : (
-                    <ul className="divide-y divide-gray-100">
+                    <ul className="divide-y divide-[var(--ds-border)]">
                       {driveFiles.map(file => (
-                        <li key={file.id} className={`group flex items-center transition-colors hover:bg-white ${
-                          selectedFile?.id === file.id ? 'bg-white shadow-sm' : ''
+                        <li key={file.id} className={`group flex items-center transition-colors hover:bg-[var(--ds-surface)] ${
+                          selectedFile?.id === file.id ? 'bg-[var(--ds-surface)] shadow-sm' : ''
                         }`}>
                           <button
                             onClick={() => setSelectedFile(file)}
@@ -1788,9 +2066,9 @@ export default function FicheCandidat() {
                           >
                             <DriveFileIcon mimeType={file.mimeType} />
                             <div className="min-w-0">
-                              <p className="text-xs font-medium text-gray-800 truncate leading-tight">{file.name}</p>
+                              <p className="text-xs font-medium text-[var(--ds-text)] truncate leading-tight">{file.name}</p>
                               {file.modifiedTime && (
-                                <p className="text-[10px] text-gray-400 mt-0.5">
+                                <p className="text-[10px] text-[var(--ds-text-subtle)] mt-0.5">
                                   {new Date(file.modifiedTime).toLocaleDateString('fr-FR')}
                                 </p>
                               )}
@@ -1799,9 +2077,9 @@ export default function FicheCandidat() {
                           <button
                             onClick={() => handleDeleteFile(file)}
                             title="Supprimer"
-                            className="shrink-0 p-2 text-gray-300 hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="shrink-0 p-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)] opacity-0 group-hover:opacity-100 transition-opacity"
                           >
-                            <Trash2 size={14} />
+                            <IconTrash width={14} height={14} />
                           </button>
                         </li>
                       ))}
@@ -1818,6 +2096,7 @@ export default function FicheCandidat() {
       {editOpen && (
         <CandidateFormModal
           candidate={formData}
+          requireGate
           onClose={() => setEditOpen(false)}
           onSaved={() => {
             setFormData(null)
@@ -1830,6 +2109,7 @@ export default function FicheCandidat() {
         <MailModal
           defaultTo={formData.identity.email}
           candidateName={formData.identity.full_name}
+          defaultTemplateId={mailMode === 'cv-import' ? cvImportTemplateId : undefined}
           onCustomSend={mailMode === 'cv-import' ? handleSendCvImportMail : undefined}
           onClose={() => setMailMode(null)}
         />
@@ -1850,6 +2130,17 @@ export default function FicheCandidat() {
         />
       )}
 
+      {showQuestionnaire && formData._id && (
+        <QuestionnaireLinksModal
+          open={showQuestionnaire}
+          onClose={() => setShowQuestionnaire(false)}
+          candidateId={formData._id}
+          candidateName={formData.identity?.full_name ?? `${first} ${last}`}
+          live={testProgress}
+          onOpenLegacy={() => { setShowQuestionnaire(false); setShowClassMarker(true) }}
+        />
+      )}
+
       {showClassMarker && (
         <ClassMarkerLinksModal
           open={showClassMarker}
@@ -1861,12 +2152,12 @@ export default function FicheCandidat() {
         />
       )}
 
-      <FilizFolderModal
+      {FILIZ_FOLDER_CREATION_ENABLED && <FilizFolderModal
         open={showFilizModal}
         onClose={() => setShowFilizModal(false)}
         candidateId={formData._id}
         onSuccess={(filizFolderId) => setFormData(prev => prev ? { ...prev, filiz_folder_id: filizFolderId } : prev)}
-      />
+      />}
       <ConfirmDeleteModal
         open={showDeleteModal}
         onClose={() => setShowDeleteModal(false)}
@@ -1877,9 +2168,9 @@ export default function FicheCandidat() {
 
       {immersionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setImmersionModalOpen(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Passage en immersion</h3>
-            <p className="mt-1 text-sm text-gray-500">Renseigne l'entreprise et les dates de début et de fin de l'immersion.</p>
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Passage en immersion</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Renseigne l'entreprise, le numéro de convention, les horaires et les dates de l'immersion.</p>
             <div className="mt-4 space-y-3">
               <div className="relative">
                 <label className={labelCls} htmlFor="imm-company">Entreprise</label>
@@ -1896,12 +2187,12 @@ export default function FicheCandidat() {
                 {companyListOpen && (() => {
                   const filtered = companyOptions.filter(c => c.name?.toLowerCase().includes(companyQuery.toLowerCase()))
                   return (
-                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-lg">
+                    <ul className="absolute z-10 mt-1 max-h-48 w-full overflow-auto rounded-md border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg">
                       {filtered.slice(0, 50).map(c => (
                         <li key={c.id}>
                           <button
                             type="button"
-                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-gray-100"
+                            className="block w-full px-3 py-1.5 text-left text-sm hover:bg-[var(--ds-surface-sunken)]"
                             onClick={() => { setImmersionCompanyId(String(c.id)); setCompanyQuery(c.name); setCompanyListOpen(false) }}
                           >
                             {c.name}
@@ -1909,11 +2200,28 @@ export default function FicheCandidat() {
                         </li>
                       ))}
                       {filtered.length === 0 && (
-                        <li className="px-3 py-1.5 text-sm text-gray-400">Aucune entreprise</li>
+                        <li className="px-3 py-1.5 text-sm text-[var(--ds-text-subtle)]">Aucune entreprise</li>
                       )}
                     </ul>
                   )
                 })()}
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="imm-convention">Numéro de convention</label>
+                <input
+                  id="imm-convention"
+                  type="text"
+                  className={inputCls}
+                  placeholder="N° de convention…"
+                  value={immersionConventionNumber}
+                  onChange={e => setImmersionConventionNumber(e.target.value)}
+                />
+              </div>
+              <div>
+                <span className={labelCls}>Horaires</span>
+                <div className="mt-1">
+                  <ImmersionScheduleEditor value={immersionSchedule} onChange={setImmersionSchedule} />
+                </div>
               </div>
               <div>
                 <label className={labelCls} htmlFor="imm-start">Date de début</label>
@@ -1934,9 +2242,9 @@ export default function FicheCandidat() {
 
       {unavailableModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setUnavailableModalOpen(false)}>
-          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Indisponible jusqu'au</h3>
-            <p className="mt-1 text-sm text-gray-500">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
+          <div className="w-full max-w-sm rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Indisponible jusqu'au</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Le candidat repassera automatiquement en « Recherche » à cette date.</p>
             <div className="mt-4">
               <label className={labelCls} htmlFor="fiche-avail-date">Date de disponibilité</label>
               <input id="fiche-avail-date" type="date" className={inputCls} value={availabilityDate} onChange={e => setAvailabilityDate(e.target.value)} />
@@ -1962,17 +2270,62 @@ export default function FicheCandidat() {
 
       {aiSummaryOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setAiSummaryOpen(false)}>
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-base font-bold text-gray-900">Résumé IA</h3>
-            <p className="mt-1 text-sm text-gray-500">Modifie le résumé généré par l'IA si nécessaire, puis enregistre.</p>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Résumé IA</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Modifie le résumé généré par l'IA si nécessaire, puis enregistre.</p>
             <div className="mt-4">
               <textarea className={inputCls} rows={6} value={aiSummaryText}
                 onChange={e => setAiSummaryText(e.target.value)} />
             </div>
-            {aiSummaryError && <p className="mt-2 text-xs text-red-500">{aiSummaryError}</p>}
+            {aiSummaryError && <p className="mt-2 text-xs text-[var(--ds-danger)]">{aiSummaryError}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setAiSummaryOpen(false)}>Annuler</Button>
               <Button variant="primary" size="sm" disabled={!aiSummaryText.trim()} onClick={handleSaveAiSummary}>Enregistrer</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPendingComment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowPendingComment(false)}>
+          <div className="w-full max-w-lg rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-[var(--ds-text)]">Finaliser le test – commentaire</h3>
+            <p className="mt-1 text-sm text-[var(--ds-text-subtle)]">Décris les actions prises suite à l’échec (recontact, orientation, remédiation...). Ce commentaire sera enregistré dans l’historique du candidat.</p>
+            <div className="mt-4">
+              <textarea className={inputCls + ' resize-none'} rows={4} value={pendingComment} onChange={e => setPendingComment(e.target.value)} placeholder="Ex: Candidat informé de l’échec, proposé atelier de remise à niveau, suivi prévu..." />
+            </div>
+            <div className="mt-4 flex flex-col gap-1.5">
+              <span id="pending-orientation-label" className="text-sm font-medium text-[var(--ds-text-muted)]">Orientation vers…</span>
+              <div role="group" aria-labelledby="pending-orientation-label" className="flex flex-col gap-2 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2.5">
+                {TEST_FAILURE_ORIENTATION_OPTIONS.map((opt) => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 h-4 w-4"
+                      checked={pendingOrientations.includes(opt.value)}
+                      onChange={() => togglePendingOrientation(opt.value)}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="mt-4 flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4"
+                checked={sendPendingMail}
+                onChange={(e) => setSendPendingMail(e.target.checked)}
+              />
+              Envoyer un mail au candidat (« Votre candidature a été redirigée vers… »)
+            </label>
+            {pendingMailError && <p className="mt-2 text-xs text-[var(--ds-warning)]">{pendingMailError}</p>}
+            {pendingCommentError && <p className="mt-2 text-xs text-[var(--ds-danger)]">{pendingCommentError}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setShowPendingComment(false)}>Annuler</Button>
+              <Button size="sm" isLoading={pendingCommentLoading} disabled={!pendingComment.trim()} onClick={handlePendingCommentSubmit} className="bg-purple hover:bg-purple-dark text-white">
+                Enregistrer
+              </Button>
             </div>
           </div>
         </div>
@@ -1987,13 +2340,13 @@ function CvChoiceDropdown({ onUpload, onSendMail, onClose }: {
   return (
     <>
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
-        <button onClick={onUpload} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
-          <Upload size={16} className="text-gray-400" />
+      <div className="absolute top-full left-0 mt-1 z-50 w-64 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg overflow-hidden">
+        <button onClick={onUpload} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] transition-colors">
+          <IconUpload width={16} height={16} className="text-[var(--ds-text-subtle)]" />
           <span>Uploader un fichier</span>
         </button>
-        <button onClick={onSendMail} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 transition-colors border-t border-gray-100">
-          <Mail size={16} className="text-gray-400" />
+        <button onClick={onSendMail} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] transition-colors border-t border-[var(--ds-border)]">
+          <IconMail width={16} height={16} className="text-[var(--ds-text-subtle)]" />
           <span>Envoyer un mail au candidat</span>
         </button>
       </div>

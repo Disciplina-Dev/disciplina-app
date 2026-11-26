@@ -11,3 +11,4 @@ coverage
 logs
 tmp
 *.md
+test-results

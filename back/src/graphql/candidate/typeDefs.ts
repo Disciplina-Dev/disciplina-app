@@ -6,6 +6,8 @@ export const typeDefs = gql`
         CC
         NTC
         REM
+        CADGA
+        # Legacy : ancien code du TP CADGA, conservé pour les clients existants.
         SA
     }
 
@@ -36,6 +38,65 @@ export const typeDefs = gql`
         LA_PLAINE_DES_PALMISTES
         SALAZIE
         SAINTE_ANNE
+        ANNEMASSE
+        AMBILLY
+        GAILLARD
+        VILLE_LA_GRAND
+        VETRAZ_MONTHOUX
+        ETREMBIERES
+        CRANVES_SALES
+        SAINT_CERGUES
+        JUVIGNY
+        BONNE
+        MACHILLY
+        DOUVAINE
+        VEIGY_FONCENEX
+        BONS_EN_CHABLAIS
+        SCIEZ
+        THONON_LES_BAINS
+        EVIAN_LES_BAINS
+        SAINT_JULIEN_EN_GENEVOIS
+        ARCHAMPS
+        NEYDENS
+        COLLONGES_SOUS_SALEVE
+        PRESILLY
+        BEAUMONT
+        FEIGERES
+        VIRY
+        VALLEIRY
+        VULBENS
+        CHENEX
+        REIGNIER_ESERY
+        ARENTHON
+        CONTAMINE_SUR_ARVE
+        BONNEVILLE
+        AYSE
+        MARIGNIER
+        VOUGY
+        CLUSES
+        SCIONZIER
+        MARNAZ
+        LA_ROCHE_SUR_FORON
+        AMANCY
+        SAINT_PIERRE_EN_FAUCIGNY
+        ETAUX
+        CORNIER
+        PERS_JUSSY
+        SCIENTRIER
+        ARBUSIGNY
+        ANNECY
+        PRINGY
+        EPAGNY_METZ_TESSY
+        POISY
+        MEYTHET
+        SEYNOD
+        CRAN_GEVRIER
+        ARGONAY
+        PERRIGNIER
+        BOEGE
+        FILLINGES
+        VIUZ_EN_SALLAZ
+        SAINT_JEOIRE
     }
 
     enum SchoolLevel {
@@ -95,11 +156,15 @@ export const typeDefs = gql`
         dateOfBirth: String
         placeOfBirth: String
         departmentOfBirth: String
+        bornInFrance: Boolean
+        nationality: Int
+        residencePermit: Boolean
         age: Int
         sex: String
         address: String
         postalCode: String
         city: String
+        country: String
         drivingLicenseB: Boolean
         hasVehicle: Boolean
         transportMeans: String
@@ -107,6 +172,7 @@ export const typeDefs = gql`
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
         description: String
+        descriptionSource: String
         avatarUpdatedAt: String
         driveAvatarFileId: String
     }
@@ -168,6 +234,7 @@ export const typeDefs = gql`
         geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
+        jobSearchPlatforms: String
     }
 
     type PedagogicalRecommendations {
@@ -230,13 +297,54 @@ export const typeDefs = gql`
         email: String
     }
 
+    type CandidateConsentments {
+        dataProcessing: Boolean!
+        dataSharing: Boolean!
+        aiProcessing: Boolean!
+        photoProcessing: Boolean!
+        consentDate: String!
+        consentVersion: String!
+    }
+
+    "Une relance reçue par un candidat (envoi + réponse éventuelle)."
+    type CandidateRelance {
+        sentAt: String
+        kind: String
+        templateId: String
+        subject: String
+        sentBy: Int
+        responseAt: String
+        answer: String
+    }
+
+    "Créneau horaire d'immersion : jour + plages matin/après-midi facultatives (découpage possible en deux shifts)."
+    type ImmersionScheduleSlot {
+        day: String
+        morningStartHour: String
+        morningEndHour: String
+        afternoonStartHour: String
+        afternoonEndHour: String
+    }
+
+    input ImmersionScheduleSlotInput {
+        day: String
+        morningStartHour: String
+        morningEndHour: String
+        afternoonStartHour: String
+        afternoonEndHour: String
+    }
+
     type Candidate {
         id: String!
         owner: CandidateOwner
         status: CandidateStatus!
+        writtenTestScore: Float
+        testAverage: Float
+        testFailurePending: Boolean
         tpTypes: [TitleProfessionalType!]
         identity: CandidateIdentity!
         emergencyContact: CandidateEmergencyContact
+        consentments: CandidateConsentments
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
         immersionAgreement: Boolean
@@ -244,10 +352,15 @@ export const typeDefs = gql`
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlot]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: CandidateEducation
@@ -267,6 +380,8 @@ export const typeDefs = gql`
         createdAt: String
         lastRelanceAt: String
         relanceResponseAt: String
+        relanceCount: Int
+        relanceHistory: [CandidateRelance!]
     }
 
     input IdentityInput {
@@ -277,11 +392,15 @@ export const typeDefs = gql`
         dateOfBirth: String
         placeOfBirth: String
         departmentOfBirth: String
+        bornInFrance: Boolean
+        nationality: Int
+        residencePermit: Boolean
         age: Int
         sex: String
         address: String
         postalCode: String
         city: String
+        country: String
         drivingLicenseB: Boolean
         hasVehicle: Boolean
         transportMeans: String
@@ -289,6 +408,9 @@ export const typeDefs = gql`
         hadApprenticeshipContract: Boolean
         apprenticeshipContractDetails: String
         description: String
+        # "auto" : résumé régénéré automatiquement ; "manual" : texte RH protégé.
+        # Un texte qui diffère de l'existant est considéré comme manuel par défaut.
+        descriptionSource: String
     }
 
     input EducationInput {
@@ -349,6 +471,15 @@ export const typeDefs = gql`
         email: String
     }
 
+    input ConsentmentsInput {
+        dataProcessing: Boolean!
+        dataSharing: Boolean!
+        aiProcessing: Boolean!
+        photoProcessing: Boolean!
+        consentDate: String!
+        consentVersion: String!
+    }
+
     input JobInfoInput {
         domainMotivation: String
         questionsConcerns: String
@@ -356,6 +487,7 @@ export const typeDefs = gql`
         geographicMobility: [Localisation]
         weekendWork: Boolean
         discoverySource: DiscoverySource
+        jobSearchPlatforms: String
     }
 
     input PedagogicalRecommendationsInput {
@@ -390,17 +522,26 @@ export const typeDefs = gql`
         tpTypes: [TitleProfessionalType!]!
         identity: IdentityInput!
         emergencyContact: EmergencyContactInput
+        consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
+        writtenTestScore: Float
+        testAverage: Float
+        testFailurePending: Boolean
         immersionAgreement: Boolean
         immersionStartDate: String
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlotInput]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -418,17 +559,26 @@ export const typeDefs = gql`
         tpTypes: [TitleProfessionalType!]
         identity: IdentityInput
         emergencyContact: EmergencyContactInput
+        consentments: ConsentmentsInput
         trainingSite: TrainingSite
         trainingSites: [TrainingSite!]
+        writtenTestScore: Float
+        testAverage: Float
+        testFailurePending: Boolean
         immersionAgreement: Boolean
         immersionStartDate: String
         immersionEndDate: String
         immersionCompanyId: Int
         immersionCompanyName: String
+        immersionConventionNumber: String
+        immersionSchedule: [ImmersionScheduleSlotInput]
         contractOfferId: String
         contractCompanyId: Int
         contractCompanyName: String
         contractStartDate: String
+        contractTrialEndDate: String
+        contractSessionId: String
+        contractSessionName: String
         desiredSectors: [String]
         expectedCompanySkills: [String]
         education: EducationInput
@@ -459,12 +609,22 @@ export const typeDefs = gql`
         totalCount: Int!
     }
 
+    "Champ ciblé par la recherche libre du répertoire candidats (défaut : NAME)"
+    enum CandidateSearchField {
+        NAME
+        PHONE
+        EMAIL
+    }
+
     input CandidateFiltersInput {
         trainingSite: TrainingSite
         status: CandidateStatus
         statusIn: [CandidateStatus!]
         schoolLevel: SchoolLevel
         drivingLicenseB: Boolean
+        hasVehicle: Boolean
+        "Sexe du candidat (FILLE / GARCON), exclusif"
+        sex: String
         ageMin: Int
         ageMax: Int
         tpType: [TitleProfessionalType!]
@@ -515,6 +675,62 @@ export const typeDefs = gql`
         createdAt: String!
     }
 
+    "Type de consentement candidat (GDPR_INF_08.2)."
+    enum ConsentType {
+        DATA_PROCESSING
+        DATA_SHARING
+        AI_PROCESSING
+        PHOTO_PROCESSING
+    }
+
+    enum ConsentAction {
+        GRANT
+        WITHDRAW
+    }
+
+    enum ConsentSource {
+        CREATE
+        UPDATE
+        WITHDRAWAL
+        BACKFILL
+    }
+
+    "Un événement de l'historique des consentements (octroi ou retrait, horodatage serveur)."
+    type CandidateConsentEvent {
+        id: ID!
+        consentType: ConsentType!
+        action: ConsentAction!
+        consentVersion: String!
+        source: ConsentSource!
+        recordedByName: String
+        recordedAt: String!
+    }
+
+    enum CandidateAccessAction {
+        VIEW
+        LIST
+        SSN_UNMASK
+        PDF_EXPORT
+        CV_READ
+        FILE_READ
+        AVATAR_READ
+    }
+
+    enum CandidateAccessActorType {
+        STAFF
+        EXTERNAL
+    }
+
+    "Une lecture ou un export de données d'une fiche candidat (journal d'accès, horodatage serveur)."
+    type CandidateAccessEvent {
+        id: ID!
+        action: CandidateAccessAction!
+        actorType: CandidateAccessActorType!
+        actorId: Int
+        actorName: String
+        occurredAt: String!
+    }
+
     type DriveTpFolder {
         tp: TitleProfessionalType!
         region: String!
@@ -546,11 +762,20 @@ export const typeDefs = gql`
     type Query {
         candidateStats(sectors: [String!]): CandidateStats!
         candidates: [Candidate!]!
-        candidatesPage(first: Int, after: String, search: String, filters: CandidateFiltersInput): CandidateConnection!
+        candidatesPage(
+            first: Int
+            after: String
+            search: String
+            searchField: CandidateSearchField
+            filters: CandidateFiltersInput
+        ): CandidateConnection!
         candidate(id: String!): Candidate
         candidateByEmail(email: String!): CandidateEmailCheck!
         matchCandidate(id: String!): Candidate!
         candidateHistory(candidateId: String!): [CandidateHistoryEntry!]!
+        candidateConsentHistory(candidateId: String!): [CandidateConsentEvent!]!
+        "Journal des lectures / exports d'une fiche, du plus récent au plus ancien (RESPONSABLE+)."
+        candidateAccessLog(candidateId: String!, limit: Int): [CandidateAccessEvent!]!
         driveFolderConfig: DriveFolderConfig!
         unmaskCandidateSsn(id: String!): String
     }
@@ -558,6 +783,7 @@ export const typeDefs = gql`
     type Mutation {
         createCandidate(input: CreateCandidateInput!): Candidate!
         updateCandidate(id: String!, input: UpdateCandidateInput!): Candidate!
+        withdrawCandidateConsent(id: String!, types: [ConsentType!]!): Candidate!
         deleteCandidate(id: String!): Boolean!
         createCandidateDriveFolder(id: String!): Candidate!
         addCandidateHistoryEntry(candidateId: String!, description: String!): CandidateHistoryEntry!

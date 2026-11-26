@@ -33,7 +33,7 @@ grep -rno '\[\[[A-Z_]*\]\]' front/disciplina-front/src/content/legal/
 | Placeholder | Description | Exemple |
 |---|---|---|
 | `[[NDA_FORMATION]]` | Numéro de déclaration d'activité de prestataire de formation | 04 97 00000 97 |
-| `[[CERTIF_QUALIOPI]]` | Référence de la certification Qualiopi, ou « non applicable » | Certificat n° XXXXX délivré le JJ/MM/AAAA |
+| `[[N_QUALIOPI]]` | Numéro de certification Qualiopi | 24974 |
 
 ## Protection des données
 
@@ -61,10 +61,10 @@ grep -rno '\[\[[A-Z_]*\]\]' front/disciplina-front/src/content/legal/
 
 | Placeholder | Description | Exemple |
 |---|---|---|
-| `[[VERSION_DOC]]` | Version du corpus légal | 2026-08-v1 |
-| `[[DATE_MAJ]]` | Date de dernière mise à jour | 4 août 2026 |
+| `[[VERSION_DOC]]` | Version du corpus légal | 2026-11-v2 |
+| `[[DATE_MAJ]]` | Date de dernière mise à jour | 19 novembre 2026 |
 
-> `[[VERSION_DOC]]` doit être cohérent avec la valeur `consent_version` stockée
-> avec les consentements candidats (cf. Faille 1 de `RGPD.md`, non encore
-> implémentée). Toute modification de fond du corpus impose d'incrémenter cette
-> version et d'en informer les Utilisateurs.
+> `[[VERSION_DOC]]` doit être cohérent avec `CONSENT_VERSION`
+> (`src/constants/consent.ts`), stockée avec les consentements candidats
+> (`consent_version`). Toute modification de fond du corpus impose d'incrémenter
+> cette version et d'en informer les Utilisateurs.

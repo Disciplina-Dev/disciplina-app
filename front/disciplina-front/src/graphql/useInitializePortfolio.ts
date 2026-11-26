@@ -6,7 +6,10 @@ import { GET_COMPANIES, GET_SALE_PERSONS } from '@/graphql/queries'
 export interface ServerFilters {
   status?: string[]
   userID?: number
-  sector?: string
+  sector?: string | string[]
+  sectors?: string[]
+  sectorMode?: 'OR' | 'AND'
+  sectorsMode?: 'OR' | 'AND'
   relance?: string
   unassigned?: boolean
   createdFrom?: string

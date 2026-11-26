@@ -3,3 +3,4 @@ dist
 .env.back
 .vercel
 *tsbuildinfo
+test-results

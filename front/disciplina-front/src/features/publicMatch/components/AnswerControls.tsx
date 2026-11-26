@@ -1,10 +1,10 @@
-import { Heart, Check, X } from 'lucide-react'
+import { IconCheck, IconClose, IconFavorite } from '@/components/ui/icons'
 import type { ProposedAnswer } from '@/api/match'
 
-const OPTIONS: { value: ProposedAnswer; label: string; icon: typeof Heart; activeClass: string }[] = [
-  { value: 'FAVORITE', label: 'Coup de cœur', icon: Heart, activeClass: 'border-purple bg-purple text-white' },
-  { value: 'ACCEPTED', label: 'Accepter', icon: Check, activeClass: 'border-success bg-success text-white' },
-  { value: 'REFUSED', label: 'Refuser', icon: X, activeClass: 'border-danger bg-danger text-white' },
+const OPTIONS: { value: ProposedAnswer; label: string; icon: typeof IconFavorite; activeClass: string }[] = [
+  { value: 'FAVORITE', label: 'Coup de cœur', icon: IconFavorite, activeClass: 'border-purple bg-purple text-white' },
+  { value: 'ACCEPTED', label: 'Accepter', icon: IconCheck, activeClass: 'border-success bg-success text-white' },
+  { value: 'REFUSED', label: 'Refuser', icon: IconClose, activeClass: 'border-danger bg-danger text-white' },
 ]
 
 export default function AnswerControls({
@@ -23,10 +23,10 @@ export default function AnswerControls({
             key={option}
             onClick={() => onChange(option)}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-[13px] font-bold transition-colors ${
-              active ? activeClass : 'border-gray-200 text-gray-600 hover:border-purple'
+              active ? activeClass : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:border-purple'
             }`}
           >
-            <Icon size={15} /> {label}
+            <Icon width={15} height={15} /> {label}
           </button>
         )
       })}

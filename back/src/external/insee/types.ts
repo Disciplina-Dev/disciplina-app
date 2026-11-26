@@ -18,6 +18,12 @@ export interface SireneEtablissement {
     denomination: string | null;
     nomPrenom: string | null;
     adresse: SireneAdresse;
+    /** Dirigeants (API Recherche d'entreprises, données publiques RNE). */
+    dirigeants?: string | null;
+    /** Tranche d'effectif salarié (établissement, repli unité légale). */
+    trancheEffectifs?: string | null;
+    /** Activité principale NAF (établissement, repli unité légale). */
+    activitePrincipale?: string | null;
 }
 
 interface SireneAdresseRaw {

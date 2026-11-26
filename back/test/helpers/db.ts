@@ -2,14 +2,33 @@ import pool from '../../src/db/mysql/connection';
 import { CandidateModel } from '../../src/db/mongo/schemas/candidate.schema';
 import { NeedsAnalysisModel } from '../../src/db/mongo/schemas/needsAnalysis.schema';
 import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
+import { KpiModel } from '../../src/db/mongo/schemas/kpi.schema';
+import { AlternantModel } from '../../src/db/mongo/schemas/alternant.schema';
+import { AlternantSequenceModel } from '../../src/db/mongo/schemas/alternant-sequence.schema';
+import { QuestionnaireAttemptModel, QuestionnaireModel } from '../../src/db/mongo/schemas/questionnaire.schema';
 
 const CLEARED_TABLES = [
+    'mcp_audit_log',
+    'candidate_consent_history',
+    'candidate_access_log',
+    'filiz_folders',
+    'external_access',
+    'external_link',
     'company_history',
+    'company_sectors',
     'companies',
     'companies_blacklist',
     'match_link',
-    'interview_access',
-    'rh_kpi',
+    // interview_access : table conservée (dépréciée) ; le flux entretien vit dans external_access (reference 3).
+    // rh_kpi / commercial_kpi : supprimées (#513), les buckets vivent dans
+    // Mongo `kpis`, vidés via dropMongo().
+    'todos',
+    'todo_groups',
+    'calendar_day_block_targets',
+    'calendar_day_blocks',
+    'calendar_slot_occupations',
+    'booking_settings',
+    'user_sectors',
     'users',
     'refresh_tokens',
 ];
@@ -30,8 +49,15 @@ export async function truncateMysql(): Promise<void> {
     try {
         await conn.query('SET FOREIGN_KEY_CHECKS = 0');
         for (const table of CLEARED_TABLES) {
-            await conn.query(`DELETE FROM ${table}`);
-            await conn.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+            try {
+                await conn.query(`DELETE FROM ${table}`);
+                await conn.query(`ALTER TABLE ${table} AUTO_INCREMENT = 1`);
+            } catch (e: unknown) {
+                const msg = String((e as any)?.message ?? '');
+                // Table may not exist yet before migrations (e.g. todo_groups on old DB)
+                if (msg.includes("doesn't exist") || msg.includes('Unknown table') || msg.includes('ER_NO_SUCH_TABLE')) continue;
+                throw e;
+            }
         }
         await conn.query('SET FOREIGN_KEY_CHECKS = 1');
     } finally {
@@ -43,4 +69,11 @@ export async function dropMongo(): Promise<void> {
     await CandidateModel.deleteMany({});
     await NeedsAnalysisModel.deleteMany({});
     await OfferModel.deleteMany({});
+    await AlternantModel.deleteMany({});
+    await AlternantSequenceModel.deleteMany({});
+    // Buckets KPI (ex-tables MySQL commercial_kpi / rh_kpi) : vidés comme elles
+    // l'étaient pour isoler chaque test.
+    await KpiModel.deleteMany({});
+    await QuestionnaireModel.deleteMany({});
+    await QuestionnaireAttemptModel.deleteMany({});
 }

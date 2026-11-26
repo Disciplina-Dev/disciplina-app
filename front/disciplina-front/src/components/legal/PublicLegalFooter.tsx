@@ -9,13 +9,13 @@
  */
 export default function PublicLegalFooter() {
   return (
-    <footer className="mt-auto w-full border-t border-gray-100 px-4 py-5 text-center">
-      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-gray-500">
+    <footer className="mt-auto w-full border-t border-[var(--ds-border)] px-4 py-5 text-center">
+      <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-[var(--ds-text-subtle)]">
         <a
           href="/legal/mentions"
           target="_blank"
           rel="noopener noreferrer"
-          className="transition-colors hover:text-gray-900"
+          className="transition-colors hover:text-[var(--ds-text)]"
         >
           Mentions légales
         </a>
@@ -24,7 +24,7 @@ export default function PublicLegalFooter() {
           href="/legal/confidentialite"
           target="_blank"
           rel="noopener noreferrer"
-          className="transition-colors hover:text-gray-900"
+          className="transition-colors hover:text-[var(--ds-text)]"
         >
           Politique de confidentialité
         </a>
@@ -33,7 +33,7 @@ export default function PublicLegalFooter() {
           href="/legal/cgu"
           target="_blank"
           rel="noopener noreferrer"
-          className="transition-colors hover:text-gray-900"
+          className="transition-colors hover:text-[var(--ds-text)]"
         >
           Conditions d'utilisation
         </a>
@@ -42,12 +42,12 @@ export default function PublicLegalFooter() {
           href="/legal/cookies"
           target="_blank"
           rel="noopener noreferrer"
-          className="transition-colors hover:text-gray-900"
+          className="transition-colors hover:text-[var(--ds-text)]"
         >
           Cookies
         </a>
       </div>
-      <p className="mx-auto mt-2 max-w-xl text-xs text-gray-300">
+      <p className="mx-auto mt-2 max-w-xl text-xs text-[var(--ds-text-subtle)]">
         Conformément au RGPD, vous disposez d'un droit d'accès, de rectification et de
         suppression de vos données.
       </p>

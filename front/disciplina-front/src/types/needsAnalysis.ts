@@ -32,16 +32,23 @@ export interface Referents {
   recruitmentReferents?: ReferentDetails | null
 }
 
+export interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 export interface OfferCriteria {
   educationLevel?: string | null
   drivingLicense?: boolean | null
+  hasVehicle?: boolean | null
   experienceRequired?: boolean | null
   trainingDomain?: string | null
   ageMin?: number | null
   ageMax?: number | null
   desiredSex?: string | null
   softSkills?: string | null
-  scheduleOptions?: string[] | null
+  scheduleOptions?: ScheduleSlot[] | null
   conditions?: string | null
   additionalComments?: string | null
 }
@@ -64,6 +71,14 @@ export interface Position {
   criteria?: OfferCriteria | null
 }
 
+export type AdministrationType = 'NON_RENSEIGNE' | 'ADMINISTRATION_PUBLIQUE' | 'ADMINISTRATION_PRIVEE'
+
+export const ADMINISTRATION_LABELS: Record<AdministrationType, string> = {
+  NON_RENSEIGNE: 'Non renseigné',
+  ADMINISTRATION_PUBLIQUE: 'Administration publique',
+  ADMINISTRATION_PRIVEE: 'Administration privée',
+}
+
 export interface NeedsAnalysis {
   id: string
   companyInfos?: CompanyInfos | null
@@ -76,7 +91,74 @@ export interface NeedsAnalysis {
   trainingDays?: string | null
   yousignSignatureRequestID?: string | null
   status?: string | null
+  /** Brouillon rendu visible dans le matching sans envoi en signature (affiché « Non envoyée »). */
+  isVisibleInMatching?: boolean | null
+  /** Statut d'onglet (liste matching RH) : forcé manuellement ou dérivé des offres. */
+  abStatus?: string | null
+  isRelanceDisabled?: boolean | null
+  administrationType?: AdministrationType | null
   tags?: string[] | null
   createdAt?: string | null
   updatedAt?: string | null
+  /** Date du dernier passage au statut effectif ACTIVE (null = antérieur au suivi). */
+  lastActiveAt?: string | null
+  /** URL Drive du dossier contenant le mandat signé (uniquement si SIGNE). */
+  driveFolderUrl?: string | null
+  /** Pastille couleur manuelle du suivi entreprise (annuaire RH). Null = automatique. */
+  companyIndicator?: string | null
+  /** Suivi entreprise (annuaire RH) : références libres « France Travail » et « KOANN ». */
+  franceTravail?: string | null
+  koann?: string | null
+}
+
+export interface AbBadge {
+  bg: string
+  text: string
+  label: string
+}
+
+const AB_BADGES: Record<string, AbBadge> = {
+  BROUILLON: {
+    bg: 'bg-[var(--ds-surface-sunken)]',
+    text: 'text-[var(--ds-text-muted)]',
+    label: 'Brouillon',
+  },
+  NON_ENVOYEE: {
+    bg: 'bg-[var(--ds-warning-bg)]',
+    text: 'text-[var(--ds-warning)]',
+    label: 'Non envoyée',
+  },
+  EN_ATTENTE_SIGNATURE: {
+    bg: 'bg-[var(--ds-warning-bg)]',
+    text: 'text-[var(--ds-warning)]',
+    label: 'En attente de signature',
+  },
+  SIGNE: { bg: 'bg-[var(--ds-success-bg)]', text: 'text-[var(--ds-success)]', label: 'Signé' },
+  EXPIRE: { bg: 'bg-[var(--ds-danger-bg)]', text: 'text-[var(--ds-danger)]', label: 'Expiré' },
+}
+
+/**
+ * Badge de statut d'AB : un brouillon publié dans le matching (sans envoi en
+ * signature) s'affiche « Non envoyée » — il se matche comme une AB non signée.
+ */
+export function abStatusBadge(
+  status?: string | null,
+  isVisibleInMatching?: boolean | null,
+): AbBadge {
+  if (status === 'BROUILLON' && isVisibleInMatching) return AB_BADGES['NON_ENVOYEE']
+  return AB_BADGES[status ?? 'BROUILLON'] ?? AB_BADGES['BROUILLON']
+}
+
+/** Libellé textuel du statut d'AB (lignes « Statut AB », listes compactes). */
+export function abStatusLabel(status?: string | null, isVisibleInMatching?: boolean | null): string {
+  return abStatusBadge(status, isVisibleInMatching).label
+}
+
+/**
+ * Statuts pour lesquels un PDF d'AB a été archivé sur le Drive : l'envoi en
+ * signature archive la copie non signée, la signature la copie signée.
+ * Un brouillon (même publié au matching) n'a pas d'archive.
+ */
+export function isAbArchivedOnDrive(status?: string | null): boolean {
+  return status === 'EN_ATTENTE_SIGNATURE' || status === 'SIGNE' || status === 'EXPIRE'
 }

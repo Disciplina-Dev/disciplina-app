@@ -1,17 +1,7 @@
 import { NavLink } from 'react-router-dom'
-import {
-  LayoutDashboard,
-  CheckSquare,
-  Repeat2,
-  CalendarDays,
-  Target,
-  FileText,
-  BarChart2,
-  Settings,
-  HelpCircle,
-  LogOut,
-} from 'lucide-react'
+import { IconCalendar, IconChart, IconCheckbox, IconDashboard, IconFile, IconGoal, IconHelp, IconLogout, IconRepeat, IconSettings } from '@/components/ui/icons'
 import type { ReactNode } from 'react'
+import Logo from '@/components/ui/Logo'
 
 type NavItemConfig = {
   to: string
@@ -20,18 +10,18 @@ type NavItemConfig = {
 }
 
 const mainNav: NavItemConfig[] = [
-  { to: '/dashboard', icon: <LayoutDashboard size={18} />, label: 'Tableau de bord' },
-  { to: '/taches', icon: <CheckSquare size={18} />, label: 'Tâches' },
-  { to: '/habitudes', icon: <Repeat2 size={18} />, label: 'Habitudes' },
-  { to: '/agenda', icon: <CalendarDays size={18} />, label: 'Agenda' },
-  { to: '/objectifs', icon: <Target size={18} />, label: 'Objectifs' },
-  { to: '/notes', icon: <FileText size={18} />, label: 'Notes' },
-  { to: '/statistiques', icon: <BarChart2 size={18} />, label: 'Statistiques' },
+  { to: '/dashboard', icon: <IconDashboard width={18} height={18} />, label: 'Tableau de bord' },
+  { to: '/taches', icon: <IconCheckbox width={18} height={18} />, label: 'Tâches' },
+  { to: '/habitudes', icon: <IconRepeat width={18} height={18} />, label: 'Habitudes' },
+  { to: '/agenda', icon: <IconCalendar width={18} height={18} />, label: 'Agenda' },
+  { to: '/objectifs', icon: <IconGoal width={18} height={18} />, label: 'Objectifs' },
+  { to: '/notes', icon: <IconFile width={18} height={18} />, label: 'Notes' },
+  { to: '/statistiques', icon: <IconChart width={18} height={18} />, label: 'Statistiques' },
 ]
 
 const secondaryNav: NavItemConfig[] = [
-  { to: '/parametres', icon: <Settings size={18} />, label: 'Paramètres' },
-  { to: '/aide', icon: <HelpCircle size={18} />, label: 'Aide' },
+  { to: '/parametres', icon: <IconSettings width={18} height={18} />, label: 'Paramètres' },
+  { to: '/aide', icon: <IconHelp width={18} height={18} />, label: 'Aide' },
 ]
 
 function NavItem({ to, icon, label }: NavItemConfig) {
@@ -43,7 +33,7 @@ function NavItem({ to, icon, label }: NavItemConfig) {
           'flex items-center gap-3 rounded-[10px] py-2.5 px-3 text-sm transition-colors no-underline',
           isActive
             ? 'bg-blue-light text-blue font-medium'
-            : 'text-gray-700 hover:bg-gray-50',
+            : 'text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]',
         ].join(' ')
       }
     >
@@ -55,10 +45,10 @@ function NavItem({ to, icon, label }: NavItemConfig) {
 
 export default function Sidebar() {
   return (
-    <aside className="flex h-screen w-64 flex-shrink-0 flex-col border-r border-gray-100 bg-white">
+    <aside className="ds-glass-flush flex h-screen w-64 flex-shrink-0 flex-col border-r border-[var(--ds-glass-border)]">
       {/* Logo */}
       <div className="p-6">
-        <img src="/logo-disciplina.svg" alt="Disciplina" className="h-8" />
+        <Logo className="h-8" />
       </div>
 
       {/* Main nav */}
@@ -69,7 +59,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Separator */}
-      <div className="mx-3 my-2 border-t border-gray-100" />
+      <div className="mx-3 my-2 border-t border-[var(--ds-border)]" />
 
       {/* Secondary nav */}
       <nav className="flex flex-col gap-1 px-3">
@@ -85,15 +75,15 @@ export default function Sidebar() {
             LA
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-gray-900">Loic A.</p>
-            <p className="truncate text-xs text-gray-500">loic@disciplina.fr</p>
+            <p className="truncate text-sm font-medium text-[var(--ds-text)]">Loic A.</p>
+            <p className="truncate text-xs text-[var(--ds-text-subtle)]">loic@disciplina.fr</p>
           </div>
           <button
             type="button"
             aria-label="Se déconnecter"
-            className="cursor-pointer text-gray-300 transition-colors hover:text-danger"
+            className="cursor-pointer text-[var(--ds-text-subtle)] transition-colors hover:text-[var(--ds-danger)]"
           >
-            <LogOut size={18} />
+            <IconLogout width={18} height={18} />
           </button>
         </div>
       </div>

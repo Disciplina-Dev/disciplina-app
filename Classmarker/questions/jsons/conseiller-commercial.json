@@ -1,0 +1,415 @@
+{
+  "title": "Partie 2 - Test de pré-sélection Conseiller commercial",
+  "description": "20 questions, 0,5 point chacune (10 points).",
+  "tp_types": [
+    "CC"
+  ],
+  "duration_minutes": 20,
+  "pass_threshold": 50,
+  "immediate_feedback": false,
+  "allow_skip": false,
+  "shuffle_choices": false,
+  "questions": [
+    {
+      "type": "text",
+      "text": "Conjugaison :\nComplétez la phrase avec le verbe « envoyer » correctement conjugué (écrivez uniquement le verbe) :\n« J'ai ........ le devis hier. »",
+      "points": 0.5,
+      "accepted_answers": [
+        "envoyé"
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Grammaire :\nComplétez la phrase : « Nous devons ______ la réunion demain matin. »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "rendre",
+          "correct": false
+        },
+        {
+          "text": "prévois",
+          "correct": false
+        },
+        {
+          "text": "prévoir",
+          "correct": true
+        },
+        {
+          "text": "prévoyant",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Vocabulaire :\nQuel mot est l'opposé de « augmenter » ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Réduire",
+          "correct": true
+        },
+        {
+          "text": "Développer",
+          "correct": false
+        },
+        {
+          "text": "Améliorer",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Intrus :\nTrouvez l'intrus dans la liste suivante :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Chaise",
+          "correct": false
+        },
+        {
+          "text": "Table",
+          "correct": false
+        },
+        {
+          "text": "Ordinateur",
+          "correct": true
+        },
+        {
+          "text": "Canapé",
+          "correct": false
+        },
+        {
+          "text": "Armoire",
+          "correct": false
+        },
+        {
+          "text": "Banc",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nUne remise de 10 % est appliquée sur un article à 100 €. Quel est son nouveau prix ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "90 €",
+          "correct": true
+        },
+        {
+          "text": "98,45 €",
+          "correct": false
+        },
+        {
+          "text": "85 €",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Calcul :\nQuel est le résultat de : 15 + 15 − 10 ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "20",
+          "correct": true
+        },
+        {
+          "text": "40",
+          "correct": false
+        },
+        {
+          "text": "35",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Suite logique :\nQuelle lettre complète la suite : A – C – E – G – ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "H",
+          "correct": false
+        },
+        {
+          "text": "I",
+          "correct": true
+        },
+        {
+          "text": "J",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Raisonnement :\nSi A = 1, B = 2, C = 3, combien vaut le mot BAC ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "6",
+          "correct": true
+        },
+        {
+          "text": "7",
+          "correct": false
+        },
+        {
+          "text": "8",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQuel logiciel est le plus adapté pour faire un tableau de suivi des ventes ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Word",
+          "correct": false
+        },
+        {
+          "text": "Excel",
+          "correct": true
+        },
+        {
+          "text": "PowerPoint",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nQue signifie « pièce jointe » dans un e-mail ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Document joint au message",
+          "correct": true
+        },
+        {
+          "text": "Signature mail",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Numérique :\nParmi ces trois propositions, laquelle est un moteur de recherche ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Google",
+          "correct": true
+        },
+        {
+          "text": "Gmail",
+          "correct": false
+        },
+        {
+          "text": "ChatGPT",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Question métier :\nQu'est-ce qu'une technique de vente ?",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Un ensemble de méthodes utilisées pour conduire un entretien commercial et convaincre un client.",
+          "correct": true
+        },
+        {
+          "text": "Une liste de phrases toutes faites à réciter mot pour mot devant un client.",
+          "correct": false
+        },
+        {
+          "text": "Un document administratif obligatoire à remplir avant chaque action commerciale.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Gestion de client :\n« Un prix est manquant sur un produit, que faites-vous ? »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "J'invente un prix approximatif pour ne pas faire attendre le client et je lui donne directement l'information.",
+          "correct": false
+        },
+        {
+          "text": "Je vérifie le prix en rayon ou en réserve, ou je demande à un responsable afin de renseigner correctement le client.",
+          "correct": true
+        },
+        {
+          "text": "Je dis au client que je ne peux rien faire et je l'invite à chercher lui-même le prix sur Internet.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Posture professionnelle :\n« Je vais arriver en retard le matin : qu'est-ce que je fais ? »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Je ne préviens pas",
+          "correct": false
+        },
+        {
+          "text": "Je ne vais pas travailler",
+          "correct": false
+        },
+        {
+          "text": "J'appelle un responsable pour prévenir",
+          "correct": true
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Mise en situation — Objectifs commerciaux :\n« Votre manager fixe un objectif de vente de 10 paires de chaussures par semaine. Vous n'en avez vendu que 6. Quelle est la meilleure démarche ? »",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Je ne dis rien et j'espère qu'il ne s'en rende pas compte.",
+          "correct": false
+        },
+        {
+          "text": "J'explique les difficultés rencontrées à mon manager.",
+          "correct": true
+        },
+        {
+          "text": "J'accuse les clients de ne pas être réceptifs.",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Raisonnement et posture commerciale :\nUn bon commercial cherche avant tout à :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Parler plus que le client",
+          "correct": false
+        },
+        {
+          "text": "Convaincre coûte que coûte",
+          "correct": false
+        },
+        {
+          "text": "Comprendre avant de proposer",
+          "correct": true
+        },
+        {
+          "text": "Conclure rapidement",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Organisation et autonomie :\nÊtre autonome dans son travail signifie :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Travailler seul",
+          "correct": false
+        },
+        {
+          "text": "Ne jamais demander d'aide",
+          "correct": false
+        },
+        {
+          "text": "Savoir s'organiser et prendre des initiatives",
+          "correct": true
+        },
+        {
+          "text": "Décider sans informer",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Éthique et professionnalisme :\nDans une entreprise, représenter son image signifie :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Parler au nom de soi",
+          "correct": false
+        },
+        {
+          "text": "Agir uniquement selon ses opinions",
+          "correct": false
+        },
+        {
+          "text": "Adopter un comportement professionnel cohérent",
+          "correct": true
+        },
+        {
+          "text": "Se différencier coûte que coûte",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Apprendre de ses erreurs professionnelles permet surtout de :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Éviter de prendre des initiatives",
+          "correct": false
+        },
+        {
+          "text": "Améliorer ses pratiques",
+          "correct": true
+        },
+        {
+          "text": "Justifier ses échecs",
+          "correct": false
+        },
+        {
+          "text": "Ralentir sa progression",
+          "correct": false
+        }
+      ]
+    },
+    {
+      "type": "single",
+      "text": "Une projection réaliste dans son parcours professionnel nécessite :",
+      "points": 0.5,
+      "choices": [
+        {
+          "text": "Suivre uniquement les opportunités les plus faciles",
+          "correct": false
+        },
+        {
+          "text": "Ignorer les obstacles",
+          "correct": false
+        },
+        {
+          "text": "Copier exactement le parcours d'un collègue",
+          "correct": false
+        },
+        {
+          "text": "Identifier ses forces et ses axes d'amélioration",
+          "correct": true
+        }
+      ]
+    }
+  ]
+}

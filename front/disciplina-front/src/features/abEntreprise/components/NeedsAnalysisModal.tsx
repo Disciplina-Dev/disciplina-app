@@ -1,25 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useForm } from 'react-hook-form'
-import {
-  X, Check, Briefcase, Plus, Minus, PenLine, ChevronDown, ChevronRight, Trash2,
-} from 'lucide-react'
+import { IconCheck, IconChevronDown, IconChevronRight, IconClose, IconEdit, IconJob, IconMinus, IconPlus, IconTrash } from '@/components/ui/icons'
 import type { Entreprise } from '@/types/entreprise'
 import type { AppUser } from '@/store/authStore'
+import { useSectors } from '@/hooks/useSectors'
 import { apiFetch } from '@/api/httpClient'
 import Button from '@/components/ui/Button'
 import InputField from '@/components/ui/InputField'
 import { useCreateNeedsAnalysis, useUpdateNeedsAnalysis, useUpdateCompany } from '@/graphql/hooks'
 import { Localisation } from '@/types/candidate'
-import type { NeedsAnalysis } from '@/types/needsAnalysis'
+import type { NeedsAnalysis, ScheduleSlot } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
 import { ALL_SECTORS, SECTOR_LABELS } from '@/data/sectors'
+import { toScheduleSlotInput } from '@/utils/schedule'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-const COMMUNES = Object.values(Localisation)
 
 type DayStatus = 'OUI' | 'NON' | 'PREFERE'
 type TrainingDomain = 'SECRETARIAT' | 'VENTE'
@@ -46,11 +44,13 @@ interface TrainingDaysState {
 
 interface PosteCriteria {
   drivingLicense: 'OUI' | 'OPTIONNEL' | undefined
+  hasVehicle: 'OUI' | 'NON' | undefined
   experienceRequired: 'DEBUTANT' | 'OBLIGATOIRE' | undefined
   ageMin: string
   ageMax: string
   softSkills: string[]
   softSkillsOther: string
+  scheduleOptions: ScheduleSlot[]
   conditions: string
   additionalComments: string
 }
@@ -91,6 +91,7 @@ interface FormData {
   opco: Opco | undefined
   companySectorOther: string
   companyDescriptionOther: string
+  administrationType: 'NON_RENSEIGNE' | 'ADMINISTRATION_PUBLIQUE' | 'ADMINISTRATION_PRIVEE'
   recruitmentMethod: 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW'
   immersionPeriod: 'OUI' | 'NON' | 'A_DISCUTER'
 }
@@ -127,22 +128,30 @@ const OPCO_OPTIONS: { value: Opco; label: string }[] = [
 ]
 
 const JOB_TITLES_BY_DOMAIN: Record<TrainingDomain, string[]> = {
-  SECRETARIAT: ['Secrétaire Assistante', 'Assistante de Direction'],
+  SECRETARIAT: ["Chargé d'accueil et de gestion administrative", 'Assistante de Direction'],
   VENTE: ['Conseiller Commercial', 'Négociateur Technico-Commercial', "Responsable d'Établissement Marchand"],
 }
 
 // Chaque intitulé de formation correspond à un titre professionnel (TP).
 const TITLE_TO_TP: Record<string, string> = {
-  'Secrétaire Assistante': 'SA',
+  "Chargé d'accueil et de gestion administrative": 'CADGA',
   'Assistante de Direction': 'AD',
   'Conseiller Commercial': 'CC',
   'Négociateur Technico-Commercial': 'NTC',
   "Responsable d'Établissement Marchand": 'REM',
+  // Legacy : intitulé utilisé avant le renommage du TP.
+  'Secrétaire Assistante': 'CADGA',
 }
 
-const TP_TO_TITLE: Record<string, string> = Object.fromEntries(
-  Object.entries(TITLE_TO_TP).map(([title, tp]) => [tp, title]),
-)
+const TP_TO_TITLE: Record<string, string> = {
+  AD: 'Assistante de Direction',
+  CC: 'Conseiller Commercial',
+  NTC: 'Négociateur Technico-Commercial',
+  REM: "Responsable d'Établissement Marchand",
+  CADGA: "Chargé d'accueil et de gestion administrative",
+  // Legacy : le backend normalise déjà « SA » en CADGA, conservé par sécurité.
+  SA: "Chargé d'accueil et de gestion administrative",
+}
 
 const SOFT_SKILLS_LIST = [
   'Rigueur et organisation',
@@ -164,7 +173,7 @@ const SOFT_SKILLS_LIST = [
 
 const MISSIONS: Record<TrainingDomain, Record<string, string[]>> = {
   SECRETARIAT: {
-    'Secrétaire Assistante': [
+    "Chargé d'accueil et de gestion administrative": [
       'Accueil physique et téléphonique',
       'Gestion du courrier entrant et sortant',
       'Rédaction et mise en forme de courriers simples',
@@ -253,6 +262,18 @@ const DAYS: { key: keyof TrainingDaysState; label: string }[] = [
   { key: 'friday',    label: 'Vendredi' },
 ]
 
+// Jours travaillés du poste (planning entreprise) : semaine complète, week-end
+// inclus — distinct de DAYS (jours de formation au centre, lun–ven).
+const SCHEDULE_DAYS: { key: string; label: string }[] = [
+  { key: 'monday',    label: 'Lundi' },
+  { key: 'tuesday',   label: 'Mardi' },
+  { key: 'wednesday', label: 'Mercredi' },
+  { key: 'thursday',  label: 'Jeudi' },
+  { key: 'friday',    label: 'Vendredi' },
+  { key: 'saturday',  label: 'Samedi' },
+  { key: 'sunday',    label: 'Dimanche' },
+]
+
 const EMPTY_POSTE: Poste = {
   jobRole: '',
   count: 1,
@@ -261,11 +282,13 @@ const EMPTY_POSTE: Poste = {
   localisation: [],
   criteria: {
     drivingLicense: undefined,
+    hasVehicle: undefined,
     experienceRequired: undefined,
     ageMin: '',
     ageMax: '',
     softSkills: [],
     softSkillsOther: '',
+    scheduleOptions: [],
     conditions: '',
     additionalComments: '',
   },
@@ -281,8 +304,8 @@ function TpMissionsFields({ domain, tp, onChangeMissions, onChangeOther }: {
 }) {
   const options = MISSIONS[domain]?.[tp.jobTitle] ?? []
   return (
-    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-gray-100 p-3">
-      <p className="text-sm font-semibold text-gray-900">{tp.jobTitle}</p>
+    <div className="flex flex-col gap-2 rounded-[var(--radius-md)] border border-[var(--ds-border)] p-3">
+      <p className="text-sm font-semibold text-[var(--ds-text)]">{tp.jobTitle}</p>
       {options.length > 0 && (
         <CheckboxGroup
           label={`Missions à confier à l'apprenti — ${tp.jobTitle}`}
@@ -307,7 +330,7 @@ function TpMissionsFields({ domain, tp, onChangeMissions, onChangeOther }: {
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <h3 className="mb-4 border-b border-gray-100 pb-2 text-base font-bold text-gray-900">
+    <h3 className="mb-4 border-b border-[var(--ds-border)] pb-2 text-base font-bold text-[var(--ds-text)]">
       {children}
     </h3>
   )
@@ -315,7 +338,7 @@ function SectionTitle({ children }: { children: ReactNode }) {
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null
-  return <p className="mt-1 text-xs text-danger">{message}</p>
+  return <p className="mt-1 text-xs text-[var(--ds-danger)]">{message}</p>
 }
 
 function SelectField({
@@ -330,15 +353,15 @@ function SelectField({
 } & React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-gray-700">
-        {label}{required && <span className="ml-1 text-danger">*</span>}
+      <label htmlFor={id} className="text-sm font-medium text-[var(--ds-text-muted)]">
+        {label}{required && <span className="ml-1 text-[var(--ds-danger)]">*</span>}
       </label>
       <select
         id={id}
         className={[
-          'w-full rounded-[10px] border bg-white py-2.5 pl-4 pr-4 text-sm text-gray-900',
+          'w-full rounded-[10px] border bg-[var(--ds-surface)] py-2.5 pl-4 pr-4 text-sm text-[var(--ds-text)]',
           'outline-none transition-colors appearance-none cursor-pointer',
-          error ? 'border-danger' : 'border-gray-100',
+          error ? 'border-danger' : 'border-[var(--ds-border)]',
           'focus:border-blue',
         ].join(' ')}
         {...props}
@@ -367,18 +390,18 @@ function QuantityStepper({
         type="button"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={value <= min}
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-700 transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
       >
-        <Minus size={14} />
+        <IconMinus width={14} height={14} />
       </button>
-      <span className="min-w-[1.75rem] text-center text-sm font-bold text-gray-900">×{value}</span>
+      <span className="min-w-[1.75rem] text-center text-sm font-bold text-[var(--ds-text)]">×{value}</span>
       <button
         type="button"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={value >= max}
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-100 bg-white text-gray-700 transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] transition-colors hover:border-blue hover:text-blue disabled:opacity-40"
       >
-        <Plus size={14} />
+        <IconPlus width={14} height={14} />
       </button>
     </div>
   )
@@ -396,8 +419,8 @@ function RadioGroup<T extends string>({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">
-        {label}{required && <span className="ml-1 text-danger">*</span>}
+      <label className="text-sm font-medium text-[var(--ds-text-muted)]">
+        {label}{required && <span className="ml-1 text-[var(--ds-danger)]">*</span>}
       </label>
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => (
@@ -409,7 +432,7 @@ function RadioGroup<T extends string>({
               'rounded-lg border px-4 py-2 text-sm font-medium transition-colors',
               value === opt.value
                 ? 'border-blue bg-blue-light text-blue'
-                : 'border-gray-100 bg-white text-gray-700 hover:border-blue-light',
+                : 'border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] hover:border-blue-light',
             ].join(' ')}
           >
             {opt.label}
@@ -440,7 +463,7 @@ function CheckboxGroup({
 
   return (
     <div className="flex flex-col gap-2">
-      {label && <p className="text-sm font-medium text-gray-700">{label}</p>}
+      {label && <p className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</p>}
       <div className={`grid gap-2 ${colClass}`}>
         {options.map((opt) => {
           const checked = selected.includes(opt)
@@ -453,14 +476,14 @@ function CheckboxGroup({
                 'flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors',
                 checked
                   ? 'border-blue bg-blue-light text-blue'
-                  : 'border-gray-100 bg-white text-gray-700 hover:border-blue-light',
+                  : 'border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] hover:border-blue-light',
               ].join(' ')}
             >
               <span className={[
                 'flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors',
-                checked ? 'border-blue bg-blue' : 'border-gray-300 bg-white',
+                checked ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]',
               ].join(' ')}>
-                {checked && <Check size={10} className="text-white" strokeWidth={3} />}
+                {checked && <IconCheck width={10} height={10} className="text-white" strokeWidth={3} />}
               </span>
               {renderLabel ? renderLabel(opt) : opt}
             </button>
@@ -480,12 +503,92 @@ function TextareaField({
 } & React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-gray-700">
-        {label} {optional && <span className="text-gray-400">(optionnel)</span>}
+      <label htmlFor={id} className="text-sm font-medium text-[var(--ds-text-muted)]">
+        {label} {optional && <span className="text-[var(--ds-text-subtle)]">(optionnel)</span>}
       </label>
       <textarea id={id}
-        className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-300 focus:border-blue"
+        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] outline-none transition-colors placeholder:text-[var(--ds-text-subtle)] focus:border-blue"
         {...props} />
+    </div>
+  )
+}
+
+// Sélecteur de jours et horaires de travail du poste : chaque jour est activable
+// et porte un créneau début/fin facultatif. Seuls les jours activés sont persistés.
+function ScheduleDaysEditor({ value, onChange }: {
+  value: ScheduleSlot[]
+  onChange: (slots: ScheduleSlot[]) => void
+}) {
+  const slotFor = (label: string) => value.find((s) => s.day === label)
+  const setHour = (label: string, field: 'startHour' | 'endHour', hour: string) => {
+    onChange(value.map((s) => (s.day === label ? { ...s, [field]: hour } : s)))
+  }
+
+  const timeInput = (
+    field: 'startHour' | 'endHour',
+    label: string,
+    enabled: boolean,
+    hour?: string | null,
+  ) => (
+    <input
+      type="time"
+      disabled={!enabled}
+      value={hour ?? ''}
+      onChange={(e) => setHour(label, field, e.target.value)}
+      className="w-32 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-1.5 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue disabled:cursor-not-allowed disabled:bg-[var(--ds-surface-sunken)] disabled:text-[var(--ds-text-subtle)]"
+    />
+  )
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm font-medium text-[var(--ds-text-muted)]">
+        Jours et horaires de travail <span className="text-[var(--ds-text-subtle)]">(optionnel)</span>
+      </p>
+      <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+              <th className="w-40 px-4 py-2.5 text-left font-medium text-[var(--ds-text-subtle)]">Jour</th>
+              <th className="px-3 py-2.5 text-left font-medium text-[var(--ds-text-subtle)]">Début</th>
+              <th className="px-3 py-2.5 text-left font-medium text-[var(--ds-text-subtle)]">Fin</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SCHEDULE_DAYS.map((d) => {
+              const slot = slotFor(d.label)
+              const enabled = !!slot
+              const setEnabled = (on: boolean) => {
+                const others = value.filter((s) => s.day !== d.label)
+                onChange(on ? [...others, { day: d.label, startHour: '08:00', endHour: '17:00' }] : others)
+              }
+              return (
+                <tr key={d.key} className="border-b border-[var(--ds-border)] last:border-0">
+                  <td className="px-4 py-2.5">
+                    <label className="flex cursor-pointer items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setEnabled(!enabled)}
+                        className={[
+                          'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors',
+                          enabled ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]',
+                        ].join(' ')}
+                        aria-label={`${enabled ? 'Désactiver' : 'Activer'} ${d.label}`}
+                      >
+                        {enabled && <IconCheck width={12} height={12} className="text-white" strokeWidth={3} />}
+                      </button>
+                      <span className={enabled ? 'text-sm font-medium text-[var(--ds-text)]' : 'text-sm text-[var(--ds-text-subtle)]'}>
+                        {d.label}
+                      </span>
+                    </label>
+                  </td>
+                  <td className="px-3 py-2.5">{timeInput('startHour', d.label, enabled, slot?.startHour)}</td>
+                  <td className="px-3 py-2.5">{timeInput('endHour', d.label, enabled, slot?.endHour)}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -550,11 +653,13 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         localisation: (p.localisation ?? []) as Localisation[],
         criteria: {
           drivingLicense: p.criteria?.drivingLicense == null ? undefined : p.criteria.drivingLicense ? 'OUI' : 'OPTIONNEL',
+          hasVehicle: p.criteria?.hasVehicle == null ? undefined : p.criteria.hasVehicle ? 'OUI' : 'NON',
           experienceRequired: p.criteria?.experienceRequired == null ? undefined : p.criteria.experienceRequired ? 'OBLIGATOIRE' : 'DEBUTANT',
           ageMin: p.criteria?.ageMin != null ? String(p.criteria.ageMin) : '',
           ageMax: p.criteria?.ageMax != null ? String(p.criteria.ageMax) : '',
           softSkills: parseSoftSkills(p.criteria?.softSkills),
           softSkillsOther: '',
+          scheduleOptions: toScheduleSlotInput(p.criteria?.scheduleOptions),
           conditions: p.criteria?.conditions ?? '',
           additionalComments: p.criteria?.additionalComments ?? '',
         },
@@ -569,9 +674,23 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const [posteErrors, setPosteErrors] = useState<string[]>([])
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [previewId, setPreviewId] = useState<string | null>(null)
+  // Publication du brouillon dans le matching (sans envoi en signature) :
+  // l'AB reste BROUILLON (affichée « Non envoyée ») mais se matche comme
+  // une AB non signée. Prérempli en duplication/édition d'un brouillon publié.
+  const [publishToMatching, setPublishToMatching] = useState<boolean>(
+    initialData?.status === 'BROUILLON' ? (initialData?.isVisibleInMatching ?? false) : false,
+  )
   // Quelle action a déclenché la soumission : enregistrer seul, télécharger le PDF
   // ou envoyer en signature.
   const intentRef = useRef<'download' | 'sign' | 'save'>('download')
+
+  // Localisation du poste bornée au tenant (3 zones Réunion, 6 secteurs
+  // Annemasse) pour ne pas mélanger les communes des deux tenants.
+  const { communeSections } = useSectors()
+  const tenantCommunes = useMemo(
+    () => new Set(communeSections.flatMap((s) => s.options)),
+    [communeSections],
+  )
 
   // En duplication, on préremplit avec `initialData` mais on reste en mode création.
   const isEditing = !!initialData && !isDuplicate
@@ -583,7 +702,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const initialReferents = initialData?.referents
   const initialCompanyInfos = initialData?.companyInfos
 
-  const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, watch, setValue, getValues, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       companyName:        entreprise.nom_commercial ?? '',
       companySiret:       entreprise.siret ?? '',
@@ -605,6 +724,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       companySectorOther:       '',
       opco:                     (initialCompanyInfos?.opco as Opco | undefined) ?? undefined,
       companyDescriptionOther:  initialCompanyInfos?.description ?? '',
+      administrationType: (initialData?.administrationType as 'NON_RENSEIGNE' | 'ADMINISTRATION_PUBLIQUE' | 'ADMINISTRATION_PRIVEE' | undefined) ?? 'NON_RENSEIGNE',
       recruitmentMethod:  (initialData?.recruitmentMethod as 'ALL_CV' | 'PRESELECTION' | 'PRE_INTERVIEW' | undefined) ?? undefined,
       immersionPeriod:    (initialData?.immersionPeriod as 'OUI' | 'NON' | 'A_DISCUTER' | undefined) ?? undefined,
     },
@@ -617,10 +737,20 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   }, [entreprise.adresse, setValue])
 
   const isDifferentResponsible = watch('isDifferentRecruitmentResponsible')
+  const legalRepName           = watch('legalRepName')
   const legalRepFunction       = watch('legalRepFunction')
   const responsibleFunction    = watch('recruitmentResponsibleFunction')
   const companySectors         = watch('companySectors') ?? []
   const companyPostalCode      = watch('companyPostalCode')
+
+  // Secteurs libres (saisis via « Autre secteur d'activité ») déjà enregistrés sur
+  // l'AB : ils ne figurent pas dans la liste de cases à cocher et doivent pouvoir
+  // être retirés, sinon ils resteraient invisiblement attachés à l'AB.
+  const customSectors = companySectors.filter((s) => !SECTEURS.includes(s as (typeof SECTEURS)[number]))
+
+  const removeCustomSector = (sector: string) => {
+    setValue('companySectors', companySectors.filter((s) => s !== sector))
+  }
 
   // Code postal valide (5 chiffres) → renseigne automatiquement la commune via
   // l'API geo.gouv (gratuite, sans clé). Un CP peut couvrir plusieurs communes :
@@ -698,7 +828,14 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         return 'Sélectionnez au moins une mission par titre professionnel.'
       if (p.localisation.length === 0) return 'Sélectionnez au moins une commune.'
       if (!p.criteria.drivingLicense) return 'Sélectionnez le permis requis.'
+      if (!p.criteria.hasVehicle) return 'Sélectionnez si le véhicule est requis.'
       if (!p.criteria.experienceRequired) return "Sélectionnez l'expérience requise."
+      if (p.criteria.ageMin !== '' && p.criteria.ageMax !== '') {
+        const min = Number(p.criteria.ageMin)
+        const max = Number(p.criteria.ageMax)
+        if (Number.isFinite(min) && Number.isFinite(max) && max < min)
+          return "L'âge maximum ne peut pas être inférieur à l'âge minimum."
+      }
       return ''
     })
     setPosteErrors(errs)
@@ -731,13 +868,16 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         ? [street, cpCommune].filter(Boolean).join(', ')
         : street
     // Non bloquant : un échec (droits, réseau) ne doit pas empêcher l'enregistrement de l'AB.
+    // Le représentant légal est facultatif (parfois inconnu) : on efface alors la
+    // valeur portée par l'entreprise, mais on ne remplace pas ses coordonnées
+    // génériques (téléphone / courriel) par du vide.
+    const legalRepName = data.legalRepName?.trim() ?? ''
     await updateCompany(parseInt(entreprise.id), {
       name: data.companyName,
       siret: data.companySiret,
       address: composedAddress,
-      legalReferent: data.legalRepName,
-      phone: data.legalRepPhone,
-      email: data.legalRepEmail,
+      legalReferent: legalRepName || null,
+      ...(legalRepName ? { phone: data.legalRepPhone, email: data.legalRepEmail } : {}),
     })
 
     const dayToPeriods = (v: DayStatus): string[] =>
@@ -762,7 +902,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           recruitmentResponsibleFunction: resolveFunction(data.recruitmentResponsibleFunction, data.recruitmentResponsibleFunctionOther),
         }
       : {
-          recruitmentResponsibleName: data.legalRepName,
+          recruitmentResponsibleName: legalRepName,
           recruitmentResponsiblePhone: data.legalRepPhone,
           recruitmentResponsibleEmail: data.legalRepEmail,
           recruitmentResponsibleFunction: null,
@@ -771,13 +911,14 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     const input = {
       companyID:          parseInt(entreprise.id),
       userID:             currentUser.id,
-      legalRepFunction:   resolveFunction(data.legalRepFunction, data.legalRepFunctionOther),
+      legalRepFunction:   legalRepName ? resolveFunction(data.legalRepFunction, data.legalRepFunctionOther) : null,
       ...responsible,
       companySectors:     [...companySectors, ...(data.companySectorOther.trim() ? [data.companySectorOther.trim()] : [])],
       opco:               data.opco || null,
       companyDescription: data.companyDescriptionOther || null,
       postalCode:         data.companyPostalCode || null,
       commune:            data.companyCommune || null,
+      administrationType: data.administrationType || 'NON_RENSEIGNE',
       positions:          postes.map((p) => ({
         trainingDomain:   p.trainingDomain,
         jobRole:          p.jobRole.trim(),
@@ -794,11 +935,12 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         criteria: {
           educationLevel:     null,
           drivingLicense:     p.criteria.drivingLicense === 'OUI',
+          hasVehicle:         p.criteria.hasVehicle === 'OUI',
           experienceRequired: p.criteria.experienceRequired === 'OBLIGATOIRE',
           ageMin:             p.criteria.ageMin ? Number(p.criteria.ageMin) : null,
           ageMax:             p.criteria.ageMax ? Number(p.criteria.ageMax) : null,
           softSkills:         [...p.criteria.softSkills, ...(p.criteria.softSkillsOther ? [p.criteria.softSkillsOther] : [])].join(', ') || null,
-          scheduleOptions:    [],
+          scheduleOptions:    toScheduleSlotInput(p.criteria.scheduleOptions),
           conditions:         p.criteria.conditions || null,
           additionalComments: p.criteria.additionalComments || null,
         },
@@ -806,6 +948,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
       recruitmentMethod:      data.recruitmentMethod,
       immersionPeriod:        data.immersionPeriod,
       trainingDays:           trainingDaysJson,
+      isVisibleInMatching:    publishToMatching,
     }
 
     let response
@@ -893,22 +1036,27 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           }}
         />
       )}
-      <div className="relative flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-xl bg-background shadow-xl">
+      {/* La boîte du modal ne doit jamais défiler elle-même : `overflow-hidden`
+          resterait un conteneur de défilement (scroll focus / ancrage au
+          changement de contenu, ex. case « responsable différent »), ce qui
+          fait remonter l'en-tête et le pied hors de vue. `overflow-clip`
+          interdit tout défilement ; seul le contenu central défile. */}
+      <div className="relative flex max-h-[95vh] w-full max-w-3xl flex-col overflow-clip rounded-xl bg-[var(--ds-bg)] shadow-xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] px-6 py-4">
           <div>
-            <h2 className="text-lg font-bold text-black">{isEditing ? "Modifier l'Analyse du Besoin" : isDuplicate ? "Dupliquer l'Analyse du Besoin" : "Analyse du Besoin"}</h2>
-            <p className="text-sm text-gray-500">{entreprise.nom_commercial}</p>
+            <h2 className="text-lg font-bold text-[var(--ds-text)]">{isEditing ? "Modifier l'Analyse du Besoin" : isDuplicate ? "Dupliquer l'Analyse du Besoin" : "Analyse du Besoin"}</h2>
+            <p className="text-sm text-[var(--ds-text-subtle)]">{entreprise.nom_commercial}</p>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900">
-            <X size={18} />
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]">
+            <IconClose width={18} height={18} />
           </button>
         </div>
 
         {/* Form — single scrollable page */}
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+        <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col overflow-clip">
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="flex flex-col gap-8">
 
               {/* ── Identité de l'entreprise ─────────────────────────────────── */}
@@ -931,40 +1079,59 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
               {/* ── Représentant légal ───────────────────────────────────────── */}
               <section className="flex flex-col gap-4">
                 <SectionTitle>Informations du représentant légal</SectionTitle>
-                <InputField id="legalRepName" label="Nom et prénom *" error={errors.legalRepName?.message}
-                  {...register('legalRepName', { required: 'Champ obligatoire' })} />
-                <SelectField id="legalRepFunction" label="Fonction *" options={FONCTIONS}
+                <p className="text-xs text-[var(--ds-text-subtle)]">
+                  Facultatif : le représentant légal n'est pas toujours connu. Au moins l'un des deux contacts
+                  (représentant légal ou responsable de recrutement) doit être renseigné.
+                </p>
+                <InputField id="legalRepName" label="Nom et prénom" error={errors.legalRepName?.message}
+                  {...register('legalRepName', {
+                    validate: (value) => {
+                      if (value?.trim()) return true
+                      const hasRecruitment =
+                        !!getValues('isDifferentRecruitmentResponsible') &&
+                        !!getValues('recruitmentResponsibleName')?.trim()
+                      return hasRecruitment || 'Renseignez le représentant légal ou le responsable de recrutement.'
+                    },
+                  })} />
+                <SelectField id="legalRepFunction" label="Fonction" options={FONCTIONS}
                   error={errors.legalRepFunction?.message}
-                  required
-                  {...register('legalRepFunction', { required: 'Champ obligatoire' })} />
+                  {...register('legalRepFunction')} />
                 {legalRepFunction === 'Autre' && (
                   <InputField id="legalRepFunctionOther" label="Précisez la fonction *" placeholder="Ex : Responsable d'agence…"
                     error={errors.legalRepFunctionOther?.message}
                     {...register('legalRepFunctionOther', { required: legalRepFunction === 'Autre' ? 'Champ obligatoire' : false })} />
                 )}
                 <div className="grid grid-cols-2 gap-3">
-                  <InputField id="legalRepPhone" label="Téléphone *" type="tel" error={errors.legalRepPhone?.message}
-                    {...register('legalRepPhone', { required: 'Champ obligatoire', pattern: { value: /^[0-9+\s\-().]{8,20}$/, message: 'Numéro invalide' } })} />
-                  <InputField id="legalRepEmail" label="Courriel *" type="email" error={errors.legalRepEmail?.message}
-                    {...register('legalRepEmail', { required: 'Champ obligatoire', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email invalide' } })} />
+                  <InputField id="legalRepPhone" label="Téléphone" type="tel" error={errors.legalRepPhone?.message}
+                    {...register('legalRepPhone', { pattern: { value: /^[0-9+\s\-().]{8,20}$/, message: 'Numéro invalide' } })} />
+                  <InputField id="legalRepEmail" label="Courriel" type="email" error={errors.legalRepEmail?.message}
+                    {...register('legalRepEmail', { pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email invalide' } })} />
                 </div>
               </section>
 
               {/* ── Responsable recrutement ──────────────────────────────────── */}
               <section className="flex flex-col gap-4">
                 <SectionTitle>Responsable de recrutement</SectionTitle>
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-100 bg-white p-4 hover:border-blue-light">
-                  <div className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors', isDifferentResponsible ? 'border-blue bg-blue' : 'border-gray-300 bg-white'].join(' ')}>
-                    {isDifferentResponsible && <Check size={12} className="text-white" strokeWidth={3} />}
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 hover:border-blue-light">
+                  <div className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors', isDifferentResponsible ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]'].join(' ')}>
+                    {isDifferentResponsible && <IconCheck width={12} height={12} className="text-white" strokeWidth={3} />}
                   </div>
-                  <input type="checkbox" className="sr-only" {...register('isDifferentRecruitmentResponsible')} />
-                  <span className="text-sm text-gray-700">Le responsable de recrutement est différent du représentant légal</span>
+                  <input type="checkbox" className="sr-only" {...register('isDifferentRecruitmentResponsible', { deps: 'legalRepName' })} />
+                  <span className="text-sm text-[var(--ds-text-muted)]">
+                    {legalRepName?.trim()
+                      ? 'Le responsable de recrutement est différent du représentant légal'
+                      : 'Renseigner un responsable de recrutement (représentant légal inconnu)'}
+                  </span>
                 </label>
 
                 {isDifferentResponsible ? (
                   <div className="flex flex-col gap-4 rounded-lg border border-blue-light bg-blue-light/30 p-4">
                     <InputField id="recruitmentResponsibleName" label="Nom et prénom *" error={errors.recruitmentResponsibleName?.message}
-                      {...register('recruitmentResponsibleName', { required: isDifferentResponsible ? 'Champ obligatoire' : false })} />
+                      {...register('recruitmentResponsibleName', {
+                        required: isDifferentResponsible ? 'Champ obligatoire' : false,
+                        // Revalide le représentant légal : l'un des deux contacts suffit.
+                        deps: 'legalRepName',
+                      })} />
                     <SelectField id="recruitmentResponsibleFunction" label="Fonction" options={FONCTIONS}
                       {...register('recruitmentResponsibleFunction')} />
                     {responsibleFunction === 'Autre' && (
@@ -980,8 +1147,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-500">
-                    Le représentant légal sera utilisé comme responsable de recrutement.
+                  <div className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-4 text-sm text-[var(--ds-text-subtle)]">
+                    {legalRepName?.trim()
+                      ? 'Le représentant légal sera utilisé comme responsable de recrutement.'
+                      : 'Aucun représentant légal renseigné : cochez la case ci-dessus et renseignez le responsable de recrutement.'}
                   </div>
                 )}
               </section>
@@ -999,17 +1168,37 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   renderLabel={(s) => SECTOR_LABELS[s] ?? s}
                 />
 
-                <InputField id="companySectorOther" label="Autre secteur d'activité (optionnel)"
-                  placeholder="Précisez un autre secteur…"
-                  {...register('companySectorOther')} />
+                <div className="flex flex-col gap-2">
+                  <InputField id="companySectorOther" label="Autre secteur d'activité (optionnel)"
+                    placeholder="Précisez un autre secteur…"
+                    {...register('companySectorOther')} />
+                  {customSectors.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {customSectors.map((sector) => (
+                        <span key={sector}
+                          className="inline-flex items-center gap-2 rounded-full border border-blue-light bg-blue-light/30 px-3 py-1 text-sm text-blue">
+                          {sector}
+                          <button
+                            type="button"
+                            onClick={() => removeCustomSector(sector)}
+                            className="flex h-4 w-4 items-center justify-center rounded-full text-blue transition-colors hover:bg-blue hover:text-white"
+                            aria-label={`Retirer le secteur ${sector}`}
+                          >
+                            <IconClose width={12} height={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex flex-col gap-1.5">
-                  <label htmlFor="opco" className="text-sm font-medium text-gray-700">
-                    OPCO <span className="text-gray-400">(optionnel)</span>
+                  <label htmlFor="opco" className="text-sm font-medium text-[var(--ds-text-muted)]">
+                    OPCO <span className="text-[var(--ds-text-subtle)]">(optionnel)</span>
                   </label>
                   <select
                     id="opco"
-                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm text-[var(--ds-text)] focus:border-[var(--ds-accent)] focus:outline-none focus:ring-1 focus:ring-blue-500"
                     {...register('opco')}>
                     <option value="">Sélectionnez l'OPCO de l'entreprise…</option>
                     {OPCO_OPTIONS.map((o) => (
@@ -1021,6 +1210,18 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                 <TextareaField id="companyDescriptionOther" label="Précisions complémentaires" optional rows={3}
                   placeholder="Mission globale, spécificités de l'entreprise…"
                   {...register('companyDescriptionOther')} />
+
+                <RadioGroup
+                  label="Type d'administration"
+                  required
+                  value={watch('administrationType')}
+                  onChange={(v) => setValue('administrationType', v as FormData['administrationType'])}
+                  options={[
+                    { value: 'NON_RENSEIGNE', label: 'Non renseigné' },
+                    { value: 'ADMINISTRATION_PUBLIQUE', label: 'Administration publique' },
+                    { value: 'ADMINISTRATION_PRIVEE', label: 'Administration privée' },
+                  ]}
+                />
               </section>
 
               {/* ── Postes à pourvoir ────────────────────────────────────────── */}
@@ -1028,20 +1229,20 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                 <SectionTitle>Poste(s) à pourvoir</SectionTitle>
 
                 {postes.map((poste, index) => (
-                  <div key={index} className="flex flex-col gap-5 rounded-xl border border-gray-100 bg-white p-4">
+                  <div key={index} className="flex flex-col gap-5 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4">
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => toggleCollapsed(index)}
-                        className="flex flex-1 items-center gap-2 overflow-hidden text-left text-sm font-bold text-gray-900"
+                        className="flex flex-1 items-center gap-2 overflow-hidden text-left text-sm font-bold text-[var(--ds-text)]"
                       >
                         {collapsed[index]
-                          ? <ChevronRight size={16} className="shrink-0 text-gray-400" />
-                          : <ChevronDown size={16} className="shrink-0 text-gray-400" />}
-                        <Briefcase size={14} className="shrink-0 text-blue" />
+                          ? <IconChevronRight width={16} height={16} className="shrink-0 text-[var(--ds-text-subtle)]" />
+                          : <IconChevronDown width={16} height={16} className="shrink-0 text-[var(--ds-text-subtle)]" />}
+                        <IconJob width={14} height={14} className="shrink-0 text-blue" />
                         <span className="truncate">{poste.jobRole.trim() || 'Nouveau poste'}</span>
                         {collapsed[index] && poste.trainingDomain && (
-                          <span className="truncate text-xs font-normal text-gray-500">
+                          <span className="truncate text-xs font-normal text-[var(--ds-text-subtle)]">
                             · {poste.trainingDomain === 'VENTE' ? 'Vente' : 'Secrétariat'}
                             {poste.localisation.length > 0 && ` · ${poste.localisation.length} commune${poste.localisation.length > 1 ? 's' : ''}`}
                           </span>
@@ -1052,10 +1253,10 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                         <button
                           type="button"
                           onClick={() => removePoste(index)}
-                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-danger/10 hover:text-danger"
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--ds-text-subtle)] transition-colors hover:bg-danger/10 hover:text-[var(--ds-danger)]"
                           aria-label="Supprimer ce poste"
                         >
-                          <Trash2 size={16} />
+                          <IconTrash width={16} height={16} />
                         </button>
                       )}
                     </div>
@@ -1102,12 +1303,40 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       />
                     ))}
 
-                    <CheckboxGroup label="Localisation du poste (communes) *"
-                      options={COMMUNES}
-                      selected={poste.localisation}
-                      onChange={(v) => updatePoste(index, { localisation: v as Localisation[] })}
-                      renderLabel={formatCommune}
-                      columns={2} />
+                    <div className="flex flex-col gap-3">
+                      <p className="text-sm font-medium text-[var(--ds-text-muted)]">Localisation du poste (communes) *</p>
+                      {communeSections.map((section) => {
+                        const sectionSelected = poste.localisation.filter((v) => section.options.includes(v))
+                        return (
+                          <CheckboxGroup key={section.key}
+                            label={`${section.label} (${section.options.length})`}
+                            options={section.options}
+                            selected={sectionSelected}
+                            onChange={(v) => updatePoste(index, {
+                              localisation: [
+                                ...poste.localisation.filter((c) => !section.options.includes(c as string)),
+                                ...(v as Localisation[]),
+                              ],
+                            })}
+                            renderLabel={formatCommune}
+                            columns={2} />
+                        )
+                      })}
+                      {poste.localisation.some((c) => !tenantCommunes.has(c as string)) && (
+                        <CheckboxGroup
+                          label="Autres communes (hors tenant, déjà sélectionnées)"
+                          options={poste.localisation.filter((c) => !tenantCommunes.has(c as string))}
+                          selected={poste.localisation.filter((c) => !tenantCommunes.has(c as string))}
+                          onChange={(v) => updatePoste(index, {
+                            localisation: [
+                              ...poste.localisation.filter((c) => tenantCommunes.has(c as string)),
+                              ...(v as Localisation[]),
+                            ],
+                          })}
+                          renderLabel={formatCommune}
+                          columns={2} />
+                      )}
+                    </div>
 
                     <CheckboxGroup
                       label="Compétences et savoir-être attendus"
@@ -1120,6 +1349,11 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       placeholder="Ex : maîtrise d'un logiciel spécifique…"
                       value={poste.criteria.softSkillsOther}
                       onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, softSkillsOther: e.target.value } })} />
+
+                    <ScheduleDaysEditor
+                      value={poste.criteria.scheduleOptions}
+                      onChange={(slots) => updatePoste(index, { criteria: { ...poste.criteria, scheduleOptions: slots } })}
+                    />
 
                     <TextareaField id={`conditions-${index}`} label="Conditions du poste" optional rows={3}
                       placeholder="Horaires, télétravail, avantages, véhicule…"
@@ -1137,6 +1371,14 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, drivingLicense: v } })}
                       required />
 
+                    <div className="ml-3 pl-4 border-l-2 border-[var(--ds-border)]">
+                      <RadioGroup label="Véhiculé *"
+                        options={[{ value: 'OUI' as const, label: 'Oui' }, { value: 'NON' as const, label: 'Non' }]}
+                        value={poste.criteria.hasVehicle}
+                        onChange={(v) => updatePoste(index, { criteria: { ...poste.criteria, hasVehicle: v } })}
+                        required />
+                    </div>
+
                     <RadioGroup label="Expérience requise *"
                       options={[{ value: 'DEBUTANT' as const, label: 'Débutant accepté' }, { value: 'OBLIGATOIRE' as const, label: 'Expérience obligatoire' }]}
                       value={poste.criteria.experienceRequired}
@@ -1144,15 +1386,16 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                       required />
 
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-medium text-gray-700">
-                        Âge souhaité <span className="text-gray-400">(optionnel)</span>
+                      <label className="text-sm font-medium text-[var(--ds-text-muted)]">
+                        Âge souhaité <span className="text-[var(--ds-text-subtle)]">(optionnel)</span>
                       </label>
                       <div className="grid grid-cols-2 gap-3">
-                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={99} placeholder="18"
+                        <InputField id={`ageMin-${index}`} label="De (ans)" type="number" min={15} max={poste.criteria.ageMax !== '' ? Number(poste.criteria.ageMax) : 99} placeholder="18"
                           value={poste.criteria.ageMin}
                           onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMin: e.target.value } })} />
-                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={15} max={99} placeholder="29"
+                        <InputField id={`ageMax-${index}`} label="À (ans)" type="number" min={poste.criteria.ageMin !== '' ? Number(poste.criteria.ageMin) : 15} max={99} placeholder="29"
                           value={poste.criteria.ageMax}
+                          error={poste.criteria.ageMin !== '' && poste.criteria.ageMax !== '' && Number(poste.criteria.ageMax) < Number(poste.criteria.ageMin) ? "L'âge maximum ne peut pas être inférieur à l'âge minimum." : undefined}
                           onChange={(e) => updatePoste(index, { criteria: { ...poste.criteria, ageMax: e.target.value } })} />
                       </div>
                     </div>
@@ -1164,11 +1407,11 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                 ))}
 
                 <div className="flex items-center justify-between">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-[var(--ds-text-subtle)]">
                     Total : {postes.reduce((sum, p) => sum + p.count, 0)} poste{postes.reduce((sum, p) => sum + p.count, 0) > 1 ? 's' : ''} à pourvoir
                   </p>
                   <Button type="button" variant="secondary" onClick={addPoste}>
-                    <Plus size={16} /> Ajouter un poste
+                    <IconPlus width={16} height={16} /> Ajouter un poste
                   </Button>
                 </div>
               </section>
@@ -1198,21 +1441,21 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
 
                 {/* Grille jours — tout à Oui par défaut */}
                 <div className="flex flex-col gap-2">
-                  <p className="text-sm font-medium text-gray-700">Jours de formation possibles</p>
-                  <div className="overflow-x-auto rounded-lg border border-gray-100">
+                  <p className="text-sm font-medium text-[var(--ds-text-muted)]">Jours de formation possibles</p>
+                  <div className="overflow-x-auto rounded-lg border border-[var(--ds-border)]">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-100 bg-gray-50">
-                          <th className="px-4 py-2.5 text-left font-medium text-gray-500 w-24" />
+                        <tr className="border-b border-[var(--ds-border)] bg-[var(--ds-surface-sunken)]">
+                          <th className="px-4 py-2.5 text-left font-medium text-[var(--ds-text-subtle)] w-24" />
                           {DAYS.map((d) => (
-                            <th key={d.key} className="px-3 py-2.5 text-center font-medium text-gray-700">{d.label}</th>
+                            <th key={d.key} className="px-3 py-2.5 text-center font-medium text-[var(--ds-text-muted)]">{d.label}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {(['OUI', 'NON', 'PREFERE'] as DayStatus[]).map((status) => (
-                          <tr key={status} className="border-b border-gray-100 last:border-0">
-                            <td className="px-4 py-2.5 font-medium text-gray-700">
+                          <tr key={status} className="border-b border-[var(--ds-border)] last:border-0">
+                            <td className="px-4 py-2.5 font-medium text-[var(--ds-text-muted)]">
                               {status === 'OUI' ? 'Oui' : status === 'NON' ? 'Non' : 'Préféré'}
                             </td>
                             {DAYS.map((d) => (
@@ -1220,9 +1463,9 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                                 <button type="button"
                                   onClick={() => setTrainingDays((prev) => ({ ...prev, [d.key]: status }))}
                                   className={['mx-auto flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors',
-                                    trainingDays[d.key] === status ? 'border-blue bg-blue' : 'border-gray-300 bg-white hover:border-blue-light',
+                                    trainingDays[d.key] === status ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)] hover:border-blue-light',
                                   ].join(' ')}>
-                                  {trainingDays[d.key] === status && <div className="h-2 w-2 rounded-full bg-white" />}
+                                  {trainingDays[d.key] === status && <div className="h-2 w-2 rounded-full bg-[var(--ds-surface)]" />}
                                 </button>
                               </td>
                             ))}
@@ -1234,8 +1477,32 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                 </div>
               </section>
 
+              {(!isEditing || initialData?.status === 'BROUILLON') && (
+                <section className="flex flex-col gap-4">
+                  <SectionTitle>Matching</SectionTitle>
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4 hover:border-blue-light">
+                    <div className={['mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors', publishToMatching ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]'].join(' ')}>
+                      {publishToMatching && <IconCheck width={12} height={12} className="text-white" strokeWidth={3} />}
+                    </div>
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={publishToMatching}
+                      onChange={(e) => setPublishToMatching(e.target.checked)}
+                    />
+                    <span className="text-sm text-[var(--ds-text-muted)]">
+                      <span className="font-medium text-[var(--ds-text)]">Rendre visible dans le matching sans envoi par mail</span>
+                      <span className="mt-1 block text-[var(--ds-text-subtle)]">
+                        L'AB restera à l'état brouillon (affichée « Non envoyée ») mais ses offres
+                        seront matchables comme celles d'une AB non signée.
+                      </span>
+                    </span>
+                  </label>
+                </section>
+              )}
+
               {submitError && (
-                <p className="rounded-lg border border-danger-bg bg-danger-bg px-4 py-2.5 text-sm text-danger">
+                <p className="rounded-lg border border-danger-bg bg-[var(--ds-danger-bg)] px-4 py-2.5 text-sm text-[var(--ds-danger)]">
                   {submitError}
                 </p>
               )}
@@ -1243,7 +1510,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between gap-3 border-t border-gray-100 px-6 py-4">
+          <div className="flex items-center justify-between gap-3 border-t border-[var(--ds-border)] px-6 py-4">
             <Button variant="secondary" onClick={onClose}>Annuler</Button>
             <div className="flex items-center gap-2">
               {isEditing ? (
@@ -1252,7 +1519,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     type="submit"
                     variant="secondary"
                     isLoading={result.fetching}
-                    leftIcon={<Check size={16} />}
+                    leftIcon={<IconCheck width={16} height={16} />}
                     onClick={() => { intentRef.current = 'save' }}
                   >
                     Enregistrer
@@ -1260,7 +1527,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   <Button
                     type="submit"
                     isLoading={result.fetching}
-                    leftIcon={<PenLine size={16} />}
+                    leftIcon={<IconEdit width={16} height={16} />}
                     onClick={() => { intentRef.current = 'sign' }}
                   >
                     Enregistrer & envoyer en signature
@@ -1272,7 +1539,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                     type="submit"
                     variant="secondary"
                     isLoading={result.fetching}
-                    leftIcon={<Check size={16} />}
+                    leftIcon={<IconCheck width={16} height={16} />}
                     onClick={() => { intentRef.current = 'download' }}
                   >
                     Enregistrer & télécharger
@@ -1280,7 +1547,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   <Button
                     type="submit"
                     isLoading={result.fetching}
-                    leftIcon={<PenLine size={16} />}
+                    leftIcon={<IconEdit width={16} height={16} />}
                     onClick={() => { intentRef.current = 'sign' }}
                   >
                     Enregistrer & envoyer en signature

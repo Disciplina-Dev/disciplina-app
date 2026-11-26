@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import Footer from '@/components/layout/Footer'
+import Logo from '@/components/ui/Logo'
 
 type Props = {
   title: string
@@ -15,11 +16,11 @@ const LINKS = [
 
 export default function LegalLayout({ title, children }: Props) {
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b border-gray-100 bg-white">
+    <div className="flex min-h-screen flex-col bg-[var(--ds-bg)]">
+      <header className="border-b border-[var(--ds-border)] bg-[var(--ds-surface)]">
         <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-4 px-6 py-4">
           <Link to="/">
-            <img src="/logo-disciplina.svg" alt="Disciplina" className="h-6" />
+            <Logo className="h-6" />
           </Link>
           <nav className="flex flex-wrap gap-4">
             {LINKS.map((link) => (
@@ -29,7 +30,7 @@ export default function LegalLayout({ title, children }: Props) {
                 className={
                   link.label === title
                     ? 'text-xs font-bold text-purple'
-                    : 'text-xs text-gray-500 transition-colors hover:text-gray-900'
+                    : 'text-xs text-[var(--ds-text-subtle)] transition-colors hover:text-[var(--ds-text)]'
                 }
               >
                 {link.label}

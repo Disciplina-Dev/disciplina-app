@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { OfferModel } from '../../src/db/mongo/schemas/offer.schema';
+import { getModels } from '../../src/db/mongo/tenant';
 import { Offer } from '../../src/types/offer.types';
 import { TitleProfessionalType } from '../../src/types/candidate.types';
 import { OfferStatus, Localisation, Sector, MatchingCandidate } from '../../src/types/matching.types';
@@ -18,9 +18,15 @@ export interface SeedOfferInput {
     status?: OfferStatus;
     localisation?: Localisation[];
     sector?: Sector;
+    activities?: string[];
     candidates?: MatchingCandidate[];
+    dismissed_candidate_ids?: string[];
     interview_slots?: string[];
     interview_location?: string;
+    /** Champs criteria bruts (ex. schedule_options legacy `string[]` ou slots structurés). */
+    criteria?: Record<string, unknown>;
+    /** Statut actif/inactif de l'annuaire entreprises ; `null`/absent = hérite de l'AB. */
+    is_active?: boolean | null;
 }
 
 function parseAgeRange(range?: string): { min: number | null; max: number | null } {
@@ -35,7 +41,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
     const offer: Offer = {
         _id: offerId,
         needs_analysis_id: `ab-${offerId}`,
-        company_infos: input.company_name ? { name: input.company_name } : undefined,
+        company_infos: input.company_name ? { name: input.company_name, activities: input.activities } : undefined,
         localisation: input.localisation ?? [],
         desired_tp: input.desired_tp ? [{ tp_type: input.desired_tp as TitleProfessionalType, missions: [], description_missions: [] }] : [],
         criteria: {
@@ -44,14 +50,20 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
             driving_license: input.driving_license_b ?? false,
             experience_required: input.professional_experience ?? false,
             desired_sex: input.desired_sex ?? null,
+            ...input.criteria,
         },
         matching: {
             status: input.status ?? OfferStatus.NOT_MATCHED,
             candidates: input.candidates ?? [],
+            dismissed_candidate_ids: input.dismissed_candidate_ids ?? [],
             interview_slots: input.interview_slots ?? [],
             interview_location: input.interview_location,
         },
+        is_active: input.is_active ?? null,
     };
-    await OfferModel.create(offer);
+    // getModels() et non OfferModel directement : le helper doit écrire dans la
+    // base du tenant courant (ALS) comme le fait le code de production, sinon un
+    // seed sous syncWithRegion('annemasse') atterrissait dans la base Réunion.
+    await getModels().Offer.create(offer);
     return { _id: offerId };
 }

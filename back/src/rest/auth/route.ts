@@ -13,6 +13,7 @@ import {
     listDirectory,
     updateUserSectors,
     updateUser,
+    deleteUser,
 } from './controller';
 import { authenticate } from '../middleware/auth';
 import { loginRateLimiter } from '../middleware/rateLimiter';
@@ -28,6 +29,7 @@ router.get('/users', authenticate, listUsers);
 router.get('/directory', authenticate, listDirectory);
 router.patch('/users/:id/sectors', express.json(), authenticate, updateUserSectors);
 router.patch('/users/:id', express.json(), authenticate, updateUser);
+router.delete('/users/:id', express.json(), authenticate, deleteUser);
 router.post('/google/uri', express.json(), authenticate, generateGoogleUri);
 router.post('/google/token', express.json(), handleGoogleToken);
 router.get('/google/status', authenticate, googleStatus);

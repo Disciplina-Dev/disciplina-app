@@ -82,7 +82,10 @@ function inlineImagePart(img: InlineImage, boundary: string): string {
     ].join('\r\n');
 }
 
-function attachmentPart(attachment: { filename: string; content: string; contentType?: string }, boundary: string): string {
+function attachmentPart(
+    attachment: { filename: string; content: string; contentType?: string },
+    boundary: string,
+): string {
     return [
         `--${boundary}`,
         `Content-Type: ${attachment.contentType || 'application/octet-stream'}`,
@@ -100,6 +103,15 @@ export function buildRawMessage(options: SendEmailOptions): string {
     const subject = encodeSubject(options.subject);
     const text = options.text?.trim() ? options.text : undefined;
     const headers = ['MIME-Version: 1.0', `To: ${sanitizeHeaderValue(options.to)}`, `Subject: ${subject}`];
+
+    const cc = (options.cc ?? []).map((c) => sanitizeHeaderValue(c)).filter(Boolean);
+    if (cc.length > 0) {
+        headers.push(`Cc: ${cc.join(', ')}`);
+    }
+
+    if (options.replyTo) {
+        headers.push(`Reply-To: ${sanitizeHeaderValue(options.replyTo)}`);
+    }
 
     // En-tête de désabonnement (Gmail bulk sender rules) : réduit le marquage spam et
     // offre le lien natif « Se désabonner ». Fourni uniquement pour les envois en nombre.

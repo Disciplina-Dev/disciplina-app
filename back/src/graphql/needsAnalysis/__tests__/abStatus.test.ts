@@ -61,6 +61,16 @@ async function fetchPageIds(abStatus?: string): Promise<string[]> {
     return (data.needsAnalysesPage.edges as { node: { id: string } }[]).map((e) => e.node.id).sort();
 }
 
+async function setAbStatus(id: string, abStatus: string | null) {
+    const data = await graphql(
+        `mutation($id: ID!, $abStatus: AbStatus) {
+            updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) { id abStatus }
+        }`,
+        { id, abStatus },
+    );
+    return data.updateNeedsAnalysisAbStatus;
+}
+
 describe('GraphQL AB status tabs (needsAnalysesPage)', () => {
     const repo = new NeedsAnalysisRepository();
 
@@ -134,6 +144,48 @@ describe('GraphQL AB status tabs (needsAnalysesPage)', () => {
         await expect(fetchPageIds('ACTIVE')).resolves.toEqual(['ab-mixed', 'ab-no-offer']);
         await expect(fetchPageIds('ARCHIVED')).resolves.toEqual(['ab-archived', 'ab-candidate-contract']);
         await expect(fetchPageIds('INACTIVE')).resolves.toEqual(['ab-active']);
+    });
+
+    it('manually forces an AB into a tab, overriding the derived status', async () => {
+        // ab-active dérive en Actif ; on le force en Archivé.
+        await setAbStatus('ab-active', 'ARCHIVED');
+
+        await expect(fetchPageIds('ACTIVE')).resolves.toEqual(['ab-mixed', 'ab-no-offer']);
+        await expect(fetchPageIds('ARCHIVED')).resolves.toEqual([
+            'ab-active',
+            'ab-archived',
+            'ab-candidate-contract',
+        ]);
+
+        // On le force ensuite en Inactif : il sort d'Actif/Archivé.
+        await setAbStatus('ab-active', 'INACTIVE');
+        await expect(fetchPageIds('INACTIVE')).resolves.toEqual(['ab-active']);
+        await expect(fetchPageIds('ARCHIVED')).resolves.toEqual(['ab-archived', 'ab-candidate-contract']);
+    });
+
+    it('resets a manual status back to the automatic derived status', async () => {
+        await setAbStatus('ab-active', 'ARCHIVED');
+        await setAbStatus('ab-active', null);
+
+        await expect(fetchPageIds('ACTIVE')).resolves.toEqual(['ab-active', 'ab-mixed', 'ab-no-offer']);
+        await expect(fetchPageIds('ARCHIVED')).resolves.toEqual(['ab-archived', 'ab-candidate-contract']);
+    });
+
+    it('exposes the effective abStatus on the needsAnalysis query', async () => {
+        const data = await graphql(
+            `query($id: ID!) { needsAnalysis(id: $id) { id abStatus } }`,
+            { id: 'ab-archived' },
+        );
+        expect(data.needsAnalysis.abStatus).toBe('ARCHIVED');
+
+        const updated = await setAbStatus('ab-archived', 'ACTIVE');
+        expect(updated.abStatus).toBe('ACTIVE');
+
+        const after = await graphql(
+            `query($id: ID!) { needsAnalysis(id: $id) { id abStatus } }`,
+            { id: 'ab-archived' },
+        );
+        expect(after.needsAnalysis.abStatus).toBe('ACTIVE');
     });
 
     it('hides inactive (soft-deleted) ABs from the commercial portefeuille', async () => {

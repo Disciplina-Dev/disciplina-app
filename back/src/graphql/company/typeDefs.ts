@@ -46,7 +46,10 @@ export const typeDefs = gql`
     input CompanyFiltersInput {
         status: [String!]
         userID: Int
-        sector: String
+        sector: [String!]
+        sectors: [String!]
+        sectorMode: String
+        sectorsMode: String
         relance: String
         unassigned: Boolean
         createdFrom: String
@@ -236,6 +239,7 @@ export const typeDefs = gql`
     }
 
     type Query {
+        company(id: Int!): CompanyWithSalePerson
         companies(first: Int, after: String, search: String, filters: CompanyFiltersInput): CompanyConnection!
         companiesBySiren(first: Int, after: String, filters: CompanyFiltersInput): CompanySirenGroupConnection!
         companyOptions: [CompanyOption!]!

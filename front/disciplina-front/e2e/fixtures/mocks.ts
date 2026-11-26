@@ -21,18 +21,3 @@ export async function mockExternal(page: Page): Promise<void> {
         route.request().method() === 'POST' ? json(route, { id: 'mock-event' }, 201) : route.continue(),
     );
 }
-
-// Simule un token/signature valide pour les parcours publics (match/interview/
-// booking/cv-import) sans dépendre du crypto signé côté back.
-export async function mockSignedToken(
-    page: Page,
-    kind: 'match' | 'interview' | 'booking',
-    payload: Record<string, unknown> = {},
-): Promise<void> {
-    await page.route(`**/api/${kind}/**/inspect`, (route) =>
-        json(route, { valid: true, locked: false, ...payload }),
-    );
-    await page.route(`**/api/${kind}/**/authenticate`, (route) =>
-        json(route, { authenticated: true, token: 'mock-guest-token', ...payload }),
-    );
-}

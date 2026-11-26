@@ -28,6 +28,65 @@ export const typeDefs = gql`
         LA_PLAINE_DES_PALMISTES
         SALAZIE
         SAINTE_ANNE
+        ANNEMASSE
+        AMBILLY
+        GAILLARD
+        VILLE_LA_GRAND
+        VETRAZ_MONTHOUX
+        ETREMBIERES
+        CRANVES_SALES
+        SAINT_CERGUES
+        JUVIGNY
+        BONNE
+        MACHILLY
+        DOUVAINE
+        VEIGY_FONCENEX
+        BONS_EN_CHABLAIS
+        SCIEZ
+        THONON_LES_BAINS
+        EVIAN_LES_BAINS
+        SAINT_JULIEN_EN_GENEVOIS
+        ARCHAMPS
+        NEYDENS
+        COLLONGES_SOUS_SALEVE
+        PRESILLY
+        BEAUMONT
+        FEIGERES
+        VIRY
+        VALLEIRY
+        VULBENS
+        CHENEX
+        REIGNIER_ESERY
+        ARENTHON
+        CONTAMINE_SUR_ARVE
+        BONNEVILLE
+        AYSE
+        MARIGNIER
+        VOUGY
+        CLUSES
+        SCIONZIER
+        MARNAZ
+        LA_ROCHE_SUR_FORON
+        AMANCY
+        SAINT_PIERRE_EN_FAUCIGNY
+        ETAUX
+        CORNIER
+        PERS_JUSSY
+        SCIENTRIER
+        ARBUSIGNY
+        ANNECY
+        PRINGY
+        EPAGNY_METZ_TESSY
+        POISY
+        MEYTHET
+        SEYNOD
+        CRAN_GEVRIER
+        ARGONAY
+        PERRIGNIER
+        BOEGE
+        FILLINGES
+        VIUZ_EN_SALLAZ
+        SAINT_JEOIRE
     }
 
     enum TrainingDomain {
@@ -40,6 +99,8 @@ export const typeDefs = gql`
         CC
         NTC
         REM
+        CADGA
+        # Legacy : ancien code du TP CADGA, conservé pour les clients existants.
         SA
     }
 
@@ -100,6 +161,21 @@ export const typeDefs = gql`
         INACTIVE
     }
 
+    enum AdministrationType {
+        NON_RENSEIGNE
+        ADMINISTRATION_PUBLIQUE
+        ADMINISTRATION_PRIVEE
+    }
+
+    # Pastille couleur du suivi entreprise (annuaire du tableau de bord RH).
+    enum CompanyIndicator {
+        WHITE
+        YELLOW
+        GREEN
+        ORANGE
+        RED
+    }
+
     type CompanyInfos {
         id: Int
         name: String
@@ -137,26 +213,40 @@ export const typeDefs = gql`
     type OfferCriteria {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         trainingDomain: TrainingDomain
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]!
+        scheduleOptions: [ScheduleSlot!]!
         conditions: String
         additionalComments: String
+    }
+
+    type ScheduleSlot {
+        day: String
+        startHour: String
+        endHour: String
+    }
+
+    input ScheduleSlotInput {
+        day: String
+        startHour: String
+        endHour: String
     }
 
     input OfferCriteriaInput {
         educationLevel: EducationLevel
         drivingLicense: Boolean
+        hasVehicle: Boolean
         experienceRequired: Boolean
         ageMin: Int
         ageMax: Int
         desiredSex: String
         softSkills: String
-        scheduleOptions: [String!]
+        scheduleOptions: [ScheduleSlotInput!]
         conditions: String
         additionalComments: String
     }
@@ -209,9 +299,26 @@ export const typeDefs = gql`
         trainingDays: String
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus!
+        abStatus: AbStatus!
+        isRelanceDisabled: Boolean!
+        # Brouillon rendu visible dans le matching sans envoi en signature
+        # (affiché « Non envoyée », matché comme une AB non signée).
+        isVisibleInMatching: Boolean!
+        administrationType: AdministrationType!
         tags: [String!]
+        # Pastille couleur manuelle du suivi entreprise. Null = automatique
+        # (immersion en cours → vert, mandat signé → jaune, sinon blanc).
+        companyIndicator: CompanyIndicator
+        # Suivi entreprise (annuaire RH) : références libres éditables inline.
+        franceTravail: String
+        koann: String
         createdAt: String
         updatedAt: String
+        # Date du dernier passage au statut effectif ACTIVE (création puis
+        # réactivations). Null pour les documents antérieurs au suivi.
+        lastActiveAt: String
+        # URL Drive du dossier contenant le mandat signé (uniquement si status = SIGNE).
+        driveFolderUrl: String
     }
 
     input NeedsAnalysisInput {
@@ -228,6 +335,7 @@ export const typeDefs = gql`
         referralSource: ReferralSource
         postalCode: String
         commune: String
+        administrationType: AdministrationType
         positions: [PositionInput!]
         recruitmentMethod: RecruitmentMethod
         immersionPeriod: ImmersionPeriod
@@ -235,6 +343,7 @@ export const typeDefs = gql`
         yousignSignatureRequestID: String
         status: NeedsAnalysisStatus
         tags: [String!]
+        isVisibleInMatching: Boolean
     }
 
     type AbDriveFolder {
@@ -281,6 +390,7 @@ export const typeDefs = gql`
         sectors: [String!]
         localisations: [String!]
         abStatus: AbStatus
+        administrationTypes: [AdministrationType!]
     }
 
     type NeedsAnalysisDashboardItem {
@@ -312,5 +422,22 @@ export const typeDefs = gql`
         # Marque une AB comme signée sans passer par le flux Yousign : réservé au cas où le
         # contrat a été trouvé hors sourcing Disciplina (candidat ayant trouvé sa propre entreprise).
         markNeedsAnalysisSigned(id: ID!): NeedsAnalysis!
+        # Force le statut d'onglet d'une AB (Actif/Archivé/Inactif) ; abStatus à null le
+        # réinitialise au calcul automatique dérivé des offres.
+        updateNeedsAnalysisAbStatus(id: ID!, abStatus: AbStatus): NeedsAnalysis!
+        # Désactive/réactive la relance automatique de signature (non destructif, garde l'AB et ses offres).
+        setAbRelanceDisabled(id: ID!, disabled: Boolean!): NeedsAnalysis!
+        # Rend un brouillon visible dans le matching (crée ses offres, sans envoi
+        # en signature) ou l'en retire (supprime ses offres). Réservé aux AB BROUILLON.
+        setNeedsAnalysisMatchingVisibility(id: ID!, visible: Boolean!): NeedsAnalysis!
+        # Pose la pastille couleur manuelle du suivi entreprise (annuaire RH) ;
+        # indicator à null la réinitialise à la couleur automatique dérivée.
+        updateNeedsAnalysisIndicator(id: ID!, indicator: CompanyIndicator): NeedsAnalysis!
+        # Met à jour les références libres du suivi entreprise (annuaire RH).
+        # Un champ omis est conservé, une chaîne vide l'efface (null).
+        updateNeedsAnalysisTracking(id: ID!, franceTravail: String, koann: String): NeedsAnalysis!
+        # Corrige manuellement la date d'activation affichée dans l'annuaire.
+        # Chaîne vide / null l'efface (repli sur la date de création).
+        updateNeedsAnalysisActivationDate(id: ID!, lastActiveAt: String): NeedsAnalysis!
     }
 `;

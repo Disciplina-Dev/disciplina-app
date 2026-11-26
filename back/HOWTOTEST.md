@@ -400,6 +400,25 @@ The `test-backend` container uses `network_mode: host` so that `localhost` resol
 
 Failing tests emit `::error file=...,line=...::` annotations via Vitest's built-in `github-actions` reporter (enabled automatically when `CI=true`).
 
+Each run also gets a readable results table on its **Summary** tab: totals, failures first, then a collapsible list of tests per file. Under `CI=true`, Vitest writes a JSON report to `back/test-results/vitest.json` (bind-mounted out of the `test-backend` container, git- and docker-ignored); the `Test summary` step renders it with `.github/scripts/vitest-summary.mjs` (no dependency) into `$GITHUB_STEP_SUMMARY`. Preview it locally on any JSON report:
+
+```sh
+node .github/scripts/vitest-summary.mjs back/test/output.json > summary.md
+```
+
+---
+
+## MCP tests
+
+`back/src/mcp/__tests__/` follows the same component rules (real app, real DBs, mock only `src/external/*`):
+
+- `peda.test.ts` — the 12 péda tools: consent via `candidate_id`, excluded fields absent, pagination
+- `pedaMasking.test.ts` — `PEDA_MIN_GROUP` masking, complementary masking (no subtraction leak), notification redaction
+- `tools.test.ts`, `serialize.test.ts` — candidate/offer tools, SSN masking
+- `limits.test.ts` — quotas and rate limit; `retention.test.ts` — purge of audit/OAuth data; `oauth.test.ts` — OAuth 2.1 flow
+
+Péda seed data for manual checks: `python scripts/seed_annemasse_peda_data.py`.
+
 ---
 
 ## Out of scope of this guide

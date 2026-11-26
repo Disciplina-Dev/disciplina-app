@@ -1,5 +1,4 @@
-import { query, getConnection } from '../../db/mysql/connection';
-import { KpiRow, KpiUpsertInput, KPI_METRIC_COLUMNS } from '../../types/kpi.types';
+import { query } from '../../db/mysql/connection';
 
 export interface LiveStatusRow {
     sector: string;
@@ -29,75 +28,47 @@ export interface ActivityEventRow {
     nb: number;
 }
 
-const UPSERT_SQL = `
-    INSERT INTO commercial_kpi
-        (user_id, user_name, year, month, week, site, ${KPI_METRIC_COLUMNS.join(', ')})
-    VALUES (?, ?, ?, ?, ?, ?, ${KPI_METRIC_COLUMNS.map(() => '?').join(', ')})
-    ON DUPLICATE KEY UPDATE
-        user_id = VALUES(user_id),
-        user_name = VALUES(user_name),
-        ${KPI_METRIC_COLUMNS.map((c) => `${c} = VALUES(${c})`).join(',\n        ')}
-`;
+/**
+ * Vues SQL dérivées (portefeuille live + activité datée) : lisent companies,
+ * contact_logs, company_history et users — pas la table KPI. Les buckets
+ * commercial_kpi/rh_kpi ont migré vers MongoDB (voir repositories/mongo).
+ */
 
-function upsertParams(data: KpiUpsertInput): unknown[] {
+/** Clause de filtre secteur : l'entreprise est rattachée à l'un des libellés (company_sectors). */
+function sectorClause(sector: string | string[]): [string, (string | string[])[]] {
+    const labels = Array.isArray(sector) ? sector : [sector];
     return [
-        data.user_id ?? null,
-        data.user_name,
-        data.year,
-        data.month,
-        data.week ?? 0,
-        data.site,
-        ...KPI_METRIC_COLUMNS.map((c) => data[c] ?? 0),
+        `EXISTS (
+            SELECT 1 FROM company_sectors cs JOIN sectors s ON s.id = cs.sector_id
+            WHERE cs.company_id = c.id AND s.level = 'sector' AND s.label IN (?)
+        )`,
+        [labels],
     ];
 }
 
-export class KpiRepository {
-    /** Monthly aggregate rows only (week = 0). */
-    async findByYearAndSite(year: number, site: string): Promise<KpiRow[]> {
-        return query<KpiRow[]>(
-            'SELECT * FROM commercial_kpi WHERE year = ? AND site = ? AND week = 0 ORDER BY user_name, month',
-            [year, site],
-        );
-    }
+/**
+ * Jointure `ps` : libellé du premier secteur (ordre du référentiel) de chaque
+ * entreprise, pour qu'elle ne compte qu'une fois. Aucun libellé ne contient de virgule.
+ */
+const PRIMARY_SECTOR_JOIN = `LEFT JOIN (
+    SELECT cs.company_id, SUBSTRING_INDEX(GROUP_CONCAT(s.label ORDER BY s.id), ',', 1) AS label
+    FROM company_sectors cs JOIN sectors s ON s.id = cs.sector_id AND s.level = 'sector'
+    GROUP BY cs.company_id
+) ps ON ps.company_id = %ID%`;
 
-    async findByYearMonthSite(year: number, month: number, site: string): Promise<KpiRow[]> {
-        return query<KpiRow[]>(
-            'SELECT * FROM commercial_kpi WHERE year = ? AND month = ? AND site = ? AND week = 0 ORDER BY user_name',
-            [year, month, site],
-        );
-    }
+function primarySectorJoin(companyAlias: string): string {
+    return PRIMARY_SECTOR_JOIN.replace('%ID%', `${companyAlias}.id`);
+}
 
-    /** Weekly rows only (week > 0). */
-    async findWeeklyByYearAndSite(year: number, site: string): Promise<KpiRow[]> {
-        return query<KpiRow[]>(
-            'SELECT * FROM commercial_kpi WHERE year = ? AND site = ? AND week > 0 ORDER BY week, user_name',
-            [year, site],
-        );
-    }
-
-    /** Monthly aggregate rows (week = 0) for all sites — global overview. */
-    async findMonthlyByYear(year: number): Promise<KpiRow[]> {
-        return query<KpiRow[]>(
-            'SELECT * FROM commercial_kpi WHERE year = ? AND week = 0 ORDER BY site, user_name, month',
-            [year],
-        );
-    }
-
-    /** All rows (monthly + weekly) of one user for a year, across sites. */
-    async findByYearAndUser(year: number, userId: number): Promise<KpiRow[]> {
-        return query<KpiRow[]>(
-            'SELECT * FROM commercial_kpi WHERE year = ? AND user_id = ? ORDER BY site, week, month',
-            [year, userId],
-        );
-    }
-
+export class KpiActivityRepository {
     /** Snapshot portefeuille : nombre d'entreprises par secteur / commercial / statut. */
     async liveStatusCounts(): Promise<LiveStatusRow[]> {
         return query<LiveStatusRow[]>(
-            `SELECT c.sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
+            `SELECT ps.label AS sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
              FROM companies c
              LEFT JOIN users u ON u.id = c.user_id
-             GROUP BY c.sector, c.user_id, u.first_name, u.last_name, c.status`,
+             ${primarySectorJoin('c')}
+             GROUP BY ps.label, c.user_id, u.first_name, u.last_name, c.status`,
         );
     }
 
@@ -105,25 +76,28 @@ export class KpiRepository {
      * secteur/commercial/statut. Contrairement à activityStatusChanges (compte les
      * transitions chaque fois), celui-ci ne compte chaque entreprise qu'une fois
      * avec son statut actuel. */
-    async portfolioStatusCounts(sector: string): Promise<LiveStatusRow[]> {
+    async portfolioStatusCounts(sector: string | string[]): Promise<LiveStatusRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<LiveStatusRow[]>(
-            `SELECT c.sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
+            `SELECT ps.label AS sector, c.user_id, u.first_name, u.last_name, c.status, COUNT(*) AS nb
              FROM companies c
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE c.sector = ?
-             GROUP BY c.sector, c.user_id, u.first_name, u.last_name, c.status`,
-            [sector],
+             ${primarySectorJoin('c')}
+             WHERE ${clause}
+             GROUP BY ps.label, c.user_id, u.first_name, u.last_name, c.status`,
+            params,
         );
     }
 
     /** Snapshot portefeuille : appels loggés par secteur / commercial. */
     async liveCallCounts(): Promise<LiveCallsRow[]> {
         return query<LiveCallsRow[]>(
-            `SELECT co.sector, l.user_id, u.first_name, u.last_name, COUNT(*) AS nb
+            `SELECT ps.label AS sector, l.user_id, u.first_name, u.last_name, COUNT(*) AS nb
              FROM contact_logs l
              JOIN companies co ON co.id = l.company_id
              LEFT JOIN users u ON u.id = l.user_id
-             GROUP BY co.sector, l.user_id, u.first_name, u.last_name`,
+             ${primarySectorJoin('co')}
+             GROUP BY ps.label, l.user_id, u.first_name, u.last_name`,
         );
     }
 
@@ -131,7 +105,8 @@ export class KpiRepository {
      * Changements de statut datés (company_history), attribués au propriétaire
      * du portefeuille. WEEK(..., 3) = semaine ISO.
      */
-    async activityStatusChanges(year: number, sector: string): Promise<ActivityEventRow[]> {
+    async activityStatusChanges(year: number, sector: string | string[]): Promise<ActivityEventRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<ActivityEventRow[]>(
             `SELECT c.user_id, u.first_name, u.last_name,
                     MONTH(h.updated_at) AS month, WEEK(h.updated_at, 3) AS week,
@@ -139,10 +114,10 @@ export class KpiRepository {
              FROM company_history h
              JOIN companies c ON c.id = h.company_id
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE YEAR(h.updated_at) = ? AND c.sector = ?
+             WHERE YEAR(h.updated_at) = ? AND ${clause}
                AND (h.previous_status IS NULL OR h.previous_status <> h.status)
              GROUP BY c.user_id, u.first_name, u.last_name, MONTH(h.updated_at), WEEK(h.updated_at, 3), h.status`,
-            [year, sector],
+            [year, ...params],
         );
     }
 
@@ -150,7 +125,8 @@ export class KpiRepository {
      * Créations d'entreprises datées : le statut initial est reconstitué depuis
      * le previous_status de la première ligne d'historique, sinon le statut actuel.
      */
-    async activityCreations(year: number, sector: string): Promise<ActivityEventRow[]> {
+    async activityCreations(year: number, sector: string | string[]): Promise<ActivityEventRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<ActivityEventRow[]>(
             `WITH first_hist AS (
                  SELECT company_id, previous_status,
@@ -163,14 +139,15 @@ export class KpiRepository {
              FROM companies c
              LEFT JOIN first_hist f ON f.company_id = c.id AND f.rn = 1
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE YEAR(c.created_at) = ? AND c.sector = ?
+             WHERE YEAR(c.created_at) = ? AND ${clause}
              GROUP BY c.user_id, u.first_name, u.last_name, MONTH(c.created_at), WEEK(c.created_at, 3), COALESCE(f.previous_status, c.status)`,
-            [year, sector],
+            [year, ...params],
         );
     }
 
     /** Prises de contact datées (contact_logs), attribuées au propriétaire du portefeuille. */
-    async activityCalls(year: number, sector: string): Promise<ActivityEventRow[]> {
+    async activityCalls(year: number, sector: string | string[]): Promise<ActivityEventRow[]> {
+        const [clause, params] = sectorClause(sector);
         return query<ActivityEventRow[]>(
             `SELECT c.user_id, u.first_name, u.last_name,
                     MONTH(l.created_at) AS month, WEEK(l.created_at, 3) AS week,
@@ -178,37 +155,9 @@ export class KpiRepository {
              FROM contact_logs l
              JOIN companies c ON c.id = l.company_id
              LEFT JOIN users u ON u.id = c.user_id
-             WHERE YEAR(l.created_at) = ? AND c.sector = ?
+             WHERE YEAR(l.created_at) = ? AND ${clause}
              GROUP BY c.user_id, u.first_name, u.last_name, MONTH(l.created_at), WEEK(l.created_at, 3)`,
-            [year, sector],
+            [year, ...params],
         );
-    }
-
-    async upsert(data: KpiUpsertInput): Promise<void> {
-        await query(UPSERT_SQL, upsertParams(data));
-    }
-
-    async bulkUpsert(rows: KpiUpsertInput[]): Promise<void> {
-        if (rows.length === 0) return;
-        const conn = await getConnection();
-        try {
-            await conn.beginTransaction();
-            for (const row of rows) {
-                await conn.execute(UPSERT_SQL, upsertParams(row) as (string | number | null)[]);
-            }
-            await conn.commit();
-        } catch (err) {
-            await conn.rollback();
-            throw err;
-        } finally {
-            conn.release();
-        }
-    }
-
-    async getAvailableYears(): Promise<number[]> {
-        const rows = await query<{ year: number }[]>(
-            'SELECT DISTINCT year FROM commercial_kpi ORDER BY year DESC',
-        );
-        return rows.map((r) => Number(r.year));
     }
 }

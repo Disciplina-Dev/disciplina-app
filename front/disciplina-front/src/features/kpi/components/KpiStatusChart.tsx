@@ -85,7 +85,7 @@ export default function KpiStatusChart({ summary, weekly, mode, visibleStatuses 
   }, [summary, weekly, mode, visibleStatuses])
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
+    <div className="rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
       <div className="h-[360px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }} barGap={2}>

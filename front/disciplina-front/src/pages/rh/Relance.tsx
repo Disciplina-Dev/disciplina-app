@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Send, CheckCircle, XCircle, Mail, Users, Clock, MapPin } from 'lucide-react'
+import { IconCheckCircle, IconClock, IconErrorCircle, IconHistory, IconMail, IconMapPin, IconSend, IconUsers } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { useCandidates } from '@/graphql/hooks'
 import { CandidateStatus, TitleProfessionalType } from '@/types/candidate'
@@ -9,6 +9,9 @@ import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus'
 import { cleanHtml } from '@/services/sanitizeHtml'
 import { SECTEUR_LABELS, secteurKeyOfTrainingSite } from '@/constants/secteurs'
+import { ANNEMASSE_SECTEUR } from '@/constants/secteurs'
+import { useRegionStore } from '@/store/regionStore'
+import type { Region } from '@/store/regionStore'
 
 interface SendResult {
   sent: number
@@ -19,15 +22,22 @@ interface SendResult {
 // Type d'envoi : relance de disponibilité (Oui/Non codée en dur) ou un modèle RH.
 const AVAILABILITY = 'availability'
 
-// Zones géographiques dérivées du site de formation du candidat.
-type ZoneKey = 'NORD' | 'OUEST' | 'SUD' | 'AUTRE'
+// Zones géographiques : sites de formation Réunion, secteur unique Annemasse.
+type ZoneKey = 'NORD' | 'OUEST' | 'SUD' | 'ANNEMASSE' | 'AUTRE'
 
 const ZONE_LABEL: Record<ZoneKey, string> = {
   ...SECTEUR_LABELS,
+  ANNEMASSE: ANNEMASSE_SECTEUR,
   AUTRE: 'Non renseigné',
 }
 
-function zoneOf(candidate: Candidate): ZoneKey {
+/** Zones proposées selon le tenant (Annemasse : secteur unique). */
+function zonesForRegion(region: Region | null | undefined): ZoneKey[] {
+  return region === 'annemasse' ? ['ANNEMASSE'] : ['NORD', 'OUEST', 'SUD', 'AUTRE']
+}
+
+function zoneOf(candidate: Candidate, region?: Region | null): ZoneKey {
+  if (region === 'annemasse') return 'ANNEMASSE'
   return secteurKeyOfTrainingSite(candidate.training_site) ?? 'AUTRE'
 }
 
@@ -37,7 +47,7 @@ const TP_LABEL: Record<TitleProfessionalType, string> = {
   [TitleProfessionalType.CC]: 'Conseiller Commercial',
   [TitleProfessionalType.NTC]: 'Négociateur technico-commercial',
   [TitleProfessionalType.REM]: "Responsable d'établissement Marchand",
-  [TitleProfessionalType.SA]: 'SA',
+  [TitleProfessionalType.CADGA]: "Chargé d'accueil et de gestion administrative",
 }
 
 function tpColors(tp: TitleProfessionalType): string {
@@ -50,10 +60,10 @@ function tpColors(tp: TitleProfessionalType): string {
       return 'bg-[#FAE8FF] text-[#A21CAF] ring-[#A21CAF]/20'
     case TitleProfessionalType.REM:
       return 'bg-[#ECFCCB] text-[#4D7C0F] ring-[#4D7C0F]/20'
-    case TitleProfessionalType.SA:
+    case TitleProfessionalType.CADGA:
       return 'bg-[#F1F5F9] text-[#334155] ring-[#334155]/20'
     default:
-      return 'bg-gray-100 text-gray-500 ring-gray-200'
+      return 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] ring-[var(--ds-border)]'
   }
 }
 
@@ -76,10 +86,26 @@ function hasFreshResponse(c: Candidate): boolean {
   return new Date(c.relance_response_at).getTime() >= new Date(c.last_relance_at).getTime()
 }
 
+/** Nombre de relances reçues (compteur backend, repli historique / ancien horodatage). */
+function relanceCountOf(c: Candidate): number {
+  if (typeof c.relance_count === 'number') return c.relance_count
+  if (c.relance_history) return c.relance_history.length
+  return c.last_relance_at ? 1 : 0
+}
+
+/** Historique trié du plus récent au plus ancien. */
+function relanceHistoryOf(c: Candidate) {
+  return [...(c.relance_history ?? [])].sort(
+    (a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
+  )
+}
+
 export default function Relance() {
-  const { candidates, loading } = useCandidates()
+  const { candidates, loading, refetch } = useCandidates()
   const templates = useRhMailTemplatesStore((s) => s.templates)
   const loadTemplates = useRhMailTemplatesStore((s) => s.load)
+  const region = useRegionStore((s) => s.region)
+  const zoneKeys = useMemo(() => zonesForRegion(region), [region])
 
   const [sendType, setSendType] = useState<string>(AVAILABILITY)
   const [statusFilter, setStatusFilter] = useState<CandidateStatus | 'ALL'>(CandidateStatus.SEEKING)
@@ -87,6 +113,7 @@ export default function Relance() {
   const [zoneFilter, setZoneFilter] = useState<Set<ZoneKey>>(new Set())
   const [showRelanced, setShowRelanced] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [openHistory, setOpenHistory] = useState<Set<string>>(new Set())
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<SendResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -104,11 +131,11 @@ export default function Relance() {
         if (!c.identity.email) return false
         if (statusFilter !== 'ALL' && c.status !== statusFilter) return false
         if (tpFilter.size > 0 && !tpsOf(c).some((tp) => tpFilter.has(tp))) return false
-        if (zoneFilter.size > 0 && !zoneFilter.has(zoneOf(c))) return false
+        if (zoneFilter.size > 0 && !zoneFilter.has(zoneOf(c, region))) return false
         if (!showRelanced && (c.last_relance_at || hasFreshResponse(c))) return false
         return true
       }),
-    [candidates, statusFilter, tpFilter, zoneFilter, showRelanced],
+    [candidates, statusFilter, tpFilter, zoneFilter, showRelanced, region],
   )
 
   // Nettoie la sélection quand le filtre change (des candidats disparaissent de la liste).
@@ -124,7 +151,8 @@ export default function Relance() {
   function toggleTp(tp: TitleProfessionalType) {
     setTpFilter((prev) => {
       const next = new Set(prev)
-      next.has(tp) ? next.delete(tp) : next.add(tp)
+      if (next.has(tp)) next.delete(tp)
+      else next.add(tp)
       return next
     })
   }
@@ -132,7 +160,8 @@ export default function Relance() {
   function toggleZone(zone: ZoneKey) {
     setZoneFilter((prev) => {
       const next = new Set(prev)
-      next.has(zone) ? next.delete(zone) : next.add(zone)
+      if (next.has(zone)) next.delete(zone)
+      else next.add(zone)
       return next
     })
   }
@@ -140,7 +169,8 @@ export default function Relance() {
   function toggle(id: string) {
     setSelected((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -149,6 +179,15 @@ export default function Relance() {
     const ids = targets.map((c) => c._id)
     const allSelected = ids.length > 0 && ids.every((id) => selected.has(id))
     setSelected(allSelected ? new Set() : new Set(ids))
+  }
+
+  function toggleHistory(id: string) {
+    setOpenHistory((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   async function handleSend() {
@@ -171,6 +210,7 @@ export default function Relance() {
       })
       setResult(data)
       setSelected(new Set())
+      refetch()
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -183,31 +223,31 @@ export default function Relance() {
   const pendingCount = targets.length - respondedCount
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 flex flex-col gap-6 pb-28">
+    <div className="mx-auto max-w-6xl px-4 py-8 flex flex-col gap-6">
       {/* En-tête */}
       <div className="flex items-center gap-3">
         <div className="w-11 h-11 rounded-xl bg-purple-light flex items-center justify-center shrink-0">
-          <Mail size={20} className="text-purple" />
+          <IconMail width={20} height={20} className="text-purple" />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Relance candidats</h1>
-          <p className="text-sm text-gray-400 mt-0.5">
+          <h1 className="text-xl font-bold text-[var(--ds-text)]">Relance candidats</h1>
+          <p className="text-sm text-[var(--ds-text-subtle)] mt-0.5">
             Choisis un type d'envoi, filtre par statut et métier, sélectionne les destinataires.
           </p>
         </div>
       </div>
 
       {/* Barre de configuration */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-2xl border border-gray-100 bg-white p-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-4">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="send-type" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <label htmlFor="send-type" className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide">
             Type d'envoi
           </label>
           <select
             id="send-type"
             value={sendType}
             onChange={(e) => setSendType(e.target.value)}
-            className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple transition-colors"
+            className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple transition-colors"
           >
             <option value={AVAILABILITY}>Relance disponibilité (Oui / Non)</option>
             {templates.length > 0 && (
@@ -222,14 +262,14 @@ export default function Relance() {
           </select>
         </div>
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="status-filter" className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          <label htmlFor="status-filter" className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide">
             Statut des candidats
           </label>
           <select
             id="status-filter"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as CandidateStatus | 'ALL')}
-            className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-purple transition-colors"
+            className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple transition-colors"
           >
             <option value="ALL">Tous les statuts</option>
             {CANDIDATE_STATUS_ORDER.map((s) => (
@@ -242,7 +282,7 @@ export default function Relance() {
 
         {/* Filtre par type métier (titre professionnel) */}
         <div className="sm:col-span-2 flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Type métier</span>
+          <span className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide">Type métier</span>
           <div className="flex flex-wrap gap-2">
             {Object.values(TitleProfessionalType).map((tp) => {
               const active = tpFilter.has(tp)
@@ -253,7 +293,7 @@ export default function Relance() {
                   onClick={() => toggleTp(tp)}
                   title={TP_LABEL[tp]}
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-all ${
-                    active ? tpColors(tp) : 'bg-white text-gray-400 ring-gray-200 hover:ring-gray-300'
+                    active ? tpColors(tp) : 'bg-[var(--ds-surface)] text-[var(--ds-text-subtle)] ring-[var(--ds-border)] hover:ring-[var(--ds-border-strong)]'
                   }`}
                 >
                   {tp}
@@ -264,7 +304,7 @@ export default function Relance() {
               <button
                 type="button"
                 onClick={() => setTpFilter(new Set())}
-                className="rounded-full px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600"
+                className="rounded-full px-3 py-1.5 text-xs font-medium text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
               >
                 Réinitialiser
               </button>
@@ -274,10 +314,10 @@ export default function Relance() {
 
         {/* Filtre par zone géographique */}
         <div className="sm:col-span-2 flex flex-col gap-1.5">
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Zone géographique</span>
+          <span className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide">Zone géographique</span>
           <div className="flex flex-wrap gap-2">
-            {Object.entries(ZONE_LABEL).map(([key, label]) => {
-              const k = key as ZoneKey
+            {zoneKeys.map((k) => {
+              const label = ZONE_LABEL[k]
               const active = zoneFilter.has(k)
               return (
                 <button
@@ -287,7 +327,7 @@ export default function Relance() {
                   className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition-all ${
                     active
                       ? 'bg-[#E0E7FF] text-[#4338CA] ring-[#4338CA]/20'
-                      : 'bg-white text-gray-400 ring-gray-200 hover:ring-gray-300'
+                      : 'bg-[var(--ds-surface)] text-[var(--ds-text-subtle)] ring-[var(--ds-border)] hover:ring-[var(--ds-border-strong)]'
                   }`}
                 >
                   {label}
@@ -298,7 +338,7 @@ export default function Relance() {
               <button
                 type="button"
                 onClick={() => setZoneFilter(new Set())}
-                className="rounded-full px-3 py-1.5 text-xs font-medium text-gray-400 hover:text-gray-600"
+                className="rounded-full px-3 py-1.5 text-xs font-medium text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
               >
                 Réinitialiser
               </button>
@@ -315,48 +355,48 @@ export default function Relance() {
             onChange={() => setShowRelanced((v) => !v)}
             className="h-4 w-4 rounded accent-purple cursor-pointer"
           />
-          <label htmlFor="show-relanced" className="text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer">
+          <label htmlFor="show-relanced" className="text-xs font-semibold text-[var(--ds-text-subtle)] uppercase tracking-wide cursor-pointer">
             Inclure les déjà relancés
           </label>
         </div>
 
         {/* Aperçu du type d'envoi */}
-        <div className="sm:col-span-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3 text-sm text-gray-600">
+        <div className="sm:col-span-2 rounded-xl bg-[var(--ds-surface-sunken)] border border-[var(--ds-border)] px-4 py-3 text-sm text-[var(--ds-text-muted)]">
           {sendType === AVAILABILITY ? (
             <span>
-              Mail « Êtes-vous toujours en recherche ? » avec boutons <strong>Oui / Non</strong> — le
+              IconMail « Êtes-vous toujours en recherche ? » avec boutons <strong>Oui / Non</strong> — le
               statut du candidat est mis à jour automatiquement à sa réponse.
             </span>
           ) : selectedTemplate ? (
             <div className="flex flex-col gap-1">
-              <span className="text-xs text-gray-400">
-                Objet : <strong className="text-gray-700">{selectedTemplate.subject}</strong>
+              <span className="text-xs text-[var(--ds-text-subtle)]">
+                Objet : <strong className="text-[var(--ds-text-muted)]">{selectedTemplate.subject}</strong>
                 {selectedTemplate.attachment ? ` · PJ : ${selectedTemplate.attachment.filename}` : ''}
               </span>
               <div
-                className="prose prose-sm max-w-none text-gray-700 line-clamp-4"
+                className="prose prose-sm max-w-none text-[var(--ds-text-muted)] line-clamp-4"
                 dangerouslySetInnerHTML={{ __html: cleanHtml(selectedTemplate.body) }}
               />
             </div>
           ) : (
-            <span className="text-gray-400">Modèle introuvable.</span>
+            <span className="text-[var(--ds-text-subtle)]">Modèle introuvable.</span>
           )}
         </div>
       </div>
 
       {/* Résultat / erreur */}
       {result && (
-        <div className="rounded-xl border border-green-100 bg-green-50 px-5 py-3 flex items-center gap-6">
-          <div className="flex items-center gap-2 text-sm text-green-700">
-            <CheckCircle size={16} />
+        <div className="rounded-xl border border-green-100 bg-[var(--ds-success-bg)] px-5 py-3 flex items-center gap-6">
+          <div className="flex items-center gap-2 text-sm text-[var(--ds-success)]">
+            <IconCheckCircle width={16} height={16} />
             <span>
               <strong>{result.sent}</strong> mail{result.sent > 1 ? 's' : ''} envoyé
               {result.sent > 1 ? 's' : ''}
             </span>
           </div>
           {result.errors > 0 && (
-            <div className="flex items-center gap-2 text-sm text-red-600">
-              <XCircle size={16} />
+            <div className="flex items-center gap-2 text-sm text-[var(--ds-danger)]">
+              <IconErrorCircle width={16} height={16} />
               <span>
                 <strong>{result.errors}</strong> erreur{result.errors > 1 ? 's' : ''}
               </span>
@@ -365,14 +405,14 @@ export default function Relance() {
         </div>
       )}
       {error && (
-        <div className="rounded-xl border border-red-100 bg-red-50 px-5 py-3 text-sm text-red-600">{error}</div>
+        <div className="rounded-xl border border-[var(--ds-danger)] bg-[var(--ds-danger-bg)] px-5 py-3 text-sm text-[var(--ds-danger)]">{error}</div>
       )}
 
       {/* Liste des candidats en bento grid */}
       {loading ? (
-        <p className="text-sm text-gray-400">Chargement...</p>
+        <p className="text-sm text-[var(--ds-text-subtle)]">Chargement...</p>
       ) : targets.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-200 py-16 text-center text-sm text-gray-400">
+        <div className="rounded-xl border border-dashed border-[var(--ds-border)] py-16 text-center text-sm text-[var(--ds-text-subtle)]">
           Aucun candidat avec un email pour ce filtre
         </div>
       ) : (
@@ -386,18 +426,18 @@ export default function Relance() {
                 onChange={toggleAll}
                 className="h-4 w-4 rounded accent-purple cursor-pointer"
               />
-              <span className="font-medium text-gray-600">
+              <span className="font-medium text-[var(--ds-text-muted)]">
                 {selectAllChecked ? 'Tout désélectionner' : 'Tout sélectionner'}
               </span>
             </label>
-            <span className="flex items-center gap-1.5 text-xs text-gray-400">
-              <Users size={13} /> {selected.size} / {targets.length} sélectionné{selected.size > 1 ? 's' : ''}
+            <span className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)]">
+              <IconUsers width={13} height={13} /> {selected.size} / {targets.length} sélectionné{selected.size > 1 ? 's' : ''}
             </span>
-            <span className="flex items-center gap-1.5 text-xs text-green-600">
-              <CheckCircle size={13} /> {respondedCount} répondu{respondedCount > 1 ? 's' : ''}
+            <span className="flex items-center gap-1.5 text-xs text-[var(--ds-success)]">
+              <IconCheckCircle width={13} height={13} /> {respondedCount} répondu{respondedCount > 1 ? 's' : ''}
             </span>
-            <span className="flex items-center gap-1.5 text-xs text-amber-600">
-              <Clock size={13} /> {pendingCount} en attente
+            <span className="flex items-center gap-1.5 text-xs text-[var(--ds-warning)]">
+              <IconClock width={13} height={13} /> {pendingCount} en attente
             </span>
           </div>
 
@@ -408,19 +448,21 @@ export default function Relance() {
               const responded = hasFreshResponse(c)
               const relanceDate = formatDate(c.last_relance_at)
               const responseDate = responded ? formatDate(c.relance_response_at) : null
-              const zone = ZONE_LABEL[zoneOf(c)]
+              const zone = ZONE_LABEL[zoneOf(c, region)]
+              const relanceCount = relanceCountOf(c)
+              const history = relanceHistoryOf(c)
+              const historyOpen = openHistory.has(c._id)
               return (
-                <button
+                <div
                   key={c._id}
-                  type="button"
                   onClick={() => toggle(c._id)}
-                  className={`text-left rounded-2xl border p-4 flex flex-col gap-3 transition-all ${
+                  className={`text-left rounded-2xl border p-4 flex flex-col gap-3 transition-all cursor-pointer ${
                     isSelected
                       ? 'border-purple ring-2 ring-purple/20 bg-purple-light/30'
-                      : 'border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm'
+                      : 'border-[var(--ds-border)] bg-[var(--ds-surface)] hover:border-[var(--ds-border)] hover:shadow-sm'
                   }`}
                 >
-                  {/* Ligne titre + checkbox */}
+                  {/* Ligne titre + checkbox + compteur */}
                   <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
@@ -430,9 +472,17 @@ export default function Relance() {
                       className="h-4 w-4 mt-0.5 rounded accent-purple cursor-pointer shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{c.identity.full_name}</p>
-                      <p className="text-xs text-gray-400 truncate">{c.identity.email}</p>
+                      <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{c.identity.full_name}</p>
+                      <p className="text-xs text-[var(--ds-text-subtle)] truncate">{c.identity.email}</p>
                     </div>
+                    {relanceCount > 0 && (
+                      <span
+                        title={`${relanceCount} relance${relanceCount > 1 ? 's' : ''} reçue${relanceCount > 1 ? 's' : ''}`}
+                        className="flex items-center gap-1 shrink-0 rounded-full bg-purple-light px-2 py-0.5 text-[11px] font-semibold text-purple"
+                      >
+                        <IconSend width={10} height={10} /> {relanceCount}
+                      </span>
+                    )}
                   </div>
 
                   {/* Badges métier + zone */}
@@ -446,47 +496,98 @@ export default function Relance() {
                         {tp}
                       </span>
                     ))}
-                    <span className="flex items-center gap-1 text-[11px] text-gray-400">
-                      <MapPin size={11} /> {zone}
+                    <span className="flex items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
+                      <IconMapPin width={11} height={11} /> {zone}
                     </span>
-                    <span className="ml-auto rounded-md bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-500">
+                    <span className="ml-auto rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-[11px] font-medium text-[var(--ds-text-subtle)]">
                       {CANDIDATE_STATUS_LABELS[c.status as CandidateStatus] ?? c.status}
                     </span>
                   </div>
 
                   {/* Dates relance / réponse */}
-                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-50">
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-[var(--ds-border)]">
                     <div className="flex flex-col">
-                      <span className="text-[10px] uppercase tracking-wide text-gray-400">Relancé le</span>
-                      <span className="text-xs font-medium text-gray-700">{relanceDate ?? '—'}</span>
+                      <span className="text-[10px] uppercase tracking-wide text-[var(--ds-text-subtle)]">Relancé le</span>
+                      <span className="text-xs font-medium text-[var(--ds-text-muted)]">{relanceDate ?? '—'}</span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[10px] uppercase tracking-wide text-gray-400">Répondu le</span>
+                      <span className="text-[10px] uppercase tracking-wide text-[var(--ds-text-subtle)]">Répondu le</span>
                       {responseDate ? (
-                        <span className="flex items-center gap-1 text-xs font-medium text-green-600">
-                          <CheckCircle size={11} /> {responseDate}
+                        <span className="flex items-center gap-1 text-xs font-medium text-[var(--ds-success)]">
+                          <IconCheckCircle width={11} height={11} /> {responseDate}
                         </span>
                       ) : (
                         <span className="flex items-center gap-1 text-xs font-medium text-amber-500">
-                          <Clock size={11} /> En attente
+                          <IconClock width={11} height={11} /> En attente
                         </span>
                       )}
                     </div>
                   </div>
-                </button>
+
+                  {/* Historique des relances */}
+                  {history.length > 0 && (
+                    <div className="pt-1 border-t border-[var(--ds-border)]" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => toggleHistory(c._id)}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--ds-text-subtle)] hover:text-purple transition-colors"
+                      >
+                        <IconHistory width={11} height={11} />
+                        Historique ({history.length})
+                        <span aria-hidden>{historyOpen ? '▾' : '▸'}</span>
+                      </button>
+                      {historyOpen && (
+                        <ul className="mt-1.5 flex flex-col gap-1.5">
+                          {history.map((h, i) => {
+                            const sentDate = formatDate(h.sent_at)
+                            const answeredDate = h.response_at ? formatDate(h.response_at) : null
+                            return (
+                              <li
+                                key={`${h.sent_at}-${i}`}
+                                className="rounded-lg bg-[var(--ds-surface-sunken)] px-2.5 py-1.5 text-[11px] leading-relaxed"
+                              >
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-[var(--ds-text-muted)]">
+                                    {h.kind === 'template' ? 'Modèle' : 'Disponibilité'}
+                                  </span>
+                                  <span className="text-[var(--ds-text-subtle)]">· {sentDate ?? '—'}</span>
+                                </div>
+                                {h.kind === 'template' && h.subject && (
+                                  <p className="text-[var(--ds-text-muted)] truncate" title={h.subject}>
+                                    {h.subject}
+                                  </p>
+                                )}
+                                {answeredDate ? (
+                                  <p className="flex items-center gap-1 font-medium text-[var(--ds-success)]">
+                                    <IconCheckCircle width={10} height={10} />
+                                    Répondu{h.answer ? ` ${h.answer}` : ''} le {answeredDate}
+                                  </p>
+                                ) : (
+                                  <p className="flex items-center gap-1 font-medium text-amber-500">
+                                    <IconClock width={10} height={10} /> Sans réponse
+                                  </p>
+                                )}
+                              </li>
+                            )
+                          })}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>
         </div>
       )}
 
-      {/* Barre d'action fixe */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-gray-100 bg-white/95 backdrop-blur px-4 py-3">
-        <div className="mx-auto max-w-6xl flex items-center justify-between gap-4">
-          <span className="text-sm text-gray-500">
+      {/* Barre d'action collée en bas de la zone qui défile : reste au-dessus du pied de page. */}
+      <div className="sticky bottom-4 z-30 ds-glass-strong rounded-2xl px-4 py-3 shadow-[var(--shadow-sm)]">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <span className="text-sm text-[var(--ds-text-subtle)]">
             {selected.size > 0 ? (
               <>
-                <strong className="text-gray-900">{selected.size}</strong> candidat
+                <strong className="text-[var(--ds-text)]">{selected.size}</strong> candidat
                 {selected.size > 1 ? 's' : ''} sélectionné{selected.size > 1 ? 's' : ''}
               </>
             ) : (
@@ -494,7 +595,7 @@ export default function Relance() {
             )}
           </span>
           <Button
-            leftIcon={<Send size={16} />}
+            leftIcon={<IconSend width={16} height={16} />}
             disabled={selected.size === 0}
             isLoading={sending}
             onClick={handleSend}

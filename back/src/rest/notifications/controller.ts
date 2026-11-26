@@ -24,7 +24,7 @@ export async function listNotifications(req: AuthRequest, res: Response): Promis
 export async function markNotificationRead(req: AuthRequest, res: Response): Promise<void> {
     try {
         const userId = Number(req.user.id);
-        const ok = await notificationService.markRead(userId, req.params.id);
+        const ok = await notificationService.markRead(userId, req.params.id as string);
         if (!ok) {
             res.status(404).json({ error: 'Notification not found' });
             return;

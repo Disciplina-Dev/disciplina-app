@@ -31,6 +31,29 @@ export class GoogleDriveService {
         await this.drive.files.delete({ fileId, supportsAllDrives: true });
     }
 
+    async findFolder(folderName: string, parentFolderId?: string): Promise<{ id: string; webViewLink: string } | null> {
+        const qParts = [
+            `name = '${GoogleDriveService.escapeQueryValue(folderName)}'`,
+            "mimeType = 'application/vnd.google-apps.folder'",
+            'trashed = false',
+        ];
+        if (parentFolderId) {
+            qParts.push(`'${parentFolderId}' in parents`);
+        }
+
+        const response = await this.drive.files.list({
+            q: qParts.join(' and '),
+            fields: 'files(id, webViewLink)',
+            pageSize: 1,
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
+        });
+
+        const folder = response.data.files?.[0] as DriveFile | undefined;
+        if (!folder?.id || !folder.webViewLink) return null;
+        return { id: folder.id, webViewLink: folder.webViewLink };
+    }
+
     async listFolderFiles(folderId: string): Promise<DriveFile[]> {
         const response = await this.drive.files.list({
             q: `'${folderId}' in parents and trashed = false`,
@@ -153,6 +176,10 @@ export class GoogleDriveService {
         } finally {
             await this.deleteFile(tempId).catch(() => {});
         }
+    }
+
+    private static escapeQueryValue(value: string): string {
+        return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
 }
 

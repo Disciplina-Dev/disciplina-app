@@ -23,3 +23,5 @@ ollama-data
 backups
 docs
 .playwright-mcp
+node_modules/
+stats

@@ -5,6 +5,12 @@ export enum CompanyRegion {
     NORD = 'NORD',
     OUEST = 'OUEST',
     SUD = 'SUD',
+    GENEVE_FRONTIERE = 'GENEVE_FRONTIERE',
+    GENEVOIS = 'GENEVOIS',
+    ARVE = 'ARVE',
+    FAUCIGNY = 'FAUCIGNY',
+    ANNECY = 'ANNECY',
+    CHABLAIS = 'CHABLAIS',
 }
 
 export enum Opco {
@@ -63,6 +69,23 @@ export enum NeedsAnalysisStatus {
     EXPIRE = 'EXPIRE',
 }
 
+export enum AdministrationType {
+    NON_RENSEIGNE = 'NON_RENSEIGNE',
+    ADMINISTRATION_PUBLIQUE = 'ADMINISTRATION_PUBLIQUE',
+    ADMINISTRATION_PRIVEE = 'ADMINISTRATION_PRIVEE',
+}
+
+// Pastille couleur du suivi entreprise (annuaire du tableau de bord RH).
+// `null` (absent) = automatique : vert si immersion en cours, jaune si mandat
+// signé, blanc par défaut. Une valeur posée fige la couleur manuellement.
+export enum CompanyIndicator {
+    WHITE = 'WHITE',
+    YELLOW = 'YELLOW',
+    GREEN = 'GREEN',
+    ORANGE = 'ORANGE',
+    RED = 'RED',
+}
+
 export interface CompanyInfos {
     id?: number;
     name?: string;
@@ -97,16 +120,24 @@ export interface Referents {
     recruitment_referents?: ReferentDetails;
 }
 
+// Créneau horaire d'un jour de travail du poste (optionnel, saisi par jour dans l'AB).
+export interface ScheduleSlot {
+    day?: string | null;
+    start_hour?: string | null;
+    end_hour?: string | null;
+}
+
 export interface OfferCriteria {
     education_level?: EducationLevel | null;
     driving_license?: boolean;
+    has_vehicle?: boolean;
     experience_required?: boolean;
     training_domain?: TrainingDomain | null;
     age_min?: number | null;
     age_max?: number | null;
     desired_sex?: string | null;
     soft_skills?: string | null;
-    schedule_options?: string[];
+    schedule_options?: ScheduleSlot[];
     conditions?: string | null;
     additional_comments?: string | null;
 }
@@ -148,13 +179,65 @@ export interface NeedsAnalysis {
     signature_sent_at?: Date | null;
     /** Lien DocuSeal de signature, conservé pour générer le bouton des relances. */
     signature_url?: string | null;
+    /**
+     * URL Drive du PDF d'AB archivé (copie non signée à l'envoi en signature,
+     * remplacée par la copie signée une fois l'AB signée). Sert au bouton
+     * « Ouvrir l'AB dans le Drive » ; absent des AB antérieures à ce champ
+     * (résolu à la demande, cf. `AbDriveConfigService.resolveAbPdfLink`).
+     */
+    ab_drive_url?: string | null;
     /** Date de la dernière relance de signature envoyée automatiquement (null = jamais). */
     last_relance_at?: Date | null;
+    /** Si vrai, la relance automatique de signature est désactivée (toggle commercial). */
+    is_relance_disabled?: boolean;
+    /**
+     * Date de passage au statut SIGNE (webhook DocuSeal/Yousign).
+     * Reste null pour les AB signées manuellement via `markSigned`.
+     */
+    signed_at?: Date | null;
+    /**
+     * Date du premier traitement complet « AB signée » (notifs in-app + mails
+     * copie commerciale / entreprise). Garde d'idempotence : un rejeu du webhook
+     * `submission.completed` (retry DocuSeal, double livraison) avec ce champ
+     * renseigné ne doit ni réécrire sur le Drive ni renvoyer les mails.
+     */
+    signed_notification_sent_at?: Date | null;
     status?: NeedsAnalysisStatus;
     tags?: string[];
+    /**
+     * Statut d'onglet (liste matching RH) forcé manuellement. À défaut, le statut
+     * est dérivé des offres (ACTIVE/ARCHIVED) ou du soft delete (INACTIVE).
+     */
+    ab_status?: 'ACTIVE' | 'ARCHIVED' | 'INACTIVE' | null;
+    /**
+     * Date du dernier passage au statut effectif ACTIVE (création puis chaque
+     * réactivation après un passage en INACTIVE/ARCHIVED). Affichée dans
+     * l'annuaire des entreprises du tableau de bord RH.
+     */
+    last_active_at?: Date | null;
     // Soft delete : une AB « supprimée » devient inactive (onglet Inactif) au lieu
     // d'être retirée — on conserve le document pour l'historique.
     is_deleted?: boolean;
+    /**
+     * Brouillon rendu visible dans le matching sans envoi en signature.
+     * L'AB reste BROUILLON (affichée « Non envoyée ») mais ses offres de
+     * matching sont créées : elle se comporte comme une AB non signée.
+     */
+    is_visible_in_matching?: boolean;
+    /** Type d'administration de l'entreprise : publique, privée ou non renseigné (défaut rétrocompat). */
+    administration_type?: AdministrationType | null;
+    /**
+     * Pastille couleur manuelle du suivi entreprise (annuaire RH).
+     * `null`/absent = couleur automatique dérivée (immersion → vert,
+     * mandat signé → jaune, sinon blanc).
+     */
+    company_indicator?: CompanyIndicator | null;
+    /**
+     * Suivi entreprise (annuaire RH, tableau de bord) : références libres
+     * « France Travail » et « KOANN », éditables inline. `null`/vide = non renseigné.
+     */
+    france_travail?: string | null;
+    koann?: string | null;
     created_at?: Date;
     updated_at?: Date;
 }
@@ -177,6 +260,7 @@ export interface NeedsAnalysisWriteInput {
     referralSource?: ReferralSource | null;
     postalCode?: string | null;
     commune?: string | null;
+    administrationType?: AdministrationType | null;
     positions?: Position[];
     recruitmentMethod?: RecruitmentMethod;
     immersionPeriod?: ImmersionPeriod;
@@ -185,4 +269,6 @@ export interface NeedsAnalysisWriteInput {
     status?: NeedsAnalysisStatus;
     tags?: string[];
     createdAt?: string;
+    /** Rend le brouillon visible dans le matching (offres créées, statut BROUILLON conservé). */
+    isVisibleInMatching?: boolean;
 }

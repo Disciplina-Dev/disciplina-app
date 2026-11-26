@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Phone, X } from 'lucide-react'
+import { IconClose, IconPhone } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 
 // Relance téléphonique : le commercial saisit un résumé de l'appel. À la validation,
@@ -32,26 +32,26 @@ export default function PhoneRelanceModal({ companyName, onConfirm, onClose }: P
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
-            <Phone size={16} className="text-blue" /> Relance téléphonique
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--ds-border)] px-6 py-4">
+          <h2 className="flex items-center gap-2 text-base font-semibold text-[var(--ds-text)]">
+            <IconPhone width={16} height={16} className="text-blue" /> Relance téléphonique
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={20} />
+          <button onClick={onClose} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">
+            <IconClose width={20} height={20} />
           </button>
         </div>
         <div className="flex flex-col gap-3 px-6 py-5">
-          <p className="text-sm text-gray-500">{companyName}</p>
-          <label className="text-sm font-medium text-gray-700">Résumé de l'appel</label>
+          <p className="text-sm text-[var(--ds-text-subtle)]">{companyName}</p>
+          <label className="text-sm font-medium text-[var(--ds-text-muted)]">Résumé de l'appel</label>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             rows={5}
             placeholder="Ce qui a été dit, prochaine étape…"
-            className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-blue"
+            className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-blue"
           />
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-[var(--ds-danger)]">{error}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="secondary" size="sm" onClick={onClose}>Annuler</Button>
             <Button size="sm" isLoading={saving} onClick={handleConfirm}>Enregistrer la relance</Button>

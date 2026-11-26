@@ -67,6 +67,8 @@ CI runs automatically on every push and pull request via GitHub Actions (`.githu
 
 Backups run automatically every night on the deployment Mac mini — see [Automatisation (Mac mini)](#automatisation-mac-mini) below. What is still missing is **off-machine storage**: every dump lives on the same disk as the databases it protects, so a disk failure loses both (tracked as `DB-5` in `BACKLOG.md`).
 
+Dumps are **encrypted with [age](https://age-encryption.org)** as they are written (`*.sql.age` / `*.archive.age`), so no plaintext dump is left on disk. The machine only holds the public key (`BACKUP_AGE_RECIPIENT` in the root `.env`); the private key is needed only to restore and is kept off-machine. Install `age` (`brew install age`), generate the keypair with `./scripts/backup-keygen.sh`, and see [HOWTODEPLOY.md → Backup encryption](HOWTODEPLOY.md#backup-encryption-key-custody--recovery) for custody and recovery.
+
 The commands below are the on-demand equivalent, useful before a schema migration or before restoring. Run them against the running `sql-db`/`nosql-db` services with the root `.env` loaded:
 
 ```bash
@@ -74,31 +76,35 @@ mkdir -p backups
 
 # MySQL
 DATE=$(date +%Y-%m-%d_%H%M%S)
-docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" disciplina > "backups/backup_mysql_${DATE}.sql"
+MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysqldump -h127.0.0.1 -uroot disciplina \
+  | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mysql_${DATE}.sql.age"
 
 # MongoDB
 DATE=$(date +%Y-%m-%d_%H%M%S)
-docker compose exec -T nosql-db mongodump \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --db human_ressources --archive > "backups/backup_mongo_${DATE}.archive"
+mongo_exec mongodump \
+  --username "$MONGO_ROOT_USERNAME" \
+  --authenticationDatabase admin --db human_ressources --archive \
+  | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mongo_${DATE}.archive.age"
 ```
 
-Dumps land in `./backups/` (gitignored) as `backup_mysql_<DATE>.sql` and `backup_mongo_<DATE>.archive`.
+Dumps land in `./backups/` (gitignored) as `backup_mysql_<DATE>.sql.age` and `backup_mongo_<DATE>.archive.age`. Never write an unencrypted dump to disk.
 
 > **Why `root` and not `disciplina_app`?** The application connects as the least-privilege account `disciplina_app` (see [Environment](#environment)), but `mysqldump` needs global read plus `LOCK TABLES`, which that account deliberately lacks. Backups are an administrative task, so they keep using `MYSQL_ROOT_PASSWORD`. The two accounts coexist on purpose.
 
-To restore a dump — **stop the `backend` container first**, otherwise the app writes into a half-restored database:
+To restore a dump — **stop the `backend` container first**, otherwise the app writes into a half-restored database. Decryption needs the private key file (`$AGE_IDENTITY`, fetched from the password manager, deleted afterwards):
 
 ```bash
 docker compose stop backend
 
 # MySQL
-docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina < backups/backup_mysql_<DATE>.sql
+age -d -i "$AGE_IDENTITY" backups/backup_mysql_<DATE>.sql.age \
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina
 
 # MongoDB
-docker compose exec -T nosql-db mongorestore \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
-  --authenticationDatabase admin --archive < backups/backup_mongo_<DATE>.archive
+age -d -i "$AGE_IDENTITY" backups/backup_mongo_<DATE>.archive.age \
+  | mongo_exec mongorestore \
+  --username "$MONGO_ROOT_USERNAME" \
+  --authenticationDatabase admin --archive
 
 docker compose start backend
 ```
@@ -121,8 +127,8 @@ Stop it with `launchctl bootout gui/$(id -u)/com.disciplina.backup`. Details, ve
 
 `scripts/backup-db.sh` takes no arguments. It resolves the repo root from its own location (so it works from any working directory, which matters under launchd), sources the root `.env`, then:
 
-1. dumps MySQL `disciplina` via `mysqldump` → `backups/backup_mysql_<DATE>.sql`
-2. dumps MongoDB `human_ressources` via `mongodump --archive` → `backups/backup_mongo_<DATE>.archive`
+1. dumps MySQL `disciplina` via `mysqldump` → `backups/backup_mysql_<DATE>.sql.age` (encrypted on the fly with `age -r "$BACKUP_AGE_RECIPIENT"`)
+2. dumps MongoDB `human_ressources` via `mongodump --archive` → `backups/backup_mongo_<DATE>.archive.age` (same)
 3. deletes dumps older than `RETENTION_DAYS` (constant at the top of the script, default `7`)
 
 Every step logs an ISO-8601 timestamped line with the resulting dump size.
@@ -174,8 +180,10 @@ To remove the agent: `launchctl bootout gui/$(id -u)/com.disciplina.backup`.
 |---|---|
 | `docker: command not found` in the log | The `EnvironmentVariables` → `PATH` key is missing or does not cover your Docker install (`/usr/local/bin` on Intel, `/opt/homebrew/bin` on Apple Silicon). |
 | No log file at all, `launchctl list` shows nothing | The plist failed to load — re-run `plutil -lint`, and check the path passed to `bootstrap`. |
-| Nothing happens overnight, works with `kickstart` | The Mac mini sleeps at 03:00. `launchd` runs a missed job on wake, but only once; check `pmset -g sched` and consider `sudo pmset repeat wakeorpoweron MTWRFSU 02:55:00`. |
+| Nothing happens overnight, works with `kickstart` | The Mac mini sleeps at 03:00. `launchd` runs a missed job on wake, but only once. Schedule a wake: `sudo pmset repeat wakeorpoweron MTWRFSU 02:55:00` (check with `pmset -g sched`), and/or disable sleep (`sudo pmset -a sleep 0`). A missed run is alerted by the watchdog (see HOWTODEPLOY.md, *Missed backup detection*). |
 | `.env: No such file or directory` | The script sources the root `.env`; make sure it exists at the repo root and is readable by the account running the agent. |
+| `'age' introuvable dans le PATH` in the log | `age` is not installed or not on the launchd `PATH` (`brew install age`; `/opt/homebrew/bin` is already in the plist `PATH`). |
+| `BACKUP_AGE_RECIPIENT absent ou invalide` in the log | Set the **public** key (`age1…`) in the root `.env`; generate the pair with `./scripts/backup-keygen.sh`. |
 | `Error response from daemon` / connection refused | The `sql-db` / `nosql-db` containers are not running. The script does not start them. |
 
 Retention is 7 days **on this machine only** — off-machine storage is not implemented yet (`DB-5` in `BACKLOG.md`).
@@ -188,8 +196,8 @@ disciplina-app/
 │   ├── src/
 │   │   ├── rest/         REST routes — 21 feature modules (auth, email, relance, booking…)
 │   │   ├── graphql/      4 Apollo Servers (companies, candidates, offers, needs-analysis)
-│   │   ├── mcp/          MCP server (POST /api/mcp)
-│   │   ├── scheduler/    Background jobs (pedagogical drafts)
+│   │   ├── mcp/          MCP server (POST /api/mcp) — 48 read-only tools (incl. 12 péda), RGPD filters
+│   │   ├── scheduler/    Background jobs (pedagogical drafts, SA notifications, end of immersion)
 │   │   ├── services/     Business logic layer
 │   │   ├── repositories/ MySQL & MongoDB data access
 │   │   └── external/     10 integrations — Google, crypto, logger, insee, yousign, ollama…
@@ -278,23 +286,7 @@ MONGO_PORT=27017
 The application connects as `disciplina_app`, never as `root`. `MYSQL_PASSWORD` is **mandatory**: `docker-compose.yaml` declares it as `${MYSQL_PASSWORD:?}` and refuses to start without it.
 
 - **Fresh volume** — the account is created by the `mysql` image from `MYSQL_USER`/`MYSQL_PASSWORD`, then `database/mysql/mysql-init.sql` narrows its grants. Nothing to do.
-- **Existing database** — `mysql-init.sql` never re-runs, so the account does not exist yet and the backend would fail with `Access denied for user 'disciplina_app'`. Create it once with the command below (no data is touched, no table is dropped), or set `MYSQL_USER=root` to keep the previous behaviour.
-
-Creating the account on an existing database:
-
-```bash
-# 1. Set MYSQL_PASSWORD in the root .env, then substitute it into the migration script
-docker compose up -d sql-db
-sed "s/<MOT_DE_PASSE>/${MYSQL_PASSWORD}/" database/mysql/migrations/2026-08-06-app-user.sql \
-  | docker compose exec -T sql-db mysql -u root -p"${MYSQL_ROOT_PASSWORD}"
-
-# 2. Confirm the grants — no DROP, no global privilege beyond USAGE
-docker compose exec -T sql-db mysql -u root -p"${MYSQL_ROOT_PASSWORD}" \
-  -e "SHOW GRANTS FOR 'disciplina_app'@'%';"
-
-# 3. Restart the backend, which now connects as disciplina_app
-docker compose up -d backend
-```
+- **Existing database** — `mysql-init.sql` never re-runs, so a database that predates the least-privilege account does not have it and the backend would fail with `Access denied for user 'disciplina_app'`. On such a database set `MYSQL_USER=root` in `.env` until the account is created; the canonical grant set lives in `mysql-init.sql`.
 
 Load the root `.env` first (`set -a; source .env; set +a`) so `MYSQL_PASSWORD` and `MYSQL_ROOT_PASSWORD` are set in your shell.
 

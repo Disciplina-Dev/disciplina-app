@@ -2,11 +2,27 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { SectorSettingsService } from '../../services/SectorSettingsService';
 import { NotificationService } from '../../services/NotificationService';
+import type { Notification } from '../../types/notification.types';
+import { UserService } from '../../services/UserService';
+import { toDirectoryEntry } from '../../services/mappers/user.mapper';
 import { toolResult } from '../serialize';
 import { readTool } from '../tool';
+import { mcpToolScope, PERMISSION_DENIED_MSG } from '../rbac';
+import { currentMcpUser } from '../context';
+import { JobRole, Permission } from '../../types/user.types';
+
+// Paramétrage de matching : utilisé par tous les métiers.
+const SECTOR_SETTINGS_SCOPE = mcpToolScope(Permission.EMPLOYEE, [
+    JobRole.COMMERCIAL,
+    JobRole.RH,
+    JobRole.PEDA,
+    JobRole.AD,
+    JobRole.GESTION,
+]);
 
 const sectorSettings = new SectorSettingsService();
 const notifications = new NotificationService();
+const users = new UserService();
 
 export function registerMiscTools(server: McpServer): void {
     readTool(
@@ -14,7 +30,17 @@ export function registerMiscTools(server: McpServer): void {
         'get_sector_settings',
         'Paramétrage secteur → localisation utilisé pour le matching.',
         {},
+        SECTOR_SETTINGS_SCOPE,
         async () => toolResult(await sectorSettings.list()),
+    );
+
+    readTool(
+        server,
+        'list_users',
+        'Annuaire des collaborateurs (id, prénom, nom, métier, niveau de permission) : permet de résoudre un `userID` / `owner` / `sent_by` en nom. Aucun email ni credential.',
+        {},
+        mcpToolScope(Permission.EMPLOYEE, []),
+        async () => toolResult((await users.findAll()).map(toDirectoryEntry)),
     );
 
     readTool(
@@ -22,6 +48,25 @@ export function registerMiscTools(server: McpServer): void {
         'list_notifications',
         "Notifications in-app d'un utilisateur (par son id). Aucune donnée de compte/credential n'est exposée.",
         { userId: z.number().int().describe("Id de l'utilisateur destinataire") },
-        async ({ userId }) => toolResult(await notifications.listForUser(userId)),
+        mcpToolScope(Permission.EMPLOYEE, []),
+        // restreint : un collaborateur ne lit que SES notifications ; seuls les
+        // ADMIN (incl. la clé MCP statique) peuvent interroger un autre compte.
+        async ({ userId }) => {
+            const me = currentMcpUser();
+            if (!me || (me.permission !== Permission.ADMIN && userId !== me.id)) {
+                return { content: [{ type: 'text', text: PERMISSION_DENIED_MSG }], isError: true };
+            }
+            return toolResult((await notifications.listForUser(userId)).map(redactPersonalNotification));
+        },
     );
+}
+
+// Les notifications `peda` (alternants) et `candidate` embarquent un nom dans title/message/link :
+// on ne les envoie pas au LLM tiers (pas de filtre de consentement possible sur du texte libre).
+const PERSONAL_CATEGORIES: Notification['category'][] = ['peda', 'candidate'];
+
+function redactPersonalNotification(n: Notification): Notification {
+    if (!PERSONAL_CATEGORIES.includes(n.category)) return n;
+    const { message: _message, link: _link, ...rest } = n;
+    return { ...rest, title: '[contenu masqué : donnée personnelle]' };
 }

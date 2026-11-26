@@ -202,9 +202,17 @@ external/
   SIRET against `GET /api-sirene/3.11/siret/{siret}`. Throws `'SIRET not found'` (404),
   `'Invalid INSEE API key'` (401), or `'Rate limit exceeded'` (429).
 - `SireneService.searchEstablishments(criteria: SireneCriterion[], offset?: number): Promise<SireneListResult>`
-  — multi-criteria search (`siren`, `libelleCommuneEtablissement`, `activitePrincipaleUniteLegale`
-  are the only accepted `paramName`s), paginates with a 140ms delay between INSEE requests, filters
-  to active establishments (`etatAdministratif !== 'F'`), caps results at 20.
+  — multi-criteria search (`siren`, `libelleCommuneEtablissement`, `activitePrincipaleUniteLegale`,
+  `codeCommuneEtablissement`, `codePostalEtablissement`, `etatAdministratifEtablissement`,
+  `denominationUniteLegale`, `categorieEntreprise` are the accepted `paramName`s), paginates with a
+  140ms delay between INSEE requests, filters to active establishments (`etatAdministratif !== 'F'`)
+  unless the caller filters explicitly on `etatAdministratifEtablissement`, caps results at 20.
+- `EntreprisesSearchService.search(criteria: EntrepriseSearchCriteria, offset?: number)`
+  (`external/entreprises/`, no API key — open data) — backs `POST /api/sourcing/multicriteria` when a
+  dirigeant (`nomDirigeant`, `prenomDirigeant`), geo (`denomination`, `commune`, `codePostal`,
+  `departement`, `region`) or situation-admin (`etatAdministratif` A/C, `activitePrincipale`,
+  `trancheEffectif`) criterion is present; maps unités légales + `matching_etablissements` onto
+  `SireneEtablissement` (extra optionals `dirigeants`, `trancheEffectifs`, `activitePrincipale`).
 - Env: `INSEE_API_KEY` (optional — `external/insee/` is the only place it should be read).
 - Used by `CompaniesService.create()` (SIRET validation) and `rest/sourcing/controller.ts`
   (search-by-SIREN, multicriteria search).
@@ -224,7 +232,7 @@ external/
 - Callers import from the specific module file (`external/google/oauth-client`, `external/google/gmail.service`, etc.). No barrels under `external/google/` — they hide where the code lives. (`crypto/` and `logger/` keep their barrels because the public surface is genuinely one bag of small helpers.)
 - Type and interface declarations for an `external/<integration>/` module always live in `<integration>/types.ts` — not next to the class that uses them.
 - Service classes are prefixed with `Google` (e.g. `GoogleDriveService`, `GoogleGmailService`, `GoogleOAuthClient`) to make the integration boundary obvious at call sites.
-- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. The redirect URI lives in `env.GOOGLE_REDIRECT_URI`, not in source.
+- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?, region?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. Credentials are per-tenant (`credentialsFor(region)`: `GOOGLE_ANNEMASSE_*` with fallback to the shared `GOOGLE_*` client); the redirect URI lives in env, not in source. The region defaults to `getRegion()` (ALS) — call sites must run under the right tenant, and the OAuth `state` carries the region so `exchangeCode` uses the same GCP client that generated the consent URL.
 - When a Google API call may refresh tokens, callers pass a refresh handler that persists the new tokens via `userService.updateGoogleTokens`. The convention helper at the top of each call site is `persistRefreshedTokens(userId)`.
 - Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
 - The logger is a singleton; never instantiate `pino()` outside `external/logger/`.
@@ -361,10 +369,11 @@ queries use CTEs that MySQL materialises.
 requires `DROP` (use `DELETE`), and a `WITH` CTE requires `CREATE TEMPORARY TABLES`. The test
 suite runs under the same account, so a violation fails in CI rather than in production.
 
-`mysql-init.sql` only runs on a fresh volume: existing databases need
-`database/mysql/migrations/2026-08-06-app-user.sql` applied once, otherwise keep `MYSQL_USER=root`
-in `.env`. Credentials come from `MYSQL_USER` / `MYSQL_PASSWORD`; `MYSQL_PASSWORD` is unset means
-falling back to the root password (backwards compatibility, see `config/env.ts`).
+`mysql-init.sql` only runs on a fresh volume: for an existing database created before the
+least-privilege account existed, keep `MYSQL_USER=root` in `.env` until it is created (the
+canonical grant set lives in `mysql-init.sql`). Credentials come from `MYSQL_USER` /
+`MYSQL_PASSWORD`; `MYSQL_PASSWORD` is unset means falling back to the root password (backwards
+compatibility, see `config/env.ts`).
 
 ### MongoDB
 
@@ -388,6 +397,10 @@ column doesn't exist yet, logging each addition via `logger.info`.
 installs). Table/column identifiers in `REQUIRED_COLUMNS` are hardcoded constants, never
 user input, so the string-built `ALTER TABLE` is safe.
 
+`REQUIRED_COLUMNS` ne porte que des colonnes : un **index** (ou une colonne générée indexée, comme
+`companies.siren` / `idx_companies_siren`) doit être rattrapé par un bloc dédié dans
+`runMysqlMigrations()`, gardé par un `SELECT ... FROM INFORMATION_SCHEMA.STATISTICS`.
+
 The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table goes in **both**
 `mysql-init.sql` and `REQUIRED_TABLES`, otherwise fresh volumes and existing databases drift apart.
 `users`, `roles`, `permissions`, `filiz`, `companies` and `company_history` live only in
@@ -405,9 +418,29 @@ The same applies to whole tables via `REQUIRED_TABLES` (same file): a new table 
   `authenticate` (e.g. `[authenticate, requireRoles('ADMIN', 'RESPONSABLE')]` — see
   `rest/kpi/route.ts`)
 
+### Candidate consent checks
+
+- `services/consentGuard.ts` — `assertConsent(candidate, [ConsentType.X], { mode: 'block' | 'warn' })`,
+  same shape as `authGuard()` (plain `Error` thrown, checked manually at the call site — no
+  middleware/directive wiring exists for this yet). `mode: 'warn'` logs and allows instead of
+  throwing, used as a temporary grace period for candidates recorded before a given consent check
+  existed; flip to `'block'` per call site once backfill/re-consent is confirmed.
+- Call sites (all currently `warn` mode — flip to `block` per site once backfill/re-consent is
+  confirmed):
+  - `rest/candidates/route.ts` `POST /:id/generate-summary` — `ConsentType.AI_PROCESSING`
+  - `rest/candidates/route.ts` `POST /:id/avatar`, `GET /:id/avatar-file`, public `GET /:id/avatar`,
+    and the Drive photo auto-detect side effect in `GET /:id/drive-files` — `ConsentType.PHOTO_PROCESSING`
+  - `rest/filiz/controller.ts` `createFolder` — `ConsentType.DATA_SHARING`
+  - `rest/match/controller.ts` `getCv`/`streamCandidateCv` — `ConsentType.DATA_SHARING`
+- Exception to the block/warn pattern: `rest/match/controller.ts` `getCandidates` (list of candidates
+  shown to an external company) **filters** non-consenting candidates out of the response instead of
+  throwing — a per-item decision, not a temporary grace period, since blocking the whole list over one
+  non-consenting candidate would break the company's session. Backed by
+  `CandidateRepository.findConsentmentsByIds()` to avoid N+1 queries.
+
 ### Google OAuth code patterns
 
-- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. The redirect URI lives in `env.GOOGLE_REDIRECT_URI`, not in source.
+- Google OAuth2 clients are created **only** via `googleOAuth.forCredentials(creds, onRefresh?, region?)` — never `new google.auth.OAuth2(...)` outside `oauth-client.ts`. Credentials are per-tenant (`credentialsFor(region)`: `GOOGLE_ANNEMASSE_*` with fallback to the shared `GOOGLE_*` client); the redirect URI lives in env, not in source. The region defaults to `getRegion()` (ALS) — call sites must run under the right tenant, and the OAuth `state` carries the region so `exchangeCode` uses the same GCP client that generated the consent URL.
 - When a Google API call may refresh tokens, callers pass a refresh handler that persists the new tokens via `userService.updateGoogleTokens`. The convention helper at the top of each call site is `persistRefreshedTokens(userId)`.
 - Domain crypto helpers (relance URL signer, OAuth state signer) live in `external/crypto/signers.ts`, not next to the feature that uses them — this keeps every secret-handling routine in one auditable place.
 
@@ -594,6 +627,20 @@ Pre-commit hooks run Prettier and basic hygiene checks on staged files at `git c
 - All vars validated by a hand-rolled validator in `config/env.ts` (no schema library — `zod` was removed for security reasons). The ban holds for application code; `src/mcp/` is the sole exception, because the MCP SDK's `registerTool` only accepts a Zod raw shape. See `docs/AUDIT.md` §4.1 — the exception is currently inconsistent (three zod versions coexist).
 - Exported as `export const env = data` (typed object)
 
+## MCP tools (RGPD)
+
+Every new tool in `src/mcp/tools/` must (see `MCP_RGPD_AUDIT.md`):
+- be registered through `readTool` (scope check, audit log `mcp_audit_log`, daily quota) — never `server.registerTool` directly
+- declare its exposed fields explicitly (no spreading a domain object); no Art. 9 data (health/handicap), no `emergency_contact`, no free-form personal emails/names unless justified
+- apply the `ai_processing` consent filter (`mcp/candidateExposure.ts`) for anything returning candidate data
+- for péda data (alternants/sessions/ruptures), go through `mcp/pedaExposure.ts`: consent via `candidate_id`, `« Prénom N. »` label, counts masked below `PEDA_MIN_GROUP`
+- aggregates must not leak masked cells by subtraction (complementary masking, see `pedaExposure.ts`)
+- `list_notifications` redacts `peda`/`candidate` notifications (`misc.ts` `redactPersonalNotification`); new free-text notification types must be added there
+- new subject ids go in `SUBJECT_KEYS` (`mcp/auditStore.ts`) so the audit log records them
+- update `rgpd/registre-mcp.md` when exposed data categories change
+- paginate lists (`MAX_PAGE_SIZE` = 50) and use read-only service variants (no side effects)
+- have a test asserting excluded fields are absent
+
 ## Testing
 
 For testing conventions, patterns, and examples, see [`HOWTOTEST.md`](./HOWTOTEST.md).
@@ -615,7 +662,7 @@ The following violations of this CONVENTION.md have been identified in the codeb
 | 10 | `services/mappers/candidate.mapper.ts` | Mapper function names don't follow `toX()` pattern; generic utilities mixed in | Naming / Design |
 | 11 | `services/CandidateService.ts` | Repository initialized as field, not in constructor | Minor deviation |
 | 13 | `rest/candidates/route.ts` (×9), `rest/classmarker/webhook.route.ts` (×2), `external/yousign/yousign.service.ts` (×2), `rest/yousign/controller.ts` (×2), `rest/classmarker/route.ts`, `rest/peda/controller.ts`, `rest/mailTemplates/controller.ts`, `external/filiz/auth-client.ts` | `logger.error(err, 'message')` / `logger.error(error)` — bare error as first arg instead of `{ err: error }` | Logging |
-| 14 | `services/PedaService.ts`, `MailTemplateService.ts`, `InterviewAccessService.ts`, `rest/booking/service.ts` | 8 more custom Error classes beyond #3 — `SlotUnavailableError` is even declared twice | Error handling |
+| 14 | `services/PedaService.ts`, `MailTemplateService.ts`, `ExternalInterviewService.ts`, `rest/booking/service.ts` | 8 more custom Error classes beyond #3 — `SlotUnavailableError` is even declared twice | Error handling |
 | 15 | `rest/classmarker/webhook.route.ts`, `rest/candidates/route.ts` | Routes import Mongoose models directly (`CandidateModel`, `CandidateAvatarModel`), skipping both service and repository | Layering |
 | 16 | `rest/booking/repository.ts`, `rest/booking/service.ts`, `rest/classmarker/service.ts` | A repository and two services live under `rest/` instead of `repositories/` and `services/` | Structural |
 | 17 | `rest/mailTemplates/`, `rest/sectorSettings/`, `rest/needsAnalysis/`, `graphql/needsAnalysis/` | Directory names are camelCase, convention says kebab-case (`rest/rh-kpi/` complies) | Naming |

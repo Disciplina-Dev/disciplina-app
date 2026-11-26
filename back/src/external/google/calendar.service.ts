@@ -19,14 +19,25 @@ export interface CalendarEvent {
     meetingLink?: string;
     /** Email de l'invité (pour confirmation / relance). */
     attendeeEmail?: string;
-    /** Présence de l'invité : 'arrived' (venu) ou 'noshow' (pas venu). */
+    /** Prénom de l'invité (saisie libre, sert à la recherche). Absent sur les créneaux antérieurs à l'ajout du champ. */
+    attendeeFirstName?: string;
+    /** Nom de l'invité (saisie libre, sert à la recherche). Absent sur les créneaux antérieurs à l'ajout du champ. */
+    attendeeLastName?: string;
+    /** Présence de l'invité : 'arrived' (venu), 'noshow' (pas venu), 'postponed' (reporté) ou 'declined' (décliné). */
     attendance?: Attendance;
     /** Marqué comme entretien (compté dans les KPI RH). */
     isInterview?: boolean;
+    /** Id de la SA (séquence d'accompagnement) à l'origine de l'événement, si applicable. */
+    saSequenceId?: string;
+    /** Id de l'alternant de la SA, pour lier l'événement à sa fiche. */
+    saAlternantId?: string;
 }
 
 /** Statut de présence stocké sur l'event. */
-export type Attendance = 'arrived' | 'noshow';
+export type Attendance = 'arrived' | 'noshow' | 'postponed' | 'declined';
+
+/** Tous les statuts de présence reconnus (les valeurs inconnues sont ignorées à la lecture). */
+export const ATTENDANCES: readonly Attendance[] = ['arrived', 'noshow', 'postponed', 'declined'];
 
 export interface CalendarEventInput {
     summary: string;
@@ -40,10 +51,25 @@ export interface CalendarEventInput {
     meetingLink?: string;
     /** Email de l'invité (pour confirmation / relance). */
     attendeeEmail?: string;
+    /** Prénom de l'invité (optionnel, saisie libre). */
+    attendeeFirstName?: string;
+    /** Nom de l'invité (optionnel, saisie libre). */
+    attendeeLastName?: string;
     /** Marqué comme entretien (compté dans les KPI RH). */
     isInterview?: boolean;
+    /**
+     * Statut de présence à écrire. Omis par défaut : un PATCH sans ce champ laisse
+     * le statut existant intact (seul le report d'entretien le renseigne).
+     */
+    attendance?: Attendance;
     /** Invités (réservation publique). */
     attendees?: { email: string; displayName?: string }[];
+    /** Événement journée entière : `start`/`end` sont des dates `YYYY-MM-DD`. */
+    allDay?: boolean;
+    /** Id de la SA (séquence d'accompagnement) à l'origine de l'événement. */
+    saSequenceId?: string;
+    /** Id de l'alternant de la SA. */
+    saAlternantId?: string;
 }
 
 /** Intervalle occupé renvoyé par l'API freebusy. */
@@ -56,10 +82,18 @@ export interface BusyInterval {
 const MEETING_LINK_KEY = 'meetingLink';
 /** Clé extendedProperties.private pour l'email de l'invité. */
 const ATTENDEE_EMAIL_KEY = 'attendeeEmail';
+/** Clé extendedProperties.private pour le prénom de l'invité. */
+const ATTENDEE_FIRST_NAME_KEY = 'attendeeFirstName';
+/** Clé extendedProperties.private pour le nom de l'invité. */
+const ATTENDEE_LAST_NAME_KEY = 'attendeeLastName';
 /** Clé extendedProperties.private pour le statut de présence. */
 const ATTENDANCE_KEY = 'attendance';
 /** Clé extendedProperties.private marquant un entretien (KPI). */
 const IS_INTERVIEW_KEY = 'isInterview';
+/** Clé extendedProperties.private reliant l'événement à une SA (séquence d'accompagnement). */
+const SA_SEQUENCE_ID_KEY = 'saSequenceId';
+/** Clé extendedProperties.private reliant l'événement à l'alternant de la SA. */
+const SA_ALTERNANT_ID_KEY = 'saAlternantId';
 
 export class GoogleCalendarService {
     private calendar: calendar_v3.Calendar;
@@ -84,6 +118,25 @@ export class GoogleCalendarService {
             singleEvents: true,
             orderBy: 'startTime',
             maxResults: 2500,
+        });
+
+        return (response.data.items ?? []).map(toCalendarEvent);
+    }
+
+    /**
+     * Événements dont l'email d'invité (propriété privée `attendeeEmail`) correspond
+     * exactement, du plus ancien au plus récent. Sert au dédoublonnage KPI : un seul
+     * rendez-vous compté par candidat (le premier).
+     */
+    async listEventsByAttendeeEmail(email: string, timeMin: string, timeMax: string): Promise<CalendarEvent[]> {
+        const response = await this.calendar.events.list({
+            calendarId: 'primary',
+            timeMin,
+            timeMax,
+            singleEvents: true,
+            orderBy: 'startTime',
+            privateExtendedProperty: [`${ATTENDEE_EMAIL_KEY}=${email}`],
+            maxResults: 50,
         });
 
         return (response.data.items ?? []).map(toCalendarEvent);
@@ -141,18 +194,30 @@ function toRequestBody(input: CalendarEventInput): calendar_v3.Schema$Event {
         summary: input.summary,
         description: input.description,
         location: input.location,
-        start: { dateTime: input.start },
-        end: { dateTime: input.end },
+        start: input.allDay ? { date: input.start } : { dateTime: input.start },
+        end: input.allDay ? { date: input.end } : { dateTime: input.end },
         colorId: input.colorId,
         attendees: input.attendees,
         extendedProperties: {
             private: {
                 [MEETING_LINK_KEY]: input.meetingLink ?? '',
                 [ATTENDEE_EMAIL_KEY]: input.attendeeEmail ?? '',
+                [ATTENDEE_FIRST_NAME_KEY]: input.attendeeFirstName ?? '',
+                [ATTENDEE_LAST_NAME_KEY]: input.attendeeLastName ?? '',
                 [IS_INTERVIEW_KEY]: input.isInterview ? '1' : '',
+                [SA_SEQUENCE_ID_KEY]: input.saSequenceId ?? '',
+                [SA_ALTERNANT_ID_KEY]: input.saAlternantId ?? '',
+                // Absent = ne pas toucher au statut existant (cf. setAttendance).
+                ...(input.attendance ? { [ATTENDANCE_KEY]: input.attendance } : {}),
             },
         },
     };
+}
+
+function parseAttendance(raw: unknown): Attendance | undefined {
+    return typeof raw === 'string' && (ATTENDANCES as readonly string[]).includes(raw)
+        ? (raw as Attendance)
+        : undefined;
 }
 
 function toCalendarEvent(e: calendar_v3.Schema$Event): CalendarEvent {
@@ -162,15 +227,19 @@ function toCalendarEvent(e: calendar_v3.Schema$Event): CalendarEvent {
         summary: e.summary ?? '(Sans titre)',
         description: e.description ?? undefined,
         location: e.location ?? undefined,
-        start: (e.start?.dateTime ?? e.start?.date) ?? '',
-        end: (e.end?.dateTime ?? e.end?.date) ?? '',
+        start: e.start?.dateTime ?? e.start?.date ?? '',
+        end: e.end?.dateTime ?? e.end?.date ?? '',
         allDay,
         colorId: e.colorId ?? undefined,
         htmlLink: e.htmlLink ?? undefined,
         hangoutLink: e.hangoutLink ?? undefined,
         meetingLink: e.extendedProperties?.private?.[MEETING_LINK_KEY] || undefined,
         attendeeEmail: e.extendedProperties?.private?.[ATTENDEE_EMAIL_KEY] || undefined,
-        attendance: (e.extendedProperties?.private?.[ATTENDANCE_KEY] as Attendance) || undefined,
+        attendeeFirstName: e.extendedProperties?.private?.[ATTENDEE_FIRST_NAME_KEY] || undefined,
+        attendeeLastName: e.extendedProperties?.private?.[ATTENDEE_LAST_NAME_KEY] || undefined,
+        attendance: parseAttendance(e.extendedProperties?.private?.[ATTENDANCE_KEY]),
         isInterview: e.extendedProperties?.private?.[IS_INTERVIEW_KEY] === '1',
+        saSequenceId: e.extendedProperties?.private?.[SA_SEQUENCE_ID_KEY] || undefined,
+        saAlternantId: e.extendedProperties?.private?.[SA_ALTERNANT_ID_KEY] || undefined,
     };
 }

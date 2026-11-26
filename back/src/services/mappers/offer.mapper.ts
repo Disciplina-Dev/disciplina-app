@@ -2,16 +2,19 @@ import { randomUUID } from 'crypto';
 import { NeedsAnalysis as NeedsAnalysisDocument, Position, PositionTp } from '../../types/needsAnalysisNoSql.types';
 import { Offer } from '../../types/offer.types';
 import { OfferStatus } from '../../types/matching.types';
-import { TitleProfessionalType } from '../../types/candidate.types';
+import { TitleProfessionalType, normalizeTpCode } from '../../types/candidate.types';
 
 // Titres professionnels visés par une offre (une offre peut cibler CC et NTC).
 export function offerTpCodes(offer: Pick<Offer, 'desired_tp'>): TitleProfessionalType[] {
-    return (offer.desired_tp ?? []).map((tp) => tp.tp_type).filter((tp): tp is TitleProfessionalType => tp != null);
+    return (offer.desired_tp ?? [])
+        .map((tp) => tp.tp_type)
+        .filter((tp): tp is TitleProfessionalType => tp != null)
+        .map((tp) => normalizeTpCode(tp) as TitleProfessionalType);
 }
 
 export function positionTpToGql(tp: PositionTp) {
     return {
-        tpType: tp.tp_type ?? null,
+        tpType: tp.tp_type ? normalizeTpCode(tp.tp_type) : null,
         missions: tp.missions ?? [],
         descriptionMissions: tp.description_missions ?? [],
         otherMissions: tp.other_missions ?? null,

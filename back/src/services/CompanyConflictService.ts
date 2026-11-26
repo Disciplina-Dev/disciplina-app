@@ -1,5 +1,6 @@
 import { getConnection } from '../db/mysql/connection';
 import { buildInsert } from '../db/mysql/queryBuilder';
+import { syncCompanySectors } from '../repositories/mysql/sectorId';
 import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { CompanyConflictRepository } from '../repositories/mysql/CompanyConflictRepository';
 import { CompaniesRow, CompanyConflictRow } from '../types/db-rows.types';
@@ -15,6 +16,12 @@ function isValidSiret(siret: string | null): siret is string {
     const digits = siret.replace(/\D/g, '');
     if (digits.length !== 14) return false;
     return !isPlaceholderSiret(siret);
+}
+
+/** True pour les doublons SIRET Digiforma : la fiche du portefeuille est la référence. */
+function isDuplicateSiretConflict(entry: CompanyConflictRow): boolean {
+    const type = entry.conclusion?.replace(/^Conflit\s*:\s*/, '').trim() ?? '';
+    return type === 'duplicate_digiforma_siret';
 }
 
 export class CompanyConflictService {
@@ -70,7 +77,28 @@ export class CompanyConflictService {
 
         const existingCompany = await this.companyRepository.findBySiret(siret);
         if (existingCompany) {
-            throw new Error('Une entreprise avec ce SIRET existe déjà dans le portefeuille.');
+            // L'entreprise (même SIRET) existe déjà au portefeuille : il s'agit d'un conflit
+            // informatif (mismatch commercial, doublon SIRET Digiforma…). On ne peut pas
+            // l'insérer (companies.siret est UNIQUE) : on applique le commercial choisi et
+            // les champs éventuellement corrigés, puis on purge la quarantaine. Pour un
+            // doublon SIRET, la fiche du portefeuille reste la référence (on ne l'écrase pas).
+            if (!isDuplicateSiretConflict(entry)) {
+                const correction: Partial<CompaniesRow> = {
+                    legal_referent: entry.legal_referent ?? undefined,
+                    name: entry.name ?? undefined,
+                    phone: entry.phone ?? undefined,
+                    email: entry.email ?? undefined,
+                    address: entry.address ?? undefined,
+                    sector: entry.sector ?? undefined,
+                    main_activity: entry.main_activity ?? undefined,
+                    idcc: entry.idcc ?? undefined,
+                    ape: entry.ape ?? undefined,
+                };
+                if (entry.user_id) correction.user_id = entry.user_id;
+                await this.companyRepository.update(existingCompany.id, correction);
+            }
+            await this.conflictRepository.delete(id);
+            return (await this.companyRepository.findById(existingCompany.id)) ?? existingCompany;
         }
 
         const siren = siret.slice(0, 9);
@@ -95,6 +123,7 @@ export class CompanyConflictService {
             );
             const [result] = await conn.execute(sql, values);
             const insertedId = (result as any).insertId;
+            await syncCompanySectors(conn, insertedId, data.sector);
             await conn.execute('DELETE FROM company_conflict WHERE id = ?', [id]);
 
             await conn.commit();

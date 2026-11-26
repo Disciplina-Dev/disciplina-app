@@ -3,9 +3,15 @@ import { FilizToken } from '../../external/filiz/type';
 import { logger } from '../../external/logger';
 import { FilizRow } from '../../types/db-rows.types';
 
+// Marge avant expiration : un token servi à 1 s de sa fin serait rejeté par Filiz en vol.
+const TOKEN_EXPIRY_MARGIN_SECONDS = 60;
+
 export class FilizRepository {
     async getToken(): Promise<FilizRow[] | null> {
-        return query<FilizRow[]>('SELECT (token) FROM filiz WHERE expires_at > NOW()');
+        return query<FilizRow[]>(
+            'SELECT token FROM filiz WHERE expires_at > DATE_ADD(NOW(), INTERVAL ? SECOND) ORDER BY expires_at DESC LIMIT 1',
+            [TOKEN_EXPIRY_MARGIN_SECONDS],
+        );
     }
 
     async insertToken(token: FilizToken): Promise<FilizToken | null> {
@@ -28,11 +34,14 @@ export class FilizRepository {
         }
     }
 
-    async deleteTokens(): Promise<boolean> {
+    // Purge les tokens expirés (ou, avec `all`, tous : token rejeté par Filiz avant son expiration).
+    async deleteTokens(all = false): Promise<boolean> {
         const conn = await getConnection();
         try {
-            const result = await conn.execute('DELETE FROM filiz WHERE expires_at < NOW()');
-            return (result[0] as any).affectedRows > 0;
+            const [result] = await conn.execute(
+                all ? 'DELETE FROM filiz' : 'DELETE FROM filiz WHERE expires_at < NOW()',
+            );
+            return (result as { affectedRows: number }).affectedRows > 0;
         } catch (error) {
             logger.error({ err: error }, 'FilizRepository: deleteTokens failed');
             return false;

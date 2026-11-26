@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, PhoneCall } from 'lucide-react'
+import { IconClose, IconPhone } from '@/components/ui/icons'
 import Button from '@/components/ui/Button'
 import { useCreateContactLog, useUpdateCompany } from '@/graphql/hooks'
 import type { Entreprise, EntrepriseStatus } from '@/types/entreprise'
@@ -20,7 +20,7 @@ interface Props {
 
 const MAX_LENGTH = 2000
 
-const FIELD = 'w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-4 text-sm text-gray-900 outline-none transition-colors focus:border-blue'
+const FIELD = 'w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-4 text-sm text-[var(--ds-text)] outline-none transition-colors focus:border-blue'
 
 export default function ContactLogModal({ entreprise, onClose, onSuccess }: Props) {
   const { createContactLog, result } = useCreateContactLog()
@@ -40,20 +40,41 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
     setError(null)
     setSaving(true)
 
+    // Patch des champs réellement modifiés (calculé avant les inserts
+    // pour détecter le « double comptage » ci-dessous).
+    const patch: Record<string, unknown> = {}
+    if (status !== entreprise.status) patch.status = status
+    if ((typeRelance ?? null) !== (entreprise.type_relance ?? null)) patch.relanceType = typeRelance
+    if ((dateRelance || null) !== (entreprise.date_relance ?? null)) patch.relanceDate = dateRelance || null
+
+    // Statut passé à « Non » ET relance posée dans le même appel : compte double.
+    // Un seul des deux → compte simple (un seul insert).
+    const didSetNon = patch.status === 'Non'
+    const finalHasRelance = typeRelance != null && (dateRelance?.trim() ?? '') !== ''
+    const didTouchRelance = patch.relanceType !== undefined || patch.relanceDate !== undefined
+    const doubleCount = didSetNon && didTouchRelance && finalHasRelance
+
     // 1) Enregistre la prise de contact (commentaire obligatoire).
-    const logRes = await createContactLog(Number(entreprise.id), comment.trim())
+    const trimmedComment = comment.trim()
+    const logRes = await createContactLog(Number(entreprise.id), trimmedComment)
     if (logRes.error) {
       setError(logRes.error.message)
       setSaving(false)
       return
     }
 
-    // 2) Applique uniquement les champs réellement modifiés sur la fiche.
-    const patch: Record<string, unknown> = {}
-    if (status !== entreprise.status) patch.status = status
-    if ((typeRelance ?? null) !== (entreprise.type_relance ?? null)) patch.relanceType = typeRelance
-    if ((dateRelance || null) !== (entreprise.date_relance ?? null)) patch.relanceDate = dateRelance || null
+    // 1b) Double comptage : un second log identique pour que tous les compteurs
+    // (timeline, contactLogStats, KPI total_appels en COUNT(*)) voient 2 appels.
+    if (doubleCount) {
+      const secondRes = await createContactLog(Number(entreprise.id), trimmedComment)
+      if (secondRes.error) {
+        setError(secondRes.error.message)
+        setSaving(false)
+        return
+      }
+    }
 
+    // 2) Applique uniquement les champs réellement modifiés sur la fiche.
     if (Object.keys(patch).length > 0) {
       const updRes = await update(Number(entreprise.id), patch)
       if (updRes.error) {
@@ -71,30 +92,30 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div
-        className="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden"
+        className="relative z-10 w-full max-w-lg rounded-2xl bg-[var(--ds-surface)] shadow-2xl overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between p-6 pb-4 border-b border-gray-100">
+        <div className="flex items-center justify-between p-6 pb-4 border-b border-[var(--ds-border)]">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-light">
-              <PhoneCall className="h-5 w-5 text-blue" />
+              <IconPhone className="h-5 w-5 text-blue" />
             </div>
-            <h2 className="text-lg font-bold text-gray-900">Prise de contact</h2>
+            <h2 className="text-lg font-bold text-[var(--ds-text)]">Prise de contact</h2>
           </div>
-          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-50">
-            <X className="h-5 w-5" />
+          <button onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]">
+            <IconClose className="h-5 w-5" />
           </button>
         </div>
 
         <div className="p-6 flex flex-col gap-4">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--ds-text-muted)]">
             Enregistrer un appel avec <strong>{entreprise.nom_commercial ?? 'cette entreprise'}</strong>.
             Le commentaire est obligatoire ; le statut et la relance sont optionnels.
           </p>
 
           {/* Commentaire (= prise de contact) */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700" htmlFor="contact-comment">Commentaire *</label>
+            <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="contact-comment">Commentaire *</label>
             <textarea
               id="contact-comment"
               rows={4}
@@ -104,12 +125,12 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
               placeholder="Résumé de l'échange, suite à donner…"
               className={`${FIELD} resize-none`}
             />
-            <span className="text-xs text-gray-400 self-end">{comment.length}/{MAX_LENGTH}</span>
+            <span className="text-xs text-[var(--ds-text-subtle)] self-end">{comment.length}/{MAX_LENGTH}</span>
           </div>
 
           {/* Statut (optionnel) */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-gray-700" htmlFor="contact-status">Statut</label>
+            <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="contact-status">Statut</label>
             <select
               id="contact-status"
               value={status}
@@ -123,7 +144,7 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
           {/* Relance (optionnel) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700" htmlFor="contact-relance-type">Type de relance</label>
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="contact-relance-type">Type de relance</label>
               <select
                 id="contact-relance-type"
                 value={typeRelance ?? ''}
@@ -140,7 +161,7 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
               </select>
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700" htmlFor="contact-relance-date">Date de relance</label>
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]" htmlFor="contact-relance-date">Date de relance</label>
               <input
                 id="contact-relance-date"
                 type="date"
@@ -152,11 +173,11 @@ export default function ContactLogModal({ entreprise, onClose, onSuccess }: Prop
           </div>
 
           {error && (
-            <div className="rounded-xl border border-danger/20 bg-danger-bg px-4 py-2.5 text-sm text-danger">{error}</div>
+            <div className="rounded-xl border border-danger/20 bg-[var(--ds-danger-bg)] px-4 py-2.5 text-sm text-[var(--ds-danger)]">{error}</div>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-3 p-6 pt-4 border-t border-gray-100">
+        <div className="flex items-center justify-end gap-3 p-6 pt-4 border-t border-[var(--ds-border)]">
           <Button variant="secondary" onClick={onClose}>Annuler</Button>
           <Button variant="primary" disabled={!canConfirm} isLoading={saving || result.fetching} onClick={handleConfirm}>
             Enregistrer l'appel

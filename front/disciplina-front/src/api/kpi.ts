@@ -1,7 +1,29 @@
 import { apiFetch } from '@/api/httpClient';
+import type { Region } from '@/store/regionStore';
 
-export type KpiSite = 'NORD' | 'OUEST' | 'SUD';
+/** Code de secteur du référentiel (NORD/OUEST/SUD, ANNEMASSE…) : les sites viennent de `useSectors().kpiSites`. */
+export type KpiSite = string;
+
+/** Repli tant que le référentiel n'est pas chargé. */
 export const KPI_SITES: KpiSite[] = ['NORD', 'OUEST', 'SUD'];
+
+/** Site KPI unique du tenant Annemasse (pilotage à la maille du tenant). */
+export type AnnemasseKpiSite = 'ANNEMASSE';
+
+export const ANNEMASSE_KPI_SITES: AnnemasseKpiSite[] = ['ANNEMASSE'];
+
+/** Sites KPI proposés selon le tenant (region null → Réunion par défaut). */
+export function kpiSitesForRegion(region: Region | null | undefined): KpiSite[] {
+  return region === 'annemasse' ? [...ANNEMASSE_KPI_SITES] : [...KPI_SITES];
+}
+
+/** Libellés d'affichage des sites KPI. */
+export const KPI_SITE_LABELS: Record<string, string> = {
+  NORD: 'Nord-Est',
+  OUEST: 'Ouest',
+  SUD: 'Sud',
+  ANNEMASSE: 'Annemasse',
+};
 
 export const KPI_METRIC_COLUMNS = [
   'count_oui',
@@ -68,7 +90,7 @@ export interface KpiOverview {
  * Source des graphiques/tableaux :
  * - 'combine' : Excel prioritaire, portefeuille en complément (zéro doublon) ;
  * - 'portefeuille' : activité datée du CRM seule ;
- * - 'excel' : table commercial_kpi seule (imports + saisie manuelle).
+ * - 'excel' : collection Mongo `kpis` (kind: commercial — imports + saisie manuelle).
  */
 export type KpiSource = 'combine' | 'portefeuille' | 'excel';
 

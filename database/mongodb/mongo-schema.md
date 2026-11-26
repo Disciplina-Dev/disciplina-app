@@ -14,7 +14,7 @@ Stores complete candidate profiles including identity, education, support system
 |-------|------|----------|-------|
 | _id | string | yes | Auto-generated UUID |
 | candidate_id | string | yes | Unique candidate identifier |
-| tp_types | string[] | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, SA), multi-select |
+| tp_types | string[] | yes | enum: TitleProfessionalType (AD, CC, NTC, REM, CADGA; legacy SA), multi-select |
 | identity | object | yes | Candidate personal information (see below) |
 | status | string | yes | enum: CandidateStatus |
 | formation_type | string | — | enum: VENTE, SECRETARIAT |
@@ -33,7 +33,8 @@ Stores complete candidate profiles including identity, education, support system
 | pdf_link | string | — | Link to generated candidate PDF |
 | cv_link | string | — | Link to the candidate's CV uploaded to Google Drive |
 | drive_folder_id | string | — | Google Drive folder ID holding the candidate's documents |
-| classmarker | object | — | ClassMarker test results (see below) |
+| classmarker | object | — | Latest test result — ClassMarker or internal questionnaire, same shape (see below) |
+| classmarker_history | array of objects | — | Every test result, oldest first (same shape as `classmarker`) |
 | created_at | date | — | Candidate creation date (first interview date on CSV import) |
 
 ### Embedded object: identity
@@ -54,6 +55,7 @@ Stores complete candidate profiles including identity, education, support system
 | transport_means | string | — | How candidate commutes |
 | psh_referral_request | bool | — | Person with disabilities support request |
 | description | string | — | Free-text candidate summary (recruiter context for manual matching; text-indexed, used for candidatesPage search) |
+| description_source | string | — | enum: auto, manual. `auto` = résumé déterministe régénéré à chaque mise à jour du dossier ; `manual` = texte saisi par un RH (ou résumé IA validé), jamais écrasé par la génération automatique |
 
 ### Embedded object: education
 
@@ -128,6 +130,7 @@ Stores complete candidate profiles including identity, education, support system
 | geographic_mobility | string[] | — | Preferred cities (enum: Localisation) |
 | weekend_work | bool | — | Willing to work weekends |
 | discovery_source | string | — | enum: DiscoverySource |
+| job_search_platforms | string | — | Sites/plateformes où le candidat recherche et postule (optionnel) |
 
 ### Embedded object: synthesis
 
@@ -169,6 +172,12 @@ Stores complete candidate profiles including identity, education, support system
 | test_name | string | — | Name of test |
 | completed_at | date | — | When test was completed |
 | duration | string | — | How long test took |
+| questions | array | — | Per-question detail: `question_id`, `question_type` (`multiplechoice` / `freetext`), `question`, `options`, `correct_option`, `user_response`, `points_scored`, `points_available`, `result` |
+| pdf_link | string | — | Result PDF uploaded to the candidate's Drive (absent if no Google account was connected) |
+| source | `'classmarker'` \| `'internal'` | — | Absent on legacy ClassMarker results |
+| questionnaire_id | string | — | Internal questionnaire only |
+| attempt_id | string | — | Internal questionnaire only — links to `questionnaire_attempts` |
+| tab_switch_count | int | — | Internal questionnaire only — informative, never sent to the MCP |
 
 ---
 
@@ -190,6 +199,8 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | training_days | string | — | JSON string of per-day availability (not parsed) |
 | signature_request_id | string | — | DocuSeal submission id (e-signature) |
 | status | string | — | enum: NeedsAnalysisStatus |
+| is_visible_in_matching | bool | — | Draft published to matching without signature (shown « Non envoyée », matched like unsigned) |
+| last_active_at | date | — | Last transition to effective ACTIVE (creation, then reactivations) |
 | created_at | date | — | Creation date |
 | updated_at | date | — | Last update date |
 
@@ -238,6 +249,7 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | other_description_missions | string | — | Free-text extra description |
 | other_missions | string | — | Free-text extra missions |
 | matching | object | — | Matching state for this offer (see below) — replaces the former `jobs` collection |
+| is_active | bool / null | — | Override actif/inactif de l'annuaire entreprises ; null = hérite du statut de l'AB |
 | criteria | object | — | Apprentice criteria for this position (see below) |
 
 #### offers[].matching
@@ -246,6 +258,7 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 |-------|------|----------|-------|
 | status | string | — | enum: JobStatus (default NOT_MATCHED) — offer-level matching stage |
 | candidates | array of objects | — | Unified candidate list: retained + proposed (see below) |
+| dismissed_candidate_ids | string[] | — | Candidates dismissed from automatic matching by RH (« Non ») — never re-suggested for this offer |
 | interview_slots | string[] | — | Shared pool of interview slots (ISO datetimes) |
 | interview_location | string | — | Default interview location |
 
@@ -284,11 +297,150 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | age_min | int | — | Minimum age |
 | age_max | int | — | Maximum age |
 | soft_skills | string | — | Expected soft skills |
-| schedule_options | string[] | — | Schedule options |
+| schedule_options | object[] | — | Schedule slots: `{ day, start_hour, end_hour }` |
 | conditions | string | — | Work conditions |
 | additional_comments | string | — | Additional comments |
 
 ---
+
+## Collection: kpis
+
+Weekly/monthly KPI counter buckets. Replaces the former MySQL tables `commercial_kpi` and `rh_kpi` (merged via the `kind` discriminator, #513). One document per `(kind, user_id, dimension, year, month, week)` bucket; counters live in `metrics`, whose shape depends on `kind`.
+
+### Top-level fields
+
+| Field | Type | Required | Notes |
+|-------|------|----------|-------|
+| _id | string | yes | Application UUID |
+| kind | string | yes | enum: `commercial` or `rh` — discriminates `metrics` shape and which dimension field is set |
+| user_id | int | — | `users.id` (MySQL). `null` = orphan legacy row from an Excel import whose user was deleted |
+| year | int | yes | e.g. 2026 |
+| month | int | yes | 1–12 |
+| week | int | yes | 0 = monthly aggregate row (commercial), 1–53 = ISO week |
+| site | string | — | enum: NORD, OUEST, SUD — set when `kind = commercial` |
+| sector | string | — | Sector name — set when `kind = rh` (`''` = unknown/global) |
+| user_name | string | — | Display snapshot written at upsert (commercial only); sole remaining trace of deleted users — kept by documented arbitrage (`DATA_CLASSIFICATION.md` §4.1) |
+| metrics | object | — | Counters keyed by metric name (see below) |
+| created_at | date | — | Creation date |
+| updated_at | date | — | Last update date |
+
+### metrics
+
+Typed union on the application side:
+
+- `kind: commercial` → `count_oui`, `count_oui_of`, `count_non`, `count_ne_repond_pas`, `count_a_reflechir`, `count_relance`, `total_appels`, `total_trie`, `nbre_ent_ferme`, `nbre_ent_ouvert`, `visites_terrain`
+- `kind: rh` → `interviews_placed`, `interviews_attended`, `interviews_noshow`, `interviews_postponed`, `interviews_declined`, `immersions`, `contracts`, `ruptures`
+
+All values are non-negative integers; unknown keys are ignored at read time (metrics may grow over time without schema change).
+
+### Unique index
+
+`{ kind, user_id, site, sector, year, month, week }` with `partialFilterExpression: { user_id: { $type: "number" } }` — bucket uniqueness for real users. The partial filter excludes orphan rows (`user_id: null`): MongoDB unique indexes, unlike MySQL, reject duplicate null keys, so orphans are kept out of the index to preserve the unlimited/distinct behavior of the former MySQL unique keys.
+
+## Collection: sessions
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `nom` | string | required, indexed |
+| `filiere` | string \| null | |
+| `jour_cours` | string \| null | |
+| `date_debut`, `date_fin` | Date | required |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: alternants
+
+Péda domain. Fields stay snake_case (converted at resolver). Exposed through MCP only via `mcp/pedaExposure.ts` (consent via `candidate_id`).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `first_name`, `last_name` | string | required |
+| `session` | string | required (session name) |
+| `session_id` | string \| null | indexed, links `sessions` |
+| `email`, `phone` | string \| null | never exposed via MCP |
+| `candidate_id` | string \| null | links `candidates`; drives `ai_processing` consent for MCP |
+| `company` | object \| null | `name`, `address`, `mentor_name`, `start_date` (required), `end_date` |
+| `linked_alternant_ids` | string[] | |
+| `archived_at` | Date \| null | indexed |
+| `archive_reason` | enum \| null | `rupture` \| `fin_formation`; `null` on archives older than the field is read as `rupture` |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: alternant_sequences
+
+SA (séquences d'accompagnement).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `alternant_id` | string | required, indexed |
+| `numero` | number | required |
+| `prevue_le` | Date | required |
+| `status` | enum | `pending` \| `done` \| `not_done` |
+| `realisee_le` | Date \| null | set at manual validation |
+| `contacts` | object | booleans `mentor`, `alternant`, `formateur` |
+| `auto_generated` | boolean | |
+| `soon_notified_at`, `late_notified_at` | Date \| null | scheduler dedup of « en cours » / « en retard » notifications |
+| `archived_at` | Date \| null | indexed |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: ruptures
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | |
+| `alternant_id` | string | required, indexed |
+| `date_rupture` | Date | required, indexed |
+| `entreprise` | string \| null | |
+| `motif` | enum | one of `RUPTURE_MOTIFS` (`types/rupture.types.ts`) |
+| `detail` | string \| null | free text, never exposed via MCP |
+| `poursuit_formation` | boolean | required |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: questionnaires
+
+Internal tests replacing ClassMarker (#968). Per region (`getModels()`), nothing shared.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | UUID |
+| `title`, `description` | string | plain text only (HTML refused) |
+| `tp_types` | string[] | targeted titles (`AD`, `CC`, `NTC`, `REM`, `CADGA`) |
+| `duration_minutes` | number | 1–240, server-side timer |
+| `pass_threshold` | number | %, default 50 — shown to staff only |
+| `immediate_feedback`, `allow_skip`, `shuffle_choices` | boolean | |
+| `questions[]` | object | `_id`, `type` (`single` / `multiple` / `true_false` / `text`), `text`, `points`, `choices[]` (`_id`, `text`, `correct`), `accepted_answers[]` (type `text` only) |
+| `status` | enum | `draft` / `active` / `archived`, indexed |
+| `version` | number | incremented on duplication |
+| `locked` | boolean | true after the first real attempt — edit refused, duplicate instead |
+| `created_by` | number | MySQL user id |
+| `created_at`, `updated_at` | Date | |
+
+## Collection: questionnaire_attempts
+
+One document per link (candidate invitation or staff test run).
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `_id` | string | UUID |
+| `questionnaire_id`, `questionnaire_version` | string, number | |
+| `candidate_id` | string | absent on a test run |
+| `invited_by` | number | MySQL user id |
+| `token_hash` | string | SHA-256 of the link secret, unique — the secret itself is never stored |
+| `expires_at` | Date | link validity before start |
+| `purge_at` | Date | TTL index: an invitation never started is deleted at expiry; removed on start |
+| `status` | enum | `invited` / `in_progress` / `completed` / `expired` / `cancelled` |
+| `started_at`, `deadline`, `completed_at` | Date | `deadline` = start + duration (10 s network grace) |
+| `current_index` | number | only the current question accepts an answer |
+| `choice_order` | object | per-question choice order frozen at start (`shuffle_choices`) |
+| `device_hash` | string | SHA-256 of the device cookie — link locked to the first device |
+| `tab_switch_count` | number | informative |
+| `is_test_run`, `identity_confirmed` | boolean | |
+| `answers[]` | object | `question_id`, `choice_ids`, `text_answer` (type `text`), `skipped`, `correct`, `points`, `answered_at` |
+| `score` | object | `percentage`, `points_scored`, `points_available`, `passed` |
+| `created_at`, `updated_at` | Date | |
+
+Indexes: `{questionnaire_id, created_at}`, `{candidate_id, created_at}`, `{status, created_at}`, TTL `{purge_at}`. Attempts are deleted with the candidate (right to erasure). On completion the result is copied into `candidates.classmarker` / `classmarker_history` with `source: 'internal'`.
 
 ## Enums reference
 
@@ -322,7 +474,8 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | CC | Conseiller Commercial |
 | NTC | Négociateur Technico-Commercial |
 | REM | Responsable d'Exploitation Magasin |
-| SA | Secrétaire Assistant |
+| CADGA | Chargé d'accueil et de gestion administrative |
+| SA | Legacy — former code for CADGA (Secrétaire Assistant) |
 
 ### SchoolLevel
 
@@ -436,6 +589,65 @@ The company needs analysis (*Analyse de Besoin*, AB) filled by a commercial. Rep
 | LA_PLAINE_DES_PALMISTES | Commune in Réunion |
 | SALAZIE | Commune in Réunion |
 | SAINTE_ANNE | Commune in Réunion |
+| ANNEMASSE | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| AMBILLY | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| GAILLARD | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| VILLE_LA_GRAND | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| VETRAZ_MONTHOUX | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| ETREMBIERES | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| CRANVES_SALES | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| SAINT_CERGUES | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| JUVIGNY | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| BONNE | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| MACHILLY | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| DOUVAINE | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| VEIGY_FONCENEX | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| BONS_EN_CHABLAIS | Commune in Haute-Savoie (Annemasse — Genève / frontière + Chablais) |
+| SCIEZ | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| THONON_LES_BAINS | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| EVIAN_LES_BAINS | Commune in Haute-Savoie (Annemasse — Genève / frontière) |
+| SAINT_JULIEN_EN_GENEVOIS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| ARCHAMPS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| NEYDENS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| COLLONGES_SOUS_SALEVE | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| PRESILLY | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| BEAUMONT | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| FEIGERES | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| VIRY | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| VALLEIRY | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| VULBENS | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| CHENEX | Commune in Haute-Savoie (Annemasse — Saint-Julien / Genevois) |
+| REIGNIER_ESERY | Commune in Haute-Savoie (Annemasse — Arve) |
+| ARENTHON | Commune in Haute-Savoie (Annemasse — Arve) |
+| CONTAMINE_SUR_ARVE | Commune in Haute-Savoie (Annemasse — Arve) |
+| BONNEVILLE | Commune in Haute-Savoie (Annemasse — Arve) |
+| AYSE | Commune in Haute-Savoie (Annemasse — Arve) |
+| MARIGNIER | Commune in Haute-Savoie (Annemasse — Arve) |
+| VOUGY | Commune in Haute-Savoie (Annemasse — Arve) |
+| CLUSES | Commune in Haute-Savoie (Annemasse — Arve) |
+| SCIONZIER | Commune in Haute-Savoie (Annemasse — Arve) |
+| MARNAZ | Commune in Haute-Savoie (Annemasse — Arve) |
+| LA_ROCHE_SUR_FORON | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| AMANCY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| SAINT_PIERRE_EN_FAUCIGNY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| ETAUX | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| CORNIER | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| PERS_JUSSY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| SCIENTRIER | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| ARBUSIGNY | Commune in Haute-Savoie (Annemasse — Faucigny / La Roche) |
+| ANNECY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| PRINGY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| EPAGNY_METZ_TESSY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| POISY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| MEYTHET | Commune in Haute-Savoie (Annemasse — Annecy) |
+| SEYNOD | Commune in Haute-Savoie (Annemasse — Annecy) |
+| CRAN_GEVRIER | Commune in Haute-Savoie (Annemasse — Annecy) |
+| ARGONAY | Commune in Haute-Savoie (Annemasse — Annecy) |
+| PERRIGNIER | Commune in Haute-Savoie (Annemasse — Chablais) |
+| BOEGE | Commune in Haute-Savoie (Annemasse — Chablais) |
+| FILLINGES | Commune in Haute-Savoie (Annemasse — Chablais) |
+| VIUZ_EN_SALLAZ | Commune in Haute-Savoie (Annemasse — Chablais) |
+| SAINT_JEOIRE | Commune in Haute-Savoie (Annemasse — Chablais) |
 
 ### Sex
 

@@ -49,12 +49,31 @@ d'un export ou d'un effacement sur demande d'un collaborateur.
 Données personnelles de **tiers** (référents légaux de prospects) : durée de conservation
 distincte de celle des collaborateurs.
 
-### Indicateurs nominatifs
+### Journal d'accès candidat (GDPR_INF_06.5)
 
 | Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
 |---|---|---|---|---|
-| `commercial_kpi` | S1 (+S2) | `user_name` (nom dénormalisé) | `KpiRepository`, `rest/kpi/` | Anonymisation au-delà de N années |
-| `rh_kpi` | S1 | `user_id` | `RhKpiRepository`, `rest/rh-kpi/` | Idem |
+| `candidate_access_log` | S1 | `candidate_id` (UUID de la fiche Mongo, pseudonyme), `actor_id` | `AccessLogRepository`, `AccessLogService`, `graphql/candidate`, `rest/candidates` | Journal en ajout seul, 365 jours (purge `expiredAccessScheduler`), **conservé après suppression de la fiche** ; durée à valider avec le DPO |
+
+Aucune donnée identifiante en clair. Pas de clé étrangère sur `actor_id` (comme `mcp_audit_log`) :
+l'identifiant survit à la suppression du compte, la ligne n'est jamais refusée.
+
+### Preuves de consentement (GDPR_INF_08.2)
+
+| Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
+|---|---|---|---|---|
+| `candidate_consent_history` | S1 | `candidate_id` (UUID de la fiche Mongo, pseudonyme), `recorded_by` | `ConsentHistoryRepository`, `ConsentHistoryService`, `graphql/candidate` | Journal en ajout seul, **conservé après suppression de la fiche** à titre de preuve (art. 7.1) ; durée (prescription) et purge à fixer avec le DPO |
+
+Aucune donnée identifiante en clair (ni nom ni e-mail) : l'UUID ne se relie plus à une personne
+une fois la fiche MongoDB supprimée. `recorded_by` passe à `NULL` à la suppression du compte
+(`ON DELETE SET NULL`).
+
+### Indicateurs nominatifs
+
+| Table / collection | Sens. | Colonnes sensibles | Domaine backend | Rétention |
+|---|---|---|---|---|
+| Mongo `kpis` (`kind: commercial`) | S1 (+S2) | `user_name` (nom dénormalisé) | `KpiRepository` (mongo), `rest/kpi/` | Anonymisation au-delà de N années |
+| Mongo `kpis` (`kind: rh`) | S1 | `user_id` | `RhKpiRepository` (mongo), `rest/rh-kpi/` | Idem |
 
 Données d'évaluation de la performance individuelle : catégorie à part en droit du travail,
 accès à restreindre.
@@ -64,13 +83,16 @@ accès à restreindre.
 | Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
 |---|---|---|---|---|
 | `filiz` | S3 | `token` (API tierce) | `FilizRepository` | Purge à expiration |
-| `interview_access` | S3+S2 | `signature`, `code`, `rh_email`, `candidate_id` | `InterviewAccessRepository` | Purge à expiration + 7 j |
-| `match_link` | S3+S2 | `signature`, `code`, `rh_email`, `company_email` | `MatchLinkRepository` | Idem |
-| `external_link` | S3+S2 | `signature`, `code`, `external_email`, `rh_email` | `ExternalLinkRepository` | Idem |
+| `external_access` | S3+S2 | `signature`, `external_email`, `external_first_name` | `ExternalAccessRepository` | Purge à expiration + 7 j |
+| `interview_access` (dépréciée) | S3+S2 | `signature`, `code`, `rh_email`, `candidate_id` | — | Idem |
+| `match_link` (dépréciée) | S3+S2 | `signature`, `code`, `rh_email`, `company_email` | — | Idem |
+| `external_link` (dépréciée) | S3+S2 | `signature`, `code`, `external_email`, `rh_email` | — | Idem |
 
-Ces tables sont des couples signature/code d'accès associés à des emails. Les conserver
-au-delà de leur expiration n'a aucune valeur métier et allonge la surface d'exposition.
-Purgées par `back/src/scheduler/expiredAccessScheduler.ts`.
+`external_access` est un lien magique (sans code) associé à un email, à durée
+illimitée : actif jusqu'à clôture explicite (`COMPLETED`, bouton « Clôturer le
+lien ») ou révocation (`LOCKED`). Seules les lignes historiques déjà marquées
+`EXPIRED` (avec un `expires_at` passé) sont purgées après un délai de grâce par
+`back/src/scheduler/expiredAccessScheduler.ts`.
 
 ### Paramétrage & divers
 
@@ -79,9 +101,12 @@ Purgées par `back/src/scheduler/expiredAccessScheduler.ts`.
 | `app_settings` | S0 | — (peut contenir des gabarits de mail) | `AppSettingsRepository` | Permanent |
 | `sector_settings` | S0 | — | `SectorSettingsRepository` | Permanent |
 | `booking_settings` | S0 | clé = `user_id` (pseudo-personnel) | `rest/booking/repository.ts` | Suit `users` (CASCADE) |
+| `calendar_day_blocks` | S1 | clé = `user_id` (blocages « Moi »), `reason` (texte libre), `created_by`, `group_key` (période), `scope` | `rest/booking/blocksRepository.ts` | Blocages personnels purgés avec l'utilisateur (`UserDeletionService`) ; blocages globaux conservés (organisationnels) |
+| `calendar_day_block_targets` | S1 | `target` = `U:<user_id>` ou `S:<sector_id>` (personnes/secteurs bloqués) | `rest/booking/blocksRepository.ts` | Supprimé en cascade avec ses `calendar_day_blocks` ; cibles `U:<id>` purgées avec l'utilisateur (`UserDeletionService`) |
 | `peda_config` | S0 | clé = `user_id` | `PedaConfigRepository` | Suit `users` (CASCADE) |
 | `peda_draft_history` | S2 | `recipient` (email) | `PedaDraftHistoryRepository` | 12 mois (déduplication d'envois) |
 | `todos` | S1 | `title`, `description` (texte libre) | `TodoRepository` | Suit `users` (CASCADE) |
+| Mongo `filiz_classes` | S2 | `head_teacher`, `referent_teacher` (nom, prénom, email enseignants) | `FilizReferenceRepository` | Miroir Filiz (ré-upsert à chaque sync) ; non exposé au MCP |
 
 ---
 
@@ -103,10 +128,11 @@ lignes.
 
 ## 4. Points d'arbitrage ouverts
 
-1. **`commercial_kpi.user_name`** — nom dénormalisé, donnée personnelle dupliquée depuis
-   `users`. La supprimer imposerait une jointure sur `users` et ferait perdre l'historique
-   des utilisateurs supprimés (`user_id` est `ON DELETE SET NULL`) — c'est précisément la
-   raison d'être de la colonne. Statut : conservée, documentée.
+1. **`kpis.user_name` (Mongo, `kind: commercial`)** — nom dénormalisé, donnée personnelle
+   dupliquée depuis `users`, snapshot écrit à l'upsert. Le supprimer imposerait une
+   résolution sur `users` et ferait perdre l'historique des utilisateurs supprimés
+   (`user_id` null = orphelines d'imports Excel) — c'est précisément sa raison d'être.
+   Statut : conservé, documenté.
 2. **`peda_draft_history.recipient`** — email destinataire en clair, alors qu'il ne sert
    qu'à la déduplication d'envois. Pourrait n'être qu'un hash. Statut : à trancher.
 
@@ -134,3 +160,26 @@ Les besoins réels sous-jacents ont été traités directement, sans découpage 
 
 Reconsidérer le découpage seulement si un besoin d'isolation **physique** apparaît (charge,
 souveraineté, hébergement séparé) — pas pour un gain d'organisation.
+
+## 6. Chiffrement applicatif : avatars et `client_secret` (#1120, GDPR_INF_02.4)
+
+- `mcp_oauth_clients.client_secret` : **chiffré** AES-256-GCM (`token-cipher.ts`, clé
+  `OAUTH_ENCRYPTION_KEY`). Hachage écarté : le SDK MCP compare le secret en clair
+  (`clientAuth`), il faut donc pouvoir le restituer. Les secrets legacy en clair sont chiffrés
+  par `migrations.ts` (colonne élargie à `VARCHAR(512)`).
+- Avatars (`candidate_avatars`, Buffer Mongo) supprimés par `deleteCandidate` (GDPR_INF_06.4) ;
+  `candidate_consent_history` conservée volontairement après effacement (preuve, art. 7.1) : **décision = pas de chiffrement applicatif**.
+  Photo non catégorie spéciale (Art. 9), accès déjà conditionné au consentement
+  (`avatarConsent`) ; le chiffrement par document alourdirait lecture/rotation de clé pour un
+  gain faible. Risque résiduel (disque) couvert par FileVault (#1117) et purge (INF audit).
+  À réexaminer si les avatars sont analysés (biométrie) ou si le disque reste non chiffré.
+
+## 7. Chiffrement applicatif : données de santé et contact d'urgence (GDPR_INF_02.3)
+
+- Champs chiffrés (AES-256-GCM, `health-cipher.ts`, clé `HEALTH_ENCRYPTION_KEY` distincte du NIR) :
+  `identity.psh_referral_request`, `synthesis.special_needs`,
+  `synthesis.pedagogical_recommendations.psh_specific_support`, `emergency_contact` (en bloc).
+- Pas d'hébergement HDS : chiffrement applicatif seul, périmètre à valider par le DPO (DPIA #1129).
+- Aucune requête/filtre/tri ne porte sur ces champs. Écriture chiffrée dans `CandidateService`,
+  lecture déchiffrée dans `candidateToGql` et `PdfService` ; MCP les exclut déjà.
+- Données existantes : `back/scripts/encrypt-health-fields.ts` (`--verify`), cf. `HOWTODEPLOY.md`.

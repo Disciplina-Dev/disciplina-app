@@ -1,6 +1,9 @@
 import { query, getConnection } from '../../db/mysql/connection';
+import { sectorLabelSql, withSectorId } from './sectorId';
 import { CompanyConflictRow } from '../../types/db-rows.types';
 import { DEFAULT_PAGE_SIZE, decodeCursor } from '../../services/pagination';
+
+const CONFLICT_COLUMNS = `company_conflict.*, ${sectorLabelSql('company_conflict')} AS sector`;
 
 export class CompanyConflictRepository {
     async findAll(
@@ -20,7 +23,7 @@ export class CompanyConflictRepository {
                 params.push(conclusionFilter);
             }
             return query<CompanyConflictRow[]>(
-                `SELECT * FROM company_conflict WHERE ${conditions.join(' AND ')} ORDER BY id`,
+                `SELECT ${CONFLICT_COLUMNS} FROM company_conflict WHERE ${conditions.join(' AND ')} ORDER BY id`,
                 params,
             );
         }
@@ -40,18 +43,26 @@ export class CompanyConflictRepository {
 
         const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
         const limit = Math.max(1, Math.floor(Number(first)) + 1);
-        return query<CompanyConflictRow[]>(`SELECT * FROM company_conflict ${where} ORDER BY id LIMIT ${limit}`, params);
+        return query<CompanyConflictRow[]>(
+            `SELECT ${CONFLICT_COLUMNS} FROM company_conflict ${where} ORDER BY id LIMIT ${limit}`,
+            params,
+        );
     }
 
     async findById(id: number): Promise<CompanyConflictRow | null> {
-        const results = await query<CompanyConflictRow[]>('SELECT * FROM company_conflict WHERE id = ?', [id]);
+        const results = await query<CompanyConflictRow[]>(
+            `SELECT ${CONFLICT_COLUMNS} FROM company_conflict WHERE id = ?`,
+            [id],
+        );
         return results.length > 0 ? results[0] : null;
     }
 
     async update(id: number, data: Partial<CompanyConflictRow>): Promise<boolean> {
         const conn = await getConnection();
         try {
-            const cleaned = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
+            const cleaned = Object.fromEntries(
+                Object.entries(await withSectorId(data)).filter(([_, v]) => v !== undefined),
+            );
             if (Object.keys(cleaned).length === 0) return false;
             const sets = Object.keys(cleaned)
                 .map((key) => `${key} = ?`)

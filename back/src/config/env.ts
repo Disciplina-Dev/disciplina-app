@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { isRegion, type Region } from '../types/tenant';
 
 dotenv.config({
     path: ['.env', '../.env'],
@@ -17,6 +18,16 @@ const INSECURE_DEFAULTS = new Set([
 ]);
 
 const errors: string[] = [];
+
+// Les deux clés drillent aes-256-gcm : 32 octets exacts en hex (64 chars).
+// Une clé trop courte fait échouer createCipheriv au moment du chiffrement
+// (500 sournois, ex. google.test.ts en CI), autant l'attraper au boot.
+function assertAes256HexKey(key: string, name: string): void {
+    if (!key) return;
+    if (!/^[0-9a-fA-F]{64}$/.test(key) || Buffer.from(key, 'hex').length !== 32) {
+        errors.push(`${name} must be a 64-char hex string (32 bytes for aes-256-gcm)`);
+    }
+}
 
 function requireString(key: string): string {
     const raw = process.env[key];
@@ -96,7 +107,7 @@ const data = {
     CLASSMARKER_API_KEY: optionalString('CLASSMARKER_API_KEY'),
     CLASSMARKER_API_SECRET: optionalString('CLASSMARKER_API_SECRET'),
     CLASSMARKER_WEBHOOK_SECRET: requireStringWithCIFallback('CLASSMARKER_WEBHOOK_SECRET', 'sldllsdkldkls'),
-    MYSQL_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MYSQL_HOST', 'localhost'),
+    MYSQL_HOST: stringWithDefault('MYSQL_HOST', 'localhost'),
     MYSQL_PORT: numberWithDefault('MYSQL_PORT', 3306),
     MYSQL_USER: stringWithDefault('MYSQL_USER', 'root'),
     MYSQL_ROOT_PASSWORD:
@@ -104,13 +115,36 @@ const data = {
             ? (optionalString('MYSQL_ROOT_PASSWORD') ?? '')
             : requireStringWithCIFallback('MYSQL_ROOT_PASSWORD', 'ci-mysql-password'),
     // Mot de passe du compte applicatif non-root (`disciplina_app`). Retombe sur
-    // MYSQL_ROOT_PASSWORD tant que MYSQL_USER vaut root : les installations existantes,
+    // MYSQL_ROOT_PASSWORD tant que MYSQL_USER vaut root : les installations existantes
     // dont le compte applicatif n'a pas été créé (mysql-init.sql ne rejoue pas sur un
-    // volume existant, cf. database/mysql/migrations/2026-08-06-app-user.sql), continuent
-    // de démarrer sans modifier leur .env.
+    // volume existant) continuent de démarrer sans modifier leur .env.
     MYSQL_PASSWORD: optionalString('MYSQL_PASSWORD'),
     MYSQL_DATABASE: requireStringWithCIFallback('MYSQL_DATABASE', 'disciplina'),
     MYSQL_URI: optionalString('MYSQL_URI'),
+    // URI du serveur MySQL pour le tenant Annemasse (MÊME serveur MySQL, base
+    // disciplina_annemasse). Requise en production, comme MYSQL_URI.
+    MYSQL_ANNEMASSE_URI: optionalString('MYSQL_ANNEMASSE_URI'),
+    // Compte et mot de passe du tenant Annemasse (en non-production). Optionnels :
+    // en l'absence de valeur, on retombe sur le compte de Réunion (le même compte
+    // MySQL, ex. `disciplina_app`, est déjà granté sur les deux bases).
+    MYSQL_ANNEMASSE_USER: optionalString('MYSQL_ANNEMASSE_USER'),
+    MYSQL_ANNEMASSE_PASSWORD: optionalString('MYSQL_ANNEMASSE_PASSWORD'),
+    // Nom de la base du tenant Annemasse, en non-production (URI construite par pieces).
+    MYSQL_ANNEMASSE_DATABASE: stringWithDefault('MYSQL_ANNEMASSE_DATABASE', 'disciplina_annemasse'),
+    // Tenant par défaut (pas de JWT / valeur absente) : 'reunion' | 'annemasse'.
+    DB_DEFAULT_TENANT: (() => {
+        const raw = stringWithDefault('DB_DEFAULT_TENANT', 'reunion');
+        if (!isRegion(raw)) {
+            errors.push(`DB_DEFAULT_TENANT must be 'reunion' or 'annemasse', got "${raw}"`);
+            return 'reunion' as Region;
+        }
+        return raw as Region;
+    })(),
+    // Chemin d'une autorité de certification à utiliser pour le TLS MySQL en production.
+    // Nécessaire quand la base est un MySQL auto-hébergé : son certificat auto-signé,
+    // généré à l'init du serveur, n'est pas vérifiable via les CA système.
+    // Vide (défaut) = vérification classique contre les CA système (TiDB Cloud & co).
+    MYSQL_SSL_CA: optionalString('MYSQL_SSL_CA'),
 
     MONGO_URI: optionalString('MONGO_URI'),
     MONGO_ROOT_USERNAME:
@@ -122,8 +156,19 @@ const data = {
             ? (optionalString('MONGO_ROOT_PASSWORD') ?? '')
             : requireString('MONGO_ROOT_PASSWORD'),
     MONGO_PORT: numberWithDefault('MONGO_PORT', 27017),
-    MONGO_HOST: process.env.NODE_ENV === 'test' ? 'localhost' : stringWithDefault('MONGO_HOST', 'nosql-db'),
+    MONGO_HOST:
+        process.env.NODE_ENV === 'test'
+            ? stringWithDefault('MONGO_HOST', 'localhost')
+            : stringWithDefault('MONGO_HOST', 'nosql-db'),
     MONGO_DB_NAME: stringWithDefault('MONGO_DB_NAME', 'human_ressources'),
+    // URI du tenant Annemasse (MÊME serveur Mongo, base disciplina_annemasse).
+    MONGO_ANNEMASSE_URI: optionalString('MONGO_ANNEMASSE_URI'),
+    // Credentials du tenant Annemasse (utilisés pour construire l'URI en non-production).
+    // Optionnels : fallback sur MONGO_ROOT_USERNAME/MONGO_ROOT_PASSWORD.
+    MONGO_ANNEMASSE_USERNAME: optionalString('MONGO_ANNEMASSE_USERNAME'),
+    MONGO_ANNEMASSE_PASSWORD: optionalString('MONGO_ANNEMASSE_PASSWORD'),
+    // Nom de la base Mongo du tenant Annemasse (non-production).
+    MONGO_ANNEMASSE_DATABASE: stringWithDefault('MONGO_ANNEMASSE_DATABASE', 'disciplina_annemasse'),
 
     JWT_SECRET: requireStringWithCIFallback('JWT_SECRET', 'ci-jwt-secret'),
     JWT_REFRESH_SECRET: requireStringWithCIFallback('JWT_REFRESH_SECRET', 'ci-jwt-refresh-secret'),
@@ -134,10 +179,21 @@ const data = {
     GOOGLE_CLIENT_ID: optionalString('GOOGLE_CLIENT_ID'),
     GOOGLE_CLIENT_SECRET: optionalString('GOOGLE_CLIENT_SECRET'),
     GOOGLE_REDIRECT_URI: stringWithDefault('GOOGLE_REDIRECT_URI', 'http://localhost:5173/auth/google'),
+    // Second GCP OAuth client for the Annemasse tenant (distinct consent screen /
+    // quota / revocation boundary). Empty = fallback to the Réunion client above,
+    // so single-app deployments keep working with zero config change.
+    GOOGLE_ANNEMASSE_CLIENT_ID: optionalString('GOOGLE_ANNEMASSE_CLIENT_ID'),
+    GOOGLE_ANNEMASSE_CLIENT_SECRET: optionalString('GOOGLE_ANNEMASSE_CLIENT_SECRET'),
+    GOOGLE_ANNEMASSE_REDIRECT_URI: optionalString('GOOGLE_ANNEMASSE_REDIRECT_URI'),
 
     FILIZ_CLIENT_ID: requireStringWithCIFallback('FILIZ_CLIENT_ID', 'ci-filiz-client-id'),
     FILIZ_CLIENT_SECRET: requireStringWithCIFallback('FILIZ_CLIENT_SECRET', 'ci-filiz-secret'),
     FILIZ_AUDIENCE: requireStringWithCIFallback('FILIZ_AUDIENCE', 'ci-filiz-audience'),
+    // Création de dossiers coupée en prod tant que le flux n'est pas validé (FILIZ_FOLDER_CREATION=true pour réactiver).
+    FILIZ_FOLDER_CREATION_ENABLED:
+        process.env.NODE_ENV !== 'production' || process.env.FILIZ_FOLDER_CREATION === 'true',
+    // Modification des promotions Filiz (PATCH /api/class) coupée en prod tant que non validée (FILIZ_CLASS_UPDATE=true pour réactiver).
+    FILIZ_CLASS_UPDATE_ENABLED: process.env.NODE_ENV !== 'production' || process.env.FILIZ_CLASS_UPDATE === 'true',
     FILIZ_BASE_URI: optionalString('FILIZ_BASE_URI', 'https://api.dev.partners.filiz.io'),
     FILIZ_AUTH_URI: requireStringWithCIFallback('FILIZ_AUTH_URI', 'http://localhost/ci-filiz-auth'),
 
@@ -158,6 +214,12 @@ const data = {
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 
+    // Boîte Google d'envoi des mails « système » (notifications internes,
+    // codes d'accès externes). Doit exister dans la base du tenant ET avoir un
+    // consentement Google valide ; sinon repli sur un compte du staff connecté
+    // (cf. external/google/system-mail.ts). Un compte par tenant.
+    SYSTEM_MAIL_SENDER: stringWithDefault('SYSTEM_MAIL_SENDER', 'dev@disciplina.re'),
+
     // Dossier partagé racine "Candidat Nord" (fallback si pas de sous-dossier par TP).
     DRIVE_CANDIDATS_NORD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_FOLDER_ID'),
     // Sous-dossiers par type de Titre Professionnel, dans "Candidat Nord".
@@ -165,6 +227,8 @@ const data = {
     DRIVE_CANDIDATS_NORD_CC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CC_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID'),
     DRIVE_CANDIDATS_NORD_REM_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_REM_FOLDER_ID'),
+    DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID'),
+    // Legacy : ancien nom du TP CADGA, conservé comme fallback de configuration.
     DRIVE_CANDIDATS_NORD_SA_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_SA_FOLDER_ID'),
 
     // Dossier Drive où sont stockés les pièces jointes / signatures des modèles de mail.
@@ -172,16 +236,49 @@ const data = {
 
     OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
     SSN_ENCRYPTION_KEY: requireString('SSN_ENCRYPTION_KEY'),
+    // Sel HKDF propre au déploiement (32 octets hex) : dérive la clé NIR (cf. ssn-cipher.ts).
+    SSN_KDF_SALT: requireString('SSN_KDF_SALT'),
+    // Rotation : ancienne clé/sel, en lecture seule le temps de la ré-encryption (rotate-ssn-key.ts).
+    SSN_ENCRYPTION_KEY_PREVIOUS: optionalString('SSN_ENCRYPTION_KEY_PREVIOUS'),
+    SSN_KDF_SALT_PREVIOUS: optionalString('SSN_KDF_SALT_PREVIOUS'),
+
+    // Données de santé / handicap / contact d'urgence (GDPR_INF_02.3) : clé et sel HKDF distincts du NIR
+    // (cf. health-cipher.ts). Rotation via *_PREVIOUS (encrypt-health-fields.ts).
+    HEALTH_ENCRYPTION_KEY: requireString('HEALTH_ENCRYPTION_KEY'),
+    HEALTH_KDF_SALT: requireString('HEALTH_KDF_SALT'),
+    HEALTH_ENCRYPTION_KEY_PREVIOUS: optionalString('HEALTH_ENCRYPTION_KEY_PREVIOUS'),
+    HEALTH_KDF_SALT_PREVIOUS: optionalString('HEALTH_KDF_SALT_PREVIOUS'),
 
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
     MCP_API_KEY: optionalString('MCP_API_KEY'),
+    // La clé statique est un accès ADMIN anonyme (RGPD, MCP_RGPD_AUDIT.md M7) : ignorée en
+    // production sauf opt-in explicite. L'OAuth (comptes nominatifs) reste toujours actif.
+    // Secret de signature des codes / access tokens OAuth MCP. Distinct de JWT_SECRET (sessions de
+    // l'application) pour qu'une compromission de l'un n'ouvre pas l'autre ; absent = JWT_SECRET
+    // (rétrocompatible). Le définir invalide les sessions MCP en cours.
+    MCP_JWT_SECRET: optionalString('MCP_JWT_SECRET'),
+    MCP_STATIC_KEY_ENABLED: process.env.MCP_STATIC_KEY_ENABLED === 'true',
+
+    // URL publique HTTPS de l'authorization server OAuth MCP (claude.ai web). Le
+    // SDK exige https sans fragment ni query ; le défaut localhost sert au dev/test.
+    MCP_OAUTH_ISSUER_URL: stringWithDefault('MCP_OAUTH_ISSUER_URL', 'http://localhost:4000'),
 };
 
 const VALID_NODE_ENVS = ['development', 'production', 'test'] as const;
 if (!VALID_NODE_ENVS.includes(data.NODE_ENV)) {
     errors.push(`NODE_ENV must be one of: ${VALID_NODE_ENVS.join(', ')} (got "${process.env.NODE_ENV}")`);
 }
+
+assertAes256HexKey(data.OAUTH_ENCRYPTION_KEY, 'OAUTH_ENCRYPTION_KEY');
+assertAes256HexKey(data.SSN_ENCRYPTION_KEY, 'SSN_ENCRYPTION_KEY');
+assertAes256HexKey(data.SSN_KDF_SALT, 'SSN_KDF_SALT');
+assertAes256HexKey(data.SSN_ENCRYPTION_KEY_PREVIOUS ?? '', 'SSN_ENCRYPTION_KEY_PREVIOUS');
+assertAes256HexKey(data.SSN_KDF_SALT_PREVIOUS ?? '', 'SSN_KDF_SALT_PREVIOUS');
+assertAes256HexKey(data.HEALTH_ENCRYPTION_KEY, 'HEALTH_ENCRYPTION_KEY');
+assertAes256HexKey(data.HEALTH_KDF_SALT, 'HEALTH_KDF_SALT');
+assertAes256HexKey(data.HEALTH_ENCRYPTION_KEY_PREVIOUS ?? '', 'HEALTH_ENCRYPTION_KEY_PREVIOUS');
+assertAes256HexKey(data.HEALTH_KDF_SALT_PREVIOUS ?? '', 'HEALTH_KDF_SALT_PREVIOUS');
 
 if (errors.length > 0) {
     console.error('Invalid environment variables:');
@@ -226,6 +323,11 @@ if (INSECURE_DEFAULTS.has(data.SSN_ENCRYPTION_KEY)) {
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 
+if (INSECURE_DEFAULTS.has(data.HEALTH_ENCRYPTION_KEY)) {
+    console.error('HEALTH_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
 if (data.NODE_ENV === 'production' && !data.MONGO_URI) {
     console.error('MONGO_URI is required in production');
     process.exit(1);
@@ -233,6 +335,16 @@ if (data.NODE_ENV === 'production' && !data.MONGO_URI) {
 
 if (data.NODE_ENV === 'production' && !data.MYSQL_URI) {
     console.error('MYSQL_URI is required in production');
+    process.exit(1);
+}
+
+if (data.NODE_ENV === 'production' && !data.MYSQL_ANNEMASSE_URI) {
+    console.error('MYSQL_ANNEMASSE_URI is required in production');
+    process.exit(1);
+}
+
+if (data.NODE_ENV === 'production' && !data.MONGO_ANNEMASSE_URI) {
+    console.error('MONGO_ANNEMASSE_URI is required in production');
     process.exit(1);
 }
 

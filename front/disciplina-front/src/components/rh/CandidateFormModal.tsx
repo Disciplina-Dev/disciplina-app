@@ -1,20 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, X, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { IconAlert, IconClose, IconPlus, IconTrash, IconUser } from '@/components/ui/icons'
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
 import Button from '@/components/ui/Button';
 import InputField from '@/components/ui/InputField';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import MultiSelectField from '@/components/ui/MultiSelectField';
+import { DEPARTEMENTS } from '@/lib/departements';
 import { candidateGraphqlClient, graphqlClient } from '@/graphql/client';
-import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS } from '@/graphql/queries';
-import { apiFetch } from '@/api/httpClient';
+import { CREATE_CANDIDATE, UPDATE_CANDIDATE_FULL, CHECK_CANDIDATE_EMAIL, CREATE_CANDIDATE_DRIVE_FOLDER, GET_RH_USERS, ADD_CANDIDATE_HISTORY_ENTRY } from '@/graphql/queries';
+import { apiFetch, apiJson } from '@/api/httpClient';
+import { useClassMarkerResult } from '@/hooks/useClassMarkerResult';
 import { cityFromPostalCode, LOCALISATION_LABELS } from '@/data/reunionCommunes';
+import { useSectors } from '@/hooks/useSectors';
+import { useRegionStore } from '@/store/regionStore';
 import { computeAge } from '@/utils/age';
-import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS } from '@/data/candidateTemplates';
+import { CANDIDATE_TEMPLATES, SKILL_LEVEL_LABELS, DISCOVERY_SOURCE_LABELS, TRAINING_SITE_LABELS, TP_TYPE_LABELS } from '@/data/candidateTemplates';
+import { gateThresholdForTp } from '@/utils/testGateThreshold';
+import {
+  TEST_FAILURE_NO_SHARE_VALUE,
+  TEST_FAILURE_ORIENTATION_OPTIONS,
+  buildTestFailureComment,
+  buildTestFailureRedirectionBody,
+} from '@/constants/testFailureOrientation';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
+import { AI_PROCESSING_CONSENT_LABEL, CONSENT_VERSION } from '@/constants/consent';
 import SignaturePad from '@/components/ui/SignaturePad';
+import CandidateConsentHistory from '@/components/rh/CandidateConsentHistory';
 
 // Préconisations pédagogiques : clé GraphQL (camel), clé Mongo (snake), libellé.
 const PEDA_OPTIONS: { camel: string; snake: keyof PedagogicalRecommendations; label: string }[] = [
@@ -34,8 +47,8 @@ const PEDA_OPTIONS: { camel: string; snake: keyof PedagogicalRecommendations; la
 
 function ABSectionTitle({ title }: { title: string }) {
   return (
-    <div className="border-t border-gray-100 pt-5 pb-1">
-      <h3 className="text-sm font-semibold text-gray-800">{title}</h3>
+    <div className="border-t border-[var(--ds-border)] pt-5 pb-1">
+      <h3 className="text-sm font-semibold text-[var(--ds-text)]">{title}</h3>
     </div>
   );
 }
@@ -43,10 +56,10 @@ function ABSectionTitle({ title }: { title: string }) {
 function ABRadio({ label, name, value, onChange, options }: { label: string; name: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[] }) {
   return (
     <div>
-      <p className="text-sm font-medium text-gray-700 mb-2">{label}</p>
+      <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">{label}</p>
       <div className="flex flex-wrap gap-4">
         {options.map(opt => (
-          <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
             <input type="radio" name={name} value={opt.value} checked={value === opt.value} onChange={() => onChange(opt.value)} className="accent-blue-600" />
             {opt.label}
           </label>
@@ -59,9 +72,9 @@ function ABRadio({ label, name, value, onChange, options }: { label: string; nam
 function ABTextarea({ label, value, onChange, rows = 2 }: { label: string; value: string; onChange: (v: string) => void; rows?: number }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-sm font-medium text-gray-700">{label}</label>
+      <label className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</label>
       <textarea rows={rows} value={value} onChange={e => onChange(e.target.value)}
-        className="w-full rounded-[10px] border border-gray-100 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none focus:border-blue-500 resize-none" />
+        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)] resize-none" />
     </div>
   );
 }
@@ -69,9 +82,9 @@ function ABTextarea({ label, value, onChange, rows = 2 }: { label: string; value
 function ABSelectField({ id, label, value, onChange, children }: { id: string; label: string; value: string; onChange: (v: string) => void; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium text-gray-700">{label}</label>
+      <label htmlFor={id} className="text-sm font-medium text-[var(--ds-text-muted)]">{label}</label>
       <select id={id} value={value} onChange={e => onChange(e.target.value)}
-        className="w-full rounded-[10px] border border-gray-100 bg-white py-2.5 px-3 text-sm text-gray-900 outline-none focus:border-blue transition-colors">
+        className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-blue transition-colors">
         {children}
       </select>
     </div>
@@ -83,9 +96,11 @@ function ABSelectField({ id, label, value, onChange, children }: { id: string; l
 type ABForm = {
   // identité
   dateOfBirth: string; placeOfBirth: string; departmentOfBirth: string; age: string;
+  bornInFrance: string; nationality: string; residencePermit: string; country: string;
+  sex: string;
   fullName: string; socialSecurityNumber: string; email: string; phone: string;
   address: string; postalCode: string; city: string;
-  drivingLicenseB: string; transportMeans: string; pshReferralRequest: string;
+  drivingLicenseB: string; hasVehicle: string; transportMeans: string; pshReferralRequest: string;
   hadApprenticeshipContract: string;
   apprenticeshipContractDetails: string;
   description: string;
@@ -123,6 +138,7 @@ type ABForm = {
   desiredSectors: string[]; expectedCompanySkills: string[];
   // découverte
   discoverySource: string;
+  jobSearchPlatforms: string;
   // préconisations pédagogiques (clés camel sélectionnées) + zone libre
   pedagogicalRecommendations: string[];
   otherRecommendations: string;
@@ -135,6 +151,13 @@ type ABForm = {
   candidateSignature: string;
   // RH ayant mené l'entretien (nom complet)
   interviewedBy: string;
+  // consentements RGPD
+  consentDataProcessing: boolean; consentDataSharing: boolean;
+  consentAiProcessing: boolean; consentPhotoProcessing: boolean;
+  // test préalable (épreuve écrite + ClassMarker)
+  writtenTestScore: string;
+  testAverage: string;
+  testFailurePending: boolean;
 };
 
 // Union des compétences des templates de plusieurs TP (dédupliquée par nom).
@@ -171,8 +194,10 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
   const tpl = CANDIDATE_TEMPLATES[tpType];
   return {
     dateOfBirth: '', placeOfBirth: '', departmentOfBirth: '', age: '', address: '', postalCode: '', city: '',
+    bornInFrance: '', nationality: '', residencePermit: '', country: '',
+    sex: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
-    drivingLicenseB: '', transportMeans: '', pshReferralRequest: '',
+    drivingLicenseB: '', hasVehicle: '', transportMeans: '', pshReferralRequest: '',
     hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '',
     ecLastName: '', ecFirstName: '', ecRelationship: '', ecPhone: '', ecEmail: '',
     tpTypes: [tpType], status: 'SEEKING',
@@ -192,6 +217,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     domainMotivation: '', questionsConcerns: '', availabilityDate: '', geographicMobility: [], weekendWork: '',
     desiredSectors: [], expectedCompanySkills: [],
     discoverySource: '',
+    jobSearchPlatforms: '',
     pedagogicalRecommendations: [],
     otherRecommendations: '',
     feasibilityConclusion: '',
@@ -200,6 +226,9 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     importantNote: '',
     candidateSignature: '',
     interviewedBy: '',
+    consentDataProcessing: false, consentDataSharing: false,
+    consentAiProcessing: false, consentPhotoProcessing: false,
+    writtenTestScore: '', testAverage: '', testFailurePending: false,
   };
 }
 
@@ -216,17 +245,23 @@ function candidateToForm(c: Candidate): ABForm {
   return {
     fullName: c.identity.full_name ?? '',
     socialSecurityNumber: c.identity.social_security_number ?? '',
+    sex: c.identity.sex ?? '',
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
     description: c.identity.description ?? '',
     dateOfBirth: c.identity.date_of_birth ? c.identity.date_of_birth.slice(0, 10) : '',
     placeOfBirth: c.identity.place_of_birth ?? '',
     departmentOfBirth: c.identity.department_of_birth ?? '',
+    bornInFrance: bs(c.identity.born_in_france),
+    nationality: c.identity.nationality != null ? String(c.identity.nationality) : '',
+    residencePermit: bs(c.identity.residence_permit),
+    country: c.identity.country ?? '',
     age: c.identity.age != null ? String(c.identity.age) : '',
     address: c.identity.address ?? '',
     postalCode: c.identity.postal_code ?? '',
     city: c.identity.city ?? '',
     drivingLicenseB: bs(c.identity.driving_license_b),
+    hasVehicle: bs(c.identity.has_vehicle),
     transportMeans: c.identity.transport_means ?? '',
     pshReferralRequest: bs(c.identity.psh_referral_request),
     hadApprenticeshipContract: bs(c.identity.had_apprenticeship_contract),
@@ -281,6 +316,7 @@ function candidateToForm(c: Candidate): ABForm {
     desiredSectors: c.desired_sectors ?? [],
     expectedCompanySkills: c.expected_company_skills ?? [],
     discoverySource: c.job_info?.discovery_source ?? '',
+    jobSearchPlatforms: c.job_info?.job_search_platforms ?? '',
     pedagogicalRecommendations: c.synthesis?.pedagogical_recommendations
       ? PEDA_OPTIONS.filter(o => c.synthesis!.pedagogical_recommendations![o.snake]).map(o => o.camel)
       : [],
@@ -291,30 +327,69 @@ function candidateToForm(c: Candidate): ABForm {
     importantNote: c.synthesis?.important_note ?? '',
     candidateSignature: c.synthesis?.candidate_signature ?? '',
     interviewedBy: c.synthesis?.interviewed_by ?? '',
+    consentDataProcessing: c.consentments?.data_processing ?? false,
+    consentDataSharing: c.consentments?.data_sharing ?? false,
+    consentAiProcessing: c.consentments?.ai_processing ?? false,
+    consentPhotoProcessing: c.consentments?.photo_processing ?? false,
+    writtenTestScore: c.written_test_score != null ? String(parseFloat((c.written_test_score / 2).toFixed(2))) : '',
+    testAverage: c.test_average != null ? String(c.test_average) : '',
+    testFailurePending: !!c.test_failure_pending,
   };
 }
 
-function toServerInput(f: ABForm) {
+function toServerInput(f: ABForm, original?: Candidate | null) {
   const pb = (v: string) => v === 'true' ? true : v === 'false' ? false : undefined;
   const qualities = [f.quality1, f.quality2, f.quality3].filter(Boolean);
   const defects = [f.defect1, f.defect2, f.defect3].filter(Boolean);
+  // Ne réémet consentDate/consentVersion que si un des choix a changé, pour ne
+  // pas écraser la date de consentement d'origine à chaque édition non liée.
+  const prevConsent = original?.consentments;
+  const consentUnchanged = prevConsent
+    && prevConsent.data_processing === f.consentDataProcessing
+    && prevConsent.data_sharing === f.consentDataSharing
+    && prevConsent.ai_processing === f.consentAiProcessing
+    && prevConsent.photo_processing === f.consentPhotoProcessing;
+  // Épreuve écrite saisie sur 10 côté UI, stockée sur 20 côté serveur
+  // (conversion ×2) pour rester cohérent avec l'historique et la moyenne /20.
+  const wt = f.writtenTestScore !== '' ? parseFloat(f.writtenTestScore) * 2 : undefined;
+  const avg = f.testAverage !== '' ? parseFloat(f.testAverage) : undefined;
   return {
     tpTypes: f.tpTypes, status: f.status,
+    writtenTestScore: wt,
+    testAverage: avg,
+    testFailurePending: f.testFailurePending || undefined,
     trainingSites: f.trainingSites,
     immersionAgreement: pb(f.immersionAgreement),
     desiredSectors: f.desiredSectors,
     expectedCompanySkills: f.expectedCompanySkills,
+    consentments: {
+      dataProcessing: f.consentDataProcessing,
+      dataSharing: f.consentDataSharing,
+      aiProcessing: f.consentAiProcessing,
+      photoProcessing: f.consentPhotoProcessing,
+      consentDate: consentUnchanged ? prevConsent!.consent_date : new Date().toISOString(),
+      consentVersion: consentUnchanged ? prevConsent!.consent_version : CONSENT_VERSION,
+    },
     identity: {
       fullName: f.fullName, socialSecurityNumber: f.socialSecurityNumber || undefined, email: f.email, phone: f.phone,
-      description: f.description || undefined,
+      sex: f.sex || undefined,
+      // Chaîne vide explicite = l'utilisateur a effacé le champ : le backend
+      // régénère le résumé automatique (une description manuelle est protégée
+      // tant que le champ n'est pas vidé).
+      description: f.description,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       departmentOfBirth: f.departmentOfBirth || undefined,
+      bornInFrance: pb(f.bornInFrance),
+      nationality: f.nationality ? parseInt(f.nationality) : undefined,
+      residencePermit: f.nationality === '3' ? pb(f.residencePermit) : undefined,
+      country: f.country || undefined,
       age: f.age ? parseInt(f.age) : undefined,
       address: f.address || undefined,
       postalCode: f.postalCode || undefined,
       city: f.city || undefined,
       drivingLicenseB: pb(f.drivingLicenseB),
+      hasVehicle: pb(f.hasVehicle),
       transportMeans: f.transportMeans || undefined,
       pshReferralRequest: pb(f.pshReferralRequest),
       hadApprenticeshipContract: pb(f.hadApprenticeshipContract),
@@ -365,6 +440,7 @@ function toServerInput(f: ABForm) {
       geographicMobility: f.geographicMobility.length ? f.geographicMobility : undefined,
       weekendWork: pb(f.weekendWork),
       discoverySource: f.discoverySource || undefined,
+      jobSearchPlatforms: f.jobSearchPlatforms.trim() || undefined,
     },
     synthesis: {
       importantNote: f.importantNote || undefined,
@@ -405,6 +481,8 @@ interface CandidateFormModalProps {
   onSaved: () => void;
   /** Appelé après création avec l'id du nouveau candidat (ex: pour rediriger vers sa fiche). */
   onCreated?: (id: string) => void;
+  /** Si vrai, le mode édition commence par l'étape de vérification des résultats de test (gate). */
+  requireGate?: boolean;
 }
 
 // ─── Brouillon localStorage (création + édition) ──────────────────────────────
@@ -445,8 +523,14 @@ function isDraftMeaningful(d: Partial<ABForm> | null): d is Partial<ABForm> {
   return !!d && !!(d.fullName || d.email || d.phone);
 }
 
-export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated }: CandidateFormModalProps) {
+export default function CandidateFormModal({ candidate, prefill, onClose, onSaved, onCreated, requireGate }: CandidateFormModalProps) {
   const isEdit = !!candidate;
+  // Sections de mobilité selon le tenant (3 zones Réunion, 6 secteurs Annemasse).
+  const region = useRegionStore((s) => s.region);
+  // Tenant Annemasse : pas de sites de formation (cf. ListeCandidats) — la
+  // section Réunion (Sainte-Marie / Saint-Paul / Saint-Pierre) est masquée.
+  const isAnnemasse = region === 'annemasse';
+  const { communeSections } = useSectors();
   // Clé de brouillon : par candidat en édition, unique en création.
   const draftKey = candidate ? editDraftKey(candidate._id) : CREATE_DRAFT_KEY;
   const [form, setForm] = useState<ABForm>(() => {
@@ -459,6 +543,11 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     // En création, on repart d'un brouillon sauvegardé s'il est exploitable.
     return isDraftMeaningful(draft) ? { ...emptyABForm(), ...draft } : { ...emptyABForm(), ...prefill };
   });
+  // Consentements enregistrés côté serveur : base de comparaison de toServerInput. Mise à
+  // jour après un retrait (GDPR_INF_08.2), sinon l'enregistrement suivant du formulaire
+  // verrait un « changement » et ré-accorderait le consentement retiré.
+  const [consentBaseline, setConsentBaseline] = useState(candidate?.consentments);
+  const savedCandidate = candidate ? { ...candidate, consentments: consentBaseline } : candidate;
   const [draftRestored, setDraftRestored] = useState(() => {
     const draft = loadDraft(draftKey);
     return candidate ? !!draft : isDraftMeaningful(draft);
@@ -508,6 +597,219 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     clearDraft(draftKey);
     setForm(candidate ? candidateToForm(candidate) : { ...emptyABForm(), ...prefill });
     setDraftRestored(false);
+  };
+
+  // ── Gate : test écrit + ClassMarker ─────────────────────────────────────
+  // Le gate n'est demandé qu'une fois : si le candidat a déjà des résultats
+  // enregistrés (vérification déjà effectuée), « Compléter » ouvre directement
+  // le formulaire comme « Modifier », sans re-prompt.
+  const hasRecordedGateResults = candidate?.test_average != null && candidate?.written_test_score != null;
+  const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? (requireGate && !hasRecordedGateResults ? 'gate' : 'form') : 'gate');
+  // TP évalué au gate : détermine la moyenne minimale requise (CC → 10, autres → 12).
+  const [gateTp, setGateTp] = useState<TitleProfessionalType>(() => form.tpTypes[0] ?? TitleProfessionalType.CC);
+  const gateThreshold = gateThresholdForTp(gateTp);
+  const [manualClassMarkerScore, setManualClassMarkerScore] = useState<string>(() => {
+    if (candidate?.test_average != null && candidate?.written_test_score != null) return '';
+    return '';
+  });
+  const [failureComment, setFailureComment] = useState('');
+  const [failureOrientations, setFailureOrientations] = useState<string[]>([]);
+  const [sendFailureMail, setSendFailureMail] = useState(false);
+  const [failureMailError, setFailureMailError] = useState<string | null>(null);
+  const [failureCommentSaved, setFailureCommentSaved] = useState(false);
+  const [gateError, setGateError] = useState<string | null>(null);
+  const [gateLoading, setGateLoading] = useState(false);
+  const [failedCandidateId, setFailedCandidateId] = useState<string | null>(null);
+  const [failedCandidateName, setFailedCandidateName] = useState<string>('');
+  // ClassMarker auto-fill : si édition, on récupère le résultat du candidat existant.
+  const { result: gateClassMarkerResult } = useClassMarkerResult(candidate?._id);
+  const classMarkerScore20: number | null = (() => {
+    if (gateClassMarkerResult && typeof gateClassMarkerResult.percentage === 'number') {
+      return gateClassMarkerResult.percentage / 5;
+    }
+    if (manualClassMarkerScore.trim() !== '') {
+      const v = parseFloat(manualClassMarkerScore.replace(',', '.'));
+      if (!Number.isNaN(v) && v >= 0 && v <= 20) return v;
+    }
+    return null;
+  })();
+  const writtenScore10: number | null = (() => {
+    const v = parseFloat((form.writtenTestScore ?? '').replace(',', '.'));
+    if (Number.isNaN(v)) return null;
+    return v;
+  })();
+  // Convertie sur 20 pour le calcul de la moyenne avec ClassMarker (/20).
+  const writtenScore20: number | null = writtenScore10 != null ? writtenScore10 * 2 : null;
+  const testAverage: number | null = writtenScore20 != null && classMarkerScore20 != null
+    ? (writtenScore20 + classMarkerScore20) / 2
+    : null;
+
+  const handleGateValidate = async () => {
+    setGateError(null);
+    if (writtenScore10 == null || writtenScore10 < 0 || writtenScore10 > 10) {
+      setGateError('Veuillez saisir le résultat de l’épreuve écrite (0–10).');
+      return;
+    }
+    if (classMarkerScore20 == null) {
+      setGateError('Résultat ClassMarker manquant : saisissez-le (0–20) ou attendez le résultat automatique.');
+      return;
+    }
+    if (testAverage == null) {
+      setGateError('Impossible de calculer la moyenne.');
+      return;
+    }
+    const avg = testAverage;
+    // Le TP choisi au gate devient le TP de la fiche en création ; en édition
+    // on l'ajoute aux TP existants sans rien retirer.
+    const gateTpTypes = isEdit
+      ? (form.tpTypes.includes(gateTp) ? form.tpTypes : [...form.tpTypes, gateTp])
+      : [gateTp];
+    if (avg >= gateThreshold) {
+      // Réussite : on poursuit vers le formulaire complet, statut Seeking
+      setForm(prev => ({ ...prev, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'SEEKING', testFailurePending: false }));
+      setGateStep('form');
+    } else {
+      // Échec : candidat en TEST_FAILED + pending, puis invite à commenter
+      setGateLoading(true);
+      try {
+        if (isEdit && candidate) {
+          const input = toServerInput({ ...form, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true } as ABForm, savedCandidate);
+          // Force statut / scores même si toServerInput les normalise
+          input.status = 'TEST_FAILED';
+          input.writtenTestScore = writtenScore10 * 2;
+          input.testAverage = avg;
+          input.testFailurePending = true;
+          const res = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate._id, input });
+          if (res.error) throw new Error(res.error.message.replace(/^\[GraphQL\]\s*/, ''));
+          setFailedCandidateId(candidate._id);
+          setFailedCandidateName(form.fullName || candidate.identity.full_name);
+          setForm(prev => ({ ...prev, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true }));
+        } else {
+          // Création : il faut au minimum nom/email/téléphone pour créer la fiche en échec
+          if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim()) {
+            setGateError('Pour enregistrer l’échec, renseignez au minimum Nom, Email et Téléphone dans le formulaire ci-dessous.');
+            setGateLoading(false);
+            return;
+          }
+          // Assure un consentement minimal pour passer la garde backend
+          const pendingForm: ABForm = {
+            ...form,
+            tpTypes: gateTpTypes,
+            status: 'TEST_FAILED',
+            testAverage: String(avg.toFixed(2)),
+            testFailurePending: true,
+            consentDataProcessing: form.consentDataProcessing || true,
+            consentDataSharing: form.consentDataSharing,
+            consentAiProcessing: form.consentAiProcessing,
+            consentPhotoProcessing: form.consentPhotoProcessing,
+          };
+          const input: any = toServerInput(pendingForm, null);
+          input.status = 'TEST_FAILED';
+          input.writtenTestScore = writtenScore10 * 2;
+          input.testAverage = avg;
+          input.testFailurePending = true;
+          // Si l'utilisateur n'a pas coché le consentement, on le force pour l'échec (sinon 400)
+          if (!input.consentments) {
+            input.consentments = {
+              dataProcessing: true, dataSharing: false, aiProcessing: false, photoProcessing: false,
+              consentDate: new Date().toISOString(), consentVersion: CONSENT_VERSION,
+            };
+          } else if (!input.consentments.dataProcessing) {
+            input.consentments.dataProcessing = true;
+            input.consentments.consentDate = new Date().toISOString();
+            input.consentments.consentVersion = CONSENT_VERSION;
+          }
+          const res = await candidateGraphqlClient.mutation(CREATE_CANDIDATE, { input });
+          if (res.error) throw new Error(res.error.message.replace(/^\[GraphQL\]\s*/, ''));
+          const newId: string | null = res.data?.createCandidate?.id ?? null;
+          if (!newId) throw new Error('Création échouée (id manquant)');
+          createdIdRef.current = newId;
+          setFailedCandidateId(newId);
+          setFailedCandidateName(form.fullName);
+          // Nettoie le brouillon de création
+          clearDraft(draftKey);
+        }
+        setGateStep('failedComment');
+      } catch (err) {
+        setGateError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement');
+      } finally {
+        setGateLoading(false);
+      }
+    }
+  };
+
+  // Sortie de secours : ouvre le formulaire comme après une validation réussie,
+  // sans vérifier les résultats et sans toucher aux notes ni au statut.
+  const handleGateSkip = () => {
+    setGateError(null);
+    setGateStep('form');
+  };
+
+  const toggleFailureOrientation = (value: string) =>
+    setFailureOrientations(prev => (prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]));
+
+  const handleFailureCommentSubmit = async () => {
+    if (!failureComment.trim() || !failedCandidateId) return;
+    setGateLoading(true);
+    setGateError(null);
+    setFailureMailError(null);
+    try {
+      // Évite un doublon d'historique si l'envoi du mail a échoué au premier
+      // essai et que l'utilisateur réessaie sans fermer le modal.
+      if (!failureCommentSaved) {
+        const fullComment = buildTestFailureComment(failureComment, failureOrientations);
+        const addRes = await candidateGraphqlClient.mutation(ADD_CANDIDATE_HISTORY_ENTRY, {
+          candidateId: failedCandidateId,
+          description: fullComment,
+        });
+        if (addRes.error) throw new Error(addRes.error.message.replace(/^\[GraphQL\]\s*/, ''));
+        setFailureCommentSaved(true);
+      }
+      if (sendFailureMail) {
+        const to = form.email.trim();
+        if (!to) {
+          setFailureMailError('Aucun email candidat : le mail de redirection n’a pas été envoyé.');
+          return;
+        }
+        if (failureOrientations.includes(TEST_FAILURE_NO_SHARE_VALUE)) {
+          setFailureMailError('Le candidat ne souhaite pas que sa candidature soit partagée : aucun mail envoyé.');
+          return;
+        }
+        const firstName = (failedCandidateName || form.fullName).split(' ')[0] ?? '';
+        try {
+          await apiJson('/api/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to,
+              subject: 'Votre candidature a été redirigée',
+              body: buildTestFailureRedirectionBody(firstName, failureOrientations),
+            }),
+          });
+        } catch (err) {
+          setFailureMailError(err instanceof Error ? err.message : 'Échec de l’envoi du mail.');
+          return;
+        }
+      }
+      // Lève le flag pending
+      const upd = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, {
+        id: failedCandidateId,
+        input: { testFailurePending: false },
+      });
+      if (upd.error) throw new Error(upd.error.message.replace(/^\[GraphQL\]\s*/, ''));
+      onSaved();
+      if (createdIdRef.current && onCreated) onCreated(createdIdRef.current);
+      // Si c'était une création, on ferme après le commentaire, sinon on reste sur la fiche
+      if (!isEdit) {
+        const id = createdIdRef.current;
+        if (id && onCreated) onCreated(id);
+      }
+      onClose();
+    } catch (err) {
+      setGateError(err instanceof Error ? err.message : 'Erreur lors de l’enregistrement du commentaire');
+    } finally {
+      setGateLoading(false);
+    }
   };
 
   // Template fusionné sur tous les TP cochés (options = union, anglais = si au moins un).
@@ -640,7 +942,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const input = toServerInput(form);
+    const input = toServerInput(form, savedCandidate);
     try {
       const result = isEdit
         ? await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate!._id, input })
@@ -677,40 +979,155 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col max-h-[92vh] animate-[fadeIn_0.2s_ease-out]">
+      <div className="absolute inset-0 bg-[var(--ds-text)] backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-[var(--ds-surface)] rounded-2xl shadow-2xl flex flex-col max-h-[92vh] animate-[fadeIn_0.2s_ease-out]">
 
         {/* Header fixe */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--ds-border)] shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-purple-light flex items-center justify-center">
-              <User size={18} className="text-purple" />
+              <IconUser width={18} height={18} className="text-purple" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                {isEdit ? 'Modifier la fiche candidat' : 'Analyse du besoin – Nouveau candidat'}
+              <h2 className="text-lg font-bold text-[var(--ds-text)]">
+                {isEdit ? (requireGate ? 'Compléter la fiche candidat' : 'Modifier la fiche candidat') : 'Analyse du besoin – Nouveau candidat'}
               </h2>
-              <p className="text-xs text-gray-400">
-                {isEdit ? 'Vos modifications non enregistrées sont conservées automatiquement' : 'Remplissez les champs correspondant au profil'}
+              <p className="text-xs text-[var(--ds-text-subtle)]">
+                {isEdit ? (requireGate ? 'Vérification des résultats puis formulaire complet' : 'Vos modifications non enregistrées sont conservées automatiquement') : 'Remplissez les champs correspondant au profil'}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-            <X size={20} />
+          <button onClick={onClose} className="p-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] rounded-full transition-colors">
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
-        {/* Corps scrollable */}
-        <form id="ab-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+        {/* ── Gate : épreuve écrite + ClassMarker ─────────────────────────── */}
+        {gateStep === 'gate' ? (
+          <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
+            <div className="rounded-xl border border-purple/20 bg-purple-50/50 p-4">
+              <h3 className="text-sm font-bold text-purple">Étape préalable : résultats des tests</h3>
+              <p className="mt-1 text-xs text-[var(--ds-text-muted)]">Saisissez la note de l’épreuve écrite (sur 10) et vérifiez le score ClassMarker (sur 20). La moyenne (/20) doit être ≥ {gateThreshold} pour poursuivre vers le formulaire (CC : ≥ 10, NTC / REM / AD / CADGA : ≥ 12). Vous pouvez aussi passer la vérification pour accéder directement au formulaire.</p>
+            </div>
+            {gateError && (
+              <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">
+                <IconAlert width={16} height={16} className="shrink-0" />{gateError}
+              </div>
+            )}
+            {/* TP évalué : détermine la moyenne minimale requise (CC → 10, autres → 12) */}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gate-tp" className="text-sm font-medium text-[var(--ds-text-muted)]">Titre professionnel visé *</label>
+              <select id="gate-tp" value={gateTp} onChange={e => setGateTp(e.target.value as TitleProfessionalType)}
+                className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple">
+                {Object.values(TitleProfessionalType).map(t => (
+                  <option key={t} value={t}>{t} — {TP_TYPE_LABELS[t]} (≥ {gateThresholdForTp(t)})</option>
+                ))}
+              </select>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Moyenne minimale requise pour {gateTp} : {gateThreshold} / 20.</p>
+            </div>
+            {/* Identité minimale requise pour un éventuel échec */}
+            {!isEdit && (
+              <div className="space-y-3">
+                <InputField id="gate-fullname" label="Nom et prénom *" required value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <InputField id="gate-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
+                  <InputField id="gate-phone" label="Téléphone *" type="tel" required value={form.phone} onChange={e => set('phone', e.target.value)} />
+                </div>
+                {emailDup && (
+                  <p className="flex items-center gap-1.5 text-xs text-[var(--ds-danger)]"><IconAlert width={13} height={13} className="shrink-0" />Une fiche existe déjà pour cet email ({emailDup.fullName}).</p>
+                )}
+              </div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="gate-written" className="text-sm font-medium text-[var(--ds-text-muted)]">Épreuve écrite (sur 10) *</label>
+                <input id="gate-written" type="number" min={0} max={10} step={0.5} placeholder="Ex: 6" value={form.writtenTestScore} onChange={e => set('writtenTestScore', e.target.value)} className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="gate-classmarker" className="text-sm font-medium text-[var(--ds-text-muted)]">ClassMarker (sur 20)</label>
+                {gateClassMarkerResult && typeof gateClassMarkerResult.percentage === 'number' ? (
+                  <div className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] py-2.5 px-3 text-sm text-[var(--ds-text-muted)]">
+                    {classMarkerScore20?.toFixed(2)} / 20 <span className="text-xs text-[var(--ds-text-subtle)]">({gateClassMarkerResult.percentage.toFixed(1)}%) – rempli automatiquement</span>
+                  </div>
+                ) : (
+                  <input id="gate-classmarker" type="number" min={0} max={20} step={0.5} placeholder="Saisir le score ClassMarker /20" value={manualClassMarkerScore} onChange={e => setManualClassMarkerScore(e.target.value)} className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] py-2.5 px-3 text-sm text-[var(--ds-text)] outline-none focus:border-purple" />
+                )}
+              </div>
+            </div>
+            {testAverage != null && (
+              <div className={`rounded-lg p-3 text-sm font-medium ${testAverage >= gateThreshold ? 'bg-[var(--ds-success-bg)] text-[var(--ds-success)] border border-[var(--ds-success)]' : 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)] border border-[var(--ds-warning)]'}`}>
+                Moyenne : {testAverage.toFixed(2)} / 20 — {testAverage >= gateThreshold ? 'Admis : le formulaire sera accessible et le candidat passera en « Recherche ».' : 'Non admis : le candidat passera en « Test non réussi », un commentaire sera demandé.'}
+              </div>
+            )}
+            <div className="flex justify-between gap-3 pt-2">
+              <Button variant="ghost" type="button" onClick={handleGateSkip} title="Ouvrir le formulaire sans vérifier les résultats">Passer la vérification</Button>
+              <div className="flex gap-3">
+                <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+                <Button type="button" isLoading={gateLoading} onClick={handleGateValidate} className="bg-purple hover:bg-purple-dark text-white">Valider les résultats</Button>
+              </div>
+            </div>
+          </div>
+        ) : gateStep === 'failedComment' ? (
+          <div className="overflow-y-auto flex-1 px-6 py-6 space-y-5">
+            <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4">
+              <h3 className="text-sm font-bold text-[var(--ds-warning)]">Candidat en « Test non réussi »</h3>
+              <p className="mt-1 text-xs text-[var(--ds-text-muted)]">Moyenne {testAverage?.toFixed(2) ?? '—'} / 20 — inférieure à {gateThreshold}. Le candidat <span className="font-semibold">{failedCandidateName || form.fullName}</span> est enregistré en « Test non réussi » (en attente de finalisation). Veuillez saisir un commentaire sur les actions prises — il sera enregistré dans l’historique du candidat.</p>
+            </div>
+            {gateError && (
+              <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">
+                <IconAlert width={16} height={16} className="shrink-0" />{gateError}
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="gate-comment" className="text-sm font-medium text-[var(--ds-text-muted)]">Commentaire — actions prises *</label>
+              <textarea id="gate-comment" rows={4} value={failureComment} onChange={e => setFailureComment(e.target.value)} placeholder="Ex: Candidat recontacté, proposé remédiation, orientation..." className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-purple resize-none" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <span id="gate-orientation-label" className="text-sm font-medium text-[var(--ds-text-muted)]">Orientation vers…</span>
+              <div role="group" aria-labelledby="gate-orientation-label" className="flex flex-col gap-2 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2.5">
+                {TEST_FAILURE_ORIENTATION_OPTIONS.map(opt => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 h-4 w-4"
+                      checked={failureOrientations.includes(opt.value)}
+                      onChange={() => toggleFailureOrientation(opt.value)}
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4"
+                checked={sendFailureMail}
+                onChange={e => setSendFailureMail(e.target.checked)}
+              />
+              Envoyer un mail au candidat (« Votre candidature a été redirigée vers… »)
+            </label>
+            {failureMailError && (
+              <p className="text-xs text-[var(--ds-warning)]">{failureMailError}</p>
+            )}
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" type="button" onClick={() => { onSaved(); if (failedCandidateId && onCreated) onCreated(failedCandidateId); onClose(); }}>Plus tard</Button>
+              <Button type="button" isLoading={gateLoading} disabled={!failureComment.trim()} onClick={handleFailureCommentSubmit} className="bg-purple hover:bg-purple-dark text-white">Enregistrer le commentaire</Button>
+            </div>
+            <p className="text-xs text-[var(--ds-text-subtle)]">Vous pourrez revenir sur la fiche candidat pour compléter ce commentaire tant qu’il n’a pas été saisi.</p>
+          </div>
+        ) : (
+          <>
+          <form id="ab-form" onSubmit={handleSubmit} className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
 
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-danger-bg text-danger rounded-lg text-sm">
-              <AlertCircle size={16} className="shrink-0" />{error}
+            <div className="flex items-center gap-2 p-3 bg-[var(--ds-danger-bg)] text-[var(--ds-danger)] rounded-lg text-sm">
+              <IconAlert width={16} height={16} className="shrink-0" />{error}
             </div>
           )}
 
           {draftRestored && (
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-100 bg-[var(--ds-warning-bg)] px-4 py-2.5 text-sm text-[var(--ds-warning)]">
               <span>
                 {isEdit
                   ? 'Modifications non enregistrées récupérées — votre saisie en cours a été restaurée.'
@@ -719,7 +1136,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               <button
                 type="button"
                 onClick={resetDraft}
-                className="shrink-0 font-medium text-amber-700 underline hover:text-amber-900"
+                className="shrink-0 font-medium text-[var(--ds-warning)] underline hover:text-[var(--ds-warning)]"
               >
                 {isEdit ? 'Revenir à la version enregistrée' : 'Repartir de zéro'}
               </button>
@@ -729,10 +1146,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Type(s) TP (multi) + Statut */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Type(s) TP *</label>
+              <label className="block text-sm font-medium text-[var(--ds-text-muted)] mb-1">Type(s) TP *</label>
               <div className="flex flex-wrap gap-3 pt-1.5">
                 {Object.values(TitleProfessionalType).map(t => (
-                  <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-gray-700">
+                  <label key={t} className="flex items-center gap-1.5 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                     <input
                       type="checkbox"
                       className="accent-blue-600 h-4 w-4"
@@ -758,13 +1175,18 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Identité */}
           <ABSectionTitle title="Identité du candidat" />
           <InputField id="cn-fullname" label="Nom et prénom *" placeholder="Ex: Jean Dupont" required value={form.fullName} onChange={e => set('fullName', e.target.value)} />
+          <ABSelectField id="cn-sex" label="Sexe" value={form.sex} onChange={v => set('sex', v)}>
+            <option value="">Non renseigné</option>
+            <option value="FILLE">Femme</option>
+            <option value="GARCON">Homme</option>
+          </ABSelectField>
           <InputField id="cn-ssn" label="Numéro de sécurité sociale" placeholder="Ex: 1 85 12 75 116 001 23" value={form.socialSecurityNumber} onChange={e => set('socialSecurityNumber', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <InputField id="cn-email" label="Email *" type="email" required value={form.email} onChange={e => set('email', e.target.value)} />
               {emailDup && (
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-red-500">
-                  <AlertCircle size={13} className="shrink-0" />
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-[var(--ds-danger)]">
+                  <IconAlert width={13} height={13} className="shrink-0" />
                   Une fiche candidat est déjà enregistrée pour cet email ({emailDup.fullName}).
                 </p>
               )}
@@ -778,8 +1200,11 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             }} />
             {/* <InputField id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={e => set('placeOfBirth', e.target.value)} /> */}
             <AddressAutocomplete id="cn-pob" label="Lieu de naissance" value={form.placeOfBirth} onChange={v => set('placeOfBirth', v)} apiEndpoint="/api/sourcing/completion" />
-            <AddressAutocomplete id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)} apiEndpoint="/api/sourcing/departement" />
-            <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-gray-50 text-gray-500" />
+            <ABSelectField id="cn-dob-dept" label="Département de naissance" value={form.departmentOfBirth} onChange={v => set('departmentOfBirth', v)}>
+              <option value="">Non renseigné</option>
+              {DEPARTEMENTS.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+            </ABSelectField>
+            <InputField id="cn-age" label="Âge (auto)" type="number" value={form.age} disabled className="bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]" />
             <div className="col-span-2">
               <AddressAutocomplete id="cn-address" label="Adresse (numéro et rue)" value={form.address} onChange={v => set('address', v)} apiEndpoint="/api/sourcing/completion" />
             </div>
@@ -790,6 +1215,25 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               if (city) set('city', city);
             }} />
             <InputField id="cn-city" label="Ville" value={form.city} onChange={e => set('city', e.target.value)} />
+            <InputField id="cn-country" label="Pays de résidence" placeholder="France" value={form.country} onChange={e => set('country', e.target.value)} />
+            <ABSelectField id="cn-nationality" label="Nationalité" value={form.nationality} onChange={v => set('nationality', v)}>
+              <option value="">Non renseignée</option>
+              <option value="1">Française</option>
+              <option value="2">Pays européen</option>
+              <option value="3">Autre</option>
+            </ABSelectField>
+            <ABSelectField id="cn-born-fr" label="Né en France" value={form.bornInFrance} onChange={v => set('bornInFrance', v)}>
+              <option value="">Non renseigné</option>
+              <option value="true">Oui</option>
+              <option value="false">Non</option>
+            </ABSelectField>
+            {form.nationality === '3' && (
+              <ABSelectField id="cn-permit" label="Titre de séjour autorisant à travailler" value={form.residencePermit} onChange={v => set('residencePermit', v)}>
+                <option value="">Non renseigné</option>
+                <option value="true">Oui</option>
+                <option value="false">Non</option>
+              </ABSelectField>
+            )}
           </div>
           <ABTextarea label="Description (contexte du candidat pour le matching)" value={form.description} onChange={v => set('description', v)} rows={4} />
 
@@ -797,6 +1241,9 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Situation personnelle" />
           <ABRadio label="Permis B" name="driv" value={form.drivingLicenseB} onChange={v => set('drivingLicenseB', v)}
             options={[...boolOpts, { value: 'en_cours', label: 'En cours' }]} />
+          <div className="ml-2 pl-4 border-l-2 border-[var(--ds-border)]">
+            <ABRadio label="Véhiculé" name="vehicule" value={form.hasVehicle} onChange={v => set('hasVehicle', v)} options={boolOpts} />
+          </div>
           <InputField id="cn-transport" label="Moyen de transport" value={form.transportMeans} onChange={e => set('transportMeans', e.target.value)} />
           <ABRadio label="Souhait de mise en relation avec le Référent PSH ?" name="psh" value={form.pshReferralRequest} onChange={v => set('pshReferralRequest', v)} options={boolOpts} />
           <ABRadio label="A déjà eu un contrat d'apprentissage ?" name="appr" value={form.hadApprenticeshipContract} onChange={v => set('hadApprenticeshipContract', v)} options={boolOpts} />
@@ -819,10 +1266,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Prérequis */}
           <ABSectionTitle title="Parcours et prérequis" />
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Niveau de formation</p>
+            <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">Niveau de formation</p>
             <div className="space-y-2">
               {template.schoolLevels.map(opt => (
-                <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <label key={opt.value} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                   <input type="radio" name="schoolLevel" value={opt.value} checked={form.schoolLevel === opt.value} onChange={() => set('schoolLevel', opt.value)} className="accent-blue-600" />
                   {opt.label}
                 </label>
@@ -831,11 +1278,13 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           </div>
           <InputField id="cn-justif" label="Justificatif" value={form.schoolJustification} onChange={e => set('schoolJustification', e.target.value)} />
 
-          {/* Site(s) de formation — choix multiple */}
+          {/* Site(s) de formation — choix multiple (Réunion uniquement, masqué sur Annemasse) */}
+          {!isAnnemasse && (
+          <>
           <ABSectionTitle title="Site de formation DISCIPLINA" />
           <div className="space-y-2">
             {(Object.entries(TRAINING_SITE_LABELS) as [TrainingSite, string][]).map(([val, label]) => (
-              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   name="site"
@@ -855,6 +1304,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </label>
             ))}
           </div>
+          </>
+          )}
 
           {/* Accompagnement */}
           <ABSectionTitle title="Accompagnement et dispositifs" />
@@ -874,15 +1325,15 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABTextarea label="Formations suivies auparavant" value={form.previousTrainings} onChange={v => set('previousTrainings', v)} />
           <div>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-gray-700">Expériences professionnelles</p>
-              <button type="button" onClick={addExp} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1">
-                <Plus size={13} /> Ajouter
+              <p className="text-sm font-medium text-[var(--ds-text-muted)]">Expériences professionnelles</p>
+              <button type="button" onClick={addExp} className="text-xs text-[var(--ds-accent)] hover:text-blue-800 flex items-center gap-1">
+                <IconPlus width={13} height={13} /> Ajouter
               </button>
             </div>
             <div className="space-y-3">
               {form.experiences.map((exp, i) => (
-                <div key={i} className="rounded-lg border border-gray-100 p-3 relative">
-                  <button type="button" onClick={() => removeExp(i)} className="absolute top-2 right-2 text-gray-300 hover:text-red-500"><Trash2 size={13} /></button>
+                <div key={i} className="rounded-lg border border-[var(--ds-border)] p-3 relative">
+                  <button type="button" onClick={() => removeExp(i)} className="absolute top-2 right-2 text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)]"><IconTrash width={13} height={13} /></button>
                   <div className="grid grid-cols-2 gap-2">
                     <InputField id={`ep${i}pos`} label="Poste" value={exp.position} onChange={e => updateExp(i, 'position', e.target.value)} />
                     <InputField id={`ep${i}co`} label="Entreprise" value={exp.company} onChange={e => updateExp(i, 'company', e.target.value)} />
@@ -891,7 +1342,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
                   </div>
                 </div>
               ))}
-              {form.experiences.length === 0 && <p className="text-xs text-gray-400 italic">Aucune expérience ajoutée</p>}
+              {form.experiences.length === 0 && <p className="text-xs text-[var(--ds-text-subtle)] italic">Aucune expérience ajoutée</p>}
             </div>
           </div>
 
@@ -924,13 +1375,13 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
 
           {/* Compétences */}
           <ABSectionTitle title="Analyse des compétences" />
-          <p className="text-xs text-gray-400">A = Acquis · ECA = En cours · NA = Non acquis · NE = Non évalué</p>
+          <p className="text-xs text-[var(--ds-text-subtle)]">A = Acquis · ECA = En cours · NA = Non acquis · NE = Non évalué</p>
           <div className="space-y-2">
             {form.skills.map((skill, i) => (
               <div key={i} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-gray-700 flex-1">{skill.competence}</span>
+                <span className="text-sm text-[var(--ds-text-muted)] flex-1">{skill.competence}</span>
                 <select value={skill.level} onChange={e => updateSkillLevel(i, e.target.value as SkillLevel)}
-                  className="w-36 shrink-0 rounded-lg border border-gray-100 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500">
+                  className="w-36 shrink-0 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1.5 text-sm outline-none focus:border-[var(--ds-accent)]">
                   {Object.entries(SKILL_LEVEL_LABELS).map(([val, lbl]) => (
                     <option key={val} value={val}>{val} – {lbl}</option>
                   ))}
@@ -949,6 +1400,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               id="cn-mob"
               label="Mobilité géographique"
               options={Object.values(Localisation)}
+              sections={communeSections}
               value={form.geographicMobility}
               onChange={vals => set('geographicMobility', vals as Localisation[])}
               getOptionLabel={v => LOCALISATION_LABELS[v as Localisation]}
@@ -959,20 +1411,20 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           {/* Secteurs + compétences attendues */}
           <ABSectionTitle title="Secteurs d'activité et compétences attendues" />
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Secteurs souhaités</p>
+            <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">Secteurs souhaités</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {template.availableSectors.map(s => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                   <input type="checkbox" checked={form.desiredSectors.includes(s)} onChange={() => toggleSector(s)} className="accent-blue-600 h-4 w-4" />{SECTOR_LABELS[s] ?? s}
                 </label>
               ))}
             </div>
           </div>
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Compétences attendues en entreprise</p>
+            <p className="text-sm font-medium text-[var(--ds-text-muted)] mb-2">Compétences attendues en entreprise</p>
             <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {template.availableExpectedSkills.map(s => (
-                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                <label key={s} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                   <input type="checkbox" checked={form.expectedCompanySkills.includes(s)} onChange={() => toggleSkill(s)} className="accent-blue-600 h-4 w-4" />{s}
                 </label>
               ))}
@@ -983,17 +1435,18 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
           <ABSectionTitle title="Comment a-t-il connu DISCIPLINA ?" />
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
             {Object.entries(DISCOVERY_SOURCE_LABELS).map(([val, lbl]) => (
-              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <label key={val} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input type="radio" name="discovery" value={val} checked={form.discoverySource === val} onChange={() => set('discoverySource', val)} className="accent-blue-600" />{lbl}
               </label>
             ))}
           </div>
+          <ABTextarea label="Sur quels sites ou plateformes avez-vous l'habitude de rechercher et de postuler à des offres d'alternance ? (optionnel)" value={form.jobSearchPlatforms} onChange={v => set('jobSearchPlatforms', v)} rows={2} />
 
           {/* Préconisations pédagogiques */}
           <ABSectionTitle title="Préconisations pédagogiques" />
           <div className="grid grid-cols-1 gap-y-2">
             {PEDA_OPTIONS.map(o => (
-              <label key={o.camel} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+              <label key={o.camel} className="flex items-center gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input
                   type="checkbox"
                   className="accent-blue-600 h-4 w-4"
@@ -1035,6 +1488,68 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             )}
           </ABSelectField>
 
+          {/* Consentements RGPD */}
+          <ABSectionTitle title="Consentements RGPD" />
+          <p className="text-sm text-[var(--ds-text-subtle)]">
+            En tant que centre de formation, nous traitons ces données pour accompagner le candidat dans sa recherche d'alternance.
+          </p>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                // Obligatoire à la création ; en édition il peut avoir été retiré (art. 7.3).
+                required={!isEdit}
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentDataProcessing}
+                onChange={() => set('consentDataProcessing', !form.consentDataProcessing)}
+              />
+              Le candidat consent au traitement de ses données personnelles dans le cadre de son accompagnement (obligatoire).
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentDataSharing}
+                onChange={() => set('consentDataSharing', !form.consentDataSharing)}
+              />
+              Le candidat accepte que ses données soient partagées avec des entreprises partenaires dans le cadre de la recherche d'alternance.
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentAiProcessing}
+                onChange={() => set('consentAiProcessing', !form.consentAiProcessing)}
+              />
+              {AI_PROCESSING_CONSENT_LABEL}
+            </label>
+            <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
+              <input
+                type="checkbox"
+                className="accent-blue-600 h-4 w-4 mt-0.5"
+                checked={form.consentPhotoProcessing}
+                onChange={() => set('consentPhotoProcessing', !form.consentPhotoProcessing)}
+              />
+              Le candidat accepte le stockage de sa photo d'identité.
+            </label>
+          </div>
+          {candidate && (
+            <CandidateConsentHistory
+              candidateId={candidate._id}
+              consentments={consentBaseline}
+              onWithdrawn={(c) => {
+                setConsentBaseline(c);
+                setForm(prev => ({
+                  ...prev,
+                  consentDataProcessing: c.data_processing,
+                  consentDataSharing: c.data_sharing,
+                  consentAiProcessing: c.ai_processing,
+                  consentPhotoProcessing: c.photo_processing,
+                }));
+              }}
+            />
+          )}
+
           {/* Signature de l'apprenti — toute fin */}
           <ABSectionTitle title="Signature de l'apprenti" />
           <SignaturePad
@@ -1046,16 +1561,16 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
         </form>
 
         {/* Footer fixe */}
-        <div className="px-6 py-4 border-t border-gray-100 shrink-0 space-y-3">
+        <div className="px-6 py-4 border-t border-[var(--ds-border)] shrink-0 space-y-3">
           {driveStatus && (
-            <div className="flex items-center gap-2 p-3 bg-blue-50 text-blue-700 rounded-lg text-sm">
-              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-500 border-r-transparent" />
+            <div className="flex items-center gap-2 p-3 bg-[var(--ds-accent-soft)] text-[var(--ds-accent)] rounded-lg text-sm">
+              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-[var(--ds-accent)] border-r-transparent" />
               {driveStatus}
             </div>
           )}
           {driveWarning && (
-            <div className="flex items-center gap-2 p-3 bg-amber-50 text-amber-700 rounded-lg text-sm">
-              <AlertCircle size={16} className="shrink-0" />
+            <div className="flex items-center gap-2 p-3 bg-[var(--ds-warning-bg)] text-[var(--ds-warning)] rounded-lg text-sm">
+              <IconAlert width={16} height={16} className="shrink-0" />
               Candidat créé, mais AB non enregistré dans le Drive ({driveWarning}).
             </div>
           )}
@@ -1067,14 +1582,15 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             ) : (
               <>
                 <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
-                <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<Plus size={16} />}>
-                  {isEdit ? 'Enregistrer les modifications' : 'Créer le candidat'}
+                <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<IconPlus width={16} height={16} />}>
+                  {isEdit ? (requireGate ? 'Compléter la fiche' : 'Enregistrer les modifications') : 'Créer le candidat'}
                 </Button>
               </>
             )}
           </div>
         </div>
-
+          </>
+        )}
       </div>
     </div>
   );

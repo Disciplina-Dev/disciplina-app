@@ -1,5 +1,7 @@
 import { google, Auth } from 'googleapis';
 import { env } from '../../config/env';
+import { getRegion } from '../../db/tenant';
+import type { Region } from '../../types/tenant';
 import { GoogleTokens, GoogleTokenRefreshHandler } from './types';
 
 const SCOPES = [
@@ -23,12 +25,35 @@ export function isInvalidGrant(error: any): boolean {
 export class GoogleOAuthClient {
     static readonly SCOPES = SCOPES;
 
-    private build(): Auth.OAuth2Client {
-        return new google.auth.OAuth2(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URI);
+    /** GCP OAuth credentials for a tenant. Annemasse falls back to the shared
+     *  (Réunion) client when its own vars are unset — single-app deployments
+     *  keep working, and refresh tokens issued before the split stay valid. */
+    credentialsFor(region: Region): {
+        clientId: string | undefined;
+        clientSecret: string | undefined;
+        redirectUri: string;
+    } {
+        if (region === 'annemasse' && (env.GOOGLE_ANNEMASSE_CLIENT_ID || env.GOOGLE_ANNEMASSE_CLIENT_SECRET)) {
+            return {
+                clientId: env.GOOGLE_ANNEMASSE_CLIENT_ID ?? env.GOOGLE_CLIENT_ID,
+                clientSecret: env.GOOGLE_ANNEMASSE_CLIENT_SECRET ?? env.GOOGLE_CLIENT_SECRET,
+                redirectUri: env.GOOGLE_ANNEMASSE_REDIRECT_URI ?? env.GOOGLE_REDIRECT_URI,
+            };
+        }
+        return {
+            clientId: env.GOOGLE_CLIENT_ID,
+            clientSecret: env.GOOGLE_CLIENT_SECRET,
+            redirectUri: env.GOOGLE_REDIRECT_URI,
+        };
     }
 
-    generateAuthUrl(state: string): string {
-        return this.build().generateAuthUrl({
+    private build(region: Region = getRegion()): Auth.OAuth2Client {
+        const creds = this.credentialsFor(region);
+        return new google.auth.OAuth2(creds.clientId, creds.clientSecret, creds.redirectUri);
+    }
+
+    generateAuthUrl(state: string, region: Region = getRegion()): string {
+        return this.build(region).generateAuthUrl({
             access_type: 'offline',
             // Force Google à réémettre un refresh_token à chaque reconnexion.
             // Sans ça, seul le 1er consentement en renvoie un → tokens expirés en ~1h.
@@ -38,8 +63,8 @@ export class GoogleOAuthClient {
         });
     }
 
-    async exchangeCode(code: string): Promise<GoogleTokens> {
-        const { tokens } = await this.build().getToken(code);
+    async exchangeCode(code: string, region: Region = getRegion()): Promise<GoogleTokens> {
+        const { tokens } = await this.build(region).getToken(code);
         return {
             access_token: tokens.access_token ?? null,
             refresh_token: tokens.refresh_token ?? null,
@@ -48,8 +73,12 @@ export class GoogleOAuthClient {
         };
     }
 
-    forCredentials(creds: GoogleTokens, onRefresh?: GoogleTokenRefreshHandler): Auth.OAuth2Client {
-        const client = this.build();
+    forCredentials(
+        creds: GoogleTokens,
+        onRefresh?: GoogleTokenRefreshHandler,
+        region: Region = getRegion(),
+    ): Auth.OAuth2Client {
+        const client = this.build(region);
         client.setCredentials({
             access_token: creds.access_token ?? undefined,
             refresh_token: creds.refresh_token ?? undefined,

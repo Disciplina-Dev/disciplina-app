@@ -1,12 +1,24 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, randomUUID } from 'crypto';
 import { BookingRepository, BookingSettings } from './repository';
+import {
+    DayBlockRepository,
+    DayBlockScope,
+    DayBlock,
+    SECTOR_TARGET_PREFIX,
+    USER_TARGET_PREFIX,
+    scopeKeyFor,
+} from './blocksRepository';
 import { UserService } from '../../services/UserService';
 import { MailTemplateService } from '../../services/MailTemplateService';
 import { GoogleCalendarService, BusyInterval } from '../../external/google/calendar.service';
 import { GoogleGmailService } from '../../external/google/gmail.service';
+import { withNoReply } from '../../external/google/no-reply';
 import { GoogleTokens } from '../../external/google/types';
-import { User } from '../../types/user.types';
+import { JobRole, User } from '../../types/user.types';
+import { canAccessAllSectors, primarySector, shareSector } from '../../utils/sector';
 import { logger } from '../../external/logger';
+import { RhKpiService } from '../../services/RhKpiService';
+import { SlotOccupationRepository } from '../../repositories/mysql/SlotOccupationRepository';
 
 export interface Slot {
     /** ISO datetime UTC du début. */
@@ -15,17 +27,42 @@ export interface Slot {
 }
 
 export interface GuestInfo {
-    name: string;
+    firstName: string;
+    lastName: string;
+    /** Numéro normalisé (chiffres, `+` initial éventuel). */
+    phone: string;
     email: string;
     note?: string;
 }
 
 export class BookingDisabledError extends Error {}
 export class SlotUnavailableError extends Error {}
+export class DayBlockNotFoundError extends Error {}
+export class DayBlockForbiddenError extends Error {}
+export class DayBlockConflictError extends Error {}
+export class DayBlockValidationError extends Error {}
+
+/** Saisie d'un blocage de dates (une période, éventuellement d'un seul jour). */
+export interface DayBlockPeriodInput {
+    from: string;
+    to: string;
+    scope: DayBlockScope;
+    reason: string;
+    /** Blocage sectoriel : libellés de SES propres secteurs. */
+    sectors?: string[];
+    /** Blocage nominatif : personnes sélectionnées manuellement. */
+    userIds?: number[];
+}
 
 const userService = new UserService();
 const gmailService = new GoogleGmailService();
 const mailTemplateService = new MailTemplateService();
+const rhKpiService = new RhKpiService();
+
+/** Nom complet de l'invité (« Prénom Nom »). */
+function guestFullName(guest: GuestInfo): string {
+    return `${guest.firstName} ${guest.lastName}`.trim();
+}
 
 /** Formate un instant pour affichage dans le fuseau donné (ex "lundi 16 juin 2026 à 09:00"). */
 function formatInTz(iso: string, tz: string): string {
@@ -106,6 +143,17 @@ function parseHM(hm: string): [number, number] {
     return [h, m];
 }
 
+/** Jours locaux `YYYY-MM-DD` de `from` à `to` inclus (bornes déjà validées). */
+function daysInRange(from: string, to: string): string[] {
+    const days: string[] = [];
+    const start = Date.parse(`${from}T00:00:00Z`);
+    const end = Date.parse(`${to}T00:00:00Z`);
+    for (let cur = start; cur <= end; cur += 86_400_000) {
+        days.push(new Date(cur).toISOString().slice(0, 10));
+    }
+    return days;
+}
+
 function overlapsBusy(startMs: number, endMs: number, busy: BusyInterval[]): boolean {
     return busy.some((b) => {
         const bs = Date.parse(b.start);
@@ -124,12 +172,194 @@ function calendarForUser(user: User): GoogleCalendarService {
 
 export class BookingService {
     private repo = new BookingRepository();
+    private blockRepo = new DayBlockRepository();
+    private occupationRepo = new SlotOccupationRepository();
 
     /** Renvoie les réglages de l'utilisateur, en les créant (slug aléatoire) au premier accès. */
     async getOrCreate(userId: number): Promise<BookingSettings> {
         const existing = await this.repo.findByUserId(userId);
         if (existing) return existing;
         return this.repo.create(userId, randomBytes(8).toString('hex'));
+    }
+
+    // ── Blocage de dates ──────────────────────────────────────────────────
+    /** Blocages qui concernent l'utilisateur : les siens + ceux qui le ciblent. */
+    async listDayBlocks(userId: number, from?: string, to?: string): Promise<DayBlock[]> {
+        return this.blockRepo.findVisible(userId, from, to);
+    }
+
+    /**
+     * Bloque une période (un seul jour si `from === to`) pour la portée demandée :
+     * soi-même, tout le monde, un de ses secteurs, ou une sélection de personnes.
+     */
+    async blockPeriod(actor: User, input: DayBlockPeriodInput): Promise<void> {
+        const targets = await this.resolveTargets(actor, input);
+        const days = daysInRange(input.from, input.to);
+        // Reprise : un blocage déjà posé sur la même portée par un autre RH ne se
+        // réécrit pas (ni motif ni auteur), sinon le contrôle « auteur ou
+        // responsable » à l'annulation serait contournable en le réécrivant.
+        const ownerId = input.scope === 'SELF' ? actor.id : null;
+        const existing = await this.blockRepo.findByScopeKey(scopeKeyFor(input.scope, ownerId, targets), days);
+        if (existing.some((row) => row.created_by != null && row.created_by !== actor.id)) {
+            throw new DayBlockConflictError('Ces dates sont déjà bloquées par un autre RH');
+        }
+        await this.blockRepo.save({
+            days,
+            userId: ownerId,
+            scope: input.scope,
+            kind: 'BLOCK',
+            reason: input.reason,
+            createdBy: actor.id,
+            groupKey: randomUUID(),
+            targets,
+        });
+    }
+
+    /** Résout les cibles d'un blocage en lignes de `calendar_day_block_targets`. */
+    private async resolveTargets(actor: User, input: DayBlockPeriodInput): Promise<string[]> {
+        if (input.scope === 'SECTOR') {
+            const labels = [...new Set(input.sectors ?? [])];
+            if (labels.length === 0) throw new DayBlockValidationError('Choisissez au moins un secteur');
+            // On ne résout que parmi SES secteurs : « mon secteur » reste une
+            // portée personnelle, jamais un moyen de bloquer les autres.
+            const mine = await this.blockRepo.findUserSectors(actor.id);
+            const idByLabel = new Map<string, number>();
+            for (const sector of mine) if (!idByLabel.has(sector.label)) idByLabel.set(sector.label, sector.id);
+            return labels.map((label) => {
+                const id = idByLabel.get(label);
+                if (id === undefined) throw new DayBlockValidationError(`Secteur inconnu : ${label}`);
+                return `${SECTOR_TARGET_PREFIX}${id}`;
+            });
+        }
+        if (input.scope === 'USERS') {
+            const ids = [...new Set(input.userIds ?? [])].filter((id) => Number.isInteger(id) && id > 0);
+            if (ids.length === 0) throw new DayBlockValidationError('Choisissez au moins une personne');
+            const allowed = await this.targetableUserIds(actor);
+            if (ids.some((id) => !allowed.has(id))) {
+                throw new DayBlockValidationError('Certaines personnes ne sont pas accessibles depuis votre agenda');
+            }
+            return ids.map((id) => `${USER_TARGET_PREFIX}${id}`);
+        }
+        return [];
+    }
+
+    /**
+     * Personnes qu'un utilisateur peut cibler : les mêmes que la liste du
+     * calendrier — RH + soi-même, restreint à son secteur pour un EMPLOYEE,
+     * tout le monde pour un RESPONSABLE/ADMIN.
+     */
+    private async targetableUserIds(actor: User): Promise<Set<number>> {
+        const rhUsers = await userService.findByJobRoles([JobRole.RH]);
+        const people = rhUsers.some((u) => u.id === actor.id) ? rhUsers : [actor, ...rhUsers];
+        const visible = canAccessAllSectors(actor.permission)
+            ? people
+            : people.filter((u) => u.id === actor.id || shareSector(actor.sectors, u.sectors));
+        return new Set(visible.map((u) => u.id));
+    }
+
+    /**
+     * « Me rendre disponible » : dérogation personnelle à un blocage collectif.
+     * Bascule — un second appel re-bloque les jours pour cet utilisateur.
+     * La dérogation est journalière (sémantique #1080 conservée) : elle vaut pour
+     * la date, pas pour le blocage qui l'a motivée.
+     */
+    async releaseDayBlock(userId: number, id: number): Promise<void> {
+        const block = await this.blockRepo.findById(id);
+        if (!block || block.kind !== 'BLOCK') throw new DayBlockNotFoundError('Blocage introuvable');
+        if (block.user_id != null) {
+            throw new DayBlockForbiddenError('Ce blocage ne concerne que vous : annulez-le');
+        }
+        if (!(await this.blockRepo.concernsUser(block.id, userId))) {
+            throw new DayBlockForbiddenError('Ce blocage ne vous concerne pas');
+        }
+        const mine = await this.blockRepo.findPersonal(userId, block.day);
+        if (mine?.kind === 'BLOCK') {
+            throw new DayBlockConflictError('Ce jour est déjà bloqué pour vous');
+        }
+        if (mine?.kind === 'OPEN') {
+            await this.blockRepo.deleteById(mine.id);
+            return;
+        }
+        await this.blockRepo.save({
+            days: [block.day],
+            userId,
+            scope: 'SELF',
+            kind: 'OPEN',
+            reason: block.reason,
+            createdBy: userId,
+            groupKey: '',
+        });
+    }
+
+    /**
+     * Dérogation personnelle sur toute une période. Refusée si un jour est déjà
+     * bloqué pour soi (le blocage personnel l'emporte).
+     */
+    async releaseBlockGroup(userId: number, groupKey: string): Promise<void> {
+        const rows = await this.blockRepo.findGroup(groupKey);
+        if (rows.length === 0) throw new DayBlockNotFoundError('Blocage introuvable');
+        if (rows.every((r) => r.user_id != null)) {
+            throw new DayBlockForbiddenError('Ce blocage ne concerne que vous : débloquez-le');
+        }
+        if (!(await this.blockRepo.allConcernUser(rows.map((r) => r.id), userId))) {
+            throw new DayBlockForbiddenError('Ce blocage ne vous concerne pas');
+        }
+        const days = [...new Set(rows.map((r) => r.day))];
+        const mine = await this.blockRepo.findPersonalOnDays(userId, days);
+        if (mine.some((r) => r.kind === 'BLOCK')) {
+            throw new DayBlockConflictError('Ces jours sont déjà bloqués pour vous');
+        }
+        const openDays = new Set(mine.filter((r) => r.kind === 'OPEN').map((r) => r.day));
+        if (days.every((day) => openDays.has(day))) {
+            await this.blockRepo.deleteOpenDays(userId, days);
+            return;
+        }
+        await this.blockRepo.save({
+            days: days.filter((day) => !openDays.has(day)),
+            userId,
+            scope: 'SELF',
+            kind: 'OPEN',
+            reason: rows[0].reason,
+            createdBy: userId,
+            groupKey: '',
+        });
+    }
+
+    /**
+     * Annule un jour. Un blocage personnel ne peut être annulé que par son
+     * auteur ; un blocage collectif est supprimé pour tout le monde par son
+     * auteur ou un responsable (mêmes règles que l'annulation d'une période).
+     */
+    async deleteDayBlock(actor: User, id: number): Promise<void> {
+        const block = await this.blockRepo.findById(id);
+        if (!block || block.kind !== 'BLOCK') throw new DayBlockNotFoundError('Blocage introuvable');
+        if (block.user_id != null) {
+            if (block.user_id !== actor.id) throw new DayBlockForbiddenError('Ce blocage ne vous appartient pas');
+            await this.blockRepo.deleteById(block.id);
+            return;
+        }
+        if (!canAccessAllSectors(actor.permission) && block.created_by !== actor.id) {
+            throw new DayBlockForbiddenError('Seul l’auteur du blocage (ou un responsable) peut l’annuler');
+        }
+        await this.blockRepo.deleteCollectiveDay(block.id, block.day);
+    }
+
+    /**
+     * Annule toute une période. Un blocage personnel reste réservé à son auteur ;
+     * un blocage collectif peut être annulé par son auteur ou un responsable.
+     */
+    async deleteBlockGroup(actor: User, groupKey: string): Promise<void> {
+        const rows = await this.blockRepo.findGroup(groupKey);
+        if (rows.length === 0) throw new DayBlockNotFoundError('Blocage introuvable');
+        const personal = rows.every((r) => r.user_id != null);
+        if (personal) {
+            if (rows.some((r) => r.user_id !== actor.id)) {
+                throw new DayBlockForbiddenError('Ce blocage ne vous appartient pas');
+            }
+        } else if (!canAccessAllSectors(actor.permission) && rows.some((r) => r.created_by !== actor.id)) {
+            throw new DayBlockForbiddenError('Seul l’auteur du blocage (ou un responsable) peut l’annuler');
+        }
+        await this.blockRepo.deleteGroup(groupKey);
     }
 
     async update(userId: number, patch: Partial<BookingSettings>): Promise<BookingSettings> {
@@ -170,6 +400,18 @@ export class BookingService {
         const rangeStart = zonedToUtc(fy, fm, fd, 0, 0, tz);
         const rangeEnd = zonedToUtc(ty, tm, td, 23, 59, tz);
         const busy = await calendarForUser(host).freeBusy(rangeStart.toISOString(), rangeEnd.toISOString());
+        // Entretiens des RH du même secteur : leur créneau est pris, il ne doit pas
+        // être proposé ici non plus (les occupations de l'hôte couvrent aussi les
+        // entretiens réservés côté candidat, qui n'existent pas dans Google).
+        const occupations = await this.occupationRepo.findVisibleBusy(
+            settings.userId,
+            rangeStart.toISOString(),
+            rangeEnd.toISOString(),
+        );
+        const busyIntervals: BusyInterval[] = [...busy, ...occupations];
+        // Jours bloqués par le RH (ou par un blocage « pour tout le monde ») :
+        // ils ne sont jamais proposés, quelles que soient les plages hebdomadaires.
+        const blockedDays = await this.blockRepo.blockedDays(settings.userId, fromDate, toDate);
 
         const slots: Slot[] = [];
         for (let cur = new Date(rangeStart); cur <= rangeEnd; cur.setUTCDate(cur.getUTCDate() + 1)) {
@@ -180,6 +422,7 @@ export class BookingService {
                 month: '2-digit',
                 day: '2-digit',
             }).format(cur);
+            if (blockedDays.has(local)) continue;
             const [y, mo, d] = local.split('-').map(Number);
             const windows = settings.workingHours[String(isoWeekday(y, mo, d))] ?? [];
             for (const [startHM, endHM] of windows) {
@@ -189,7 +432,7 @@ export class BookingService {
                 let slotStart = zonedToUtc(y, mo, d, sh, sm, tz).getTime();
                 while (slotStart + durMs <= winEnd) {
                     const slotEnd = slotStart + durMs;
-                    if (slotStart >= earliest && slotStart <= horizon && !overlapsBusy(slotStart, slotEnd, busy)) {
+                    if (slotStart >= earliest && slotStart <= horizon && !overlapsBusy(slotStart, slotEnd, busyIntervals)) {
                         slots.push({ start: new Date(slotStart).toISOString(), end: new Date(slotEnd).toISOString() });
                     }
                     slotStart += stepMs;
@@ -224,22 +467,56 @@ export class BookingService {
         const startIsoFinal = new Date(startMs).toISOString();
         const endIsoFinal = new Date(endMs).toISOString();
         const calendar = calendarForUser(host);
+        const fullName = guestFullName(guest);
         const description = [
-            `Réservation par ${guest.name} (${guest.email}).`,
+            `Réservation par ${fullName} (${guest.email}, ${guest.phone}).`,
             guest.note ? `\nMessage : ${guest.note}` : '',
         ].join('');
 
-        await calendar.createEvent(
+        // Un rendez-vous pris via le lien de réservation est un entretien : il porte le
+        // même marquage qu'un créneau posé depuis le calendrier RH (« venu » ouvre la
+        // création du candidat, report possible, relance « pas venu », KPI entretiens).
+        // Le nom et l'email de l'invité sont stockés en propriétés privées pour le
+        // pré-remplissage de la fiche et le dédoublonnage KPI par email (cf. RhKpiService).
+        const countsForKpi = await rhKpiService.isFirstMeetingForEmail(calendar, guest.email, startIsoFinal);
+        const event = await calendar.createEvent(
             {
-                summary: `${settings.title} — ${guest.name}`,
+                summary: `${settings.title} — ${fullName}`,
                 description,
                 location: settings.location ?? undefined,
                 start: startIsoFinal,
                 end: endIsoFinal,
-                attendees: [{ email: guest.email, displayName: guest.name }],
+                attendees: [{ email: guest.email, displayName: fullName }],
+                attendeeEmail: guest.email,
+                attendeeFirstName: guest.firstName,
+                attendeeLastName: guest.lastName,
+                isInterview: true,
             },
             'none', // Pas d'email d'invitation Google : on envoie notre propre confirmation.
         );
+
+        // Bloque le créneau pour les RH du même secteur. Best-effort : l'événement
+        // Google est déjà posé, on n'échoue pas la réservation pour autant.
+        try {
+            await this.occupationRepo.upsert({
+                ownerUserId: host.id,
+                start: startIsoFinal,
+                end: endIsoFinal,
+                label: `${settings.title} — ${fullName}`,
+                source: 'PUBLIC_BOOKING',
+                sourceEventId: event.id,
+            });
+        } catch (err) {
+            logger.error({ err, ownerId: host.id }, 'Booking slot occupation sync failed');
+        }
+
+        // KPI « entretien placé » au profit du RH dont le lien a été utilisé, crédité au
+        // bucket de la date (un seul rendez-vous compté par email, comme côté calendrier).
+        if (countsForKpi) {
+            await rhKpiService.bump(host.id, primarySector(host.sectors), new Date(startIsoFinal), {
+                interviews_placed: 1,
+            });
+        }
 
         await this.sendConfirmation(host, settings, startIsoFinal, guest);
 
@@ -254,6 +531,7 @@ export class BookingService {
         guest: GuestInfo,
     ): Promise<void> {
         const when = formatInTz(startIso, settings.timezone);
+        const guestName = guestFullName(guest);
 
         let subject: string;
         let html: string;
@@ -262,7 +540,9 @@ export class BookingService {
         if (settings.confirmationBody && settings.confirmationBody.trim()) {
             // Modèle personnalisé : on remplace les variables {{…}}.
             const vars: Record<string, string> = {
-                nom: guest.name,
+                nom: guestName,
+                prenom: guest.firstName,
+                telephone: guest.phone,
                 date: `${when} (${settings.timezone})`,
                 ...dateVars(startIso, settings.timezone),
                 lieu: settings.location ?? '',
@@ -281,7 +561,7 @@ export class BookingService {
             subject = `Confirmation de votre rendez-vous — ${settings.title}`;
             const lieu = settings.location ? `<p><strong>Lieu :</strong> ${settings.location}</p>` : '';
             html = `
-            <p>Bonjour ${guest.name},</p>
+            <p>Bonjour ${guestName},</p>
             <p>Votre rendez-vous « <strong>${
                 settings.title
             }</strong> » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.</p>
@@ -290,7 +570,7 @@ export class BookingService {
             ${lieu}
             <p>À bientôt,<br/>${`${host.firstName} ${host.lastName}`.trim()}</p>`;
             text =
-                `Bonjour ${guest.name},\n\nVotre rendez-vous « ${
+                `Bonjour ${guestName},\n\nVotre rendez-vous « ${
                     settings.title
                 } » avec ${`${host.firstName} ${host.lastName}`.trim()} est confirmé.\n` +
                 `Date : ${when} (${settings.timezone})\nDurée : ${settings.durationMin} minutes\n` +
@@ -306,7 +586,7 @@ export class BookingService {
         try {
             await gmailService.sendEmail(
                 { access_token: host.oauthToken ?? undefined, refresh_token: host.refreshToken ?? undefined },
-                { to: guest.email, subject, html, text },
+                withNoReply({ to: guest.email, subject, html, text }),
                 (refreshed) =>
                     userService.updateGoogleTokens(
                         host.id,

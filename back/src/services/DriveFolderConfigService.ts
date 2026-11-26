@@ -1,13 +1,23 @@
 import { env } from '../config/env';
-import { TitleProfessionalType, TrainingSite } from '../types/candidate.types';
+import { getRegion } from '../db/tenant';
+import { LEGACY_TP_SA, TitleProfessionalType, TrainingSite, normalizeTpCode } from '../types/candidate.types';
 import {
     DriveFolderConfig,
     DriveFolderConfigRepository,
 } from '../repositories/mongo/DriveFolderConfigRepository';
 
 // Régions disponibles (un dossier Drive par couple TP × Région).
+// Réunion : NORD/OUEST/SUD. Annemasse : une seule région « ANNEMASSE ».
 export const DRIVE_REGIONS = ['NORD', 'OUEST', 'SUD'] as const;
-export type DriveRegion = (typeof DRIVE_REGIONS)[number];
+export const ANNEMASSE_DRIVE_REGION = 'ANNEMASSE' as const;
+export const ALL_DRIVE_REGIONS = [...DRIVE_REGIONS, ANNEMASSE_DRIVE_REGION] as const;
+export type DriveRegion = (typeof ALL_DRIVE_REGIONS)[number];
+
+/** Régions Drive proposées selon le tenant (region null → Réunion par défaut). */
+export function driveRegionsForTenant(region?: string | null): DriveRegion[] {
+    const tenant = region ?? getRegion();
+    return tenant === 'annemasse' ? [ANNEMASSE_DRIVE_REGION] : [...DRIVE_REGIONS];
+}
 
 // Le site de formation du candidat détermine sa région.
 const SITE_TO_REGION: Record<TrainingSite, DriveRegion> = {
@@ -27,7 +37,8 @@ const ENV_TP_FOLDER_IDS: Record<TitleProfessionalType, string | undefined> = {
     [TitleProfessionalType.CC]: env.DRIVE_CANDIDATS_NORD_CC_FOLDER_ID,
     [TitleProfessionalType.NTC]: env.DRIVE_CANDIDATS_NORD_NTC_FOLDER_ID,
     [TitleProfessionalType.REM]: env.DRIVE_CANDIDATS_NORD_REM_FOLDER_ID,
-    [TitleProfessionalType.SA]: env.DRIVE_CANDIDATS_NORD_SA_FOLDER_ID,
+    [TitleProfessionalType.CADGA]:
+        env.DRIVE_CANDIDATS_NORD_CADGA_FOLDER_ID ?? env.DRIVE_CANDIDATS_NORD_SA_FOLDER_ID,
 };
 
 export class DriveFolderConfigService {
@@ -59,18 +70,25 @@ export class DriveFolderConfigService {
         region?: DriveRegion,
     ): Promise<string | undefined> {
         const config = await this.repo.get();
-        // Secteur du créateur > région du site de formation > NORD par défaut.
-        // → un user sans secteur classe le candidat dans le dossier TP du Nord.
+        // Secteur du créateur > région du site de formation > défaut du tenant
+        // (NORD pour Réunion, ANNEMASSE pour Annemasse).
+        const tenantDefault: DriveRegion = getRegion() === 'annemasse' ? ANNEMASSE_DRIVE_REGION : 'NORD';
         const resolvedRegion: DriveRegion =
-            region ?? (trainingSite ? SITE_TO_REGION[trainingSite as TrainingSite] : undefined) ?? 'NORD';
+            region ?? (trainingSite ? SITE_TO_REGION[trainingSite as TrainingSite] : undefined) ?? tenantDefault;
 
         if (tp && resolvedRegion) {
-            const id = config.tpFolders[driveFolderKey(tp, resolvedRegion)];
+            const normalizedTp = normalizeTpCode(tp);
+            const id = config.tpFolders[driveFolderKey(normalizedTp, resolvedRegion)];
             if (id) return id;
+            // Rétro-compat : configuration enregistrée avant le renommage (« SA_NORD »…).
+            if (normalizedTp === TitleProfessionalType.CADGA) {
+                const legacyId = config.tpFolders[driveFolderKey(LEGACY_TP_SA, resolvedRegion)];
+                if (legacyId) return legacyId;
+            }
         }
         if (config.rootFolderId) return config.rootFolderId;
 
-        const envTp = tp ? ENV_TP_FOLDER_IDS[tp as TitleProfessionalType] : undefined;
+        const envTp = tp ? ENV_TP_FOLDER_IDS[normalizeTpCode(tp) as TitleProfessionalType] : undefined;
         return envTp || env.DRIVE_CANDIDATS_NORD_FOLDER_ID;
     }
 }

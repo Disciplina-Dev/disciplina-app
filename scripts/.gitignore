@@ -5,6 +5,9 @@
 __pycache__
 *.csv
 
+# Deployment state (written by scripts/deploy.sh, read by scripts/rollback.sh)
+.deploy-state
+
 # Except startup seed data
 resources
 backups

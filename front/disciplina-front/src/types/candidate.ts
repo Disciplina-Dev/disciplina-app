@@ -1,9 +1,11 @@
+import type { ScheduleSlot } from './needsAnalysis'
+
 export enum TitleProfessionalType {
     AD = "AD",       // Assistante de Direction
     CC = "CC",       // Conseiller Commercial
     NTC = "NTC",     // Négociateur technico-commercial
     REM = "REM",     // Responsable d'établissement Marchand
-    SA = "SA"        // SA
+    CADGA = "CADGA"  // Chargé d'accueil et de gestion administrative
 }
 
 export enum CandidateStatus {
@@ -30,6 +32,12 @@ export enum SchoolLevel {
 }
 
 /** Libellés français des niveaux d'études (affichage UI). */
+export const NATIONALITY_LABELS: Record<number, string> = {
+    1: 'Française',
+    2: 'Pays européen',
+    3: 'Autre',
+};
+
 export const SCHOOL_LEVEL_LABELS: Record<SchoolLevel, string> = {
     [SchoolLevel.CAP_BEP_WITH_1Y_EXP]: 'CAP/BEP + 1 an exp.',
     [SchoolLevel.PREMIERE_TERMINALE]: '1ère / Terminale',
@@ -74,7 +82,72 @@ export enum Localisation {
     SAINT_ANDRE = "SAINT_ANDRE",
     LA_PLAINE_DES_PALMISTES = "LA_PLAINE_DES_PALMISTES",
     SALAZIE = "SALAZIE",
-    SAINTE_ANNE = "SAINTE_ANNE"
+    SAINTE_ANNE = "SAINTE_ANNE",
+    // Haute-Savoie — tenant Annemasse : secteur Genève / frontière.
+    ANNEMASSE = "ANNEMASSE",
+    AMBILLY = "AMBILLY",
+    GAILLARD = "GAILLARD",
+    VILLE_LA_GRAND = "VILLE_LA_GRAND",
+    VETRAZ_MONTHOUX = "VETRAZ_MONTHOUX",
+    ETREMBIERES = "ETREMBIERES",
+    CRANVES_SALES = "CRANVES_SALES",
+    SAINT_CERGUES = "SAINT_CERGUES",
+    JUVIGNY = "JUVIGNY",
+    BONNE = "BONNE",
+    MACHILLY = "MACHILLY",
+    DOUVAINE = "DOUVAINE",
+    VEIGY_FONCENEX = "VEIGY_FONCENEX",
+    BONS_EN_CHABLAIS = "BONS_EN_CHABLAIS",
+    SCIEZ = "SCIEZ",
+    THONON_LES_BAINS = "THONON_LES_BAINS",
+    EVIAN_LES_BAINS = "EVIAN_LES_BAINS",
+    // Haute-Savoie — tenant Annemasse : secteur Saint-Julien / Genevois.
+    SAINT_JULIEN_EN_GENEVOIS = "SAINT_JULIEN_EN_GENEVOIS",
+    ARCHAMPS = "ARCHAMPS",
+    NEYDENS = "NEYDENS",
+    COLLONGES_SOUS_SALEVE = "COLLONGES_SOUS_SALEVE",
+    PRESILLY = "PRESILLY",
+    BEAUMONT = "BEAUMONT",
+    FEIGERES = "FEIGERES",
+    VIRY = "VIRY",
+    VALLEIRY = "VALLEIRY",
+    VULBENS = "VULBENS",
+    CHENEX = "CHENEX",
+    // Haute-Savoie — tenant Annemasse : secteur Arve.
+    REIGNIER_ESERY = "REIGNIER_ESERY",
+    ARENTHON = "ARENTHON",
+    CONTAMINE_SUR_ARVE = "CONTAMINE_SUR_ARVE",
+    BONNEVILLE = "BONNEVILLE",
+    AYSE = "AYSE",
+    MARIGNIER = "MARIGNIER",
+    VOUGY = "VOUGY",
+    CLUSES = "CLUSES",
+    SCIONZIER = "SCIONZIER",
+    MARNAZ = "MARNAZ",
+    // Haute-Savoie — tenant Annemasse : secteur Faucigny / La Roche.
+    LA_ROCHE_SUR_FORON = "LA_ROCHE_SUR_FORON",
+    AMANCY = "AMANCY",
+    SAINT_PIERRE_EN_FAUCIGNY = "SAINT_PIERRE_EN_FAUCIGNY",
+    ETAUX = "ETAUX",
+    CORNIER = "CORNIER",
+    PERS_JUSSY = "PERS_JUSSY",
+    SCIENTRIER = "SCIENTRIER",
+    ARBUSIGNY = "ARBUSIGNY",
+    // Haute-Savoie — tenant Annemasse : secteur Annecy.
+    ANNECY = "ANNECY",
+    PRINGY = "PRINGY",
+    EPAGNY_METZ_TESSY = "EPAGNY_METZ_TESSY",
+    POISY = "POISY",
+    MEYTHET = "MEYTHET",
+    SEYNOD = "SEYNOD",
+    CRAN_GEVRIER = "CRAN_GEVRIER",
+    ARGONAY = "ARGONAY",
+    // Haute-Savoie — tenant Annemasse : secteur Chablais.
+    PERRIGNIER = "PERRIGNIER",
+    BOEGE = "BOEGE",
+    FILLINGES = "FILLINGES",
+    VIUZ_EN_SALLAZ = "VIUZ_EN_SALLAZ",
+    SAINT_JEOIRE = "SAINT_JEOIRE"
 }
 
 export enum SkillLevel {
@@ -99,10 +172,14 @@ export interface Identity {
     date_of_birth?: string;                 // Date de naissance (optionnel)
     place_of_birth?: string;              // Lieu de naissance
     department_of_birth?: string;         // Département de naissance
+    born_in_france?: boolean;             // Né en France (exigé par Filiz)
+    nationality?: 1 | 2 | 3;              // 1 : française, 2 : pays européen, 3 : autre (exigé par Filiz)
+    residence_permit?: boolean;           // Titre de séjour autorisant à travailler (nationalité « autre »)
     age?: number;                         // Âge actuel (calculé ou fourni)
     address?: string;                     // Adresse (numéro et rue)
     postal_code?: string;                 // Code postal
     city?: string;                        // Ville
+    country?: string;                     // Pays de résidence
     sex?: string;                         // Sexe (FILLE / GARCON)
     email: string;                        // Adresse email (requis, unique)
     phone: string;                        // Téléphone (requis)
@@ -113,6 +190,7 @@ export interface Identity {
     had_apprenticeship_contract?: boolean; // A déjà eu un contrat d'apprentissage
     apprenticeship_contract_details?: string; // Détails du contrat d'apprentissage (si oui)
     description?: string;                  // Descriptif libre du candidat (contexte matching)
+    description_source?: 'auto' | 'manual'; // Provenance : résumé auto régénérable ou texte RH protégé
     avatar_url?: string;
     avatar_updated_at?: string;
     drive_avatar_file_id?: string;
@@ -175,6 +253,7 @@ export interface JobInfo {
     geographic_mobility?: Localisation[];
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
+    job_search_platforms?: string;
 }
 
 export interface PedagogicalRecommendations {
@@ -215,6 +294,19 @@ export interface MatchedOfferCompanyInfos {
     name?: string;
 }
 
+/**
+ * Créneau d'immersion : un jour peut porter deux plages facultatives (matin et
+ * après-midi). Les champs sont tous optionnels — une seule plage, ou un
+ * horaire continu (matin début → après-midi fin, sans coupure) restent valides.
+ */
+export interface ImmersionScheduleSlot {
+    day?: string | null;
+    morningStartHour?: string | null;
+    morningEndHour?: string | null;
+    afternoonStartHour?: string | null;
+    afternoonEndHour?: string | null;
+}
+
 export interface MatchedOffer {
     id: string;
     needsAnalysisId?: string;
@@ -227,6 +319,7 @@ export interface MatchedOffer {
     status?: string;
     title?: string;
     jobRole?: string;
+    schedule?: ScheduleSlot[];
 }
 
 export interface CandidateOwner {
@@ -243,13 +336,49 @@ export interface EmergencyContact {
     email?: string;
 }
 
+export interface CandidateConsentments {
+    data_processing: boolean;
+    data_sharing: boolean;
+    ai_processing: boolean;
+    photo_processing: boolean;
+    consent_date: string;
+    consent_version: string;
+}
+
+/** Types de consentement (enum GraphQL `ConsentType`, GDPR_INF_08.2). */
+export type ConsentTypeKey = 'DATA_PROCESSING' | 'DATA_SHARING' | 'AI_PROCESSING' | 'PHOTO_PROCESSING';
+
+/** Événement de l'historique des consentements (octroi / retrait, horodatage serveur). */
+export interface CandidateConsentEvent {
+    consentType: ConsentTypeKey;
+    action: 'GRANT' | 'WITHDRAW';
+    consentVersion: string;
+    source: 'CREATE' | 'UPDATE' | 'WITHDRAWAL' | 'BACKFILL';
+    recordedByName: string | null;
+    recordedAt: string;
+}
+
+export interface CandidateRelanceEntry {
+    sent_at: string; // date d'envoi (ISO)
+    kind: 'availability' | 'template';
+    template_id?: string;
+    subject?: string;
+    sent_by?: number;
+    response_at?: string; // réponse du candidat (ISO)
+    answer?: string; // 'oui' | 'non'
+}
+
 export interface Candidate {
     _id: string;
     owner?: CandidateOwner;
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;
+    consentments?: CandidateConsentments;
     status: CandidateStatus;
+    written_test_score?: number | null;
+    test_average?: number | null;
+    test_failure_pending?: boolean | null;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
     immersion_agreement?: boolean;
@@ -257,10 +386,15 @@ export interface Candidate {
     immersion_end_date?: string;
     immersion_company_id?: number;
     immersion_company_name?: string;
+    immersion_convention_number?: string;
+    immersion_schedule?: ImmersionScheduleSlot[];
     contract_offer_id?: string;
     contract_company_id?: number;
     contract_company_name?: string;
     contract_start_date?: string;
+    contract_trial_end_date?: string;
+    contract_session_id?: string;
+    contract_session_name?: string;
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;
@@ -279,6 +413,8 @@ export interface Candidate {
     created_at?: string;
     last_relance_at?: string;      // dernière relance de disponibilité envoyée
     relance_response_at?: string;  // date de réponse du candidat à la relance
+    relance_count?: number;        // nombre de relances reçues
+    relance_history?: CandidateRelanceEntry[]; // historique des relances (envois + réponses)
 }
 
 export enum CandidateHistoryType {

@@ -39,7 +39,7 @@ Sources : `front/disciplina-front/src/store/authStore.ts`, `front/disciplina-fro
 | `PEDA` (+ `AD`/`GESTION`) | `/peda` | Suivi absences, modèles de mail |
 | `AD` / `GESTION` | `/admin` | CRUD utilisateurs, config Drive/secteurs |
 | `ENTREPRISE` | `/entreprise` | Remplir Analyse de Besoin, gérer apprentis, RDV, profils matchés |
-| Public (token/signature) | `/booking/:slug`, `/public/match/:signature`, `/public/interview/:signature`, `/public/cv-import/:signature` | Parcours invités sans compte |
+| Public (token/signature) | `/booking/:slug`, `/external/matching/:signature`, `/external/interview/:signature`, `/external/authenticate?sig=…`, `/external/cv-import/:signature` — les anciens liens `/public/{match,interview,cv-import}/:signature` (mails pré-migration) sont redirigés vers `/external/authenticate?sig=…` | Parcours invités sans compte |
 
 ---
 
@@ -91,46 +91,45 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 ### 3.5 Analyse de Besoin (AB)
 
 - **Étapes** : ENTREPRISE `FormulaireAB` ou COMMERCIAL `CreateAB` → remplir → soumettre ; générer le PDF.
-- **Chaîne** : GraphQL `/api/graphql/needs-analysis` — `createNeedsAnalysis`, `updateNeedsAnalysis`, `needsAnalysesByCompany` → Mongo. PDF : `GET /api/needs-analysis/:id/pdf`, `/signature/mandat-pdf`, `/catalogue-pdf` → `NeedsAnalysisService` → `PdfService`.
-- **Résultat attendu** : (1) AB persistée ; (2) relue via `needsAnalysesByCompany` ; PDF généré (content-type `application/pdf`).
+- **Chaîne** : GraphQL `/api/graphql/needs-analysis` — `createNeedsAnalysis`, `updateNeedsAnalysis`, `needsAnalysesByCompany` → Mongo. PDF : `GET /api/needs-analysis/:id/pdf`, `/signature/mandat-pdf`, `/catalogue-pdf` → `NeedsAnalysisService` → `PdfService`. Lien Drive : `GET /api/needs-analysis/:id/ab-drive` (302 vers le PDF archivé, résolu à la demande pour les AB antérieures à `ab_drive_url`).
+- **Résultat attendu** : (1) AB persistée ; (2) relue via `needsAnalysesByCompany` ; PDF généré (content-type `application/pdf`) ; (3) le bouton « Ouvrir l'AB dans le Drive » redirige vers le PDF du Drive (copie signée si l'AB est signée), 404 si aucune archive.
 - **External** : Drive (upload signé). ⚠️
-- **Test vitest** : `graphql/needsAnalysis/__tests__/needsAnalysis.test.ts` (partiel).
+- **Test vitest** : `graphql/needsAnalysis/__tests__/needsAnalysis.test.ts` (partiel), `rest/needsAnalysis/__tests__/abDrive.test.ts` (lien Drive), `services/__tests__/abDriveArchive.test.ts` (archivage).
 - **Statut** : _à remplir_
 
 ### 3.6 Matching
 
 - **Étapes** : RH → `Matching` → lancer un match sur une offre → ajouter/retirer des candidats → créer une session de match.
 - **Chaîne** : GraphQL `/api/graphql/offers` — `matchOffer`, `addCandidateToOffer`, `removeCandidateFromOffer`, `updateMatchedCandidateStatus`, `createMatchSession(offerId, companyEmail, candidates)` → `MatchLinkService` / `MatchMailService` (lien signé + email Gmail). Offres/matches en Mongo.
-- **Résultat attendu** : (1) candidats matchés retournés ; statut `MATCHED`/`NOT_MATCHED` cohérent ; (2) relu via `offer(id)` ; (3) email de match envoyé, `interview_access` + email créés pour les candidats acceptés.
+- **Résultat attendu** : (1) candidats matchés retournés ; statut `MATCHED`/`NOT_MATCHED` cohérent ; (2) relu via `offer(id)` ; (3) email de match envoyé, session `external_access` reference 3 (entretien) créée + email d'invitation envoyé pour les candidats acceptés.
 - **External** : ⚠️ Gmail.
 - **Test vitest** : `graphql/offers/__tests__/{query,mutation}.test.ts`, `services/__tests__/MatchLinkService.test.ts`.
 - **Statut** : _à remplir_
 
 ### 3.7 Comparateur public (match)
 
-- **Étapes** : entreprise reçoit un lien `/public/match/:signature` → s'authentifie par code → compare les profils → soumet ses réponses.
-- **Chaîne** : `GET /api/match/:signature/inspect`, `POST /:signature/authenticate`, `GET /:signature/candidates`, `GET /:signature/cv/:candidateId`, `POST /:signature/answers` → `rest/match/controller.ts` (token dans `services/matchToken.ts`).
-- **Résultat attendu** : signature invalide rejetée ; après auth, candidats + CV accessibles ; réponses persistées (déclenche le flux entretien).
-- **External** : aucun (au submit, peut déclencher mail).
-- **Test vitest** : aucun (gap, mais token signé couvert par `external/crypto/signers.test.ts`).
-- **Statut** : _à remplir_
+- **Étapes** : entreprise reçoit un lien `/external/authenticate?sig=…` → ouvre le lien (lien magique sans code, expiration armée à J+7) → cookie `disc_at` posé → redirection `/external/matching/:signature` → compare les profils → soumet ses réponses.
+- **Chaîne** : `POST /api/external/:signature/authenticate` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/match/{candidates,cv/:candidateId,completion}`, `POST /:signature/match/answers` → `MatchAccessService` (`external_access` reference 2) + `MatchMailService`.
+- **Résultat attendu** : signature inconnue rejetée (404), lien expiré → **410** ; création refusée si un candidat proposé n'a pas consenti au partage (`data_sharing`) — sinon la vue entreprise serait vide ; après auth (cookie), candidats (avec consentement `data_sharing`) + CV accessibles ; réponses persistées (déclenche le flux entretien) ; session déjà finalisée → **409** ; re-soumettre une session COMPLETED → 409 sans changement.
+- **External** : ⚠️ Gmail (template `proposition_candidat` sans code/identifiant).
+- **Test vitest** : `services/__tests__/MatchAccessService.test.ts`, `rest/external/__tests__/{matchCompleted,matchConsent}.test.ts`.
 
 ### 3.8 Entretiens
 
-- **Étapes** : entreprise ouvre `/public/interview/:signature` → s'authentifie (code) → choisit un créneau → réserve.
-- **Chaîne** : `GET /api/interview/:signature/inspect`, `POST /:signature/authenticate`, `GET /:signature/slots`, `POST /:signature/book` → `InterviewAccessService`, `InterviewMailService`, `interviewToken`. Crée un event Google Calendar.
-- **Résultat attendu** : (1) verrouillage après 3 codes erronés, code correct → token utilisable ; créneau déjà pris marqué occupé ; réservation d'un créneau libre → historique + notif RH ; créneau pris → **409 race-safe sous concurrence**.
+- **Étapes** : candidat accepté reçoit un email avec un lien `/external/authenticate?sig=…` → ouvre le lien (lien magique sans code, expiration armée à J+7) → cookie `disc_at` posé → redirection `/external/interview/:signature` → choisit un créneau → réserve.
+- **Chaîne** : `POST /api/external/:signature/authenticate` (cookie `EXTERNAL_GUEST`), `GET /api/external/:signature/interview/slots`, `POST /:signature/interview/book` → `ExternalInterviewService` (`external_access` reference 3 : offer = `external_id`, candidate = `reference_key`) + `InterviewMailService`. Occupation croisée agenda Google du RH (freebusy) + créneaux déjà réservés par d'autres candidats.
+- **Résultat attendu** : (1) lien valide → cookie, session déjà finalisée → **"Démarche déjà finalisée"** ; créneau déjà pris marqué occupé ; réservation d'un créneau libre → historique (candidat + offre) + notif RH `interview_booked` ; créneau pris/chevauchant une période occupée → **409 race-safe sous concurrence** ; re-réservation sur session `COMPLETED` → 409.
 - **External** : ⚠️ Google Calendar.
-- **Test vitest** : `rest/interview/__tests__/flow.test.ts`.
+- **Test vitest** : `rest/external/__tests__/interviewFlow.test.ts`, `services/__tests__/MatchAccessService.test.ts` (déclenchement), `services/__tests__/InterviewMailService.test.ts`.
 - **Statut** : _à remplir_
 
 ### 3.9 Booking / calendrier
 
-- **Étapes** : réglages de disponibilité (`GET/PUT /api/booking/settings`) ; parcours public `/booking/:slug` → choisir créneau → réserver ; calendrier interne.
-- **Chaîne** : `GET /api/booking/public/:slug`, `/slots`, `POST /book` → `booking/service.ts`. Calendrier : `GET /api/calendar/users|events`, `POST /events`, `PATCH /events/:id`, `/events/:id/attendance`, `DELETE /events/:id` → `external/google/calendar.service.ts`.
-- **Résultat attendu** : créneaux libres corrects ; réservation crée l'event Google Calendar.
+- **Étapes** : réglages de disponibilité (`GET/PUT /api/booking/settings`) ; blocage de dates (`GET /api/booking/blocks`, `POST /api/booking/blocks`) sur une période `from`→`to` (un jour = `from` = `to`), portée « Moi » (`SELF`), « Mon secteur » (`SECTOR`, référence `S:<sector_id>`), « Tout le monde » (`ALL`) ou sélection manuelle (`USERS`, référence `U:<user_id>`) ; annulation d'une période : `POST /blocks/groups/:groupKey/release` (dérogation « pour moi ») ou `DELETE /blocks/groups/:groupKey` (pour tout le monde, auteur ou RESPONSABLE/ADMIN) — les routes mono-jour `POST /blocks/:id/release` et `DELETE /blocks/:id` restent supportées ; parcours public `/booking/:slug` → choisir créneau → renseigner prénom, nom, téléphone et email (les quatre sont obligatoires) → réserver ; calendrier interne.
+- **Chaîne** : `GET /api/booking/public/:slug`, `/slots`, `POST /book` → `booking/service.ts` (créneaux retirés par `calendar_day_blocks`). Calendrier : `GET /api/calendar/users|events`, `POST /events`, `PATCH /events/:id`, `/events/:id/attendance`, `/events/:id/report`, `DELETE /events/:id` → `external/google/calendar.service.ts`.
+- **Résultat attendu** : créneaux libres corrects ; un jour bloqué n'est jamais proposé (blocage « Moi » = mon agenda seul ; « Mon secteur » = les RH rattachés aux secteurs visés, adhésion résolue à la lecture ; « Tout le monde » = tous les RH ; sélection manuelle = les personnes cochées, restreintes à celles visibles dans `/api/calendar/users` ; un blocage collectif peut être dérogé « pour moi », jour par jour, et re-bloqué — seules les personnes réellement concernées peuvent se déroger) ; une période bloquée reste une seule entrée dans l'UI ; l'annulation d'une période ne touche que ce blocage (les autres blocages du même jour survivent) et n'est ouverte qu'à son auteur ou à un responsable ; l'auteur d'un blocage nominatif voit les noms des personnes ciblées, les autres ne voient qu'un nombre ; réécrire le blocage d'un autre RH est refusé (409) ; réservation crée l'event Google Calendar **marqué comme entretien** (nom/prénom/email de l'invité enregistrés sur le créneau : « Venu » ouvre la création de la fiche candidat pré-remplie, report et relance « pas venu » disponibles, KPI « entretien placé » crédité). Un entretien occupe son créneau pour **tous les RH partageant au moins un secteur** avec son propriétaire (créneau « Entretien » du calendrier, réservation publique ou créneau réservé par un candidat) : le créneau n'est plus proposé sur leur page de réservation, apparaît « pris » sur leur page de créneaux candidat et en gris/cadenas dans l'agenda interne ; poser un entretien qui chevauche celui d'un collègue du secteur est refusé (409), et supprimer/reporter l'entretien libère le créneau. Recherche dans le calendrier RH par email **ou** nom/prénom de l'invité (champs optionnels à la création, absents des créneaux historiques → recherche email seule). KPI RH : un même email d'invité ne compte qu'une fois — seul son premier rendez-vous (par date de début) crédite « entretien placé » et la catégorie de présence (venu / pas venu / reporté / décliné). « Reporté » sur un entretien demande une nouvelle date/heure et déplace réellement le créneau (KPI du créneau suivent, « reporté » crédité au bucket de la nouvelle date).
 - **External** : ⚠️ Google Calendar.
-- **Test vitest** : aucun (gap).
+- **Test vitest** : `rest/calendar/__tests__/events.test.ts` (authz secteur), `rest/calendar/__tests__/attendee.test.ts` (création + nom/prénom, rétro-compatibilité), `rest/calendar/__tests__/kpi.test.ts` (dédoublonnage KPI par email, report d'un entretien), `rest/booking/__tests__/dayBlocks.test.ts` (blocage de dates : période, secteurs, sélection manuelle, dérogation/annulation de groupe, authz), `rest/booking/__tests__/crossSector.test.ts` (créneau occupé par un entretien : blocage des RH du même secteur sur la page publique et dans l'agenda, 409 sur conflit, libération à la suppression), `rest/external/__tests__/interviewFlow.test.ts` (créneau réservé par un candidat : marquage « pris » chez les RH du secteur), `rest/booking/__tests__/publicBook.test.ts` (identité obligatoire de l'invité), `rest/booking/__tests__/interview.test.ts` (une réservation est un entretien : marquage, identité de l'invité, KPI « placé » dédoublonné par email).
 - **Statut** : _à remplir_
 
 ### 3.10 E-signature AB
@@ -160,6 +159,15 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Test vitest** : `rest/middleware/__tests__/webhookSignature.test.ts` (garde classmarker).
 - **Statut** : _à remplir_
 
+### 3.12 bis Questionnaires internes (remplacement ClassMarker, #968)
+
+- **Étapes** : (1) RH importe un JSON (`/rh/questionnaires` → « Importer JSON », exemples dans `Classmarker/questions/jsons/`) ou crée par blocs, puis « Tester » ; (2) active le questionnaire ; (3) depuis la fiche candidat, génère le lien + QR ; (4) le candidat passe le test sur `/test/:token` (QCM, vrai/faux, réponse libre) ; (5) le RH suit la progression en direct, puis télécharge le PDF (fiche, Résultats ou détail du passage).
+- **Chaîne** : `POST /api/questionnaires` (validation `questionnaireValidation`) → `POST /:id/invitations` → `GET/POST /api/q/:token[/start|/answer]` (`QuestionnaireAttemptService`, correction `questionnaireScoring`) → `TestResultService.saveTestResult` (fiche `classmarker` + SSE + PDF Drive best-effort) ; `GET /api/questionnaires/attempts/:id/pdf` (PDF sans Drive).
+- **Résultat attendu** : (1) import invalide → 400 avec la liste des erreurs ; (4) bonne réponse jamais envoyée avant validation, pas de retour arrière, lien lié au 1er appareil ; réponse libre juste malgré casse/espaces/ponctuation, fausse si accent manquant ; (5) score sur la fiche en direct, PDF téléchargeable même sans compte Google ; questionnaire verrouillé après le 1er vrai passage.
+- **External** : ⚠️ Drive (optionnel : dépôt du PDF seulement).
+- **Test vitest** : `rest/questionnaire/__tests__/questionnaire.test.ts`.
+- **Statut** : _à remplir_
+
 ### 3.13 KPI commercial & RH
 
 - **Étapes** : COMMERCIAL consulte son dashboard KPI ; RH consulte le rapport KPI.
@@ -172,10 +180,10 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 ### 3.14 Peda / absences
 
 - **Étapes** : PEDA configure le suivi (`GET/PUT/DELETE /api/peda/config*`) → lance une passe (`POST /api/peda/run`).
-- **Chaîne** : `peda/controller.ts` → `PedaService`, `PedaDraftService` (lit Google Sheets, rédige des brouillons de relance d'absence). Scheduler en arrière-plan : `scheduler/pedaDraftScheduler.ts` + `immersionEndScheduler.ts` (`setInterval`, démarrés dans `startServer`).
-- **Résultat attendu** : brouillons générés à partir des absences ; adresses email normalisées correctement.
+- **Chaîne** : `peda/controller.ts` → `PedaService`, `PedaDraftService` (lit Google Sheets, rédige des brouillons de relance d'absence). Schedulers en arrière-plan : `scheduler/pedaDraftScheduler.ts` + `immersionEndScheduler.ts` + `saNotificationScheduler.ts` (`setInterval`, démarrés dans `startServer`).
+- **Résultat attendu** : brouillons générés à partir des absences ; adresses email normalisées correctement ; notif Peda à la déclaration d'une rupture et au premier passage d'une SA « En cours » / « En retard ».
 - **External** : ⚠️ Google Sheets, Gmail.
-- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`.
+- **Test vitest** : `services/__tests__/pedaDraftEmail.test.ts` (`normalizeEmail`), `services/__tests__/immersionEndNotification.test.ts`, `services/__tests__/saNotification.test.ts` (SA en cours/en retard + notif rupture), `graphql/peda/__tests__/rupture.test.ts` (déclaration + rapport mensuel), `graphql/peda/__tests__/alternant.test.ts`, `graphql/peda/__tests__/session.test.ts`. Exposition MCP : voir 3.17.
 - **Statut** : _à remplir_
 
 ### 3.15 Notifications & Todos
@@ -196,6 +204,14 @@ Le « résultat attendu » vérifie les 3 portes de sortie AAAC ([`back/HOWTOTES
 - **Test vitest** : `rest/auth/__tests__/directory.test.ts`, `sensitive-fields.test.ts`.
 - **Statut** : _à remplir_
 
+### 3.17 MCP péda (lecture, RGPD)
+
+- **Étapes** : client LLM authentifié (OAuth ou clé statique) → `POST /api/mcp` → outils `list_sessions`, `get_session`, `session_stats`, `list_sequences_overdue`, `list_sequences_upcoming`, `list_alternant_sequences`, `list_alternants`, `get_alternant`, `list_ruptures`, `rupture_stats`, `peda_kpi_overview`, `peda_draft_stats`.
+- **Chaîne** : `mcp/tools/peda.ts` → `readTool` (scope, quota, `mcp_audit_log`) → services péda → `mcp/pedaExposure.ts` (consentement `ai_processing` via `candidate_id`, « Prénom N. », masquage k<`PEDA_MIN_GROUP`).
+- **Résultat attendu** : alternants sans consentement ou sans candidat lié absents ; aucun email/téléphone/tuteur ; agrégats de 1 à 4 masqués sans déduction par soustraction ; notifications `peda`/`candidate` masquées.
+- **External** : aucun.
+- **Test vitest** : `mcp/__tests__/peda.test.ts`, `mcp/__tests__/pedaMasking.test.ts`.
+- **Statut** : _à remplir_
 ---
 
 ## 4. Dépendances external & mode dégradé
@@ -209,7 +225,7 @@ Source : `back/src/external/*`, `back/src/config/env.ts`. Rappel : au démarrage
 | **Ollama** (qwen2.5, docker) | 3.4 | Enrichissement sourcing indisponible. |
 | **DDG + scraper** | 3.4 | Idem sourcing. |
 | **Filiz** | Mapper candidat, `/api/filiz/*` | Diplômes/classes indisponibles. |
-| **ClassMarker** | 3.12 | Liens/résultats de test indisponibles. |
+| **ClassMarker** | 3.12 | Liens/résultats de test indisponibles. Les questionnaires internes (3.12 bis) n'en dépendent pas. |
 | **Yousign** | 3.10 (secours) | Chemin secondaire ; DocuSeal reste le chemin actif. |
 | **DocuSeal** | 3.10 (actif) | Signature AB bloquée. |
 
@@ -234,13 +250,15 @@ Tests component vitest (`back/src/**/__tests__/`), lancés par `npx vitest run` 
 | 3.5 AB | `needsAnalysis` (partiel) | **PDF** |
 | 3.6 Matching | `offers/{query,mutation}`, `MatchLinkService` | — |
 | 3.7 Comparateur public | `signers` (token) | **flux HTTP** |
-| 3.8 Entretiens | `interview/flow` | — |
+| 3.8 Entretiens | `external/interview` | — |
 | 3.9 Booking/calendrier | — | **oui** |
 | 3.10 E-signature | `needsAnalysis`, `webhookSignature` | — |
 | 3.11 Email/relance | (pattern documenté) | **oui** |
 | 3.12 Classmarker | `webhookSignature` (garde) | flux PDF/Drive |
+| 3.12 bis Questionnaires internes | `questionnaire` (import, parcours complet, expiration, réponse libre, PDF, effacement) | dépôt Drive, SSE fiche |
 | 3.13 KPI | — | **oui** |
-| 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification` | flux `run` complet |
+| 3.14 Peda | `pedaDraftEmail`, `immersionEndNotification`, `saNotification`, `rupture`, `alternant`, `session` | flux `run` complet (drafts) |
+| 3.17 MCP péda | `mcp/peda`, `mcp/pedaMasking` | — |
 | 3.15 Notifs/Todos | `authBoundary` (SSE) | flux nominal |
 | 3.16 Admin users | `directory`, `sensitive-fields` | — |
 

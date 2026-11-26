@@ -9,6 +9,8 @@ import { graphqlClient } from '@/graphql/client'
 import { installSessionGuard } from '@/lib/sessionGuard'
 import { AuthBootstrap } from '@/components/AuthBootstrap'
 import CookieBanner from '@/components/legal/CookieBanner'
+import Toaster from '@/components/ui/Toaster'
+import { initTheme } from '@/lib/theme'
 
 Sentry.init({
     // TODO: supprimer le fallback et ne garder que VITE_SENTRY_DSN dans .env en production
@@ -24,11 +26,11 @@ Sentry.init({
     integrations: [
         Sentry.browserTracingIntegration(),
         Sentry.replayIntegration(),
-        // Optionnel : ajoute un span "route change" pour chaque navigation React Router.
+        // Optionnel : ajoute un span "route change" pour chaque navigation React Router.
         // Voir https://docs.sentry.io/platforms/javascript/guides/react/configuration/integrations/react-router/
     ],
     // Trace sampling (0 = never, 1 = always).
-    // Adjust in production (ex. 0.1 = 10 %) :
+    // Adjust in production (ex. 0.1 = 10 %) :
     tracesSampleRate: Number(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE ?? 1.0),
     tracePropagationTargets: ['localhost', /^https:\/\/app-reunion.disciplina.re\/api/],
     // Session Replay — sampling
@@ -39,6 +41,10 @@ Sentry.init({
     debug: true,
 })
 
+// Applique le thème (clair/sombre) avant le premier rendu, pour éviter un
+// flash de thème clair au chargement.
+initTheme()
+
 // Intercept 401s (REST + GraphQL) → silent refresh or session end.
 installSessionGuard()
 
@@ -48,6 +54,7 @@ createRoot(document.getElementById('root')!).render(
         <AuthBootstrap>
           <RouterProvider router={router} />
           <CookieBanner />
+          <Toaster />
         </AuthBootstrap>
       </UrqlProvider>
   </StrictMode>,

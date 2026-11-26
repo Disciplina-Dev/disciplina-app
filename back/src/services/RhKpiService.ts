@@ -1,5 +1,7 @@
-import { RhKpiRepository } from '../repositories/mysql/RhKpiRepository';
+import { RhKpiRepository } from '../repositories/mongo/RhKpiRepository';
+import { UserRepository } from '../repositories/mysql/UserRepository';
 import { RH_KPI_COLUMNS, RhKpiColumn, RhKpiMetrics, emptyRhMetrics } from '../types/rhKpi.types';
+import { GoogleCalendarService } from '../external/google/calendar.service';
 import { logger } from '../external/logger';
 
 /** Bucket calendaire d'une date : année + mois (1-12) + semaine ISO (1-53). */
@@ -51,8 +53,50 @@ function addInto(target: RhKpiMetrics, row: Record<RhKpiColumn, number>): void {
     for (const c of RH_KPI_COLUMNS) target[c] += Number(row[c]) || 0;
 }
 
+/**
+ * Profondeur de recherche d'un rendez-vous antérieur du même invité.
+ * Au-delà, le candidat est considéré comme nouveau : on ne remonte pas tout
+ * l'historique Google, la règle « premier rendez-vous » vise les doublons proches
+ * (reports, doubles réservations, 2ᵉ entretien).
+ */
+const KPI_EMAIL_LOOKBACK_MS = 2 * 365 * 86_400_000;
+
 export class RhKpiService {
     private repo = new RhKpiRepository();
+    private users = new UserRepository();
+
+    /**
+     * Vrai si `startIso` correspond au premier rendez-vous (par date de début) de cet
+     * email d'invité — donc le seul à compter dans les KPI RH (placé, venu, pas venu,
+     * reporté, décliné). Évite de compter deux fois un candidat qui a plusieurs
+     * créneaux et de fausser la catégorie de présence.
+     *
+     * Sans email invité, aucun dédoublonnage n'est possible → toujours vrai.
+     * La recherche porte sur l'agenda du propriétaire du créneau (là où vivent les
+     * événements) : deux RH différents peuvent donc compter chacun leur entretien.
+     * Best-effort : si la recherche Google échoue, on ne bloque pas la saisie.
+     */
+    async isFirstMeetingForEmail(
+        calendar: Pick<GoogleCalendarService, 'listEventsByAttendeeEmail'>,
+        email: string | undefined,
+        startIso: string,
+        excludeId?: string,
+    ): Promise<boolean> {
+        const attendee = email?.trim();
+        const startMs = Date.parse(startIso);
+        if (!attendee || Number.isNaN(startMs)) return true;
+        try {
+            const earlier = await calendar.listEventsByAttendeeEmail(
+                attendee,
+                new Date(startMs - KPI_EMAIL_LOOKBACK_MS).toISOString(),
+                new Date(startMs).toISOString(),
+            );
+            return !earlier.some((e) => e.id !== excludeId && Date.parse(e.start) < startMs);
+        } catch (error) {
+            logger.warn({ err: error }, 'KPI email dedupe lookup failed');
+            return true;
+        }
+    }
 
     /** Incrémente/décrémente des compteurs au bucket de `date`. Best-effort : ne jette jamais. */
     async bump(
@@ -79,8 +123,20 @@ export class RhKpiService {
      */
     async getReport(year: number, scopeUserIds?: number[]): Promise<RhKpiReport> {
         const rows = await this.repo.findWeekly(year, scopeUserIds);
+        // Noms d'affichage résolus depuis MySQL (les users n'ont pas migré).
+        // Actifs uniquement : même sémantique que l'ancien INNER JOIN, les
+        // buckets d'un user supprimé sortaient du rapport.
+        const nameById = new Map<number, string>();
+        if (rows.length > 0) {
+            const ids = [...new Set(rows.map((r) => r.user_id))];
+            for (const u of await this.users.findByIds(ids)) {
+                nameById.set(u.id, `${u.first_name} ${u.last_name}`);
+            }
+        }
         const byWeek = new Map<number, RhKpiWeek>();
         for (const r of rows) {
+            const userName = nameById.get(r.user_id);
+            if (userName === undefined) continue;
             let wk = byWeek.get(r.week);
             if (!wk) {
                 wk = { week: r.week, month: r.month, totals: emptyRhMetrics(), users: [] };
@@ -91,10 +147,16 @@ export class RhKpiService {
             // par secteur ou par RH/responsable selon le filtre choisi.
             wk.users.push({
                 userId: r.user_id,
-                userName: r.user_name,
+                userName,
                 sector: r.sector ?? '',
-                metrics: RH_KPI_COLUMNS.reduce((acc, c) => { acc[c] = Number(r[c]) || 0; return acc; }, emptyRhMetrics()),
+                metrics: RH_KPI_COLUMNS.reduce((acc, c) => {
+                    acc[c] = Number(r[c]) || 0;
+                    return acc;
+                }, emptyRhMetrics()),
             });
+        }
+        for (const wk of byWeek.values()) {
+            wk.users.sort((a, b) => a.userName.localeCompare(b.userName));
         }
         return {
             year,

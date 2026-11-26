@@ -1,17 +1,49 @@
 import { OfferRepository } from '../repositories/mongo/OfferRepository';
-import { CandidateRepository, CandidateFilters, CandidateStats } from '../repositories/mongo/CandidateRepository';
-import { Candidate, CandidateStatus } from '../types/candidate.types';
+import {
+    CandidateRepository,
+    CandidateFilters,
+    CandidateSearchField,
+    CandidateStats,
+} from '../repositories/mongo/CandidateRepository';
+import {
+    Candidate,
+    CandidateRelanceEntry,
+    CandidateStatus,
+    normalizeTpCode,
+    normalizeTpCodes,
+} from '../types/candidate.types';
 import { Offer } from '../types/offer.types';
 import { OfferStatus } from '../types/matching.types';
+import { getModels } from '../db/mongo/tenant';
 import { computeAge } from '../utils/age';
 import { offerTpCodes } from './mappers/offer.mapper';
 import { CandidateHistoryService } from './CandidateHistoryService';
+import { offerZones, candidateZones } from '../utils/zone';
+import { activitySectorFilter, candidateWantsOfferSector } from '../utils/activitySector';
 import { NotificationService } from './NotificationService';
 import { buildCandidateSummary } from './buildCandidateSummary';
 import { UserRepository } from '../repositories/mysql/UserRepository';
+import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
+import { QuestionnaireRepository } from '../repositories/mongo/QuestionnaireRepository';
+import { CandidateHistoryRepository } from '../repositories/mongo/CandidateHistoryRepository';
+import { NotificationRepository } from '../repositories/mongo/NotificationRepository';
+import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
+import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
+import { GoogleDriveService, extractDriveFileId } from '../external/google/drive.service';
 import { encryptSsn, MASKED_SSN } from '../external/crypto/ssn-cipher';
+import { decryptHealthIfNeeded } from '../external/crypto/health-cipher';
+import { encryptCandidateHealth } from './candidateHealthFields';
+import { ConsentType } from './consentGuard';
+
+/** Sous-ensemble de GoogleDriveService nécessaire à l'effacement. */
+export type DriveEraser = Pick<GoogleDriveService, 'deleteFile'>;
+
+function isDriveNotFound(error: unknown): boolean {
+    const e = error as { code?: number | string; status?: number; response?: { status?: number } };
+    return e?.code === 404 || e?.code === '404' || e?.status === 404 || e?.response?.status === 404;
+}
 
 function encryptIdentitySsn(identity?: Candidate['identity']): void {
     if (!identity || typeof identity.social_security_number !== 'string') return;
@@ -28,19 +60,35 @@ export class CandidateService {
     private candidateHistoryService = new CandidateHistoryService();
     private notificationService = new NotificationService();
     private userRepository = new UserRepository();
+    private companyRepository = new CompanyRepository();
 
     async findAll(): Promise<Candidate[]> {
         const candidates = await this.repository.findAll();
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
-    async findPage(first: number, after?: string, search?: string, filters?: CandidateFilters): Promise<Candidate[]> {
-        const candidates = await this.repository.findPage(first, after, search, filters);
+    async findPage(
+        first: number,
+        after?: string,
+        search?: string,
+        filters?: CandidateFilters,
+        searchField?: CandidateSearchField,
+    ): Promise<Candidate[]> {
+        const candidates = await this.repository.findPage(first, after, search, filters, searchField);
         return Promise.all(candidates.map((candidate) => this.refreshAvailability(candidate)));
     }
 
-    async countPage(search?: string, filters?: CandidateFilters): Promise<number> {
-        return this.repository.countPage(search, filters);
+    /** Lecture pure (MCP) : sans `refreshAvailability`, donc sans écriture ni notification. */
+    async findByIdReadOnly(id: string): Promise<Candidate | null> {
+        return this.repository.findById(id);
+    }
+
+    async findPageReadOnly(first: number, after?: string, search?: string): Promise<Candidate[]> {
+        return this.repository.findPage(first, after, search);
+    }
+
+    async countPage(search?: string, filters?: CandidateFilters, searchField?: CandidateSearchField): Promise<number> {
+        return this.repository.countPage(search, filters, searchField);
     }
 
     async findById(id: string): Promise<Candidate | null> {
@@ -79,8 +127,8 @@ export class CandidateService {
         if (candidate.status === CandidateStatus.IMMERSING) {
             const endDate = candidate.immersion_end_date;
             if (!endDate || !this.immersionEnded(endDate)) return candidate;
-            const updated = await this.repository.update(candidate._id, { status: CandidateStatus.SEEKING });
-            return updated ?? { ...candidate, status: CandidateStatus.SEEKING };
+            const updated = await this.update(candidate._id, { status: CandidateStatus.SEEKING });
+            return updated ?? { ...candidate, status: CandidateStatus.SEEKING, immersion_agreement: false };
         }
 
         return candidate;
@@ -152,11 +200,25 @@ export class CandidateService {
     }
 
     async create(data: Partial<Candidate>): Promise<Candidate> {
-        if (data.identity && !data.identity.description) {
-            data.identity.description = buildCandidateSummary(data as Candidate);
+        // Rétro-compat : un client existant peut encore envoyer l'ancien code « SA ».
+        if (data.tp_types) data.tp_types = normalizeTpCodes(data.tp_types) as Candidate['tp_types'];
+        if (data.identity) {
+            if (!data.identity.description) {
+                data.identity.description = buildCandidateSummary(data as Candidate);
+                data.identity.description_source = 'auto';
+            } else if (!data.identity.description_source) {
+                // Description fournie à la création (saisie RH, import…) : on la protège
+                // des régénérations automatiques.
+                data.identity.description_source = 'manual';
+            }
         }
         encryptIdentitySsn(data.identity);
-        return this.repository.create(data);
+        encryptCandidateHealth(data);
+        const created = await this.repository.create(data);
+        if (created.status === CandidateStatus.CONTRACT) {
+            await this.notifyCommercialOnContract(created);
+        }
+        return created;
     }
 
     /**
@@ -175,7 +237,31 @@ export class CandidateService {
     }
 
     async update(id: string, data: Partial<Candidate>): Promise<Candidate | null> {
+        // Rétro-compat : un client existant peut encore envoyer l'ancien code « SA ».
+        if (data.tp_types) data.tp_types = normalizeTpCodes(data.tp_types) as Candidate['tp_types'];
         const existing = await this.repository.findById(id);
+        // L'accord immersion suit le statut : coché à l'entrée en immersion, décoché
+        // dès qu'on en sort (fin, rejet, contrat, retour en recherche). Évite qu'un
+        // candidat en recherche arbore encore le badge « Convention immersion signée ».
+        if (existing) {
+            if (data.status === CandidateStatus.IMMERSING && existing.status !== CandidateStatus.IMMERSING) {
+                data.immersion_agreement = true;
+            } else if (
+                existing.status === CandidateStatus.IMMERSING &&
+                data.status &&
+                data.status !== CandidateStatus.IMMERSING
+            ) {
+                data.immersion_agreement = false;
+            }
+        }
+        // Le contact d'urgence est chiffré en bloc : une mise à jour partielle doit fusionner avec
+        // l'existant (avant, `flattenObject` ne touchait que les sous-champs envoyés).
+        if (existing?.emergency_contact && data.emergency_contact && typeof data.emergency_contact === 'object') {
+            data.emergency_contact = {
+                ...decryptHealthIfNeeded<Candidate['emergency_contact']>(existing.emergency_contact),
+                ...data.emergency_contact,
+            };
+        }
         if (existing) {
             const merged: Candidate = {
                 ...existing,
@@ -191,22 +277,78 @@ export class CandidateService {
                     ...existing.professional_projects,
                     ...data.professional_projects,
                 } as any;
-            if (!data.identity?.description) {
+            const incomingDescription = data.identity?.description;
+            const existingDescription = existing.identity?.description;
+            const existingSource = existing.identity?.description_source;
+            if (incomingDescription && incomingDescription.trim()) {
+                // Description explicitement fournie (saisie RH, ou bouton « Régénérer »
+                // qui précise `description_source: 'auto'`). Sans source explicite, un
+                // texte différent de l'existant est une modification manuelle : il ne
+                // sera plus écrasé par la génération automatique.
+                if (!data.identity?.description_source) {
+                    data.identity = {
+                        ...data.identity,
+                        description_source:
+                            incomingDescription.trim() === (existingDescription ?? '').trim()
+                                ? (existingSource ?? 'auto')
+                                : 'manual',
+                    } as Candidate['identity'];
+                }
+            } else if (existingSource === 'manual' && incomingDescription !== '') {
+                // Résumé personnalisé par un RH : une mise à jour qui ne touche pas à la
+                // description (ajout de CV, changement de statut, avatar, dossier Drive…)
+                // ne doit pas le remplacer. Une chaîne vide explicite, elle, demande un
+                // retour au résumé généré.
+                data.identity = {
+                    ...(data.identity ?? {}),
+                    description: existingDescription,
+                } as Candidate['identity'];
+            } else {
                 data.identity = {
                     ...(data.identity ?? {}),
                     description: buildCandidateSummary(merged),
+                    description_source: 'auto',
                 } as Candidate['identity'];
             }
         }
         encryptIdentitySsn(data.identity);
+        encryptCandidateHealth(data);
         const updated = await this.repository.update(id, data);
         if (updated) {
             // Passage en contrat : l'offre liée bascule elle aussi en contrat.
             if (data.status === CandidateStatus.CONTRACT && existing?.status !== CandidateStatus.CONTRACT) {
                 await this.syncOffersToContract(updated);
+                await this.notifyCommercialOnContract(updated);
             }
         }
         return updated;
+    }
+
+    /**
+     * Retire les consentements demandés (GDPR_INF_08.2). Renvoie l'état avant/après,
+     * ou null si la fiche n'existe pas. Seuls les types encore accordés sont modifiés :
+     * un retrait déjà effectif ne change rien (pas de nouvel événement d'historique).
+     */
+    async withdrawConsents(
+        id: string,
+        types: ConsentType[],
+    ): Promise<{ previous: Candidate; updated: Candidate } | null> {
+        const previous = await this.repository.findById(id);
+        if (!previous) return null;
+        const granted = types.filter((type) => previous.consentments?.[type] === true);
+        if (granted.length === 0) return { previous, updated: previous };
+        const updated = await this.repository.withdrawConsents(id, granted);
+        return updated ? { previous, updated } : null;
+    }
+
+    /** Enregistre une relance envoyée (compteur + historique + `last_relance_at`). */
+    async recordRelanceSent(id: string, entry: CandidateRelanceEntry): Promise<void> {
+        await this.repository.recordRelanceSent(id, entry);
+    }
+
+    /** Rattache la réponse du candidat (Oui/Non) à sa dernière relance sans réponse. */
+    async recordRelanceResponse(id: string, answer: string, at: Date): Promise<void> {
+        await this.repository.recordRelanceResponse(id, answer, at);
     }
 
     // Quand un candidat passe en contrat, toutes les offres qui lui sont liées
@@ -223,24 +365,177 @@ export class CandidateService {
         );
     }
 
-    async delete(id: string): Promise<boolean> {
-        return this.repository.delete(id);
+    // Quand un candidat passe en contrat avec une entreprise sélectionnée, notifie
+    // le commercial propriétaire de l'entreprise (companies.user_id).
+    private async notifyCommercialOnContract(candidate: Candidate): Promise<void> {
+        let companyId: number | undefined = candidate.contract_company_id
+            ? Number(candidate.contract_company_id)
+            : undefined;
+
+        // Fallback : si l'entreprise n'est pas directement sur le candidat mais via l'offre
+        if (!companyId && candidate.contract_offer_id) {
+            try {
+                const offer = await this.offerRepository.findById(candidate.contract_offer_id);
+                const offerCompanyId = offer?.company_infos?.id;
+                if (offerCompanyId) companyId = Number(offerCompanyId);
+            } catch {
+                // best-effort fallback, on continue sans entreprise
+            }
+        }
+
+        if (!companyId) {
+            // Dernier fallback : entreprise renseignée uniquement par son nom (ex. recherche exacte)
+            const name = candidate.contract_company_name?.trim();
+            if (name && name !== 'Non renseigné') {
+                try {
+                    const byName = await this.companyRepository.findByName(name);
+                    if (byName?.user_id) {
+                        const candidateName = candidate.identity?.full_name ?? 'Un candidat';
+                        await this.notificationService.create({
+                            userId: byName.user_id,
+                            type: 'candidate_contract',
+                            category: 'company',
+                            level: 'success',
+                            title: 'Contrat signé',
+                            message: `${candidateName} a signé un contrat avec ${byName.name ?? name}`,
+                            link: `/rh/candidats/${candidate._id}`,
+                        });
+                    }
+                } catch (err) {
+                    logger.error({ err, candidateId: candidate._id }, 'contract notification by name failed');
+                }
+            }
+            return;
+        }
+
+        try {
+            const company = await this.companyRepository.findById(companyId);
+            if (!company?.user_id) {
+                logger.warn(
+                    { candidateId: candidate._id, companyId },
+                    'contract notification skipped: company has no commercial linked',
+                );
+                return;
+            }
+            const candidateName = candidate.identity?.full_name ?? 'Un candidat';
+            const companyName = company.name ?? candidate.contract_company_name ?? "l'entreprise";
+            await this.notificationService.create({
+                userId: company.user_id,
+                type: 'candidate_contract',
+                category: 'company',
+                level: 'success',
+                title: 'Contrat signé',
+                message: `${candidateName} a signé un contrat avec ${companyName}`,
+                link: `/rh/candidats/${candidate._id}`,
+            });
+        } catch (err) {
+            logger.error({ err, candidateId: candidate._id, companyId }, 'contract notification failed');
+        }
+    }
+
+    /**
+     * Droit à l'effacement (GDPR_INF_06.4). Les copies tierces (Drive) sont supprimées
+     * en premier : en cas d'échec réel on s'arrête, le candidat reste et l'appel est
+     * rejouable. Le document candidat est supprimé en dernier pour la même raison.
+     * Filiz n'expose pas d'API de suppression : les folder_id sont journalisés pour
+     * suppression manuelle. DocuSeal ne contient aucune donnée candidat.
+     * `candidate_consent_history` est conservée volontairement (preuve, art. 7.1).
+     */
+    async delete(id: string, drive: DriveEraser | null = null): Promise<boolean> {
+        const candidate = await this.repository.findById(id);
+        if (!candidate) return false;
+
+        try {
+            const driveFiles = await this.eraseDriveCopies(candidate, drive);
+
+            const avatar = await this.repository.deleteAvatar(id);
+            const history = await new CandidateHistoryRepository().deleteByCandidate(id);
+            const offerMatchings = await this.offerRepository.removeCandidateFromAllMatchings(id);
+            const notifications = await new NotificationRepository().deleteByCandidateLink(id);
+            const attempts = await new QuestionnaireRepository().deleteAttemptsByCandidate(id);
+            const externalAccess = await new ExternalAccessRepository().deleteByCandidate(id);
+
+            const filizFolderIds = await new AlternantRepository().unlinkCandidate(id);
+            if (candidate.filiz_folder_id) filizFolderIds.push(candidate.filiz_folder_id);
+            if (filizFolderIds.length > 0) {
+                logger.warn(
+                    { candidateId: id, filizFolderIds: [...new Set(filizFolderIds)] },
+                    '[Erasure] suppression manuelle Filiz requise (pas d\'API de suppression)',
+                );
+            }
+
+            const deleted = await this.repository.delete(id);
+            logger.info(
+                {
+                    candidateId: id,
+                    driveFiles,
+                    avatar,
+                    history,
+                    offerMatchings,
+                    notifications,
+                    attempts,
+                    externalAccess,
+                    filizManual: filizFolderIds.length,
+                },
+                '[Erasure] candidat effacé',
+            );
+            return deleted;
+        } catch (error) {
+            logger.error({ err: error, candidateId: id }, '[Erasure] échec de l\'effacement du candidat');
+            throw error;
+        }
+    }
+
+    /** Supprime dossier Drive + fichiers hors dossier. 404 = déjà supprimé. Retourne le nombre supprimé. */
+    private async eraseDriveCopies(candidate: Candidate, drive: DriveEraser | null): Promise<number> {
+        // Set conserve l'ordre d'insertion : le dossier (qui emporte son contenu) part en premier.
+        const ids = new Set<string>();
+        if (candidate.drive_folder_id) ids.add(candidate.drive_folder_id);
+        if (candidate.identity?.drive_avatar_file_id) ids.add(candidate.identity.drive_avatar_file_id);
+        for (const link of [candidate.cv_link, candidate.pdf_link, candidate.photo_link]) {
+            const fileId = link ? extractDriveFileId(link) : null;
+            if (fileId) ids.add(fileId);
+        }
+        if (ids.size === 0) return 0;
+        if (!drive) {
+            throw new Error('Google Drive non connecté : impossible de supprimer les copies Drive du candidat');
+        }
+
+        let deleted = 0;
+        for (const fileId of ids) {
+            try {
+                await drive.deleteFile(fileId);
+                deleted++;
+            } catch (error) {
+                if (!isDriveNotFound(error)) throw error;
+            }
+        }
+        return deleted;
     }
 
     async matchOffers(id: string): Promise<Offer[]> {
         const candidate = await this.repository.findById(id);
         if (!candidate) return [];
-        if (candidate.status === CandidateStatus.CONTRACT) return [];
+        if (candidate.status !== CandidateStatus.SEEKING) return [];
 
-        const [allOffers, assignedOffers] = await Promise.all([
+        const [allOffers, assignedOffers, inactiveIds] = await Promise.all([
             this.offerRepository.listMatchingOffers(),
             this.offerRepository.findWithCandidate(id),
+            getModels().NeedsAnalysis.distinct('_id', { $or: [{ is_deleted: true }, { ab_status: 'INACTIVE' }] }),
         ]);
+
+        const inactiveSet = new Set<string>(inactiveIds.map(String));
+        // Une offre désactivée dans l'annuaire entreprises (ou rattachée à une AB
+        // inactive) n'est plus proposée au candidat, y compris si elle lui avait
+        // déjà été assignée.
+        const activeAssigned = assignedOffers.filter(
+            (offer) => offer.is_active !== false && !inactiveSet.has(String(offer.needs_analysis_id)),
+        );
 
         const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
         const matchedIds = new Set(matched.map((o) => String(o._id)));
 
-        for (const o of assignedOffers) {
+        for (const o of activeAssigned) {
             if (!matchedIds.has(String(o._id))) {
                 matched.push(o);
             }
@@ -251,18 +546,35 @@ export class CandidateService {
 
     private offerMatchesCandidate(offer: Offer, candidate: Candidate): boolean {
         const offerTps = offerTpCodes(offer);
-        const candidateTps = candidate.tp_types ?? [];
+        // Les fiches legacy portent encore « SA » : normaliser avant comparaison.
+        const candidateTps = (candidate.tp_types ?? []).map(normalizeTpCode);
         if (offerTps.length && !offerTps.some((tp) => candidateTps.includes(tp))) return false;
         if (offer.criteria?.driving_license && !candidate.identity.driving_license_b) return false;
+        if (offer.criteria?.has_vehicle && !candidate.identity.has_vehicle) return false;
 
         const candidateAge = computeAge(candidate.identity.date_of_birth) ?? candidate.identity.age;
         if (offer.criteria?.age_min != null && offer.criteria?.age_max != null && candidateAge != null) {
             if (candidateAge < offer.criteria.age_min || candidateAge > offer.criteria.age_max) return false;
         }
 
-        if (offer.localisation?.length) {
-            const mobility = candidate.job_info?.geographic_mobility ?? [];
-            if (!offer.localisation.every((loc) => mobility.includes(loc))) return false;
+        // Le candidat ne voit proposées que les offres d'un secteur qu'il a
+        // effectivement coché. Un secteur d'offre purement libre (hors
+        // référentiel) est ignoré faute de pouvoir être comparé.
+        const offerSectorFilter = activitySectorFilter(offer.company_infos?.activities);
+        if (!candidateWantsOfferSector(candidate.desired_sectors, offerSectorFilter.keys)) return false;
+
+        const offerZoneSet = offerZones(offer);
+        const offerCommunes = offer.localisation ?? [];
+        const hasGeoConstraint = offerZoneSet.size > 0 || offerCommunes.length > 0;
+        if (hasGeoConstraint) {
+            const mobility = (candidate.job_info?.geographic_mobility ?? []) as string[];
+            const hasMutualCommune = offerCommunes.length > 0 && offerCommunes.some((c) => mobility.includes(c));
+            if (hasMutualCommune) return true;
+            const cZones = candidateZones(candidate as any);
+            for (const z of offerZoneSet) {
+                if (cZones.has(z)) return true;
+            }
+            return false;
         }
 
         return true;

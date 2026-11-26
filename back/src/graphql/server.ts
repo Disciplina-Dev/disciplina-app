@@ -8,8 +8,12 @@ import { typeDefs as offerTypeDefs } from './offers/typeDefs';
 import { UserTypeDefs } from './common.typeDefs';
 import { typeDefs as needsAnalysisTypeDefs } from './needsAnalysis/typeDefs';
 import { resolvers as needsAnalysisResolvers } from './needsAnalysis/resolvers';
+import { typeDefs as pedaTypeDefs } from './peda/typeDefs';
+import { resolvers as pedaResolvers } from './peda/resolver';
 import { todoTypeDefs } from './todo/typeDefs';
 import { todoResolvers } from './todo/resolver';
+import { sectorTypeDefs } from './sector/typeDefs';
+import { sectorResolvers } from './sector/resolver';
 import { CSRF_HEADER } from '../rest/middleware/tokenAuth';
 
 // Apollo v5 active sa protection CSRF par défaut, mais le client ne pose que
@@ -22,15 +26,17 @@ const combinedCompanyResolvers = {
     Query: {
         ...companyResolvers.Query,
         ...todoResolvers.Query,
+        ...sectorResolvers.Query,
     },
     Mutation: {
         ...companyResolvers.Mutation,
         ...todoResolvers.Mutation,
     },
+    Sector: sectorResolvers.Sector,
 };
 
 export const CompanyAPI = new ApolloServer({
-    typeDefs: [UserTypeDefs, companyTypeDefs, todoTypeDefs],
+    typeDefs: [UserTypeDefs, companyTypeDefs, todoTypeDefs, sectorTypeDefs],
     resolvers: combinedCompanyResolvers,
     csrfPrevention,
 });
@@ -50,5 +56,11 @@ export const CandidateAPI = new ApolloServer({
 export const OfferAPI = new ApolloServer({
     typeDefs: offerTypeDefs,
     resolvers: offerResolvers,
+    csrfPrevention,
+});
+
+export const PedaAPI = new ApolloServer({
+    typeDefs: pedaTypeDefs,
+    resolvers: pedaResolvers,
     csrfPrevention,
 });

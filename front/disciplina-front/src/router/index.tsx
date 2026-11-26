@@ -3,12 +3,16 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import NotFound from "@/pages/NotFound";
 import GoogleAuthCallback from "@/pages/GoogleAuthCallback";
 import PublicBooking from "@/pages/booking/PublicBooking";
-import MatchGate from "@/pages/publicMatch/MatchGate";
+import PublicTest from "@/pages/test/PublicTest";
+import Questionnaires from "@/pages/rh/questionnaires/Questionnaires";
+import QuestionnaireEditor from "@/pages/rh/questionnaires/QuestionnaireEditor";
+import QuestionnaireResults from "@/pages/rh/questionnaires/QuestionnaireResults";
+import QuestionnaireAttemptDetail from "@/pages/rh/questionnaires/QuestionnaireAttemptDetail";
 import MatchComparator from "@/pages/publicMatch/MatchComparator";
-import InterviewGate from "@/pages/publicInterview/InterviewGate";
-import InterviewSlotPicker from "@/pages/publicInterview/InterviewSlotPicker";
-import CvImportGate from "@/pages/publicCvImport/CvImportGate";
-import CvImportUpload from "@/pages/publicCvImport/CvImportUpload";
+import ExternalAuthenticate from "@/pages/external/ExternalAuthenticate";
+import ExternalCvUpload from "@/pages/external/ExternalCvUpload";
+import ExternalInterview from "@/pages/external/ExternalInterview";
+import LegacyExternalRedirect from "@/pages/external/LegacyExternalRedirect";
 
 import AuthLayout from "@/components/layout/AuthLayout";
 import LoginPage from "@/pages/LoginPage";
@@ -28,6 +32,7 @@ import RelanceCommercial from "@/pages/commercial/RelanceCommercial";
 import ListeNoire from "@/pages/commercial/ListeNoire";
 import QuarantineCompany from "@/pages/commercial/QuarantineCompany";
 import AbDriveConfig from "@/pages/commercial/AbDriveConfig";
+import SuiviEntreprise from "@/pages/commercial/SuiviEntreprise";
 
 import RHLayout from "@/components/layout/RHLayout";
 import DashboardRH from "@/pages/rh/DashboardRH";
@@ -41,9 +46,16 @@ import MailTemplates from "@/pages/rh/MailTemplates";
 import Relance from "@/pages/rh/Relance";
 import DriveConfig from "@/pages/rh/DriveConfig";
 import SectorSettings from "@/pages/rh/SectorSettings";
+import ExternalAccesPage from "@/pages/rh/ExternalAccesPage";
 
 import PedaLayout from "@/components/layout/PedaLayout";
+import DashboardPeda from "@/pages/peda/DashboardPeda";
 import SuiviAbsences from "@/pages/peda/SuiviAbsences";
+import ListeAlternants from "@/pages/peda/ListeAlternants";
+import FicheAlternant from "@/pages/peda/FicheAlternant";
+import ListeSessions from "@/pages/peda/ListeSessions";
+import FicheSession from "@/pages/peda/FicheSession";
+import Ruptures from "@/pages/peda/Ruptures";
 
 import EntrepriseLayout from "@/components/layout/EntrepriseLayout";
 import DashboardEntreprise from "@/pages/entreprise/DashboardEntreprise";
@@ -70,6 +82,12 @@ export const router = createBrowserRouter([
     children: [
   {
     path: "/", element: <LoginPage /> },
+  // Le choix de région se fait désormais sur la page de login : l'ancien portail
+  // ne redirige que pour les onglets et favoris qui pointent encore dessus.
+  {
+    path: "/portail", element: <Navigate to="/login" replace /> },
+  {
+    path: "/login", element: <LoginPage /> },
   {
     path: "/auth/google", element: <GoogleAuthCallback /> },
       // Redirections rétro-compatibles vers le nouvel espace admin
@@ -105,8 +123,9 @@ export const router = createBrowserRouter([
       { path: "analyses-besoin", element: <ListeAB />, handle: { crumb: "Analyses de besoin" } },
       { path: "analyses-besoin/nouvelle", element: <CreateAB />, handle: { crumb: "Nouvelle analyse" } },
       { path: "portefeuille", element: <PortefeuilleEntreprises />, handle: { crumb: "Portefeuille" } },
+      { path: "suivi-entreprise", element: <SuiviEntreprise />, handle: { crumb: "Suivi entreprise" } },
       {
-        path: "portefeuille/:slug",
+        path: "portefeuille/:id/:slug?",
         element: <EntreprisePage />,
         handle: {
           crumb: ({ params }: { params: Record<string, string | undefined> }) =>
@@ -153,6 +172,11 @@ export const router = createBrowserRouter([
       { path: "candidats/:id", element: <FicheCandidat />, handle: { crumb: "Fiche candidat" } },
       { path: "candidats/:id/questionnaire", element: <QuestionnaireAB />, handle: { crumb: "Questionnaire" } },
       { path: "matching", element: <NeedsAnalysisList />, handle: { crumb: "Matching" } },
+      { path: "external-access", element: <ExternalAccesPage />, handle: { crumb: "Accès externes" } },
+      { path: "questionnaires", element: <Questionnaires />, handle: { crumb: "Questionnaires" } },
+      { path: "questionnaires/resultats", element: <QuestionnaireResults />, handle: { crumb: "Résultats des tests" } },
+      { path: "questionnaires/resultats/:attemptId", element: <QuestionnaireAttemptDetail />, handle: { crumb: "Détail du passage" } },
+      { path: "questionnaires/:id", element: <QuestionnaireEditor />, handle: { crumb: "Éditeur" } },
       { path: "calendrier", element: <Calendrier />, handle: { crumb: "Calendrier" } },
       { path: "analyses-besoin", element: <ABEntreprisesRecues />, handle: { crumb: "Analyses de besoin" } },
       { path: "mail", element: <MailTemplates scope="rh" />, handle: { crumb: "Modèles mail" } },
@@ -189,6 +213,12 @@ export const router = createBrowserRouter([
     handle: { crumb: "Espace Pédagogique" },
     children: [
       { index: true, element: <SuiviAbsences />, handle: { crumb: "Suivi absences" } },
+      { path: "dashboard", element: <DashboardPeda />, handle: { crumb: "Tableau de bord" } },
+      { path: "alternants", element: <ListeAlternants />, handle: { crumb: "Alternants" } },
+      { path: "alternants/:id", element: <FicheAlternant />, handle: { crumb: "Fiche alternant" } },
+      { path: "sessions", element: <ListeSessions />, handle: { crumb: "Sessions" } },
+      { path: "sessions/:id", element: <FicheSession />, handle: { crumb: "Fiche session" } },
+      { path: "ruptures", element: <Ruptures />, handle: { crumb: "Ruptures" } },
       { path: "mail", element: <MailTemplates scope="peda" />, handle: { crumb: "Modèles mail" } },
       { path: "profil", element: <ProfilePage />, handle: { crumb: "Mon profil" } },
     ],
@@ -218,28 +248,25 @@ export const router = createBrowserRouter([
         element: <PublicBooking />,
       },
       {
-        path: "/public/match",
-        element: <MatchGate />,
+        // Questionnaire interne (remplace ClassMarker) : lien / QR code candidat.
+        path: "/test/:token",
+        element: <PublicTest />,
       },
       {
-        path: "/public/match/:signature",
+        path: "/external/authenticate",
+        element: <ExternalAuthenticate />,
+      },
+      {
+        path: "/external/matching/:signature",
         element: <MatchComparator />,
       },
       {
-        path: "/public/interview",
-        element: <InterviewGate />,
+        path: "/external/interview/:signature",
+        element: <ExternalInterview />,
       },
       {
-        path: "/public/interview/:signature",
-        element: <InterviewSlotPicker />,
-      },
-      {
-        path: "/public/cv-import",
-        element: <CvImportGate />,
-      },
-      {
-        path: "/public/cv-import/:signature",
-        element: <CvImportUpload />,
+        path: "/external/cv-import/:signature",
+        element: <ExternalCvUpload />,
       },
     ],
   },
@@ -268,6 +295,10 @@ export const router = createBrowserRouter([
   { path: "/legal", element: <Navigate to="/legal/mentions" replace /> },
   { path: "/privacy", element: <Navigate to="/legal/confidentialite" replace /> },
   { path: "/cgu", element: <Navigate to="/legal/cgu" replace /> },
+  // Liens externes au format pré-migration (emails déjà envoyés) → entrée d'authentification
+  { path: "/public/match/:signature", element: <LegacyExternalRedirect /> },
+  { path: "/public/interview/:signature", element: <LegacyExternalRedirect /> },
+  { path: "/public/cv-import/:signature", element: <LegacyExternalRedirect /> },
   {
     path: "/public/cv-import",
     element: <CvImportGate />,

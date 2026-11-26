@@ -1,4 +1,4 @@
-import { CompanyRepository, CompanyFilters, CompanySirenGroupRow } from '../repositories/mysql/CompanyRepository';
+import { CompanyRepository, CompanyFilters } from '../repositories/mysql/CompanyRepository';
 import { CompanyBlacklistRepository } from '../repositories/mysql/CompanyBlacklistRepository';
 import { CompanyHistoryRepository } from '../repositories/mysql/CompanyHistoryRepository';
 import { SireneService } from '../external/insee/sirene.service';

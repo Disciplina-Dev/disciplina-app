@@ -5,7 +5,34 @@ export enum TitleProfessionalType {
     CC = 'CC',
     NTC = 'NTC',
     REM = 'REM',
-    SA = 'SA',
+    CADGA = 'CADGA',
+}
+
+/** Ancien code du TP « Secrétaire Assistant », renommé « Chargé d'accueil et de gestion administrative ». */
+export const LEGACY_TP_SA = 'SA';
+
+/** Normalise un code TP legacy (« SA ») vers son code actuel (« CADGA »). */
+export function normalizeTpCode(code: string): string {
+    return code === LEGACY_TP_SA ? TitleProfessionalType.CADGA : code;
+}
+
+/** Normalise une liste de codes TP legacy vers les codes actuels. */
+export function normalizeTpCodes(codes: readonly string[]): string[] {
+    return codes.map(normalizeTpCode);
+}
+
+/**
+ * Étend un filtre TP à ses valeurs legacy stockées en base : un filtre « CADGA »
+ * doit aussi matcher les anciens documents portant encore « SA ».
+ */
+export function expandTpFilter(codes: readonly string[]): string[] {
+    const expanded = new Set<string>();
+    for (const code of codes) {
+        const normalized = normalizeTpCode(code);
+        expanded.add(normalized);
+        if (normalized === TitleProfessionalType.CADGA) expanded.add(LEGACY_TP_SA);
+    }
+    return [...expanded];
 }
 
 export enum CandidateStatus {
@@ -61,7 +88,17 @@ export interface EncryptedSsn {
     encrypted: string;
     iv: string;
     tag: string;
+    /** Empreinte de la clé de chiffrement (absente = format historique, clé scrypt). */
+    kid?: string;
 }
+
+// 1 : française, 2 : pays européen, 3 : autre (codes Filiz).
+export type NationalityCode = 1 | 2 | 3;
+
+// Provenance de `identity.description` : `auto` = résumé déterministe régénéré à
+// chaque mise à jour du dossier, `manual` = texte saisi par un RH (ou généré par
+// l'IA puis validé) qui ne doit plus être écrasé automatiquement.
+export type CandidateDescriptionSource = 'auto' | 'manual';
 
 export interface Identity {
     full_name: string;
@@ -69,20 +106,26 @@ export interface Identity {
     date_of_birth?: Date;
     place_of_birth?: string;
     department_of_birth?: string;
+    born_in_france?: boolean;
+    nationality?: NationalityCode; // exigé par Filiz (étapes 3 et 4)
+    residence_permit?: boolean; // titre de séjour autorisant à travailler, requis si nationalité « autre »
     age?: number;
     sex?: string;
     address?: string;
     postal_code?: string;
     city?: string;
+    country?: string;
     email: string;
     phone: string;
     driving_license_b?: boolean;
     has_vehicle?: boolean;
     transport_means?: string;
+    // Chiffrés au repos (health-cipher.ts) : ces types décrivent la valeur en clair, déchiffrée par le service/mapper.
     psh_referral_request?: boolean;
     had_apprenticeship_contract?: boolean;
     apprenticeship_contract_details?: string;
     description?: string;
+    description_source?: CandidateDescriptionSource;
     avatar_updated_at?: Date;
     drive_avatar_file_id?: string;
 }
@@ -144,6 +187,7 @@ export interface JobInfo {
     geographic_mobility?: Localisation[];
     weekend_work?: boolean;
     discovery_source?: DiscoverySource;
+    job_search_platforms?: string;
 }
 
 export interface PedagogicalRecommendations {
@@ -196,6 +240,11 @@ export interface ClassMarkerResult {
     duration?: string;
     pdf_link?: string;
     questions?: ClassMarkerQuestion[];
+    // Questionnaires internes (#968) : champs facultatifs, absents des anciens résultats ClassMarker.
+    source?: 'classmarker' | 'internal';
+    questionnaire_id?: string;
+    attempt_id?: string;
+    tab_switch_count?: number;
 }
 
 /**
@@ -218,6 +267,43 @@ export interface EmergencyContact {
     email?: string;
 }
 
+export interface CandidateConsentments {
+    data_processing: boolean; // traitement général — obligatoire (base légale de la collecte)
+    data_sharing: boolean; // partage avec les entreprises partenaires
+    ai_processing: boolean; // résumé de profil via IA locale (Ollama)
+    photo_processing: boolean; // stockage de la photo/avatar
+    consent_date: Date;
+    consent_version: string; // version du corpus légal au moment du consentement
+}
+
+/**
+ * Une relance reçue par un candidat : un envoi (disponibilité Oui/Non ou
+ * modèle RH) horodaté, avec la réponse éventuelle du candidat rattachée.
+ * Append-only dans `relance_history` (cf. `classmarker_history`) ; le compteur
+ * `relance_count` est incrémenté à chaque envoi.
+ */
+export interface CandidateRelanceEntry {
+    sent_at: Date;
+    kind: 'availability' | 'template';
+    template_id?: string;
+    subject?: string;
+    sent_by?: number; // id du RH émetteur
+    response_at?: Date;
+    answer?: string; // 'oui' | 'non' (relance disponibilité uniquement)
+}
+
+export interface ImmersionScheduleSlot {
+    day?: string | null;
+    morning_start_hour?: string | null;
+    morning_end_hour?: string | null;
+    afternoon_start_hour?: string | null;
+    afternoon_end_hour?: string | null;
+    // Legacy : créneau continu unique (avant le découpage matin/après-midi), lu
+    // uniquement pour les fiches existantes — jamais réécrit par l'API.
+    start_hour?: string | null;
+    end_hour?: string | null;
+}
+
 export interface Candidate {
     _id: string;
     candidate_id: string;
@@ -225,7 +311,11 @@ export interface Candidate {
     tp_types?: TitleProfessionalType[]; // titres professionnels visés (multi, canonique)
     identity: Identity;
     emergency_contact?: EmergencyContact;
+    consentments?: CandidateConsentments;
     status: CandidateStatus;
+    written_test_score?: number;
+    test_average?: number;
+    test_failure_pending?: boolean;
     training_site?: TrainingSite; // legacy : 1er site (dérivé), conservé pour Drive/stats/filtres
     training_sites?: TrainingSite[]; // positionnement multi-sites (canonique)
     immersion_agreement?: boolean;
@@ -233,11 +323,16 @@ export interface Candidate {
     immersion_end_date?: Date;
     immersion_company_id?: number; // entreprise d'immersion (réf MySQL companies)
     immersion_company_name?: string; // snapshot du nom au moment du choix
+    immersion_convention_number?: string; // numéro de convention d'immersion (saisie libre)
+    immersion_schedule?: ImmersionScheduleSlot[]; // horaires d'immersion (créneaux par jour)
     immersion_end_notified_at?: Date; // date d'émission de la notif « immersion terminée » (dédup)
     contract_offer_id?: string; // offre (Mongo offers) liée au contrat signé
     contract_company_id?: number; // entreprise du contrat (réf MySQL companies)
     contract_company_name?: string; // snapshot du nom au moment du choix
     contract_start_date?: Date;
+    contract_trial_end_date?: Date; // fin de période d'essai (45 jours ouvrés depuis le début, éditable)
+    contract_session_id?: string; // session pédagogique (réf Mongo sessions)
+    contract_session_name?: string; // snapshot du nom au moment du choix
     desired_sectors?: string[];
     expected_company_skills?: string[];
     education?: Education;
@@ -259,6 +354,11 @@ export interface Candidate {
     // Relance de disponibilité : date du dernier envoi et date de la réponse du candidat.
     last_relance_at?: Date;
     relance_response_at?: Date;
+    // Compteur de relances reçues (incrémenté à chaque envoi, tout type confondu).
+    relance_count?: number;
+    // Historique complet : une entrée par relance envoyée (append-only). `last_relance_at`
+    // reste la date du dernier envoi pour compat ; ici on garde la trace de tous.
+    relance_history?: CandidateRelanceEntry[];
     // Historique complet : un entrée par test passé (append-only). `classmarker`
     // reste le dernier résultat pour compat ; ici on garde la trace de tous.
     classmarker_history?: ClassMarkerResult[];

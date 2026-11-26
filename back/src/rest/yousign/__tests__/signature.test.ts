@@ -67,11 +67,11 @@ describe('POST /api/webhooks/yousign — signature auto-injection', () => {
         vi.restoreAllMocks();
     });
 
-    async function postWebhook() {
+    async function postWebhook(eventName = 'procedure.signed') {
         return fetch(`http://localhost:${env.API_PORT}/api/webhooks/yousign`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eventName: 'procedure.signed', data: { id: yousignId } }),
+            body: JSON.stringify({ eventName, data: { id: yousignId } }),
         });
     }
 
@@ -101,5 +101,31 @@ describe('POST /api/webhooks/yousign — signature auto-injection', () => {
         expect(sendEmail).toHaveBeenCalledTimes(1);
         const [, options] = sendEmail.mock.calls[0];
         expect(options.html).not.toContain('<img');
+    });
+
+    it('ignores a replayed webhook (no duplicate mails)', async () => {
+        const first = await postWebhook();
+        expect(first.status).toBe(200);
+        expect(sendEmail).toHaveBeenCalledTimes(1);
+
+        const needsAnalysisRepo = new NeedsAnalysisRepository();
+        const afterFirst = await needsAnalysisRepo.findBySignatureRequestId(yousignId);
+        expect(afterFirst?.status).toBe(NeedsAnalysisStatus.SIGNE);
+        expect(afterFirst?.signed_notification_sent_at).toBeDefined();
+
+        const second = await postWebhook('procedure.done');
+        expect(second.status).toBe(200);
+        expect(sendEmail).toHaveBeenCalledTimes(1);
+    });
+
+    it('sends a single mail on concurrent duplicate deliveries (no duplicate mails)', async () => {
+        // Yousign émet plusieurs évènements pour une même demande
+        // (`procedure.signed` puis `procedure.done`) : un seul traitement doit
+        // envoyer les mails.
+        const [first, second] = await Promise.all([postWebhook('procedure.signed'), postWebhook('procedure.done')]);
+        expect(first.status).toBe(200);
+        expect(second.status).toBe(200);
+
+        expect(sendEmail).toHaveBeenCalledTimes(1);
     });
 });

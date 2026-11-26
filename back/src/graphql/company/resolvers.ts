@@ -7,16 +7,24 @@ import { toBlacklistedCompany, toCompanyConflict, toCompanies } from '../../serv
 import { CompanyFilters } from '../../repositories/mysql/CompanyRepository';
 import { CompaniesRow, CompanyConflictRow } from '../../types/db-rows.types';
 import { UserService } from '../../services/UserService';
+import { NotificationService } from '../../services/NotificationService';
 import { authGuard, authGuardRole } from '../authGuard';
 import { JobRole, Permission } from '../../types/user.types';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { permission } from 'node:process';
+import { logger } from '../../external/logger';
+import { getRegion } from '../../db/tenant';
+import {
+    DEFAULT_ANNEMASSE_COMPANY_SECTOR,
+    DEFAULT_SECTOR,
+    sanitizeCompanySectors,
+} from '../../utils/sector';
 
 const companiesService = new CompaniesService();
 const companiesBlacklistService = new CompaniesBlacklistService();
 const companyConflictService = new CompanyConflictService();
 const contactLogService = new ContactLogService();
 const userService = new UserService();
+const notificationService = new NotificationService();
 
 interface CompanyInput {
     userID?: number | null;
@@ -25,7 +33,7 @@ interface CompanyInput {
     phone?: string | null;
     email?: string | null;
     address?: string | null;
-    sector?: string | null;
+    sector?: string | string[] | null;
     mainActivity?: string | null;
     siret?: string | null;
     idcc?: string | null;
@@ -53,6 +61,15 @@ interface CompanyConflictInput {
     userId?: number | null;
 }
 
+const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
+const DEFAULT_STATUS = 'À Réfléchir';
+
+function normalizeSector(raw: string | string[] | null | undefined): string {
+    const unique = [...new Set(sanitizeCompanySectors(raw))];
+    if (unique.length === 0) return getRegion() === 'annemasse' ? DEFAULT_ANNEMASSE_COMPANY_SECTOR : DEFAULT_SECTOR;
+    return unique.join(', ');
+}
+
 function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConflictRow> {
     const row: Partial<CompanyConflictRow> = {};
     if (input.legalReferent !== undefined) row.legal_referent = input.legalReferent;
@@ -60,7 +77,14 @@ function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConf
     if (input.phone !== undefined) row.phone = input.phone;
     if (input.email !== undefined) row.email = input.email;
     if (input.address !== undefined) row.address = input.address;
-    if (input.sector !== undefined) row.sector = input.sector;
+    if (input.sector !== undefined) {
+        if (input.sector === null || input.sector === '') {
+            row.sector = null;
+        } else {
+            const valid = sanitizeCompanySectors(input.sector);
+            row.sector = [...new Set(valid)].join(', ') || null;
+        }
+    }
     if (input.mainActivity !== undefined) row.main_activity = input.mainActivity;
     if (input.siret !== undefined) row.siret = input.siret;
     if (input.idcc !== undefined) row.idcc = input.idcc;
@@ -68,11 +92,6 @@ function mapConflictInputToRow(input: CompanyConflictInput): Partial<CompanyConf
     if (input.userId !== undefined) row.user_id = input.userId;
     return row;
 }
-
-const ALLOWED_SECTORS = new Set(['Nord-Est', 'Ouest', 'Sud']);
-const DEFAULT_SECTOR = 'Nord-Est';
-const ALLOWED_STATUSES = new Set(['Oui', 'Non', 'À Réfléchir', 'Relance', 'Réponds pas', 'Fermé']);
-const DEFAULT_STATUS = 'À Réfléchir';
 
 function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     const row: Partial<CompaniesRow> = {};
@@ -83,7 +102,7 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
     if (input.email !== undefined) row.email = input.email;
     if (input.address !== undefined) row.address = input.address ?? '';
     if (input.sector !== undefined)
-        row.sector = input.sector && ALLOWED_SECTORS.has(input.sector) ? input.sector : DEFAULT_SECTOR;
+        row.sector = normalizeSector(input.sector as string | string[] | null);
     if (input.mainActivity !== undefined) row.main_activity = input.mainActivity;
     if (input.siret !== undefined) row.siret = input.siret ?? '';
     if (input.idcc !== undefined) row.idcc = input.idcc;
@@ -108,10 +127,23 @@ function mapInputToRow(input: CompanyInput): Partial<CompaniesRow> {
 
 function toCompanyFilters(filtersInput?: Record<string, unknown>): CompanyFilters | undefined {
     if (!filtersInput) return undefined;
+    const rawSector = filtersInput.sector as unknown;
+    const rawSectors = filtersInput.sectors as string[] | undefined;
+    let mergedSectors: string[] | undefined;
+    if (Array.isArray(rawSector)) mergedSectors = rawSector as string[];
+    else if (typeof rawSector === 'string' && rawSector) mergedSectors = [rawSector];
+    if (Array.isArray(rawSectors) && rawSectors.length) {
+        mergedSectors = [...(mergedSectors ?? []), ...rawSectors];
+    }
+    const rawMode = (filtersInput.sectorMode as string) ?? (filtersInput.sectorsMode as string);
+    const mode = rawMode === 'AND' ? 'AND' : rawMode === 'OR' ? 'OR' : undefined;
     return {
         status: filtersInput.status as string[] | undefined,
         userID: filtersInput.userID as number | undefined,
-        sector: filtersInput.sector as string | undefined,
+        sector: mergedSectors,
+        sectors: mergedSectors,
+        sectorMode: mode as 'OR' | 'AND' | undefined,
+        sectorsMode: mode as 'OR' | 'AND' | undefined,
         relance: filtersInput.relance as string | undefined,
         unassigned: filtersInput.unassigned as boolean | undefined,
         createdFrom: filtersInput.createdFrom as string | undefined,
@@ -121,6 +153,15 @@ function toCompanyFilters(filtersInput?: Record<string, unknown>): CompanyFilter
 
 export const resolvers = {
     Query: {
+        // Fiche entreprise seule, pour les liens profonds (`/portefeuille/:id`)
+        // et la fiche entreprise quand le portefeuille n'est pas chargé.
+        company: async (_: unknown, { id }: { id: number }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
+            const company = await companiesService.findById(id);
+            if (!company) return null;
+            return { company, salePerson: await userService.findById(company.userID ?? 0) };
+        },
+
         companies: async (
             _: unknown,
             {
@@ -266,6 +307,10 @@ export const resolvers = {
         createCompany: async (_: unknown, { input }: { input: CompanyInput }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
             const rowData = mapInputToRow(input);
+            // Secteur omis : défaut du tenant (la colonne MySQL retomberait
+            // sinon sur 'Nord-Est' même pour Annemasse). En update, un secteur
+            // omis ne doit au contraire jamais écraser la valeur stockée.
+            if (rowData.sector === undefined) rowData.sector = normalizeSector(undefined);
             if (context.user.role === JobRole.COMMERCIAL) {
                 rowData.user_id = context.user.id;
             } else if (rowData.user_id === undefined) {
@@ -291,14 +336,41 @@ export const resolvers = {
             };
         },
         deleteCompany: async (_: unknown, { id }: { id: number }, context: any) => {
-            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.COMMERCIAL]);
-            if (context.user.role === JobRole.COMMERCIAL) {
-                const existing = await companiesService.findById(id);
-                if (existing?.userID && existing.userID !== context.user.id) {
-                    throw new Error('Forbidden: You can only delete your own companies');
+            authGuard(context.user, Permission.RESPONSABLE);
+            const existing = await companiesService.findById(id);
+            if (!existing) {
+                throw new Error('Company not found');
+            }
+            const deleted = await companiesService.delete(id);
+            if (deleted) {
+                const actorId = Number(context.user.id);
+                const actorName =
+                    [context.user.firstName, context.user.lastName].filter(Boolean).join(' ').trim() ||
+                    context.user.email ||
+                    `Utilisateur #${actorId}`;
+                const companyLabel = existing.name?.trim() || `Entreprise #${id}`;
+                const siretLabel = existing.siret?.trim() ? ` (SIRET ${existing.siret.trim()})` : '';
+                try {
+                    const responsables = await userService.findByPermissions([Permission.RESPONSABLE, Permission.ADMIN]);
+                    const recipients = responsables.filter((u) => u.id !== actorId);
+                    await Promise.all(
+                        recipients.map((user) =>
+                            notificationService.create({
+                                userId: user.id,
+                                type: 'company_deleted',
+                                category: 'company',
+                                level: 'warning',
+                                title: 'Entreprise supprimée',
+                                message: `${companyLabel}${siretLabel} a été supprimée par ${actorName}.`,
+                                link: '/commercial/portefeuille',
+                            }),
+                        ),
+                    );
+                } catch (err) {
+                    logger.error({ err, companyId: id }, 'Failed to notify responsables after company deletion');
                 }
             }
-            return companiesService.delete(id);
+            return deleted;
         },
         blacklistCompany: async (
             _: unknown,

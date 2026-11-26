@@ -154,6 +154,42 @@ export const GET_COMPANY_STATS = gql`
   }
 `
 
+export const GET_COMPANY = gql`
+  query GetCompany($id: Int!) {
+    company(id: $id) {
+      company {
+        id
+        userID
+        legalReferent
+        name
+        phone
+        email
+        address
+        sector
+        mainActivity
+        siret
+        siren
+        idcc
+        ape
+        notes
+        conclusion
+        status
+        relanceDate
+        createdAt
+        relanceType
+        relanceTemplateId
+        relanceChannel
+      }
+      salePerson {
+        id
+        email
+        firstName
+        lastName
+      }
+    }
+  }
+`
+
 export const GET_COMPANY_BY_SIRET = gql`
   query GetCompanyBySiret($siret: String!) {
     companyBySiret(siret: $siret) {
@@ -411,9 +447,24 @@ const CANDIDATE_FIELDS = gql`
       sector
     }
     status
+    writtenTestScore
+    testAverage
+    testFailurePending
     tpTypes
     trainingSite
     trainingSites
+    immersionCompanyId
+    immersionCompanyName
+    immersionStartDate
+    immersionEndDate
+    immersionConventionNumber
+    contractOfferId
+    contractCompanyId
+    contractCompanyName
+    contractStartDate
+    contractTrialEndDate
+    contractSessionId
+    contractSessionName
     skillsAssessment {
       competence
       level
@@ -454,6 +505,16 @@ const CANDIDATE_FIELDS = gql`
     createdAt
     lastRelanceAt
     relanceResponseAt
+    relanceCount
+    relanceHistory {
+      sentAt
+      kind
+      templateId
+      subject
+      sentBy
+      responseAt
+      answer
+    }
   }
 `
 
@@ -479,8 +540,8 @@ export const GET_CANDIDATES = gql`
 `
 
 export const GET_CANDIDATES_PAGE = gql`
-  query GetCandidatesPage($first: Int, $after: String, $search: String, $filters: CandidateFiltersInput) {
-    candidatesPage(first: $first, after: $after, search: $search, filters: $filters) {
+  query GetCandidatesPage($first: Int, $after: String, $search: String, $searchField: CandidateSearchField, $filters: CandidateFiltersInput) {
+    candidatesPage(first: $first, after: $after, search: $search, searchField: $searchField, filters: $filters) {
       edges {
         cursor
         node {
@@ -585,6 +646,9 @@ export const GET_CANDIDATE_BY_ID = gql`
         sector
       }
       status
+      writtenTestScore
+      testAverage
+      testFailurePending
       tpTypes
       trainingSite
       trainingSites
@@ -593,10 +657,15 @@ export const GET_CANDIDATE_BY_ID = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -622,6 +691,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -694,6 +764,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       cvLink
@@ -727,10 +798,15 @@ export const UPDATE_CANDIDATE = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       skillsAssessment {
@@ -760,6 +836,7 @@ export const UPDATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -831,6 +908,7 @@ export const UPDATE_CANDIDATE = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       pdfLink
       createdAt
@@ -863,6 +941,7 @@ export const CREATE_CANDIDATE = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
       }
@@ -906,10 +985,15 @@ export const GET_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -922,11 +1006,15 @@ export const GET_CANDIDATE_FULL = gql`
         dateOfBirth
         placeOfBirth
         departmentOfBirth
+        bornInFrance
+        nationality
+        residencePermit
         age
         sex
         address
         postalCode
         city
+        country
         drivingLicenseB
         hasVehicle
         transportMeans
@@ -936,6 +1024,7 @@ export const GET_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education { schoolLevel justification }
       support {
         franceTravailRegistered
@@ -974,6 +1063,7 @@ export const GET_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion
@@ -1041,10 +1131,15 @@ export const UPDATE_CANDIDATE_FULL = gql`
       immersionEndDate
       immersionCompanyId
       immersionCompanyName
+      immersionConventionNumber
+      immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
       contractOfferId
       contractCompanyId
       contractCompanyName
       contractStartDate
+      contractTrialEndDate
+      contractSessionId
+      contractSessionName
       desiredSectors
       expectedCompanySkills
       identity {
@@ -1070,6 +1165,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         description
       }
       emergencyContact { lastName firstName relationship phone email }
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
       education {
         schoolLevel
         justification
@@ -1119,6 +1215,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         geographicMobility
         weekendWork
         discoverySource
+        jobSearchPlatforms
       }
       synthesis {
         feasibilityConclusion
@@ -1213,10 +1310,12 @@ export const GET_OFFERS = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
       sector
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1262,11 +1361,14 @@ export const MATCH_OFFER = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
+      isActive
       localisation
       sector
       softSkills
+      schedule { day startHour endHour }
       matchedCandidate {
         id
         fullName
@@ -1280,6 +1382,8 @@ export const MATCH_OFFER = gql`
         identityDescription
         comment
         cvWebview
+        hasCv
+        isRupture
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1296,11 +1400,14 @@ export const MATCH_OFFER = gql`
         city
         email
         phone
+        hasCv
+        isRupture
       }
       interviewSlots
       interviewLocation
       title
       jobRole
+      relaxedCriteria
       salerInfo {
         id
         email
@@ -1325,8 +1432,16 @@ export const MATCH_OFFER = gql`
 `
 
 export const CREATE_MATCH_SESSION = gql`
-  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!, $templateId: String) {
-    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates, templateId: $templateId)
+  mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!, $templateId: String, $cc: [String!]) {
+    createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates, templateId: $templateId, cc: $cc)
+  }
+`
+
+export const DISMISS_SUGGESTED_CANDIDATE = gql`
+  mutation DismissSuggestedCandidate($offerId: String!, $candidateId: String!) {
+    dismissSuggestedCandidate(offerId: $offerId, candidateId: $candidateId) {
+      id
+    }
   }
 `
 
@@ -1347,6 +1462,8 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         description
         identityDescription
         cvWebview
+        hasCv
+        isRupture
       }
     }
   }
@@ -1492,6 +1609,15 @@ export const UPDATE_OFFER = gql`
   }
 `
 
+export const UPDATE_OFFER_ACTIVE = gql`
+  mutation UpdateOfferActive($id: String!, $active: Boolean) {
+    updateOfferActive(id: $id, active: $active) {
+      id
+      isActive
+    }
+  }
+`
+
 export const UNMATCH_OFFER = gql`
   mutation UnmatchOffer($id: String!) {
     unmatchOffer(id: $id) {
@@ -1507,6 +1633,7 @@ export const UNMATCH_OFFER = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
       localisation
@@ -1593,11 +1720,14 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
       }
       desiredSex
       drivingLicencseB
+      hasVehicle
       professionalExperience
       status
+      isActive
       localisation
       sector
       title
+      schedule { day startHour endHour }
     }
   }
 `
@@ -1619,6 +1749,32 @@ export const GET_CANDIDATE_PLACEMENT = gql`
   }
 `
 
+export const GET_CANDIDATE_SENT_COMPANIES = gql`
+  query GetCandidateSentCompanies($candidateId: String!) {
+    candidateSentCompanies(candidateId: $candidateId) {
+      offerId
+      companyName
+      status
+      title
+      jobRole
+      needsAnalysisId
+    }
+  }
+`
+
+export const GET_CANDIDATE_MATCH_PROPOSITIONS = gql`
+  query GetCandidateMatchPropositions($candidateId: String!) {
+    candidateMatchPropositions(candidateId: $candidateId) {
+      offerId
+      companyName
+      status
+      title
+      jobRole
+      needsAnalysisId
+    }
+  }
+`
+
 export const GET_CANDIDATE_HISTORY = gql`
   query CandidateHistory($candidateId: String!) {
     candidateHistory(candidateId: $candidateId) {
@@ -1627,6 +1783,29 @@ export const GET_CANDIDATE_HISTORY = gql`
       description
       ownerEmail
       createdAt
+    }
+  }
+`
+
+export const GET_CANDIDATE_CONSENT_HISTORY = gql`
+  query CandidateConsentHistory($candidateId: String!) {
+    candidateConsentHistory(candidateId: $candidateId) {
+      id
+      consentType
+      action
+      consentVersion
+      source
+      recordedByName
+      recordedAt
+    }
+  }
+`
+
+export const WITHDRAW_CANDIDATE_CONSENT = gql`
+  mutation WithdrawCandidateConsent($id: String!, $types: [ConsentType!]!) {
+    withdrawCandidateConsent(id: $id, types: $types) {
+      id
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
     }
   }
 `
@@ -1675,6 +1854,8 @@ export const GET_NEEDS_ANALYSES_BY_COMPANY = gql`
       }
       positionsCount
       status
+      isVisibleInMatching
+      isRelanceDisabled
       createdAt
     }
   }
@@ -1688,14 +1869,28 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         node {
           id
           status
+          isVisibleInMatching
+          abStatus
           positionsCount
           createdAt
+          lastActiveAt
+          administrationType
+          driveFolderUrl
+          companyIndicator
+          franceTravail
+          koann
+          immersionPeriod
+          salerInfo {
+            id
+            email
+          }
           companyInfos {
             name
             siret
             sector
             activities
             commune
+            postalCode
           }
           positions {
             jobRole
@@ -1713,6 +1908,37 @@ export const GET_NEEDS_ANALYSES_PAGE = gql`
         hasPreviousPage
         startCursor
         endCursor
+      }
+    }
+  }
+`
+
+export const GET_OFFERS_DIRECTORY = gql`
+  query GetOffersDirectory {
+    offers(includeClosed: true) {
+      id
+      needsAnalysisId
+      title
+      jobRole
+      status
+      isActive
+      localisation
+      desiredTp {
+        tpType
+      }
+      salerInfo {
+        id
+        email
+      }
+      matchedCandidate {
+        id
+        fullName
+        status
+      }
+      proposedCandidate {
+        id
+        fullName
+        status
       }
     }
   }
@@ -1827,13 +2053,14 @@ export const GET_NEEDS_ANALYSIS = gql`
         criteria {
           educationLevel
           drivingLicense
+          hasVehicle
           experienceRequired
           trainingDomain
           ageMin
           ageMax
           desiredSex
           softSkills
-          scheduleOptions
+          scheduleOptions { day startHour endHour }
           conditions
           additionalComments
         }
@@ -1843,9 +2070,18 @@ export const GET_NEEDS_ANALYSIS = gql`
       trainingDays
       yousignSignatureRequestID
       status
+      isVisibleInMatching
+      abStatus
+      isRelanceDisabled
+      administrationType
       tags
       createdAt
       updatedAt
+      lastActiveAt
+      companyIndicator
+      franceTravail
+      koann
+      driveFolderUrl
     }
   }
 `
@@ -1917,6 +2153,63 @@ export const MARK_NEEDS_ANALYSIS_SIGNED = gql`
   }
 `
 
+export const UPDATE_NEEDS_ANALYSIS_AB_STATUS = gql`
+  mutation UpdateNeedsAnalysisAbStatus($id: ID!, $abStatus: AbStatus) {
+    updateNeedsAnalysisAbStatus(id: $id, abStatus: $abStatus) {
+      id
+      abStatus
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_INDICATOR = gql`
+  mutation UpdateNeedsAnalysisIndicator($id: ID!, $indicator: CompanyIndicator) {
+    updateNeedsAnalysisIndicator(id: $id, indicator: $indicator) {
+      id
+      companyIndicator
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_TRACKING = gql`
+  mutation UpdateNeedsAnalysisTracking($id: ID!, $franceTravail: String, $koann: String) {
+    updateNeedsAnalysisTracking(id: $id, franceTravail: $franceTravail, koann: $koann) {
+      id
+      franceTravail
+      koann
+    }
+  }
+`
+
+export const UPDATE_NEEDS_ANALYSIS_ACTIVATION_DATE = gql`
+  mutation UpdateNeedsAnalysisActivationDate($id: ID!, $lastActiveAt: String) {
+    updateNeedsAnalysisActivationDate(id: $id, lastActiveAt: $lastActiveAt) {
+      id
+      lastActiveAt
+    }
+  }
+`
+
+export const SET_AB_RELANCE_DISABLED = gql`
+  mutation SetAbRelanceDisabled($id: ID!, $disabled: Boolean!) {
+    setAbRelanceDisabled(id: $id, disabled: $disabled) {
+      id
+      status
+      isRelanceDisabled
+    }
+  }
+`
+
+export const SET_NEEDS_ANALYSIS_MATCHING_VISIBILITY = gql`
+  mutation SetNeedsAnalysisMatchingVisibility($id: ID!, $visible: Boolean!) {
+    setNeedsAnalysisMatchingVisibility(id: $id, visible: $visible) {
+      id
+      status
+      isVisibleInMatching
+    }
+  }
+`
+
 export const GET_OFFER_HISTORY = gql`
   query OfferHistory($offerId: String!) {
     offerHistory(offerId: $offerId) {
@@ -1960,6 +2253,38 @@ export const NEEDS_ANALYSES_FOR_DASHBOARD = gql`
         status
       }
       totalCount
+    }
+  }
+`
+
+export const GET_IMMERSING_CANDIDATES_MAP = gql`
+  query GetImmersingCandidatesMap($first: Int) {
+    candidatesPage(first: $first, filters: { status: IMMERSING }) {
+      edges {
+        node {
+          id
+          status
+          immersionCompanyId
+          immersionCompanyName
+          immersionConventionNumber
+          immersionSchedule { day morningStartHour morningEndHour afternoonStartHour afternoonEndHour }
+          identity {
+            fullName
+          }
+        }
+      }
+    }
+  }
+`
+
+export const GET_SECTORS = gql`
+  query GetSectors {
+    sectors {
+      id
+      code
+      label
+      level
+      parentId
     }
   }
 `

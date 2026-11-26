@@ -4,7 +4,12 @@ import { CandidateService } from '../../services/CandidateService';
 import { RhKpiService } from '../../services/RhKpiService';
 import { CandidateHistoryService } from '../../services/CandidateHistoryService';
 import { randomUUID } from 'crypto';
-import { TitleProfessionalType, CandidateStatus, CandidateHistoryEntry } from '../../types/candidate.types';
+import {
+    TitleProfessionalType,
+    CandidateStatus,
+    CandidateHistoryEntry,
+    normalizeTpCode,
+} from '../../types/candidate.types';
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
 import { UserService } from '../../services/UserService';
 import { GoogleDriveService } from '../../external/google/drive.service';
@@ -12,9 +17,14 @@ import { camelToSnakeCase, candidateToGql, offerToMatchedOfferGql } from '../../
 import { logger } from '../../external/logger';
 import { decryptSsn } from '../../external/crypto/ssn-cipher';
 import { driveParentFolderForTp } from '../../external/google/drive.folders';
-import { driveFolderConfigService, DRIVE_REGIONS, driveFolderKey } from '../../services/DriveFolderConfigService';
+import { driveFolderConfigService, driveRegionsForTenant, driveFolderKey } from '../../services/DriveFolderConfigService';
+import { getRegion } from '../../db/tenant';
 import { buildConnection, DEFAULT_PAGE_SIZE, PaginationArgs } from '../../services/pagination';
-import { CandidateFilters, encodeCandidateCursor } from '../../repositories/mongo/CandidateRepository';
+import {
+    CandidateFilters,
+    CandidateSearchField,
+    encodeCandidateCursor,
+} from '../../repositories/mongo/CandidateRepository';
 
 /** Filtres reçus côté GraphQL : dates au format ISO (string), converties ensuite. */
 type CandidateFiltersInput = Omit<CandidateFilters, 'createdAfter' | 'createdBefore'> & {
@@ -37,19 +47,99 @@ function parseFilterDate(iso: string | undefined, endOfDay: boolean): Date | und
     return d;
 }
 import { canAccessAllSectors, primarySector, regionFromSector, sanitizeSectors } from '../../utils/sector';
+import { ConsentHistoryService, consentChanged, consentEvents } from '../../services/ConsentHistoryService';
+import { CONSENT_TYPES, ConsentType, isAcceptedConsentVersion } from '../../services/consentGuard';
+import { ConsentEventInput, ConsentHistoryEntry } from '../../types/consent.types';
+import { AccessLogService } from '../../services/AccessLogService';
+import { AccessAction, AccessLogEntry } from '../../types/accessLog.types';
 
 const candidateService = new CandidateService();
 const userService = new UserService();
 const rhKpiService = new RhKpiService();
 const candidateHistoryService = new CandidateHistoryService();
+const consentHistoryService = new ConsentHistoryService();
+const accessLogService = new AccessLogService();
+
+/**
+ * Journalise une lecture de données candidat (GDPR_INF_06.5). `candidateId` null =
+ * liste en masse (`resultCount` = taille). Ne lève jamais (cf. AccessLogService.record).
+ */
+async function recordAccess(
+    context: any,
+    candidateId: string | null,
+    action: AccessAction,
+    resultCount = 1,
+): Promise<void> {
+    const actorId = Number(context.user?.id);
+    await accessLogService.record({
+        candidateId,
+        actorId: Number.isFinite(actorId) ? actorId : null,
+        actorType: 'STAFF',
+        action,
+        resultCount,
+    });
+}
+
+const UNKNOWN_CONSENT_VERSION_ERROR = 'Version du texte de consentement inconnue : rechargez la page.';
+
+/**
+ * Écrit les événements de consentement APRÈS la mise à jour MongoDB (pas de
+ * transaction commune Mongo/MySQL). Un échec n'annule pas l'action métier, déjà
+ * appliquée : il est journalisé (sans PII, UUID seul) et l'écart est détecté puis
+ * réparé par `src/cli/backfillConsentHistory.ts` (lancé par deploy.sh, cf. HOWTODEPLOY.md).
+ */
+async function recordConsentHistory(candidateId: string, events: ConsentEventInput[]): Promise<void> {
+    try {
+        await consentHistoryService.record(events);
+    } catch (error) {
+        logger.error(
+            { err: error, candidateId, events: events.length },
+            'Consent history write failed, run dist/cli/backfillConsentHistory.js (HOWTODEPLOY.md)',
+        );
+    }
+}
+
+/** `DATA_PROCESSING` (enum GraphQL) → `data_processing` ; rejette tout type inconnu. */
+function parseConsentTypes(types: string[]): ConsentType[] {
+    const parsed = types.map((t) => t.toLowerCase() as ConsentType);
+    if (parsed.length === 0 || parsed.some((t) => !CONSENT_TYPES.includes(t))) {
+        throw new Error('Type de consentement invalide.');
+    }
+    return [...new Set(parsed)];
+}
+
+function accessLogToGql(entry: AccessLogEntry): object {
+    return {
+        id: String(entry.id),
+        action: entry.action,
+        actorType: entry.actorType,
+        actorId: entry.actorId,
+        actorName: entry.actorName,
+        occurredAt: entry.createdAt.toISOString(),
+    };
+}
+
+function consentHistoryToGql(entry: ConsentHistoryEntry): object {
+    return {
+        id: String(entry.id),
+        consentType: entry.consentType.toUpperCase(),
+        action: entry.action,
+        consentVersion: entry.consentVersion,
+        source: entry.source,
+        recordedByName: entry.recordedByName,
+        recordedAt: entry.recordedAt.toISOString(),
+    };
+}
 
 /**
  * Secteurs effectivement visibles pour les stats agrégées : ADMIN/RESPONSABLE
  * voient tout (filtre client respecté) ; sinon on re-fetch le user (le JWT ne
  * porte pas les secteurs) et on borne la demande à ses secteurs. Un user sans
  * secteur assigné n'est pas restreint (convention historique).
+ * Tenant Annemasse (mono-secteur) : pas de subdivision, tout le tenant.
  */
 async function statsSectors(context: any, requested?: string[]): Promise<string[] | undefined> {
+    if (getRegion() === 'annemasse') return undefined;
     if (canAccessAllSectors(context.user.permission)) return requested;
     const user = await userService.findById(Number(context.user.id));
     const own = sanitizeSectors(user?.sectors);
@@ -92,6 +182,7 @@ async function creditInterviewKpi(interviewedBy?: string): Promise<void> {
         const match = interviewers.find((u) => `${u.firstName} ${u.lastName}`.trim() === name);
         if (!match) return;
         await rhKpiService.bump(match.id, primarySector(match.sectors) ?? '', new Date(), {
+            interviews_placed: 1,
             interviews_attended: 1,
         });
     } catch (error) {
@@ -113,9 +204,10 @@ interface UpdateCandidateInput {
 function driveFolderConfigToGql(config: { rootFolderId: string | null; tpFolders: Record<string, string> }) {
     return {
         rootFolderId: config.rootFolderId ?? null,
-        // Toujours renvoyer une entrée par couple TP × région (même vide) pour piloter le formulaire.
-        tpFolders: Object.values(TitleProfessionalType).flatMap((tp) =>
-            DRIVE_REGIONS.map((region) => ({
+        // Une entrée par couple TP × région du tenant (même vide) pour piloter
+        // le formulaire (NORD/OUEST/SUD pour Réunion, ANNEMASSE unique).
+        tpFolders: Object.values(TitleProfessionalType).flatMap((tp: string) =>
+            driveRegionsForTenant(getRegion()).map((region) => ({
                 tp,
                 region,
                 folderId: config.tpFolders[driveFolderKey(tp, region)] ?? null,
@@ -129,6 +221,7 @@ export const resolvers = {
         candidates: async (_: unknown, __: unknown, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidates = await candidateService.findAll();
+            await recordAccess(context, null, 'LIST', candidates.length);
             return candidates.map(candidateToGql);
         },
         candidatesPage: async (
@@ -137,12 +230,18 @@ export const resolvers = {
                 first,
                 after,
                 search,
+                searchField,
                 filters: filtersInput,
-            }: PaginationArgs & { search?: string; filters?: CandidateFiltersInput },
+            }: PaginationArgs & {
+                search?: string;
+                searchField?: CandidateSearchField;
+                filters?: CandidateFiltersInput;
+            },
             context: any,
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const pageSize = first ?? DEFAULT_PAGE_SIZE;
+            const searchFieldValue: CandidateSearchField | undefined = searchField ?? undefined;
             const filters: CandidateFilters | undefined = filtersInput
                 ? {
                       trainingSite: filtersInput.trainingSite,
@@ -150,6 +249,8 @@ export const resolvers = {
                       statusIn: filtersInput.statusIn?.length ? filtersInput.statusIn : undefined,
                       schoolLevel: filtersInput.schoolLevel,
                       drivingLicenseB: filtersInput.drivingLicenseB,
+                      hasVehicle: filtersInput.hasVehicle,
+                      sex: filtersInput.sex?.trim() || undefined,
                       ageMin: filtersInput.ageMin,
                       ageMax: filtersInput.ageMax,
                       tpType: filtersInput.tpType?.length ? filtersInput.tpType : undefined,
@@ -170,8 +271,9 @@ export const resolvers = {
                       interviewedBy: filtersInput.interviewedBy?.trim() || undefined,
                   }
                 : undefined;
-            const candidates = await candidateService.findPage(pageSize, after, search, filters);
-            const totalCount = await candidateService.countPage(search, filters);
+            const candidates = await candidateService.findPage(pageSize, after, search, filters, searchFieldValue);
+            const totalCount = await candidateService.countPage(search, filters, searchFieldValue);
+            await recordAccess(context, null, 'LIST', candidates.length);
             const conn = buildConnection(
                 candidates,
                 encodeCandidateCursor,
@@ -191,6 +293,7 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) return null;
+            await recordAccess(context, id, 'VIEW');
             // Backfill unique de la date de création pour les fiches antérieures au champ.
             if (!candidate.created_at) {
                 try {
@@ -219,6 +322,7 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const candidate = await candidateService.findById(id);
             if (!candidate) throw new Error(`Candidate ${id} not found`);
+            await recordAccess(context, id, 'VIEW');
             const matchedOffers = await candidateService.matchOffers(id);
             return {
                 ...candidateToGql(candidate),
@@ -230,6 +334,22 @@ export const resolvers = {
             const entries = await candidateHistoryService.findByCandidate(candidateId);
             return entries.map(candidateHistoryToGql);
         },
+        candidateConsentHistory: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const entries = await consentHistoryService.findByCandidate(candidateId);
+            return entries.map(consentHistoryToGql);
+        },
+        // Journal des lectures / exports d'une fiche (GDPR_INF_06.5) : révèle l'activité du
+        // personnel, d'où RESPONSABLE minimum (pas le seuil EMPLOYEE des lectures de fiche).
+        candidateAccessLog: async (
+            _: unknown,
+            { candidateId, limit }: { candidateId: string; limit?: number | null },
+            context: any,
+        ) => {
+            authGuard(context.user, Permission.RESPONSABLE);
+            const entries = await accessLogService.findByCandidate(candidateId, limit ?? undefined);
+            return entries.map(accessLogToGql);
+        },
         driveFolderConfig: async (_: unknown, __: unknown, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             const config = await driveFolderConfigService.getConfig();
@@ -240,7 +360,16 @@ export const resolvers = {
             const candidate = await candidateService.findById(id);
             const ssn = candidate?.identity?.social_security_number;
             if (!ssn) return null;
-            return decryptSsn(ssn);
+            try {
+                const clear = decryptSsn(ssn);
+                await recordAccess(context, id, 'SSN_UNMASK');
+                return clear;
+            } catch (err) {
+                logger.error({ err, candidateId: id }, 'SSN unmask failed');
+                throw new Error(
+                    'Le numéro de sécurité sociale de cette fiche est illisible (clé inconnue ou valeur corrompue). Lancer la rotation : scripts/rotate-ssn-key.ts.',
+                );
+            }
         },
     },
     Mutation: {
@@ -258,15 +387,29 @@ export const resolvers = {
                 }
             }
 
+            if (!input.consentments?.dataProcessing) {
+                throw new Error('Le consentement au traitement des données est obligatoire.');
+            }
+            if (!isAcceptedConsentVersion(input.consentments.consentVersion)) {
+                throw new Error(UNKNOWN_CONSENT_VERSION_ERROR);
+            }
+
             const id = randomUUID();
             const snakeInput = camelToSnakeCase(input);
+            // Preuve du consentement (art. 7.1) : horodatage serveur, jamais celui du client.
+            const consentAt = new Date();
+            snakeInput.consentments = { ...snakeInput.consentments, consent_date: consentAt };
             // Multi-sites : garde le single legacy training_site = 1er site choisi
             // (utilisé pour le routage Drive / stats / filtres).
             if (Array.isArray(snakeInput.training_sites)) {
                 snakeInput.training_site = snakeInput.training_sites[0] ?? undefined;
             }
             if (!snakeInput.skills_assessment || snakeInput.skills_assessment.length === 0) {
-                const template = CANDIDATE_TEMPLATES[input.tpTypes[0]];
+                // Rétro-compat : un client existant peut encore envoyer l'ancien code « SA ».
+                const templateTp = input.tpTypes?.[0] ? normalizeTpCode(input.tpTypes[0]) : undefined;
+                const template = templateTp
+                    ? CANDIDATE_TEMPLATES[templateTp as TitleProfessionalType]
+                    : undefined;
                 if (template) {
                     snakeInput.skills_assessment = template.default_skills_assessment;
                 }
@@ -290,6 +433,15 @@ export const resolvers = {
                 created_at: new Date(),
                 ...snakeInput,
             });
+
+            await recordConsentHistory(
+                id,
+                consentEvents(id, undefined, newCandidate.consentments, {
+                    source: 'CREATE',
+                    recordedBy: Number(context.user.id),
+                    recordedAt: consentAt,
+                }),
+            );
 
             // KPI RH : le +1 « entretien » va au RH qui a mené l'entretien (champ
             // « Entretien fait par »), pas au créateur du dossier. Rien si aucun
@@ -342,19 +494,56 @@ export const resolvers = {
             // État avant mise à jour : statut (transitions KPI) + interviewer (crédit
             // entretien une seule fois). On ne relit le dossier que si l'un des deux change.
             const newInterviewer = snakeInput.synthesis?.interviewed_by?.trim();
-            const previous = snakeInput.status || newInterviewer ? await candidateService.findById(id) : undefined;
+            const previous =
+                snakeInput.status || newInterviewer || snakeInput.consentments
+                    ? await candidateService.findById(id)
+                    : undefined;
             const previousStatus = previous?.status;
             const previousInterviewer = previous?.synthesis?.interviewed_by?.trim();
+
+            // Consentements : seul un changement réel (choix ou version) est appliqué et
+            // historisé, avec l'horodatage serveur ; sinon on n'y touche pas, ce qui
+            // conserve la date du consentement d'origine.
+            let pendingConsentEvents: ConsentEventInput[] = [];
+            if (snakeInput.consentments) {
+                const before = previous?.consentments;
+                const after = { ...before, ...snakeInput.consentments };
+                if (!consentChanged(before, after)) {
+                    delete snakeInput.consentments;
+                } else {
+                    if (!isAcceptedConsentVersion(after.consent_version)) {
+                        throw new Error(UNKNOWN_CONSENT_VERSION_ERROR);
+                    }
+                    const consentAt = new Date();
+                    snakeInput.consentments = { ...snakeInput.consentments, consent_date: consentAt };
+                    pendingConsentEvents = consentEvents(id, before, after, {
+                        source: 'UPDATE',
+                        recordedBy: Number(context.user.id),
+                        recordedAt: consentAt,
+                    });
+                }
+            }
+
             const updated = await candidateService.update(id, snakeInput);
 
             if (!updated) {
                 throw new Error(`Candidate with id ${id} not found`);
             }
 
+            await recordConsentHistory(id, pendingConsentEvents);
+
             // KPI RH : transition de statut vers immersion / contrat / rupture (compté pour le RH agissant).
             const column = STATUS_KPI_COLUMN[updated.status];
             if (column && snakeInput.status && previousStatus !== updated.status) {
-                await rhKpiService.bump(Number(context.user.id), updated.owner?.sector ?? '', new Date(), {
+                // Le compteur est crédité au RH agissant : le secteur du bucket doit donc
+                // être le sien, comme pour les entretiens (`creditInterviewKpi`). Utiliser
+                // le snapshot `owner.sector` du dossier attribuait la ligne à un secteur
+                // qui n'est pas celui du RH crédité : le filtre secteur du tableau de bord
+                // la masquait (dossier importé sans `owner` → secteur vide → « Contrats »
+                // à 0). Repli sur l'owner uniquement si le RH n'a aucun secteur.
+                const acting = await userService.findById(context.user.id);
+                const sector = primarySector(acting?.sectors) ?? updated.owner?.sector ?? '';
+                await rhKpiService.bump(Number(context.user.id), sector, new Date(), {
                     [column]: 1,
                 });
             }
@@ -368,9 +557,42 @@ export const resolvers = {
             return candidateToGql(updated);
         },
 
+        /**
+         * Retrait de consentement (RGPD art. 7.3, GDPR_INF_08.2), enregistré par un RH
+         * à la demande du candidat. Effet immédiat sur le traitement qui en dépend
+         * (ex. `ai_processing` : la fiche sort des outils MCP). Aucun effacement
+         * automatique : il relève d'une demande d'effacement distincte (GDPR_INF_06.4).
+         */
+        withdrawCandidateConsent: async (_: unknown, { id, types }: { id: string; types: string[] }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const consentTypes = parseConsentTypes(types);
+            const result = await candidateService.withdrawConsents(id, consentTypes);
+            if (!result) {
+                throw new Error(`Candidate with id ${id} not found`);
+            }
+            await recordConsentHistory(
+                id,
+                consentEvents(id, result.previous.consentments, result.updated.consentments, {
+                    source: 'WITHDRAWAL',
+                    recordedBy: Number(context.user.id),
+                    recordedAt: new Date(),
+                }),
+            );
+            return candidateToGql(result.updated);
+        },
+
         deleteCandidate: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
-            return candidateService.delete(id);
+
+            // Les copies Drive sont supprimées avec les jetons du RH agissant (GDPR_INF_06.4).
+            const user = await userService.findById(context.user.id);
+            const drive = user?.oauthToken
+                ? GoogleDriveService.fromTokens(
+                      { access_token: user.oauthToken, refresh_token: user.refreshToken ?? undefined },
+                      userService.googleTokenPersister(user.id),
+                  )
+                : null;
+            return candidateService.delete(id, drive);
         },
 
         createCandidateDriveFolder: async (_: unknown, { id }: { id: string }, context: any) => {

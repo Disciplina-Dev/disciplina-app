@@ -1,42 +1,43 @@
+import { useSectors } from '@/hooks/useSectors'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DOMPurify from 'dompurify'
-import {
-  ChevronLeft, ChevronRight, ChevronDown, Layers, Loader2, AlertCircle, CalendarDays,
-  MapPin, Video, Plus, Trash2, X, Pencil, LinkIcon, Share2, Copy, Check,
-  Mail, UserCheck, UserX, User as UserIcon,
-} from 'lucide-react'
+import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconLock, IconMail, IconMapPin, IconPlus, IconRepeat, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
 import {
   fetchMyBookingSettings, updateMyBookingSettings, bookingPublicUrl,
-  type BookingSettings, type WorkingHours,
+  fetchDayBlocks, createDayBlock, releaseDayBlockGroup, deleteDayBlockGroup,
+  type BookingSettings, type WorkingHours, type DayBlock, type DayBlockScope,
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
 import { apiFetch } from '@/api/httpClient'
 import { cleanHtml } from '@/services/sanitizeHtml'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 import { fetchSectorSettings, type SectorSetting } from '@/api/sectorSettings'
-import { SECTEUR_VALUES } from '@/types/entreprise'
-import { DEFAULT_SECTEUR } from '@/constants/secteurs'
+import { normalizeUserSecteurForRegion } from '@/constants/secteurs'
+import { useRegionStore } from '@/store/regionStore'
 import { useGoogleOAuthPopup } from '@/hooks/useGoogleOAuthPopup'
 import { useNavigate } from 'react-router-dom'
-import CandidateFormModal from '@/components/rh/CandidateFormModal'
+import CandidateQuickCreateModal from '@/components/rh/CandidateQuickCreateModal'
 import {
   fetchCalendarEvents, fetchCalendarUsers, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent,
-  setEventAttendance,
-  CalendarNotConnectedError, EVENT_COLORS, DEFAULT_EVENT_HEX, eventHex, ownerColor,
+  setEventAttendance, reportCalendarEvent,
+  CalendarNotConnectedError, calendarHex,
   type CalendarEvent, type CalendarEventInput, type CalendarUser, type Attendance,
 } from '@/api/calendar'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import ChipGroup from '@/components/ui/ChipGroup'
+import MultiSelectField from '@/components/ui/MultiSelectField'
 
 type View = 'month' | 'week'
 /** Event enrichi de son propriétaire (pour vue multi-agendas). */
 type OwnedEvent = CalendarEvent & { ownerId: number }
 
-/** Couleur des cases selon la présence : vert = arrivé, rouge = pas venu (sinon couleur normale). */
-const ATTENDANCE_HEX: Record<'arrived' | 'noshow', string> = { arrived: '#1A7A4A', noshow: '#C0152A' }
+/** Gris des créneaux occupés par l'entretien d'un RH du même secteur (#1241). */
+const OCCUPATION_HEX = '#6B7280'
 
-/** Couleur d'affichage : présence (vert/rouge) prioritaire, sinon colorId (self) ou couleur du propriétaire. */
-function displayHex(e: OwnedEvent, selfId: number): string {
-  if (e.attendance === 'arrived' || e.attendance === 'noshow') return ATTENDANCE_HEX[e.attendance]
-  return e.ownerId === selfId ? eventHex(e.colorId) : ownerColor(e.ownerId)
+/** Couleur des cases déterminée uniquement par le statut : rouge = pas venu, vert = venu,
+ * violet = reporté, noir = décliné, bleu = défaut ; gris = créneau bloqué par un collègue. */
+function displayHex(e: OwnedEvent): string {
+  return e.isOccupation ? OCCUPATION_HEX : calendarHex(e.attendance)
 }
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -50,6 +51,25 @@ const HOURS = Array.from({ length: 24 }, (_, h) => h)
 /** Nom candidat déduit du titre de l'entretien (retire un préfixe « Entretien »). */
 function candidateNameFromSummary(summary: string): string {
   return (summary ?? '').replace(/^\s*entretien\s*[-:–—]?\s*/i, '').trim()
+}
+
+/** Nom complet de l'invité (« Prénom Nom »), vide si aucun des deux champs n'est renseigné. */
+function attendeeFullName(e: { attendeeFirstName?: string; attendeeLastName?: string }): string {
+  return [e.attendeeFirstName, e.attendeeLastName].filter(Boolean).join(' ')
+}
+
+/** Minuscule + accents retirés : « Zoé » et « zoe » se correspondent. */
+function foldQuery(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+}
+
+/** Correspondance recherche : email, prénom, nom ou nom complet de l'invité.
+ * Les créneaux sans nom (antérieurs à l'ajout des champs) restent trouvables par email. */
+function matchesAttendeeQuery(e: CalendarEvent, query: string): boolean {
+  const q = foldQuery(query)
+  if (!q) return false
+  const values = [e.attendeeEmail, e.attendeeFirstName, e.attendeeLastName, attendeeFullName(e)]
+  return values.some((value) => foldQuery(value ?? '').includes(q))
 }
 
 /** Lundi = 0 … Dimanche = 6 */
@@ -115,6 +135,50 @@ function toTimeInput(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+/** « Lundi 12 novembre 2026 » à partir d'une date locale `YYYY-MM-DD`. */
+function formatBlockDay(day: string): string {
+  const label = new Date(`${day}T12:00:00`).toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  })
+  return label.charAt(0).toUpperCase() + label.slice(1)
+}
+
+/** « Du lundi 12 au vendredi 23 novembre 2026 · 12 jours », ou le jour seul. */
+function formatBlockPeriod(from: string, to: string): string {
+  if (from === to) return formatBlockDay(from)
+  const days = Math.round((Date.parse(`${to}T12:00:00`) - Date.parse(`${from}T12:00:00`)) / 86_400_000) + 1
+  const format = (day: string, withYear: boolean) =>
+    new Date(`${day}T12:00:00`).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', ...(withYear ? { year: 'numeric' } : {}),
+    })
+  const sameYear = from.slice(0, 4) === to.slice(0, 4)
+  return `Du ${format(from, !sameYear)} au ${format(to, true)} · ${days} jour${days > 1 ? 's' : ''}`
+}
+
+/** Le jour est-il bloqué pour moi ? (blocage qui s'applique à moi, non dérogé) */
+function blocksMe(blocks: DayBlock[]): boolean {
+  return blocks.some((b) => b.appliesToMe && (b.scope === 'SELF' || !b.releasedForMe))
+}
+
+/** Libellé court de la portée d'un blocage (infobulles, liste des périodes). */
+function blockScopeLabel(scope: DayBlockScope, targetLabels: string[], targetCount = targetLabels.length): string {
+  if (scope === 'SELF') return 'Moi'
+  if (scope === 'ALL') return 'Tout le monde'
+  if (scope === 'SECTOR') return targetLabels.length > 0 ? `Secteur ${targetLabels.join(', ')}` : 'Mon secteur'
+  if (targetLabels.length === 1) return targetLabels[0]
+  return `${targetCount} personne${targetCount > 1 ? 's' : ''}`
+}
+
+/** Infobulle listant les blocages d'un jour (portée, motif, auteur). */
+function blocksTitle(blocks: DayBlock[]): string {
+  return blocks
+    .map((b) => {
+      const status = b.appliesToMe ? (b.releasedForMe ? ' (disponible pour moi)' : '') : ' (ne vous concerne pas)'
+      return `${blockScopeLabel(b.scope, b.targetLabels, b.targetCount)} — ${b.reason}${status}${b.createdByName ? ` · ${b.createdByName}` : ''}`
+    })
+    .join('\n')
+}
+
 /** Layout des events d'un jour en colonnes pour gérer les chevauchements. */
 interface PositionedEvent { event: OwnedEvent; col: number; cols: number }
 function layoutDay(events: OwnedEvent[]): PositionedEvent[] {
@@ -167,9 +231,24 @@ export default function Calendrier() {
   const [detail, setDetail] = useState<OwnedEvent | null>(null)
   const [editing, setEditing] = useState<{ event?: CalendarEvent; ownerId?: number; start?: Date; end?: Date } | null>(null)
   const [showBooking, setShowBooking] = useState(false)
+  // Blocage de dates de l'agenda (pour soi ou pour tout le monde).
+  const [showBlocks, setShowBlocks] = useState(false)
+  const [blocks, setBlocks] = useState<DayBlock[]>([])
+  const [blocksVersion, setBlocksVersion] = useState(0)
   // Candidat à créer depuis un entretien marqué « arrivé » (pré-rempli puis redirige vers sa fiche).
   const [createFromEvent, setCreateFromEvent] = useState<CalendarEvent | null>(null)
   const navigate = useNavigate()
+
+  // Recherche par invité (email, nom, prénom) : highlight + quick-select.
+  const [attendeeQuery, setAttendeeQuery] = useState('')
+  const [showMatches, setShowMatches] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+  type SearchScope = 'week' | 'month' | 'year'
+  const [searchScope, setSearchScope] = useState<SearchScope>('month')
+  const [showScopeMenu, setShowScopeMenu] = useState(false)
+  const [searchEvents, setSearchEvents] = useState<OwnedEvent[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searchFetched, setSearchFetched] = useState(false)
 
   // Multi-agendas : liste des RH/responsables + ceux affichés.
   const [users, setUsers] = useState<CalendarUser[]>([])
@@ -197,7 +276,8 @@ export default function Calendrier() {
   const toggleUser = (id: number) =>
     setVisible((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
 
@@ -242,7 +322,17 @@ export default function Calendrier() {
       )
       // Cumule les échecs (un rechargement sans erreur ne masque pas la bannière : fermeture via la croix).
       setUnavailableIds((prev) => (failed.length ? Array.from(new Set([...prev, ...failed])) : prev))
-      setEvents(perUser.flat())
+      // Un créneau occupé par un entretien du secteur est renvoyé par l'agenda de
+      // chaque RH concerné : on ne le garde qu'une fois (id `occupation-<n>` stable).
+      const seenOccupations = new Set<string>()
+      setEvents(
+        perUser.flat().filter((e) => {
+          if (!e.isOccupation) return true
+          if (seenOccupations.has(e.id)) return false
+          seenOccupations.add(e.id)
+          return true
+        }),
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {
@@ -251,6 +341,26 @@ export default function Calendrier() {
   }, [range.min, range.max, visibleKey, selfId])
 
   useEffect(() => { void load() }, [load])
+
+  // Blocages de dates sur la plage affichée (les miens + ceux « pour tout le monde »).
+  const blocksFrom = toDateInput(range.min)
+  const blocksTo = toDateInput(range.max)
+  useEffect(() => {
+    let cancelled = false
+    fetchDayBlocks(blocksFrom, blocksTo)
+      .then((list) => { if (!cancelled) setBlocks(list) })
+      .catch(() => { if (!cancelled) setBlocks([]) })
+    return () => { cancelled = true }
+  }, [blocksFrom, blocksTo, blocksVersion])
+
+  const blocksByDay = useMemo(() => {
+    const map = new Map<string, DayBlock[]>()
+    for (const b of blocks) {
+      const list = map.get(b.day)
+      if (list) list.push(b); else map.set(b.day, [b])
+    }
+    return map
+  }, [blocks])
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, OwnedEvent[]>()
@@ -265,6 +375,86 @@ export default function Calendrier() {
   const shift = (delta: number) =>
     setCursor((c) => (view === 'month' ? new Date(c.getFullYear(), c.getMonth() + delta, 1) : addDays(c, delta * 7)))
   const goToday = () => setCursor(today)
+
+  // Fermeture du dropdown quick-select / menu portée au clic hors champ.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowMatches(false)
+        setShowScopeMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const searchRange = useMemo(() => {
+    if (searchScope === 'week') {
+      const week = buildWeek(cursor)
+      const max = new Date(week[6]); max.setHours(23, 59, 59, 999)
+      return { min: week[0], max }
+    }
+    if (searchScope === 'month') {
+      const start = new Date(cursor.getFullYear(), cursor.getMonth(), 1); start.setHours(0, 0, 0, 0)
+      const end = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0); end.setHours(23, 59, 59, 999)
+      return { min: start, max: end }
+    }
+    const start = new Date(cursor.getFullYear(), 0, 1); start.setHours(0, 0, 0, 0)
+    const end = new Date(cursor.getFullYear(), 11, 31); end.setHours(23, 59, 59, 999)
+    return { min: start, max: end }
+  }, [cursor, searchScope])
+
+  const normalizedQuery = attendeeQuery.trim().toLowerCase()
+
+  // Recherche étendue : fetch sur la portée configurée (week/month/year) dès qu'une requête est saisie.
+  useEffect(() => {
+    if (!normalizedQuery) { setSearchEvents([]); setSearchLoading(false); setSearchFetched(false); return }
+    const ids = visibleKey ? visibleKey.split(',').map(Number).filter(Boolean) : []
+    if (ids.length === 0) { setSearchEvents([]); setSearchFetched(true); return }
+    let cancelled = false
+    setSearchLoading(true)
+    setSearchFetched(false)
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const perUser = await Promise.all(
+            ids.map(async (id) => {
+              try {
+                const evs = await fetchCalendarEvents(searchRange.min, searchRange.max, id === selfId ? undefined : id)
+                return evs.map((e) => ({ ...e, ownerId: id }))
+              } catch {
+                return []
+              }
+            }),
+          )
+          if (!cancelled) { setSearchEvents(perUser.flat()); setSearchLoading(false); setSearchFetched(true) }
+        } catch {
+          if (!cancelled) { setSearchLoading(false); setSearchFetched(true) }
+        }
+      })()
+    }, 250)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [normalizedQuery, searchRange.min, searchRange.max, visibleKey, selfId])
+
+  const matchedEvents = useMemo(() => {
+    if (!normalizedQuery) return []
+    const source = searchFetched ? searchEvents : events
+    return [...source]
+      .filter((e) => matchesAttendeeQuery(e, normalizedQuery))
+      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
+  }, [events, searchEvents, searchFetched, normalizedQuery])
+  // Highlight only entries currently visible in the calendar grid.
+  const matchedIds = useMemo(() => {
+    if (!normalizedQuery) return new Set<string>()
+    // If search scope matches current view range (or superset), highlight via filtered source intersect.
+    // Simpler: highlight ids that exist in matchedEvents (non-visible ids won't be rendered anyway).
+    return new Set(matchedEvents.map((e) => e.id))
+  }, [matchedEvents, normalizedQuery])
+  const jumpToEvent = (ev: OwnedEvent) => {
+    setCursor(startOfDay(new Date(ev.start)))
+    setDetail(ev)
+    setShowMatches(false)
+  }
 
   const headerLabel = view === 'month'
     ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}`
@@ -283,38 +473,41 @@ export default function Calendrier() {
       {/* Header */}
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-extrabold tracking-tight text-gray-900">Calendrier</h1>
-          <p className="text-[13px] font-medium capitalize text-gray-400">{headerLabel}</p>
+          <h1 className="text-[22px] font-extrabold tracking-tight text-[var(--ds-text)]">Calendrier</h1>
+          <p className="text-[13px] font-medium capitalize text-[var(--ds-text-subtle)]">{headerLabel}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* View toggle */}
-          <div className="flex rounded-[10px] border border-gray-200 bg-white p-0.5">
-            {(['month', 'week'] as View[]).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`rounded-[8px] px-3 py-1.5 text-[13px] font-bold transition-colors ${view === v ? 'bg-purple text-white' : 'text-gray-500 hover:text-gray-800'}`}
-              >
-                {v === 'month' ? 'Mois' : 'Semaine'}
-              </button>
-            ))}
-          </div>
-          <button onClick={goToday} className="rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-[13px] font-bold text-gray-700 transition-colors hover:bg-gray-50">
+          <SegmentedControl
+            label="Affichage du calendrier"
+            tone="purple"
+            size="sm"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'month' as View, label: 'Mois' },
+              { value: 'week' as View, label: 'Semaine' },
+            ]}
+          />
+          <button onClick={goToday} className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
             Aujourd'hui
           </button>
           <div className="flex items-center gap-1">
-            <button onClick={() => shift(-1)} className="rounded-[10px] border border-gray-200 bg-white p-2 text-gray-600 transition-colors hover:bg-gray-50" aria-label="Précédent">
-              <ChevronLeft size={18} />
+            <button onClick={() => shift(-1)} className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] p-2 text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]" aria-label="Précédent">
+              <IconChevronLeft width={18} height={18} />
             </button>
-            <button onClick={() => shift(1)} className="rounded-[10px] border border-gray-200 bg-white p-2 text-gray-600 transition-colors hover:bg-gray-50" aria-label="Suivant">
-              <ChevronRight size={18} />
+            <button onClick={() => shift(1)} className="rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] p-2 text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]" aria-label="Suivant">
+              <IconChevronRight width={18} height={18} />
             </button>
           </div>
-          <button onClick={() => setShowBooking(true)} className="flex items-center gap-1.5 rounded-[10px] border border-gray-200 bg-white px-3 py-2 text-[13px] font-bold text-gray-700 transition-colors hover:bg-gray-50">
-            <Share2 size={16} /> Partager mon agenda
+          <button onClick={() => setShowBlocks(true)} className="flex items-center gap-1.5 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
+            <IconLock width={16} height={16} /> Bloquer des dates
+          </button>
+          <button onClick={() => setShowBooking(true)} className="flex items-center gap-1.5 rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)]">
+            <IconShare width={16} height={16} /> Partager mon agenda
           </button>
           <button onClick={() => openCreate(new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate(), 9, 0))} className="flex items-center gap-1.5 rounded-[10px] bg-purple px-3 py-2 text-[13px] font-bold text-white transition-colors hover:bg-purple-dark">
-            <Plus size={16} /> Créneau
+            <IconPlus width={16} height={16} /> Créneau
           </button>
         </div>
       </div>
@@ -322,14 +515,14 @@ export default function Calendrier() {
       {(notConnected || selfDisconnected) ? (
         <ConnectPrompt onConnect={connectGoogle} isConnecting={isConnecting} onDone={loadUsers} />
       ) : error ? (
-        <div className="flex items-center gap-2 rounded-xl bg-danger-bg p-3 text-[13px] text-danger">
-          <AlertCircle size={16} /> {error}
+        <div className="flex items-center gap-2 rounded-xl bg-[var(--ds-danger-bg)] p-3 text-[13px] text-[var(--ds-danger)]">
+          <IconAlert width={16} height={16} /> {error}
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-3">
           {unavailableIds.length > 0 && dismissedKey !== unavailableKey && (
-            <div className="flex items-center gap-2 rounded-xl bg-warning-bg p-3 text-[13px] font-semibold text-warning">
-              <AlertCircle size={16} className="flex-shrink-0" />
+            <div className="flex items-center gap-2 rounded-xl bg-[var(--ds-warning-bg)] p-3 text-[13px] font-semibold text-[var(--ds-warning)]">
+              <IconAlert width={16} height={16} className="flex-shrink-0" />
               <span className="flex-1">
                 {(() => {
                   const names = unavailableIds
@@ -343,30 +536,122 @@ export default function Calendrier() {
               </span>
               <button
                 onClick={() => setDismissedKey(unavailableKey)}
-                className="flex-shrink-0 rounded-lg p-1 text-warning transition-colors hover:bg-warning/10"
+                className="flex-shrink-0 rounded-lg p-1 text-[var(--ds-warning)] transition-colors hover:bg-warning/10"
                 aria-label="Fermer l'avertissement"
               >
-                <X size={15} />
+                <IconClose width={15} height={15} />
               </button>
             </div>
           )}
+          {/* Recherche par invité : email, nom ou prénom */}
+          <div ref={searchRef} className="relative w-full max-w-sm self-start">
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-2 focus-within:border-purple">
+              <IconSearch width={16} height={16} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
+              <input
+                value={attendeeQuery}
+                onChange={(e) => { setAttendeeQuery(e.target.value); setShowMatches(true) }}
+                onFocus={() => { if (normalizedQuery) setShowMatches(true) }}
+                placeholder="Rechercher par nom ou email invité…"
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-[var(--ds-text-subtle)]"
+                aria-label="Rechercher un invité par nom ou email"
+              />
+              {attendeeQuery && (
+                <button
+                  onClick={() => { setAttendeeQuery(''); setShowMatches(false) }}
+                  className="rounded p-0.5 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
+                  aria-label="Effacer la recherche"
+                >
+                  <IconClose width={14} height={14} />
+                </button>
+              )}
+              {normalizedQuery && !searchLoading && matchedEvents.length > 0 && (
+                <span className="flex-shrink-0 rounded-full bg-[var(--ds-warning-bg)] px-2 py-0.5 text-[11px] font-bold text-[var(--ds-warning)]">
+                  {matchedEvents.length}
+                </span>
+              )}
+              {searchLoading && normalizedQuery && (
+                <IconLoader width={14} height={14} className="flex-shrink-0 animate-spin text-[var(--ds-text-subtle)]" />
+              )}
+              <div className="relative flex-shrink-0">
+                <button
+                  onClick={() => setShowScopeMenu((v) => !v)}
+                  className="flex items-center gap-1 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2 py-1 text-[11px] font-bold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
+                  aria-label="Configurer la portée de recherche"
+                  title="Portée de recherche"
+                >
+                  <IconSettings width={12} height={12} />
+                  <span className="hidden sm:inline">{searchScope === 'week' ? 'Semaine' : searchScope === 'month' ? 'Mois' : 'Année'}</span>
+                  <IconChevronDown width={12} height={12} className={`transition-transform ${showScopeMenu ? 'rotate-180' : ''}`} />
+                </button>
+                {showScopeMenu && (
+                  <div className="absolute right-0 z-40 mt-2 w-44 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-1 shadow-lg">
+                    <p className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Portée</p>
+                    {(['week', 'month', 'year'] as const).map((scope) => (
+                      <button
+                        key={scope}
+                        onClick={() => { setSearchScope(scope); setShowScopeMenu(false); if (normalizedQuery) setShowMatches(true) }}
+                        className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-[13px] font-semibold ${searchScope === scope ? 'bg-purple text-white' : 'text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]'}`}
+                      >
+                        {scope === 'week' ? 'Semaine' : scope === 'month' ? 'Mois' : 'Année'}
+                        {searchScope === scope && <IconCheck width={14} height={14} />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {showMatches && normalizedQuery && (
+              <div className="absolute left-0 right-0 z-30 mt-2 max-h-72 overflow-y-auto rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-lg">
+                {searchLoading ? (
+                  <div className="flex items-center justify-center gap-2 px-4 py-6 text-[13px] text-[var(--ds-text-subtle)]">
+                    <IconLoader width={16} height={16} className="animate-spin" /> Recherche…
+                  </div>
+                ) : matchedEvents.length === 0 ? (
+                  <p className="px-4 py-3 text-[13px] text-[var(--ds-text-subtle)]">Aucun résultat sur {searchScope === 'week' ? 'la semaine' : searchScope === 'month' ? 'le mois' : "l'année"}</p>
+                ) : (
+                  matchedEvents.map((e) => {
+                    const start = new Date(e.start)
+                    const owner = users.find((u) => u.id === e.ownerId)
+                    const ownerLabel = owner ? `${owner.firstName} ${owner.lastName}`.trim() : `Agenda #${e.ownerId}`
+                    // Nom et/ou email de l'invité : les créneaux historiques n'ont qu'un email.
+                    const attendeeLabel = [attendeeFullName(e) || undefined, e.attendeeEmail].filter(Boolean).join(' · ')
+                    return (
+                      <button
+                        key={`${e.ownerId}-${e.id}`}
+                        onClick={() => jumpToEvent(e)}
+                        className="flex w-full flex-col gap-0.5 border-b border-[var(--ds-border)] px-4 py-2.5 text-left last:border-0 hover:bg-[var(--ds-warning-bg)]"
+                      >
+                        <span className="truncate text-[13px] font-semibold text-[var(--ds-text)]">{e.summary}</span>
+                        <span className="truncate text-[12px] text-[var(--ds-text-subtle)]">
+                          {attendeeLabel}{attendeeLabel ? ' • ' : ''}{start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })} {formatTime(e.start)} – {formatTime(e.end)}
+                        </span>
+                        <span className="text-[11px] text-[var(--ds-text-subtle)]">{ownerLabel}</span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+            )}
+          </div>
           <div className="flex min-h-0 flex-1 gap-4">
-          <AgendasPanel users={users} visible={visible} selfId={selfId} onToggle={toggleUser} onToggleGroup={toggleGroup} />
-          <div className="relative flex-1 overflow-hidden rounded-2xl border border-gray-100 bg-white">
+          <AgendasPanel users={users} visible={visible} onToggle={toggleUser} onToggleGroup={toggleGroup} />
+          <div className="relative flex-1 overflow-hidden rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)]">
             {loading && (
-              <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
-                <Loader2 size={26} className="animate-spin text-purple" />
+              <div className="absolute inset-0 z-20 flex items-center justify-center bg-[var(--ds-surface)] backdrop-blur-[1px]">
+                <IconLoader width={26} height={26} className="animate-spin text-purple" />
               </div>
             )}
             {view === 'month'
-              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} selfId={selfId} />
-              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} selfId={selfId} />}
+              ? <MonthView cells={range.cells} cursorMonth={cursor.getMonth()} today={today} eventsByDay={eventsByDay} onEvent={setDetail} highlightedIds={matchedIds} blocksByDay={blocksByDay} />
+              : <WeekView days={range.cells} today={today} eventsByDay={eventsByDay} onEvent={setDetail} onSlot={openCreate} highlightedIds={matchedIds} blocksByDay={blocksByDay} />}
           </div>
           </div>
         </div>
       )}
 
-      {detail && (
+      {detail && (detail.isOccupation ? (
+        <OccupationModal event={detail} onClose={() => setDetail(null)} />
+      ) : (
         <EventModal
           event={detail}
           isOwn={detail.ownerId === selfId}
@@ -376,11 +661,12 @@ export default function Calendrier() {
           onAttendance={(e) => { setDetail((d) => (d ? { ...d, ...e } : d)); void load() }}
           onArrived={(e) => { setDetail(null); setCreateFromEvent(e) }}
         />
-      )}
+      ))}
       {createFromEvent && (
-        <CandidateFormModal
+        <CandidateQuickCreateModal
           prefill={{
-            fullName: candidateNameFromSummary(createFromEvent.summary),
+            // Nom saisi sur le créneau s'il existe, sinon déduit du titre (créneaux historiques).
+            fullName: attendeeFullName(createFromEvent) || candidateNameFromSummary(createFromEvent.summary),
             email: createFromEvent.attendeeEmail ?? '',
           }}
           onClose={() => setCreateFromEvent(null)}
@@ -401,6 +687,13 @@ export default function Calendrier() {
         />
       )}
       {showBooking && <BookingSettingsModal onClose={() => setShowBooking(false)} />}
+      {showBlocks && (
+        <DayBlocksModal
+          users={users}
+          onClose={() => setShowBlocks(false)}
+          onChanged={() => setBlocksVersion((v) => v + 1)}
+        />
+      )}
     </div>
   )
 }
@@ -481,16 +774,16 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[17px] font-extrabold text-gray-900">Partager mon agenda</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+          <h2 className="text-[17px] font-extrabold text-[var(--ds-text)]">Partager mon agenda</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]"><IconClose width={18} height={18} /></button>
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-10"><Loader2 size={24} className="animate-spin text-purple" /></div>
+          <div className="flex justify-center py-10"><IconLoader width={24} height={24} className="animate-spin text-purple" /></div>
         ) : !settings ? (
-          <p className="text-[13px] text-danger">{err ?? 'Erreur de chargement'}</p>
+          <p className="text-[13px] text-[var(--ds-danger)]">{err ?? 'Erreur de chargement'}</p>
         ) : (
           <div className="space-y-4">
             {/* Lien public */}
@@ -498,12 +791,12 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
               <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-purple">Lien public</p>
               <div className="flex items-center gap-2">
                 <input readOnly value={bookingPublicUrl(settings.slug)}
-                  className="flex-1 truncate rounded-lg border border-gray-200 bg-white px-3 py-2 text-[12px] text-gray-600 outline-none" />
+                  className="flex-1 truncate rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-[12px] text-[var(--ds-text-muted)] outline-none" />
                 <button onClick={copyLink} className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-2 text-[12px] font-bold text-white hover:bg-purple-dark">
-                  {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? 'Copié' : 'Copier'}
+                  {copied ? <IconCheck width={14} height={14} /> : <IconCopy width={14} height={14} />} {copied ? 'Copié' : 'Copier'}
                 </button>
               </div>
-              <label className="mt-2 flex items-center gap-2 text-[12px] font-semibold text-gray-600">
+              <label className="mt-2 flex items-center gap-2 text-[12px] font-semibold text-[var(--ds-text-muted)]">
                 <input type="checkbox" checked={settings.enabled} onChange={(e) => patch({ enabled: e.target.checked })} />
                 Réservation activée
               </label>
@@ -532,9 +825,9 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Mail de confirmation */}
-            <div className="rounded-xl border border-gray-100 p-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                <Mail size={13} /> Mail de confirmation
+            <div className="rounded-xl border border-[var(--ds-border)] p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
+                <IconMail width={13} height={13} /> IconMail de confirmation
               </p>
               <select
                 value={
@@ -550,7 +843,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                 }}
                 className={inputCls}
               >
-                <option value="">Mail par défaut</option>
+                <option value="">IconMail par défaut</option>
                 {settings.confirmationBody && !mailTemplates.some((t) => t.body === settings.confirmationBody) && (
                   <option value="__custom">Modèle enregistré (introuvable)</option>
                 )}
@@ -558,18 +851,18 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
                 Modèles gérés dans « Modèles de mail ». Variables disponibles :{' '}
-                <code>{'{{nom}}'}</code> <code>{'{{date}}'}</code> <code>{'{{jour}}'}</code>{' '}
+                <code>{'{{nom}}'}</code> <code>{'{{prenom}}'}</code> <code>{'{{telephone}}'}</code> <code>{'{{date}}'}</code> <code>{'{{jour}}'}</code>{' '}
                 <code>{'{{date_longue}}'}</code> <code>{'{{date_courte}}'}</code> <code>{'{{heure}}'}</code>{' '}
                 <code>{'{{lieu}}'}</code> <code>{'{{titre}}'}</code> <code>{'{{duree}}'}</code> <code>{'{{hote}}'}</code>.
               </p>
             </div>
 
             {/* Mail de proposition d'entretien */}
-            <div className="rounded-xl border border-gray-100 p-3">
-              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400">
-                <Mail size={13} /> Mail de proposition d'entretien
+            <div className="rounded-xl border border-[var(--ds-border)] p-3">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">
+                <IconMail width={13} height={13} /> IconMail de proposition d'entretien
               </p>
               <select
                 value={
@@ -585,7 +878,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                 }}
                 className={inputCls}
               >
-                <option value="">Mail par défaut</option>
+                <option value="">IconMail par défaut</option>
                 {settings.propositionBody && !mailTemplates.some((t) => t.body === settings.propositionBody) && (
                   <option value="__custom">Modèle enregistré (introuvable)</option>
                 )}
@@ -593,7 +886,7 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
-              <p className="mt-1.5 text-[11px] leading-relaxed text-gray-400">
+              <p className="mt-1.5 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
                 Envoyé au candidat via « Proposer un entretien ». Variable :{' '}
                 <code>{'{{lien}}'}</code> (lien de réservation). Sans cette variable, le lien est ajouté en bas.
               </p>
@@ -601,36 +894,39 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
 
             {/* Plages horaires */}
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Disponibilités hebdomadaires</p>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Disponibilités hebdomadaires</p>
               <div className="space-y-1.5">
                 {ISO_DAYS.map(({ key, label }) => {
                   const windows = settings.workingHours[key] ?? []
                   return (
                     <div key={key} className="flex items-start gap-2">
-                      <span className="w-20 flex-shrink-0 pt-1.5 text-[12px] font-bold text-gray-600">{label}</span>
+                      <span className="w-20 flex-shrink-0 pt-1.5 text-[12px] font-bold text-[var(--ds-text-muted)]">{label}</span>
                       <div className="flex flex-1 flex-wrap items-center gap-1.5">
-                        {windows.length === 0 && <span className="py-1 text-[12px] text-gray-300">Indisponible</span>}
+                        {windows.length === 0 && <span className="py-1 text-[12px] text-[var(--ds-text-subtle)]">Indisponible</span>}
                         {windows.map((w, i) => (
-                          <div key={i} className="flex items-center gap-1 rounded-lg border border-gray-200 px-1.5 py-1">
+                          <div key={i} className="flex items-center gap-1 rounded-lg border border-[var(--ds-border)] px-1.5 py-1">
                             <input type="time" value={w[0]} onChange={(e) => setWindow(key, i, 0, e.target.value)} className="text-[12px] outline-none" />
-                            <span className="text-gray-300">–</span>
+                            <span className="text-[var(--ds-text-subtle)]">–</span>
                             <input type="time" value={w[1]} onChange={(e) => setWindow(key, i, 1, e.target.value)} className="text-[12px] outline-none" />
-                            <button onClick={() => removeWindow(key, i)} className="text-gray-300 hover:text-danger"><X size={13} /></button>
+                            <button onClick={() => removeWindow(key, i)} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-danger)]"><IconClose width={13} height={13} /></button>
                           </div>
                         ))}
-                        <button onClick={() => addWindow(key)} className="rounded-lg p-1 text-purple hover:bg-purple-light"><Plus size={15} /></button>
+                        <button onClick={() => addWindow(key)} className="rounded-lg p-1 text-purple hover:bg-purple-light"><IconPlus width={15} height={15} /></button>
                       </div>
                     </div>
                   )
                 })}
               </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
+                Les dates bloquées via « Bloquer des dates » ne sont jamais proposées, même si le jour est ouvert ci-dessus.
+              </p>
             </div>
 
-            {err && <p className="text-[12px] text-danger">{err}</p>}
+            {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
             <div className="flex items-center gap-2 pt-1">
-              <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-gray-400 hover:text-gray-700">Annuler</button>
+              <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Annuler</button>
               <button onClick={save} disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
-                {busy && <Loader2 size={15} className="animate-spin" />} Enregistrer
+                {busy && <IconLoader width={15} height={15} className="animate-spin" />} Enregistrer
               </button>
             </div>
           </div>
@@ -640,7 +936,322 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-const inputCls = 'w-full rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple'
+const inputCls = 'w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple'
+
+/** Une période bloquée : les jours d'une même saisie, vus comme une seule entrée. */
+interface BlockGroup {
+  key: string
+  from: string
+  to: string
+  days: number
+  releasedDays: number
+  scope: DayBlockScope
+  reason: string
+  targetLabels: string[]
+  targetCount: number
+  appliesToMe: boolean
+  createdByName: string | null
+}
+
+/** Regroupe les jours bloqués par période (`groupKey`) : « Congés du 12 au 23 » = 1 entrée. */
+function groupDayBlocks(blocks: DayBlock[]): BlockGroup[] {
+  const map = new Map<string, BlockGroup>()
+  for (const b of blocks) {
+    const group = map.get(b.groupKey)
+    if (!group) {
+      map.set(b.groupKey, {
+        key: b.groupKey,
+        from: b.day,
+        to: b.day,
+        days: 1,
+        releasedDays: b.releasedForMe ? 1 : 0,
+        scope: b.scope,
+        reason: b.reason,
+        targetLabels: b.targetLabels,
+        targetCount: b.targetCount,
+        appliesToMe: b.appliesToMe,
+        createdByName: b.createdByName,
+      })
+      continue
+    }
+    if (b.day < group.from) group.from = b.day
+    if (b.day > group.to) group.to = b.day
+    group.days += 1
+    if (b.releasedForMe) group.releasedDays += 1
+  }
+  return [...map.values()].sort((a, b) => a.from.localeCompare(b.from) || a.key.localeCompare(b.key))
+}
+
+/**
+ * Blocage de dates : la période n'est plus proposée sur la page de réservation,
+ * quelles que soient les disponibilités hebdomadaires.
+ * - « Moi » : seul mon agenda partagé est bloqué.
+ * - « Mon secteur » : tous les RH de mes secteurs.
+ * - « Tout le monde » : tous les RH.
+ * - « + » : sélection manuelle de personnes.
+ * Un blocage collectif peut être annulé « pour moi » (dérogation personnelle,
+ * re-bloquable) ou « pour tout le monde ».
+ */
+function DayBlocksModal({ onClose, onChanged, users }: {
+  onClose: () => void
+  onChanged: () => void
+  users: CalendarUser[]
+}) {
+  const [blocks, setBlocks] = useState<DayBlock[] | null>(null)
+  const [from, setFrom] = useState(() => toDateInput(new Date()))
+  const [to, setTo] = useState(() => toDateInput(new Date()))
+  const [scope, setScope] = useState<DayBlockScope>('SELF')
+  // Blocage sectoriel : sous-ensemble de mes secteurs (vide = tous les miens).
+  const [sectors, setSectors] = useState<string[]>([])
+  // Blocage nominatif : personnes cochées manuellement.
+  const [peopleIds, setPeopleIds] = useState<number[]>([])
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  // Blocage collectif dont on est en train de choisir la portée d'annulation.
+  const [releasing, setReleasing] = useState<string | null>(null)
+
+  const mySectors = users.find((u) => u.isSelf)?.sectors ?? []
+  const selectableUsers = users.filter((u) => !u.isSelf)
+  const userLabel = (id: string) => {
+    const user = users.find((u) => u.id === Number(id))
+    return user ? `${user.firstName} ${user.lastName}` : id
+  }
+
+  useEffect(() => {
+    fetchDayBlocks()
+      .then(setBlocks)
+      .catch((e) => { setErr(e instanceof Error ? e.message : 'Erreur'); setBlocks([]) })
+  }, [])
+
+  const apply = (list: DayBlock[]) => { setBlocks(list); onChanged() }
+
+  const run = async (fn: () => Promise<DayBlock[]>) => {
+    setBusy(true); setErr(null)
+    try { apply(await fn()); setReleasing(null) }
+    catch (e) { setErr(e instanceof Error ? e.message : 'Erreur') }
+    finally { setBusy(false) }
+  }
+
+  const submit = async () => {
+    if (!reason.trim()) { setErr('Motif requis'); return }
+    if (to < from) { setErr('La date de fin doit suivre la date de début'); return }
+    if (scope === 'USERS' && peopleIds.length === 0) { setErr('Choisissez au moins une personne'); return }
+    setBusy(true); setErr(null)
+    try {
+      apply(await createDayBlock({
+        from,
+        to,
+        scope,
+        reason: reason.trim(),
+        ...(scope === 'SECTOR' ? { sectors: sectors.length > 0 ? sectors : mySectors } : {}),
+        ...(scope === 'USERS' ? { userIds: peopleIds } : {}),
+      }))
+      setReason('')
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Erreur')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const groups = groupDayBlocks(blocks ?? [])
+  const smallBtn = 'rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-[12px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)] disabled:opacity-60'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-[17px] font-extrabold text-[var(--ds-text)]">
+            <IconLock width={18} height={18} className="text-purple" /> Bloquer des dates
+          </h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]" aria-label="Fermer">
+            <IconClose width={18} height={18} />
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Nouveau blocage */}
+          <div className="rounded-xl border border-[var(--ds-border)] p-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Du">
+                <input
+                  type="date"
+                  value={from}
+                  max={to}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Au">
+                <input
+                  type="date"
+                  value={to}
+                  min={from}
+                  onChange={(e) => setTo(e.target.value)}
+                  className={inputCls}
+                />
+              </Field>
+            </div>
+            <div className="mt-3">
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Pour qui</p>
+              <SegmentedControl
+                label="Portée du blocage"
+                tone="purple"
+                size="sm"
+                value={scope}
+                onChange={(value) => {
+                  setScope(value)
+                  if (value !== 'USERS') setPeopleIds([])
+                }}
+                options={[
+                  { value: 'SELF' as DayBlockScope, label: 'Moi' },
+                  ...(mySectors.length > 0 ? [{ value: 'SECTOR' as DayBlockScope, label: 'Mon secteur' }] : []),
+                  { value: 'ALL' as DayBlockScope, label: 'Tout le monde' },
+                  { value: 'USERS' as DayBlockScope, label: <>+<span className="sr-only"> Choisir des personnes</span></> },
+                ]}
+              />
+              {/* Plusieurs secteurs : on choisit lesquels (vide = tous les miens). */}
+              {scope === 'SECTOR' && mySectors.length > 1 && (
+                <div className="mt-2">
+                  <ChipGroup
+                    label="Secteurs bloqués"
+                    allLabel="Tous mes secteurs"
+                    tone="purple"
+                    selected={sectors}
+                    onSelectAll={() => setSectors([])}
+                    onToggle={(sector) => setSectors((prev) => (prev.includes(sector) ? prev.filter((s) => s !== sector) : [...prev, sector]))}
+                    options={mySectors.map((sector) => ({ value: sector, label: sector }))}
+                  />
+                </div>
+              )}
+              {/* Sélection manuelle : mêmes personnes que la liste des agendas. */}
+              {scope === 'USERS' && (
+                <div className="mt-2">
+                  {selectableUsers.length === 0 ? (
+                    <p className="text-[12px] text-[var(--ds-text-subtle)]">Aucune personne à sélectionner pour le moment.</p>
+                  ) : (
+                    <MultiSelectField
+                      id="block-people"
+                      label="Personnes"
+                      options={selectableUsers.map((u) => String(u.id))}
+                      value={peopleIds.map(String)}
+                      onChange={(values) => setPeopleIds(values.map(Number))}
+                      placeholder="Choisir des personnes…"
+                      getOptionLabel={userLabel}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+            <Field label="Motif" className="mt-3">
+              <input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={255}
+                placeholder="Congés, séminaire, jour férié…"
+                className={inputCls}
+              />
+            </Field>
+            <p className="mt-2 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
+              « Moi » ne bloque que votre agenda partagé ; « Mon secteur » et « Tout le monde » s'appliquent à
+              plusieurs RH. Une date bloquée n'est jamais proposée sur la page de réservation, quelles que soient
+              les disponibilités hebdomadaires.
+            </p>
+            {err && <p className="mt-2 text-[12px] text-[var(--ds-danger)]">{err}</p>}
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={submit}
+                disabled={busy || !reason.trim()}
+                className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-purple-dark disabled:opacity-60"
+              >
+                {busy ? <IconLoader width={15} height={15} className="animate-spin" /> : <IconLock width={15} height={15} />}
+                {from === to ? 'Bloquer ce jour' : 'Bloquer la période'}
+              </button>
+            </div>
+          </div>
+
+          {/* Blocages existants, regroupés par période */}
+          <div>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Dates bloquées</p>
+            {blocks === null ? (
+              <div className="flex justify-center py-6"><IconLoader width={22} height={22} className="animate-spin text-purple" /></div>
+            ) : groups.length === 0 ? (
+              <p className="py-2 text-[12px] text-[var(--ds-text-subtle)]">Aucune date bloquée.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {groups.map((group) => {
+                  const collective = group.scope !== 'SELF'
+                  const released = group.releasedDays === group.days
+                  const partiallyReleased = group.releasedDays > 0 && !released
+                  // Blocage perso sur la période : « pour moi » n'aurait rien à rouvrir.
+                  const blockedForMe = (blocks ?? []).some(
+                    (x) => x.scope === 'SELF' && x.day >= group.from && x.day <= group.to,
+                  )
+                  const badge = blockScopeLabel(group.scope, group.targetLabels, group.targetCount)
+                  return (
+                    <li key={group.key} className="rounded-xl border border-[var(--ds-border)] px-3 py-2">
+                      <div className="flex items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13px] font-bold text-[var(--ds-text)]">{formatBlockPeriod(group.from, group.to)}</p>
+                          <p className="truncate text-[12px] text-[var(--ds-text-muted)]">{group.reason}</p>
+                          <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
+                            <span className={`rounded px-1.5 py-0.5 font-bold ${group.scope === 'ALL' ? 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)]' : 'bg-purple-light text-purple'}`}>
+                              {badge}
+                            </span>
+                            {released && (
+                              <span className="rounded bg-[var(--ds-success-bg)] px-1.5 py-0.5 font-bold text-[var(--ds-success)]">Disponible pour moi</span>
+                            )}
+                            {partiallyReleased && (
+                              <span className="rounded bg-[var(--ds-success-bg)] px-1.5 py-0.5 font-bold text-[var(--ds-success)]">
+                                Disponible {group.releasedDays}/{group.days} jours
+                              </span>
+                            )}
+                            {group.createdByName && <span>· {group.createdByName}</span>}
+                          </p>
+                        </div>
+                        <div className="flex-shrink-0">
+                          {collective ? (
+                            released ? (
+                              <button onClick={() => run(() => releaseDayBlockGroup(group.key))} disabled={busy} className={smallBtn}>
+                                Me re-bloquer
+                              </button>
+                            ) : (
+                              <button onClick={() => setReleasing(releasing === group.key ? null : group.key)} className={smallBtn}>
+                                Annuler…
+                              </button>
+                            )
+                          ) : (
+                            <button onClick={() => run(() => deleteDayBlockGroup(group.key))} disabled={busy} className={smallBtn}>
+                              Débloquer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {collective && !released && releasing === group.key && (
+                        <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 border-t border-[var(--ds-border)] pt-2">
+                          <span className="mr-auto text-[11px] font-semibold text-[var(--ds-text-subtle)]">Rendre disponible :</span>
+                          {!blockedForMe && group.appliesToMe && (
+                            <button onClick={() => run(() => releaseDayBlockGroup(group.key))} disabled={busy} className={smallBtn}>
+                              pour moi
+                            </button>
+                          )}
+                          <button onClick={() => run(() => deleteDayBlockGroup(group.key))} disabled={busy} className={`${smallBtn} border-[var(--ds-danger)]/40 text-[var(--ds-danger)]`}>
+                            pour tout le monde
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const CUSTOM_LOCATION = '__custom'
 
@@ -655,6 +1266,7 @@ function LocationPicker({ value, onChange, autoDefault }: {
   const [loaded, setLoaded] = useState(false)
   const [custom, setCustom] = useState(false)
   const selfSectors = useAuthStore((s) => s.user?.sectors)
+  const { userSectors } = useSectors()
 
   useEffect(() => {
     let cancelled = false
@@ -664,9 +1276,10 @@ function LocationPicker({ value, onChange, autoDefault }: {
         const withLocation = all.filter((s) => s.location.trim())
         setOptions(withLocation)
         setLoaded(true)
-        // Défaut : lieu du secteur de l'utilisateur, sinon Nord-Est ; rien si non configuré.
+        // Défaut : lieu du secteur de l'utilisateur, sinon premier secteur du tenant ; rien si non configuré.
         if (autoDefault && !value.trim()) {
-          const sector = selfSectors?.find((s) => (SECTEUR_VALUES as readonly string[]).includes(s)) ?? DEFAULT_SECTEUR
+          const validSectors = userSectors
+          const sector = selfSectors?.find((s) => validSectors.includes(s)) ?? validSectors[0]
           const match = withLocation.find((s) => s.sector === sector)
           if (match) onChange(match.location)
         }
@@ -689,8 +1302,8 @@ function LocationPicker({ value, onChange, autoDefault }: {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-        <MapPin size={15} className="flex-shrink-0 text-gray-400" />
+      <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+        <IconMapPin width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
         <select value={selectValue} onChange={(e) => pick(e.target.value)} className="w-full bg-transparent py-2 text-[13px] outline-none">
           <option value="">Aucun lieu</option>
           {options.map((s) => (
@@ -715,21 +1328,22 @@ function LocationPicker({ value, onChange, autoDefault }: {
 function Field({ label, className, children }: { label: string; className?: string; children: React.ReactNode }) {
   return (
     <label className={`flex flex-col gap-1 ${className ?? ''}`}>
-      <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">{label}</span>
+      <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">{label}</span>
       {children}
     </label>
   )
 }
 
-function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId }: {
-  cells: Date[]; cursorMonth: number; today: Date; selfId: number
-  eventsByDay: Map<string, OwnedEvent[]>; onEvent: (e: OwnedEvent) => void
+function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, highlightedIds, blocksByDay }: {
+  cells: Date[]; cursorMonth: number; today: Date
+  eventsByDay: Map<string, OwnedEvent[]>; onEvent: (e: OwnedEvent) => void; highlightedIds?: Set<string>
+  blocksByDay?: Map<string, DayBlock[]>
 }) {
   return (
     <>
-      <div className="grid grid-cols-7 border-b border-gray-100">
+      <div className="grid grid-cols-7 border-b border-[var(--ds-border)]">
         {WEEKDAYS.map((d) => (
-          <div key={d} className="py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-gray-400">{d}</div>
+          <div key={d} className="py-2.5 text-center text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">{d}</div>
         ))}
       </div>
       <div className="grid h-[calc(100%-41px)] grid-cols-7 grid-rows-6">
@@ -737,25 +1351,39 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId }: 
           const inMonth = day.getMonth() === cursorMonth
           const isToday = sameDay(day, today)
           const dayEvents = eventsByDay.get(day.toDateString()) ?? []
+          const dayBlocks = blocksByDay?.get(toDateInput(day)) ?? []
+          const isBlocked = blocksMe(dayBlocks)
           return (
-            <div key={day.toISOString()} className={`flex flex-col gap-1 overflow-hidden border-b border-r border-gray-100 p-1.5 ${inMonth ? 'bg-white' : 'bg-gray-50/50'}`}>
-              <span className={`mb-0.5 flex h-6 w-6 items-center justify-center rounded-full text-[12px] font-bold ${isToday ? 'bg-purple text-white' : inMonth ? 'text-gray-700' : 'text-gray-300'}`}>
-                {day.getDate()}
-              </span>
+            <div
+              key={day.toISOString()}
+              title={dayBlocks.length ? blocksTitle(dayBlocks) : undefined}
+              className={`flex flex-col gap-1 overflow-hidden border-b border-r border-[var(--ds-border)] p-1.5 ${isBlocked ? 'bg-[var(--ds-danger-bg)]/40' : inMonth ? 'bg-[var(--ds-surface)]' : 'bg-[var(--ds-surface-sunken)]'}`}
+            >
+              <div className="mb-0.5 flex items-center gap-1">
+                <span className={`flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${isToday ? 'bg-purple text-white' : inMonth ? 'text-[var(--ds-text-muted)]' : 'text-[var(--ds-text-subtle)]'}`}>
+                  {day.getDate()}
+                </span>
+                {isBlocked && (
+                  <span className="flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--ds-danger)]">
+                    <IconLock width={9} height={9} /> Bloqué
+                  </span>
+                )}
+              </div>
               <div className="flex flex-col gap-1 overflow-hidden">
                 {dayEvents.slice(0, 3).map((e) => {
-                  const hex = displayHex(e, selfId)
+                  const hex = displayHex(e)
+                  const isHighlighted = highlightedIds?.has(e.id) ?? false
                   return (
                     <button key={e.id} onClick={() => onEvent(e)} title={e.summary}
-                      className="flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-left text-[11px] font-semibold transition-opacity hover:opacity-80"
-                      style={{ backgroundColor: `${hex}22`, color: hex }}>
+                      className={`flex items-center gap-1 truncate rounded-md px-1.5 py-1 text-left text-[11px] font-semibold transition-opacity hover:opacity-80 ${isHighlighted ? 'ring-2 ring-amber-400 ring-offset-1 shadow-sm' : ''}`}
+                      style={{ backgroundColor: isHighlighted ? `${hex}33` : `${hex}22`, color: hex, ...(isHighlighted ? { boxShadow: '0 0 0 1px #f59e0b' } : {}) }}>
                       <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ backgroundColor: hex }} />
                       {!e.allDay && <span className="font-bold opacity-70">{formatTime(e.start)}</span>}
                       <span className="truncate">{e.summary}</span>
                     </button>
                   )
                 })}
-                {dayEvents.length > 3 && <span className="px-1.5 text-[10px] font-bold text-gray-400">+{dayEvents.length - 3} autres</span>}
+                {dayEvents.length > 3 && <span className="px-1.5 text-[10px] font-bold text-[var(--ds-text-subtle)]">+{dayEvents.length - 3} autres</span>}
               </div>
             </div>
           )
@@ -765,9 +1393,10 @@ function MonthView({ cells, cursorMonth, today, eventsByDay, onEvent, selfId }: 
   )
 }
 
-function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
-  days: Date[]; today: Date; eventsByDay: Map<string, OwnedEvent[]>; selfId: number
-  onEvent: (e: OwnedEvent) => void; onSlot: (start: Date) => void
+function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds, blocksByDay }: {
+  days: Date[]; today: Date; eventsByDay: Map<string, OwnedEvent[]>
+  onEvent: (e: OwnedEvent) => void; onSlot: (start: Date) => void; highlightedIds?: Set<string>
+  blocksByDay?: Map<string, DayBlock[]>
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = 7.5 * HOUR_PX }, [])
@@ -775,14 +1404,25 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
   return (
     <div className="flex h-full flex-col">
       {/* Day headers */}
-      <div className="grid border-b border-gray-100" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
+      <div className="grid border-b border-[var(--ds-border)]" style={{ gridTemplateColumns: `56px repeat(7, 1fr)` }}>
         <div />
         {days.map((d) => {
           const isToday = sameDay(d, today)
+          const dayBlocks = blocksByDay?.get(toDateInput(d)) ?? []
+          const isBlocked = blocksMe(dayBlocks)
           return (
-            <div key={d.toISOString()} className="border-l border-gray-100 py-2 text-center">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400">{WEEKDAYS[mondayIndex(d)]}</div>
-              <div className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold ${isToday ? 'bg-purple text-white' : 'text-gray-700'}`}>{d.getDate()}</div>
+            <div
+              key={d.toISOString()}
+              title={dayBlocks.length ? blocksTitle(dayBlocks) : undefined}
+              className={`border-l border-[var(--ds-border)] py-2 text-center ${isBlocked ? 'bg-[var(--ds-danger-bg)]/40' : ''}`}
+            >
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">{WEEKDAYS[mondayIndex(d)]}</div>
+              <div className={`mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-[13px] font-bold ${isToday ? 'bg-purple text-white' : 'text-[var(--ds-text-muted)]'}`}>{d.getDate()}</div>
+              {isBlocked && (
+                <div className="mt-0.5 flex items-center justify-center gap-0.5 text-[9px] font-bold uppercase tracking-wide text-[var(--ds-danger)]">
+                  <IconLock width={9} height={9} /> Bloqué
+                </div>
+              )}
             </div>
           )
         })}
@@ -794,7 +1434,7 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
           {/* Hour labels */}
           <div className="relative" style={{ height: HOURS.length * HOUR_PX }}>
             {HOURS.map((h) => (
-              <div key={h} className="absolute -translate-y-1/2 pr-2 text-right text-[10px] font-semibold text-gray-400" style={{ top: h * HOUR_PX, right: 0 }}>
+              <div key={h} className="absolute -translate-y-1/2 pr-2 text-right text-[10px] font-semibold text-[var(--ds-text-subtle)]" style={{ top: h * HOUR_PX, right: 0 }}>
                 {h > 0 ? `${String(h).padStart(2, '0')}:00` : ''}
               </div>
             ))}
@@ -804,26 +1444,32 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
           {days.map((day) => {
             const dayEvents = (eventsByDay.get(day.toDateString()) ?? []).filter((e) => !e.allDay)
             const positioned = layoutDay(dayEvents)
+            const dayBlocked = blocksMe(blocksByDay?.get(toDateInput(day)) ?? [])
             return (
-              <div key={day.toISOString()} className="relative border-l border-gray-100" style={{ height: HOURS.length * HOUR_PX }}>
+              <div key={day.toISOString()} className={`relative border-l border-[var(--ds-border)] ${dayBlocked ? 'bg-[var(--ds-danger-bg)]/25' : ''}`} style={{ height: HOURS.length * HOUR_PX }}>
                 {/* Hour lines + click-to-create */}
                 {HOURS.map((h) => (
                   <div key={h} onClick={() => onSlot(new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, 0))}
-                    className="cursor-pointer border-b border-gray-50 hover:bg-purple-light/40" style={{ height: HOUR_PX }} />
+                    className="cursor-pointer border-b border-[var(--ds-border)] hover:bg-purple-light/40" style={{ height: HOUR_PX }} />
                 ))}
                 {/* Events */}
                 {positioned.map(({ event, col, cols }) => {
                   const top = (minutesSinceMidnight(event.start) / 60) * HOUR_PX
                   const height = Math.max(18, ((minutesSinceMidnight(event.end) - minutesSinceMidnight(event.start)) / 60) * HOUR_PX - 2)
-                  const hex = displayHex(event, selfId)
+                  const hex = displayHex(event)
                   const width = `calc(${100 / cols}% - 4px)`
                   const left = `calc(${(100 / cols) * col}% + 2px)`
+                  const isHighlighted = highlightedIds?.has(event.id) ?? false
                   return (
                     <button key={event.id} onClick={(e) => { e.stopPropagation(); onEvent(event) }}
-                      className="absolute overflow-hidden rounded-md px-1.5 py-1 text-left transition-opacity hover:opacity-90"
-                      style={{ top, height, width, left, backgroundColor: `${hex}26`, borderLeft: `3px solid ${hex}` }}>
-                      <div className="truncate text-[11px] font-bold" style={{ color: hex }}>{event.summary}</div>
-                      {height > 30 && <div className="truncate text-[10px] font-medium text-gray-500">{formatTime(event.start)} – {formatTime(event.end)}</div>}
+                      title={event.isOccupation ? `Occupé${event.occupationOwnerName ? ` — ${event.occupationOwnerName}` : ''}` : undefined}
+                      className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-left transition-opacity hover:opacity-90 ${isHighlighted ? 'z-10 ring-2 ring-amber-400 ring-offset-0 shadow-md' : ''}`}
+                      style={{ top, height, width, left, backgroundColor: isHighlighted ? `${hex}40` : `${hex}26`, borderLeft: `3px solid ${hex}`, ...(isHighlighted ? { boxShadow: '0 0 0 1px #f59e0b, 0 2px 6px rgba(0,0,0,0.12)' } : {}) }}>
+                      <div className="flex items-center gap-1 truncate text-[11px] font-bold" style={{ color: hex }}>
+                        {event.isOccupation && <IconLock width={10} height={10} className="flex-shrink-0" />}
+                        <span className="truncate">{event.summary}</span>
+                      </div>
+                      {height > 30 && <div className="truncate text-[10px] font-medium text-[var(--ds-text-subtle)]">{formatTime(event.start)} – {formatTime(event.end)}</div>}
                     </button>
                   )
                 })}
@@ -836,32 +1482,32 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, selfId }: {
   )
 }
 
-function AgendaRow({ user, selfId, visible, onToggle }: {
-  user: CalendarUser; selfId: number; visible: Set<number>; onToggle: (id: number) => void
+function AgendaRow({ user, visible, onToggle }: {
+  user: CalendarUser; visible: Set<number>; onToggle: (id: number) => void
 }) {
-  const hex = user.id === selfId ? DEFAULT_EVENT_HEX : ownerColor(user.id)
+  const hex = calendarHex(undefined)
   const checked = visible.has(user.id)
   return (
     <button
       onClick={() => user.connected && onToggle(user.id)}
       disabled={!user.connected}
       title={user.connected ? '' : 'Google Calendar non connecté'}
-      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${user.connected ? 'hover:bg-gray-50' : 'cursor-not-allowed opacity-50'}`}
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${user.connected ? 'hover:bg-[var(--ds-surface-sunken)]' : 'cursor-not-allowed opacity-50'}`}
     >
       <span
         className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2"
         style={{ borderColor: hex, backgroundColor: checked ? hex : 'transparent' }}
       >
-        {checked && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
+        {checked && <span className="h-1.5 w-1.5 rounded-sm bg-[var(--ds-surface)]" />}
       </span>
       <span className="flex min-w-0 items-center gap-1">
-        <span className="truncate text-[13px] font-semibold text-gray-700">
-          {`${user.firstName} ${user.lastName}`.trim()}{user.isSelf && <span className="ml-1 text-[11px] font-medium text-gray-400">(moi)</span>}
+        <span className="truncate text-[13px] font-semibold text-[var(--ds-text-muted)]">
+          {`${user.firstName} ${user.lastName}`.trim()}{user.isSelf && <span className="ml-1 text-[11px] font-medium text-[var(--ds-text-subtle)]">(moi)</span>}
         </span>
         {user.sectors.length > 1 && (
-          <Layers className="h-3 w-3 flex-shrink-0 text-gray-300" aria-label={`Agenda partagé entre ${user.sectors.join(', ')}`}>
+          <IconUsers className="h-3 w-3 flex-shrink-0 text-[var(--ds-text-subtle)]" aria-label={`Agenda partagé entre ${user.sectors.join(', ')}`}>
             <title>{`Agenda partagé entre ${user.sectors.join(', ')}`}</title>
-          </Layers>
+          </IconUsers>
         )}
       </span>
     </button>
@@ -877,16 +1523,16 @@ function GroupCheckbox({ connectedIds, visible, onToggleGroup }: {
     <button
       onClick={(e) => { e.stopPropagation(); onToggleGroup(connectedIds) }}
       disabled={connectedIds.length === 0}
-      className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${connectedIds.length === 0 ? 'cursor-not-allowed border-gray-200' : 'border-gray-300'} ${isAllSelected || isSomeSelected ? 'border-purple bg-purple' : ''}`}
+      className={`flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${connectedIds.length === 0 ? 'cursor-not-allowed border-[var(--ds-border)]' : 'border-[var(--ds-border-strong)]'} ${isAllSelected || isSomeSelected ? 'border-purple bg-purple' : ''}`}
     >
-      {isAllSelected && <span className="h-1.5 w-1.5 rounded-sm bg-white" />}
-      {isSomeSelected && <span className="h-0.5 w-2 rounded-sm bg-white" />}
+      {isAllSelected && <span className="h-1.5 w-1.5 rounded-sm bg-[var(--ds-surface)]" />}
+      {isSomeSelected && <span className="h-0.5 w-2 rounded-sm bg-[var(--ds-surface)]" />}
     </button>
   )
 }
 
-function AgendaGroup({ label, users, selfId, visible, onToggle, onToggleGroup, defaultCollapsed }: {
-  label: string; users: CalendarUser[]; selfId: number; visible: Set<number>
+function AgendaGroup({ label, users, visible, onToggle, onToggleGroup, defaultCollapsed }: {
+  label: string; users: CalendarUser[]; visible: Set<number>
   onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void; defaultCollapsed: boolean
 }) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
@@ -899,33 +1545,34 @@ function AgendaGroup({ label, users, selfId, visible, onToggle, onToggleGroup, d
         <GroupCheckbox connectedIds={connectedIds} visible={visible} onToggleGroup={onToggleGroup} />
         <button
           onClick={() => setIsCollapsed((prev) => !prev)}
-          className="flex flex-1 items-center justify-between gap-1 text-gray-400 hover:text-gray-600"
+          className="flex flex-1 items-center justify-between gap-1 text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]"
         >
           <span className="truncate text-[10px] font-bold uppercase tracking-wider">{label} ({ordered.length})</span>
-          <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+          <IconChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
         </button>
       </div>
       {!isCollapsed && (
         <div className="flex flex-col gap-0.5">
-          {ordered.map((u) => <AgendaRow key={u.id} user={u} selfId={selfId} visible={visible} onToggle={onToggle} />)}
+          {ordered.map((u) => <AgendaRow key={u.id} user={u} visible={visible} onToggle={onToggle} />)}
         </div>
       )}
     </div>
   )
 }
 
-function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
-  users: CalendarUser[]; visible: Set<number>; selfId: number; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
+function AgendasPanel({ users, visible, onToggle, onToggleGroup }: {
+  users: CalendarUser[]; visible: Set<number>; onToggle: (id: number) => void; onToggleGroup: (ids: number[]) => void
 }) {
+  const region = useRegionStore((s) => s.region)
+  const { userSectors: sectors } = useSectors()
   const withoutSector = users.filter((u) => u.sectors.length === 0)
   return (
-    <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-gray-100 bg-white p-3">
-      {SECTEUR_VALUES.map((sector) => (
+    <aside className="w-56 flex-shrink-0 overflow-y-auto rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-3">
+      {sectors.map((sector) => (
         <AgendaGroup
           key={sector}
           label={sector}
-          users={users.filter((u) => u.sectors.includes(sector))}
-          selfId={selfId}
+          users={users.filter((u) => u.sectors.some((s) => normalizeUserSecteurForRegion(s, region) === sector))}
           visible={visible}
           onToggle={onToggle}
           onToggleGroup={onToggleGroup}
@@ -935,13 +1582,12 @@ function AgendasPanel({ users, visible, selfId, onToggle, onToggleGroup }: {
       <AgendaGroup
         label="Sans secteur"
         users={withoutSector}
-        selfId={selfId}
         visible={visible}
         onToggle={onToggle}
         onToggleGroup={onToggleGroup}
         defaultCollapsed={false}
       />
-      {users.length === 0 && <p className="px-1 text-[12px] text-gray-400">Aucun agenda</p>}
+      {users.length === 0 && <p className="px-1 text-[12px] text-[var(--ds-text-subtle)]">Aucun agenda</p>}
     </aside>
   )
 }
@@ -953,17 +1599,54 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
     try { await onConnect(); onDone() } catch (e: any) { setErr(e?.message || 'Erreur de connexion') }
   }
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-gray-100 bg-white">
-      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-light text-purple"><CalendarDays size={28} /></div>
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)]">
+      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-light text-purple"><IconCalendar width={28} height={28} /></div>
       <div className="text-center">
-        <p className="text-[15px] font-bold text-gray-900">Google Calendar non connecté</p>
-        <p className="text-[13px] text-gray-400">Connectez votre compte Google pour afficher votre agenda.</p>
+        <p className="text-[15px] font-bold text-[var(--ds-text)]">Google Calendar non connecté</p>
+        <p className="text-[13px] text-[var(--ds-text-subtle)]">Connectez votre compte Google pour afficher votre agenda.</p>
       </div>
       <button onClick={handle} disabled={isConnecting} className="flex items-center gap-2 rounded-xl bg-purple px-4 py-2.5 text-[14px] font-bold text-white transition-all hover:bg-purple-dark disabled:opacity-70">
-        {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <CalendarDays size={18} />}
+        {isConnecting ? <IconLoader width={18} height={18} className="animate-spin" /> : <IconCalendar width={18} height={18} />}
         {isConnecting ? 'Connexion...' : 'Connecter Google'}
       </button>
-      {err && <p className="text-[12px] text-danger">{err}</p>}
+      {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
+    </div>
+  )
+}
+
+/**
+ * Détail en lecture seule d'un créneau occupé par l'entretien d'un RH du même
+ * secteur (#1241) : l'agenda est bloqué pour ce créneau, rien n'est modifiable ici.
+ */
+function OccupationModal({ event, onClose }: { event: OwnedEvent; onClose: () => void }) {
+  const start = new Date(event.start)
+  const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const timeLabel = `${formatTime(event.start)} – ${formatTime(event.end)}`
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start gap-3">
+          <IconLock width={17} height={17} className="mt-1 flex-shrink-0 text-[var(--ds-text-subtle)]" />
+          <div className="flex-1">
+            <h2 className="text-[17px] font-extrabold leading-snug text-[var(--ds-text)]">{event.summary}</h2>
+            <p className="text-[12px] text-[var(--ds-text-subtle)]">
+              Créneau occupé : les RH de votre secteur sont bloqués sur ce créneau.
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2 text-[13px] text-[var(--ds-text-muted)]">
+          {event.occupationOwnerName && (
+            <p className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ backgroundColor: `${OCCUPATION_HEX}22`, color: OCCUPATION_HEX }}>
+              <IconUser width={12} height={12} /> {event.occupationOwnerName}
+            </p>
+          )}
+          <p className="font-semibold capitalize text-[var(--ds-text)]">{dateLabel}</p>
+          <p>{timeLabel}</p>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Fermer</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -976,19 +1659,46 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
   const start = new Date(event.start)
   const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
   const timeLabel = event.allDay ? 'Toute la journée' : `${formatTime(event.start)} – ${formatTime(event.end)}`
-  const hex = isOwn ? eventHex(event.colorId) : ownerColor(event.ownerId)
+  const hex = calendarHex(event.attendance)
 
   const [savingAtt, setSavingAtt] = useState<Attendance | null>(null)
   const [attErr, setAttErr] = useState<string | null>(null)
+  // Distingue « À reprogrammer » (date à définir) de « Déplacer et marquer reporté » dans les spinners.
+  const [savingPending, setSavingPending] = useState(false)
   const isPast = new Date(event.end).getTime() < Date.now()
+  // « Reporté » d'un entretien : on demande d'abord la nouvelle date/heure, puis on déplace le créneau.
+  const [rescheduling, setRescheduling] = useState(false)
+  const [newDate, setNewDate] = useState(() => toDateInput(new Date(event.start)))
+  const [newStart, setNewStart] = useState(() => toTimeInput(new Date(event.start)))
+  const [newEnd, setNewEnd] = useState(() => toTimeInput(new Date(event.end)))
 
-  const mark = async (status: Attendance) => {
+  const mark = async (status: Attendance): Promise<boolean> => {
     setSavingAtt(status); setAttErr(null)
     try {
       const updated = await setEventAttendance(event.id, status, event.ownerId)
       onAttendance(updated)
-      // « Arrivé » → création du candidat pré-rempli puis redirection vers sa fiche.
-      if (status === 'arrived') onArrived(updated)
+      // « Arrivé » (entretien uniquement) → création du candidat pré-rempli puis redirection vers sa fiche.
+      if (status === 'arrived' && event.isInterview) onArrived(updated)
+      return true
+    } catch (e) {
+      setAttErr(e instanceof Error ? e.message : 'Erreur')
+      return false
+    } finally {
+      setSavingAtt(null)
+    }
+  }
+
+  const confirmReport = async () => {
+    setAttErr(null)
+    if (!newDate || !newStart || !newEnd) { setAttErr('Date et heures requises'); return }
+    const start = localToISO(newDate, newStart)
+    const end = localToISO(newDate, newEnd)
+    if (new Date(end) <= new Date(start)) { setAttErr('La fin doit suivre le début'); return }
+    setSavingAtt('postponed')
+    try {
+      const updated = await reportCalendarEvent(event.id, start, end, event.ownerId)
+      onAttendance(updated)
+      setRescheduling(false)
     } catch (e) {
       setAttErr(e instanceof Error ? e.message : 'Erreur')
     } finally {
@@ -997,62 +1707,107 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
   }
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-start gap-3">
           <div className="mt-1.5 h-3 w-3 flex-shrink-0 rounded-full" style={{ backgroundColor: hex }} />
-          <h2 className="flex-1 text-[17px] font-extrabold leading-snug text-gray-900">{event.summary}</h2>
-          <button onClick={onEdit} className="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-purple" title="Modifier"><Pencil size={16} /></button>
+          <h2 className="flex-1 text-[17px] font-extrabold leading-snug text-[var(--ds-text)]">{event.summary}</h2>
+          <button onClick={onEdit} className="rounded-lg p-1.5 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-purple" title="Modifier"><IconEdit width={16} height={16} /></button>
         </div>
-        <div className="space-y-2 text-[13px] text-gray-600">
+        <div className="space-y-2 text-[13px] text-[var(--ds-text-muted)]">
           {!isOwn && ownerName && (
             <p className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ backgroundColor: `${hex}22`, color: hex }}>
               <span className="h-2 w-2 rounded-full" style={{ backgroundColor: hex }} /> {ownerName}
             </p>
           )}
-          <p className="font-semibold capitalize text-gray-800">{dateLabel}</p>
+          <p className="font-semibold capitalize text-[var(--ds-text)]">{dateLabel}</p>
           <p>{timeLabel}</p>
-          {event.location && <p className="flex items-center gap-2"><MapPin size={14} className="text-gray-400" /> {event.location}</p>}
-          {event.attendeeEmail && (
-            <p className="flex items-center gap-2"><Mail size={14} className="text-gray-400" /> {event.attendeeEmail}</p>
+          {event.location && <p className="flex items-center gap-2"><IconMapPin width={14} height={14} className="text-[var(--ds-text-subtle)]" /> {event.location}</p>}
+          {(event.attendeeEmail || attendeeFullName(event)) && (
+            <p className="flex items-center gap-2">
+              <IconMail width={14} height={14} className="text-[var(--ds-text-subtle)]" />
+              {[attendeeFullName(event) || undefined, event.attendeeEmail].filter(Boolean).join(' · ')}
+            </p>
           )}
           {event.description && (
-            <div className="pt-1 text-gray-500 [&_a]:font-semibold [&_a]:text-purple [&_a]:underline [&_a:hover]:text-purple-dark"
+            <div className="pt-1 text-[var(--ds-text-subtle)] [&_a]:font-semibold [&_a]:text-purple [&_a]:underline [&_a:hover]:text-purple-dark"
               dangerouslySetInnerHTML={{ __html: cleanHtml(event.description) }} />
           )}
         </div>
 
-        {/* Présence de l'invité (tout event avec un email, y compris agenda d'un collègue). */}
-        {event.attendeeEmail && (
-          <div className="mt-4 rounded-xl bg-gray-50 p-3">
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-gray-400">Présence</p>
-            <div className="flex items-center gap-2">
-              <button onClick={() => mark('arrived')} disabled={savingAtt !== null}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-success-bg text-success' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
-                {savingAtt === 'arrived' ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />} Venu
-              </button>
-              <button onClick={() => mark('noshow')} disabled={savingAtt !== null}
-                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-danger-bg text-danger' : 'border-gray-200 text-gray-600 hover:bg-white'}`}>
-                {savingAtt === 'noshow' ? <Loader2 size={14} className="animate-spin" /> : <UserX size={14} />} Pas venu
-              </button>
-            </div>
-            {event.attendance === 'noshow' && (
-              <p className="mt-2 text-[12px] text-gray-500">Un mail de proposition de rendez-vous a été envoyé.</p>
-            )}
-            {!isPast && event.attendance == null && (
-              <p className="mt-2 text-[12px] text-gray-400">Le rendez-vous n'a pas encore eu lieu.</p>
-            )}
-            {attErr && <p className="mt-2 text-[12px] text-danger">{attErr}</p>}
+        {/* Présence : venu / pas venu / reporté / décliné, disponible sur tout créneau (entretien ou non), impacte les KPI. */}
+        <div className="mt-4 rounded-xl bg-[var(--ds-surface-sunken)] p-3">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Présence</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => mark('arrived')} disabled={savingAtt !== null}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'arrived' ? 'border-success bg-[var(--ds-success-bg)] text-[var(--ds-success)]' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]'}`}>
+              {savingAtt === 'arrived' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserCheck width={14} height={14} />} Venu
+            </button>
+            <button onClick={() => mark('noshow')} disabled={savingAtt !== null}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance === 'noshow' ? 'border-danger bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]' : 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]'}`}>
+              {savingAtt === 'noshow' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconUserRemove width={14} height={14} />} Pas venu
+            </button>
+            <button
+              onClick={() => (event.isInterview ? setRescheduling((v) => !v) : mark('postponed'))}
+              disabled={savingAtt !== null}
+              style={event.attendance === 'postponed' ? { borderColor: '#60207E', backgroundColor: '#60207E14', color: '#60207E' } : undefined}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance !== 'postponed' ? 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]' : ''}`}>
+              {savingAtt === 'postponed' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconRepeat width={14} height={14} />} Reporté
+            </button>
+            <button onClick={() => mark('declined')} disabled={savingAtt !== null}
+              style={event.attendance === 'declined' ? { borderColor: '#111827', backgroundColor: '#11182714', color: '#111827' } : undefined}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] font-bold transition-colors disabled:opacity-60 ${event.attendance !== 'declined' ? 'border-[var(--ds-border)] text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface)]' : ''}`}>
+              {savingAtt === 'declined' ? <IconLoader width={14} height={14} className="animate-spin" /> : <IconClose width={14} height={14} />} Décliné
+            </button>
           </div>
-        )}
+          {/* Report d'un entretien : le créneau est réellement déplacé à la nouvelle date/heure choisie. */}
+          {rescheduling && event.isInterview && (
+            <div className="mt-3 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] p-3">
+              <p className="mb-2 text-[12px] font-semibold text-[var(--ds-text-muted)]">Nouvelle date et heure de l’entretien</p>
+              <div className="flex gap-2">
+                <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} disabled={savingAtt !== null}
+                  className="flex-1 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+                <input type="time" value={newStart} onChange={(e) => setNewStart(e.target.value)} disabled={savingAtt !== null}
+                  className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
+                <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} disabled={savingAtt !== null}
+                  className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
+              </div>
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                {/* Date pas encore fixée : on marque reporté sans déplacer le créneau (à reprogrammer plus tard). */}
+                <button onClick={async () => {
+                  setSavingPending(true)
+                  if (await mark('postponed')) setRescheduling(false)
+                  setSavingPending(false)
+                }} disabled={savingAtt !== null}
+                  className="mr-auto flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-[12px] font-bold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] disabled:opacity-60">
+                  {savingPending && <IconLoader width={13} height={13} className="animate-spin" />} À reprogrammer
+                </button>
+                <button onClick={() => setRescheduling(false)} disabled={savingAtt !== null}
+                  className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] disabled:opacity-60">Annuler</button>
+                <button onClick={confirmReport} disabled={savingAtt !== null}
+                  className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-1.5 text-[12px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
+                  {!savingPending && savingAtt === 'postponed' && <IconLoader width={13} height={13} className="animate-spin" />} Déplacer et marquer reporté
+                </button>
+              </div>
+              <p className="mt-2 text-[11px] text-[var(--ds-text-subtle)]">Nouvelle date pas encore fixée ? Choisissez « À reprogrammer » : le créneau reste reporté en attendant.</p>
+            </div>
+          )}
+          {event.isInterview && event.attendance === 'noshow' && (
+            <p className="mt-2 text-[12px] text-[var(--ds-text-subtle)]">Un mail de proposition de rendez-vous a été envoyé.</p>
+          )}
+          {!isPast && event.attendance == null && (
+            <p className="mt-2 text-[12px] text-[var(--ds-text-subtle)]">Le rendez-vous n'a pas encore eu lieu.</p>
+          )}
+          {attErr && <p className="mt-2 text-[12px] text-[var(--ds-danger)]">{attErr}</p>}
+        </div>
 
         <div className="mt-5 flex items-center gap-2">
           {(event.meetingLink || event.hangoutLink) && (
-            <a href={event.meetingLink || event.hangoutLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-2 text-[13px] font-bold text-white hover:bg-purple-dark"><Video size={15} /> Rejoindre</a>
+            <a href={event.meetingLink || event.hangoutLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-2 text-[13px] font-bold text-white hover:bg-purple-dark"><IconVideo width={15} height={15} /> Rejoindre</a>
           )}
           {event.htmlLink && (
-            <a href={event.htmlLink} target="_blank" rel="noreferrer" className="rounded-lg border border-gray-200 px-3 py-2 text-[13px] font-bold text-gray-700 hover:bg-gray-50">Ouvrir dans Google</a>
+            <a href={event.htmlLink} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] font-bold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]">Ouvrir dans Google</a>
           )}
-          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-gray-400 hover:text-gray-700">Fermer</button>
+          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Fermer</button>
         </div>
       </div>
     </div>
@@ -1088,9 +1843,11 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
   const [endTime, setEndTime] = useState(toTimeInput(initEnd))
   const [location, setLocation] = useState(event?.location ?? '')
   const [attendeeEmail, setAttendeeEmail] = useState(event?.attendeeEmail ?? '')
+  // Nom / prénom de l'invité : optionnels, servent à la recherche par nom dans le calendrier.
+  const [attendeeFirstName, setAttendeeFirstName] = useState(event?.attendeeFirstName ?? '')
+  const [attendeeLastName, setAttendeeLastName] = useState(event?.attendeeLastName ?? '')
   const [meetingLink, setMeetingLink] = useState(event?.meetingLink ?? '')
   const [description, setDescription] = useState(event?.description ?? '')
-  const [colorId, setColorId] = useState<string | undefined>(event?.colorId)
   // Type de créneau : pilote le flag "entretien" (compté KPI RH).
   const [slotType, setSlotType] = useState<'entretien' | 'autre'>(event?.isInterview ? 'entretien' : 'autre')
   const isInterview = slotType === 'entretien'
@@ -1175,9 +1932,10 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
       end: localToISO(date, endTime),
       location: location.trim() || undefined,
       attendeeEmail: email || undefined,
+      attendeeFirstName: attendeeFirstName.trim() || undefined,
+      attendeeLastName: attendeeLastName.trim() || undefined,
       meetingLink: link || undefined,
       description: description.trim() || undefined,
-      colorId,
       isInterview,
     }
     if (new Date(input.end) <= new Date(input.start)) { setErr('Fin doit suivre le début'); return }
@@ -1203,20 +1961,20 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[17px] font-extrabold text-gray-900">{isEdit ? 'Modifier le créneau' : 'Nouveau créneau'}</h2>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"><X size={18} /></button>
+          <h2 className="text-[17px] font-extrabold text-[var(--ds-text)]">{isEdit ? 'Modifier le créneau' : 'Nouveau créneau'}</h2>
+          <button onClick={onClose} className="rounded-lg p-1 text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)]"><IconClose width={18} height={18} /></button>
         </div>
 
         <div className="space-y-3">
           <input autoFocus value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Titre"
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-[14px] font-semibold outline-none focus:border-purple" />
+            className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[14px] font-semibold outline-none focus:border-purple" />
 
           {/* Agenda cible : choix du RH à la création, figé en édition. */}
           {!isEdit ? (
-            <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-              <UserIcon size={15} className="flex-shrink-0 text-gray-400" />
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+              <IconUser width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
               <select
                 value={targetId}
                 onChange={(e) => setTargetId(Number(e.target.value))}
@@ -1231,55 +1989,54 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
             </div>
           ) : ownerId != null && ownerId !== selfId && ownerName ? (
             <div className="flex items-center gap-2 rounded-lg bg-purple-light px-3 py-2 text-[12px] font-semibold text-purple">
-              <UserIcon size={14} /> Agenda de {ownerName}
+              <IconUser width={14} height={14} /> Agenda de {ownerName}
             </div>
           ) : null}
 
           <div className="flex gap-2">
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
-            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-lg border border-gray-200 px-2 py-2 text-[13px] outline-none focus:border-purple" />
-            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-lg border border-gray-200 px-2 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="flex-1 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
           </div>
 
           <LocationPicker value={location} onChange={setLocation} autoDefault={!isEdit} />
 
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-            <Mail size={15} className="flex-shrink-0 text-gray-400" />
+          {/* Nom / prénom de l'invité : optionnels, utilisés par la recherche du calendrier. */}
+          <div className="flex gap-2">
+            <input type="text" value={attendeeFirstName} onChange={(e) => setAttendeeFirstName(e.target.value)} placeholder="Prénom de l'invité (optionnel)"
+              className="w-1/2 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+            <input type="text" value={attendeeLastName} onChange={(e) => setAttendeeLastName(e.target.value)} placeholder="Nom de l'invité (optionnel)"
+              className="w-1/2 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
+          </div>
+
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+            <IconMail width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
             <input type="email" value={attendeeEmail} onChange={(e) => setAttendeeEmail(e.target.value)} placeholder="Email de l'invité (envoie une confirmation)"
               className="w-full bg-transparent py-2 text-[13px] outline-none" />
           </div>
 
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 focus-within:border-purple">
-            <LinkIcon size={15} className="flex-shrink-0 text-gray-400" />
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--ds-border)] px-3 focus-within:border-purple">
+            <IconLink width={15} height={15} className="flex-shrink-0 text-[var(--ds-text-subtle)]" />
             <input type="url" value={meetingLink} onChange={(e) => setMeetingLink(e.target.value)} placeholder="Lien du rendez-vous (visio, optionnel)"
               className="w-full bg-transparent py-2 text-[13px] outline-none" />
           </div>
 
           <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Description (optionnel)" rows={2}
-            className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
-
-          {/* Color picker */}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <button type="button" onClick={() => setColorId(undefined)} title="Défaut"
-              className={`h-6 w-6 rounded-full ring-offset-2 transition-all ${colorId === undefined ? 'ring-2 ring-gray-400' : ''}`} style={{ backgroundColor: DEFAULT_EVENT_HEX }} />
-            {Object.entries(EVENT_COLORS).map(([id, c]) => (
-              <button key={id} type="button" onClick={() => setColorId(id)} title={c.name}
-                className={`h-6 w-6 rounded-full ring-offset-2 transition-all ${colorId === id ? 'ring-2 ring-gray-400' : ''}`} style={{ backgroundColor: c.hex }} />
-            ))}
-          </div>
+            className="w-full resize-none rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
 
           <div className="pt-1">
-            <p className="mb-1.5 text-[12px] font-semibold text-gray-500">Type de créneau</p>
+            <p className="mb-1.5 text-[12px] font-semibold text-[var(--ds-text-subtle)]">Type de créneau</p>
             <div className="flex gap-2">
               {([['entretien', 'Entretien'], ['autre', 'Autre']] as const).map(([key, label]) => (
                 <button
                   key={key}
                   type="button"
+                  aria-pressed={slotType === key}
                   onClick={() => pickType(key)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-[13px] font-semibold transition-colors ${
+                  className={`flex-1 rounded-full border px-3 py-2 text-[13px] font-semibold transition-colors ${
                     slotType === key
                       ? 'border-purple bg-purple/10 text-purple'
-                      : 'border-gray-200 text-gray-500 hover:border-purple'
+                      : 'border-[var(--ds-border)] text-[var(--ds-text-subtle)] hover:border-purple'
                   }`}
                 >
                   {label}
@@ -1287,42 +2044,42 @@ function EventForm({ event, ownerId, users, selfId, defaultStart, defaultEnd, on
               ))}
             </div>
             {isInterview && (
-              <p className="mt-1 text-[11px] text-gray-400">Compté dans les KPI RH.</p>
+              <p className="mt-1 text-[11px] text-[var(--ds-text-subtle)]">Compté dans les KPI RH.</p>
             )}
           </div>
 
           {/* Proposer un entretien : envoie le lien de réservation par mail au candidat. */}
           {!isEdit && (
-          <div className="rounded-lg border border-gray-200 p-3">
-            <label className="flex items-center gap-2 text-[13px] font-semibold text-gray-700">
+          <div className="rounded-lg border border-[var(--ds-border)] p-3">
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-[var(--ds-text-muted)]">
               <input type="checkbox" checked={propose} onChange={(e) => setPropose(e.target.checked)} className="accent-purple" />
               Proposer un entretien (envoyer le lien de réservation)
             </label>
             {propose && (
               <div className="mt-3 space-y-2">
-                <p className="text-[12px] text-gray-500">
+                <p className="text-[12px] text-[var(--ds-text-subtle)]">
                   Le lien de votre emploi du temps sera envoyé à l'email de l'invité saisi ci-dessus.
                 </p>
                 <textarea value={proposeNote} onChange={(e) => setProposeNote(e.target.value)} placeholder="Message personnalisé (optionnel)" rows={2}
-                  className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-[13px] outline-none focus:border-purple" />
+                  className="w-full resize-none rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple" />
               </div>
             )}
           </div>
           )}
 
-          {err && <p className="text-[12px] text-danger">{err}</p>}
-          {sent && <p className="text-[12px] font-semibold text-success">Proposition envoyée ✓</p>}
+          {err && <p className="text-[12px] text-[var(--ds-danger)]">{err}</p>}
+          {sent && <p className="text-[12px] font-semibold text-[var(--ds-success)]">Proposition envoyée ✓</p>}
         </div>
 
         <div className="mt-5 flex items-center gap-2">
           {isEdit && (
-            <button onClick={remove} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-danger/30 bg-danger-bg px-3 py-2 text-[13px] font-bold text-danger hover:bg-danger/10 disabled:opacity-60">
-              <Trash2 size={15} /> Supprimer
+            <button onClick={remove} disabled={busy} className="flex items-center gap-1.5 rounded-lg border border-danger/30 bg-[var(--ds-danger-bg)] px-3 py-2 text-[13px] font-bold text-[var(--ds-danger)] hover:bg-danger/10 disabled:opacity-60">
+              <IconTrash width={15} height={15} /> Supprimer
             </button>
           )}
-          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-gray-400 hover:text-gray-700">Annuler</button>
+          <button onClick={onClose} className="ml-auto rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Annuler</button>
           <button onClick={submit} disabled={busy} className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
-            {busy && <Loader2 size={15} className="animate-spin" />} {propose ? 'Envoyer la proposition' : isEdit ? 'Enregistrer' : 'Créer'}
+            {busy && <IconLoader width={15} height={15} className="animate-spin" />} {propose ? 'Envoyer la proposition' : isEdit ? 'Enregistrer' : 'Créer'}
           </button>
         </div>
       </div>

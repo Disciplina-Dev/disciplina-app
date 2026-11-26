@@ -28,6 +28,7 @@ src/
     crypto/             HmacService, timing-safe compare + domain signers (relance URL, OAuth state)
     logger/             pino logger instance
     insee/              SireneService — INSEE Sirene API client (SIRET/SIREN lookup & search)
+    entreprises/        EntreprisesSearchService — Recherche d'entreprises API (dirigeant, geo, état, taille; no key)
     filiz/              FilizAuthClient + FilizService — Filiz ERP OAuth + degree/class APIs
     yousign/            Yousign e-signature client
     docuseal/           DocuSeal e-signature client
@@ -43,8 +44,8 @@ src/
     needsAnalysis/      Needs-analysis GraphQL (MongoDB) — its own server
     candidate/          Candidates GraphQL (MongoDB)
     offers/             Offers GraphQL + matching logic (MongoDB)
-  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, tools per domain
-  scheduler/            pedaDraftScheduler — started from index.ts
+  mcp/                  MCP server (POST /api/mcp) — own auth + rate limiter, 48 read-only tools per domain (kpi, candidates, companies, offers, needsAnalysis, misc, peda), `candidateExposure`/`pedaExposure` (RGPD filters), `auditStore`
+  scheduler/            pedaDraftScheduler, immersionEndScheduler, saNotificationScheduler — started from index.ts
   repositories/
     mysql/              16 repositories: UserRepository, CompanyRepository, CompanyBlacklistRepository,
                         MatchLinkRepository, InterviewAccessRepository, FilizRepository…
@@ -58,17 +59,18 @@ src/
     email/              Gmail email sending + drafts (via external/google)
     relance/            Candidate follow-up emails with HMAC-signed tracking links
     candidates/         Quick-create candidate endpoint + CV upload to Drive
-    classmarker/        ClassMarker test links and webhooks
+    classmarker/        ClassMarker test links and webhooks (legacy, kept during the transition)
+    questionnaire/      Internal tests replacing ClassMarker (#968): staff CRUD/results + public `/api/q/:token`
     sourcing/           SIREN/SIRET/multicriteria prospecting search via INSEE, blacklist-aware
     yousign/            Yousign signature webhook + SSE stream for needs-analysis signing
     docuseal/           DocuSeal signature webhook
     kpi/ rh-kpi/        Commercial and RH KPI dashboards — manual entry + Excel import
+    external/           Guest magic-link flows for candidates / companies (cookie `disc_at`, no code, unlimited duration until explicit close; ref 1 CV import, ref 2 matching, ref 3 interview slots)
     booking/ calendar/  Interview slots and calendar
-    interview/ match/   Guest magic-link access (signed token + 6-digit code)
     matching/           Candidate ↔ offer matching endpoints
     needsAnalysis/      Needs-analysis REST endpoints
     notifications/      SSE notification stream
-    peda/               Pedagogical drafts (see scheduler/)
+    peda/               Péda: drafts, alternants, sessions, SA (séquences), ruptures (see scheduler/)
     mailTemplates/      Mail templates CRUD
     sectorSettings/     Sector reference settings
     filiz/              Filiz ERP endpoints
@@ -115,6 +117,20 @@ into the companies server.
 | POST | `/api/webhooks/classmarker` | None | ClassMarker webhook (saves test result) |
 | GET | `/api/webhooks/classmarker/stream` | None | SSE stream for live ClassMarker results |
 | GET | `/api/webhooks/classmarker/result/:candidateId` | None | Fetch stored ClassMarker result |
+| GET | `/api/questionnaires` · `/api/questionnaires/active` | JWT (RH / RESPONSABLE / ADMIN) | List questionnaires (all / active only) |
+| POST | `/api/questionnaires` | JWT (RH / RESPONSABLE / ADMIN) | Create or import a questionnaire (JSON, 500 KB max — format in `Classmarker/README.md` §8bis) |
+| GET · PUT · DELETE | `/api/questionnaires/:id` | JWT (RH / RESPONSABLE / ADMIN) | Read / update (refused once locked) / delete |
+| POST | `/api/questionnaires/:id/duplicate` · `/:id/status` | JWT (RH / RESPONSABLE / ADMIN) | Duplicate as next version · set `draft` / `active` / `archived` |
+| GET | `/api/questionnaires/:id/export` | JWT (RH / RESPONSABLE / ADMIN) | Export in the import JSON format |
+| POST | `/api/questionnaires/:id/invitations` | JWT (RH / RESPONSABLE / ADMIN) | Create a single-use candidate link (`candidate_id`, `validity_minutes`) |
+| POST | `/api/questionnaires/:id/test-run` | JWT (RH / RESPONSABLE / ADMIN) | Test-run link: nothing written on any candidate, questionnaire not locked |
+| GET | `/api/questionnaires/attempts` | JWT (RH / RESPONSABLE / ADMIN) | Attempts list (filters, `includeTestRuns=true`, pagination) |
+| GET | `/api/questionnaires/attempts/candidate/:candidateId` | JWT (AD / GESTION / RH / PEDA / COMMERCIAL) | Attempts of a candidate (fiche follow-up) |
+| GET | `/api/questionnaires/attempts/:attemptId` | JWT (RH / RESPONSABLE / ADMIN) | Attempt detail: answers, correct answers, time per question |
+| GET | `/api/questionnaires/attempts/:attemptId/pdf` | JWT (RH / RESPONSABLE / ADMIN) | Download the result PDF, generated on the fly (no Google account needed; test runs included) |
+| POST | `/api/questionnaires/attempts/:attemptId/resend-pdf` · `/cancel` | JWT (RH / RESPONSABLE / ADMIN) | Upload the PDF to the candidate's Drive · cancel an open attempt |
+| GET | `/api/q/:token` | Link token | Candidate page state (never the correct answers) — rate-limited 300/min/IP |
+| POST | `/api/q/:token/start` · `/answer` · `/visibility` | Link token + device cookie | Start (server timer, device lock) · answer the current question only · report a tab switch |
 | POST | `/api/webhooks/yousign` | None | Yousign webhook — needs-analysis signature completed |
 | GET | `/api/webhooks/yousign/stream` | None | SSE stream of signature status for a commercial (`?userID=`) |
 | POST | `/api/candidates/quick-create` | JWT (RH / ADMIN) | Quick-create a candidate (dedup by name) |
@@ -122,7 +138,7 @@ into the companies server.
 | POST | `/api/sourcing/search` | JWT | Find additional prospect contacts by name/address |
 | GET | `/api/sourcing/:siren` | JWT | Search establishments by SIREN; blacklist-aware (short-circuits if the whole SIREN is banned) |
 | GET | `/api/sourcing/:siret` | JWT | Validate a SIRET against INSEE; flags whether it's already in the portfolio |
-| POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria INSEE search (commune / NAF code / SIREN), excludes companies already in the portfolio |
+| POST | `/api/sourcing/multicriteria` | JWT | Multi-criteria search (commune / NAF / SIREN via Sirene; + denomination, geo, dirigeant, état, taille via Recherche d'entreprises), excludes companies already in the portfolio |
 | GET | `/api/kpi/years` | JWT (ADMIN / RESPONSABLE) | List years with KPI data |
 | GET | `/api/kpi/summary` | JWT (ADMIN / RESPONSABLE) | Annual KPI summary per commercial (`?year=&site=`) |
 | GET | `/api/kpi/monthly` | JWT (ADMIN / RESPONSABLE) | Monthly KPI breakdown (`?year=&site=`) |
@@ -219,6 +235,10 @@ MYSQL_DATABASE=disciplina
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google
+# Second GCP OAuth client (tenant Annemasse). Empty = fallback to the client above.
+GOOGLE_ANNEMASSE_CLIENT_ID=
+GOOGLE_ANNEMASSE_CLIENT_SECRET=
+GOOGLE_ANNEMASSE_REDIRECT_URI=
 APP_BASE_URL=http://localhost:4000
 RELANCE_HMAC_SECRET=change-this-relance-secret
 GOOGLE_STATE_SECRET=change-this-google-state-secret
@@ -249,10 +269,10 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
 ## Databases
 
 ### MySQL (`disciplina`)
-- 18 tables: `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
+- Main tables (non-exhaustive — see `database/mysql/mysql-init.sql`): `users`, `companies`, `companies_blacklist`, `company_history`, `contact_logs`,
   `relance_history`, `commercial_kpi`, `rh_kpi`, `sector_settings`, `booking_settings`,
-  `interview_access`, `match_link`, `todos`, `peda_config`, `peda_draft_history`, `app_settings`,
-  `filiz`, `needs_analysis`
+  `calendar_day_blocks`, `calendar_day_block_targets`, `interview_access`, `match_link`, `todos`, `peda_config`, `peda_draft_history`, `app_settings`,
+  `filiz`, `needs_analysis`, `mcp_oauth_clients`, `mcp_oauth_refresh_tokens`, `mcp_audit_log`
 - ⚠️ `needs_analysis` is **dead**: the entity moved to MongoDB and no code reads this table
   anymore, but `mysql-init.sql` still creates it. See `docs/AUDIT.md` §6.3.
 - Init: `database/mysql/mysql-init.sql`
@@ -262,9 +282,9 @@ In dev, `JWT_SECRET` and `SESSION_SECRET` warn if set to known insecure values. 
   [`CONVENTION.md`](./CONVENTION.md#schema-migrations)
 
 ### MongoDB (`human_ressources`)
-- 11 collections: `candidates`, `candidate_history`, `candidate_avatars`, `offers`,
+- 13 collections: `candidates`, `candidate_history`, `candidate_avatars`, `offers`,
   `needs_analysis`, `notifications`, `mail_templates`, `mail_signatures`, `ab_drive_config`,
-  `drive_folder_config`, `jobs`
+  `drive_folder_config`, `questionnaires`, `questionnaire_attempts`, `jobs`
 - ⚠️ `jobs` is **dead**: replaced by `offers` + `offers.matching`, no code reads it, yet
   `mongo-init.js:28` still creates it. See `docs/AUDIT.md` §6.3.
 - Schema reference: [`database/mongodb/mongo-schema.md`](../database/mongodb/mongo-schema.md)

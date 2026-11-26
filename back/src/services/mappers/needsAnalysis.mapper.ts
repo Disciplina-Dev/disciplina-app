@@ -6,32 +6,51 @@ import {
     Position,
     PositionTp,
     OfferCriteria,
+    ScheduleSlot,
     CompanyRegion,
     NeedsAnalysisStatus,
+    AdministrationType,
 } from '../../types/needsAnalysisNoSql.types';
 import { Companies } from '../../types/company.types';
-import { ZONE_TO_COMMUNES, Zone } from './abToOffer';
+import { normalizeTpCode, TitleProfessionalType } from '../../types/candidate.types';
+import { Zone } from './abToOffer';
+import { COMMUNE_TO_ZONE } from '../../utils/zone';
 
 type Saler = { id?: number; email?: string | null } | null | undefined;
 
 // Domaine (unions de string) et document Mongo (enums) partagent des valeurs identiques :
 // les casts `as unknown as` traversent la frontière sans conversion de valeur.
 
-const COMMUNE_TO_ZONE = new Map<string, Zone>();
-for (const [zone, communes] of Object.entries(ZONE_TO_COMMUNES)) {
-    for (const commune of communes) {
-        COMMUNE_TO_ZONE.set(commune, zone as Zone);
-    }
-}
-
 export function zoneFromCommunes(communes: string[] | undefined, fallback: Zone): Zone {
     const first = communes?.[0];
     return (first && COMMUNE_TO_ZONE.get(first)) || fallback;
 }
 
-function buildPositionTp(tp: any): PositionTp {
+// Créneaux horaires saisis dans le formulaire (camelCase GraphQL) → forme Mongo (snake_case).
+// Un slot hérité en chaîne brute (ancien format `string[]`) est conservé tel quel.
+function toScheduleSlot(slot: any): ScheduleSlot {
+    if (typeof slot === 'string') return slot as unknown as ScheduleSlot;
     return {
-        tp_type: tp.tp_type ?? tp.tpType ?? null,
+        day: slot.day ?? null,
+        start_hour: slot.start_hour ?? slot.startHour ?? null,
+        end_hour: slot.end_hour ?? slot.endHour ?? null,
+    };
+}
+
+// Forme Mongo → camelCase GraphQL pour la lecture (gère l'héritage `string[]`).
+export function toScheduleSlotGql(slot: any) {
+    if (typeof slot === 'string') return { day: null, startHour: slot, endHour: null };
+    return {
+        day: slot?.day ?? null,
+        startHour: slot?.start_hour ?? null,
+        endHour: slot?.end_hour ?? null,
+    };
+}
+
+function buildPositionTp(tp: any): PositionTp {
+    const rawTpType = tp.tp_type ?? tp.tpType ?? null;
+    return {
+        tp_type: rawTpType ? (normalizeTpCode(rawTpType) as TitleProfessionalType) : null,
         missions: tp.missions ?? [],
         description_missions: tp.description_missions ?? tp.descriptionMissions ?? [],
         other_missions: tp.other_missions ?? tp.otherMissions ?? null,
@@ -50,13 +69,14 @@ function buildPosition(position: Position): Position {
     const criteria: OfferCriteria = {
         education_level: c.education_level ?? (c as any).educationLevel ?? null,
         driving_license: c.driving_license ?? (c as any).drivingLicense ?? false,
+        has_vehicle: c.has_vehicle ?? (c as any).hasVehicle ?? false,
         experience_required: c.experience_required ?? (c as any).experienceRequired ?? false,
         training_domain: trainingDomain,
         age_min: c.age_min ?? (c as any).ageMin ?? null,
         age_max: c.age_max ?? (c as any).ageMax ?? null,
         desired_sex: c.desired_sex ?? (c as any).desiredSex ?? null,
         soft_skills: c.soft_skills ?? (c as any).softSkills ?? null,
-        schedule_options: c.schedule_options ?? (c as any).scheduleOptions ?? [],
+        schedule_options: (c.schedule_options ?? (c as any).scheduleOptions ?? []).map(toScheduleSlot),
         conditions: c.conditions ?? null,
         additional_comments: c.additional_comments ?? (c as any).additionalComments ?? null,
     };
@@ -91,19 +111,34 @@ function buildCompanyInfos(data: NeedsAnalysisWriteInput, company: Companies, re
 }
 
 export function buildReferents(data: NeedsAnalysisWriteInput, company: Companies): Referents {
+    const legalName = company.legalReferent ?? null;
+    const legalPhone = company.phone ?? null;
+    const legalEmail = company.email ?? null;
+    const recName = data.recruitmentResponsibleName ?? null;
+    const recPhone = data.recruitmentResponsiblePhone ?? null;
+    const recEmail = data.recruitmentResponsibleEmail ?? null;
+    const recFunction = data.recruitmentResponsibleFunction ?? null;
+    // is_same true only when every recruitment field is empty or exactly equals the legal referent.
+    // A single differing field (name, phone, email or function) means the recruitment contact is distinct
+    // and both contacts should be displayed on the offer.
+    const isSame =
+        (recName == null || recName === legalName) &&
+        (recPhone == null || recPhone === legalPhone) &&
+        (recEmail == null || recEmail === legalEmail) &&
+        (recFunction == null || recFunction === (data.legalRepFunction ?? null));
     return {
-        is_same: (data.recruitmentResponsibleEmail ?? null) === (company.email ?? null),
+        is_same: isSame,
         legal_referents: {
-            name: company.legalReferent ?? null,
-            phone: company.phone ?? null,
-            email: company.email ?? null,
+            name: legalName,
+            phone: legalPhone,
+            email: legalEmail,
             function: data.legalRepFunction ?? null,
         },
         recruitment_referents: {
-            name: data.recruitmentResponsibleName ?? null,
-            phone: data.recruitmentResponsiblePhone ?? null,
-            email: data.recruitmentResponsibleEmail ?? null,
-            function: data.recruitmentResponsibleFunction ?? null,
+            name: recName,
+            phone: recPhone,
+            email: recEmail,
+            function: recFunction,
         },
     };
 }
@@ -129,14 +164,19 @@ export function toNeedsAnalysisDocument(
         signature_request_id: data.yousignSignatureRequestID ?? null,
         status: data.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: data.tags ?? [],
+        is_visible_in_matching: data.isVisibleInMatching ?? false,
+        administration_type: data.administrationType ?? AdministrationType.NON_RENSEIGNE,
         created_at: data.createdAt ? new Date(data.createdAt) : now,
         updated_at: now,
+        // Une AB naissante est active par dérivation (sans offre) : sa date
+        // d'activation initiale est sa date de création.
+        last_active_at: now,
     };
 }
 
 function toGqlPositionTp(tp: PositionTp) {
     return {
-        tpType: tp.tp_type ?? null,
+        tpType: tp.tp_type ? normalizeTpCode(tp.tp_type) : null,
         missions: tp.missions ?? [],
         descriptionMissions: tp.description_missions ?? [],
         otherDescriptionMissions: tp.other_description_missions ?? null,
@@ -157,13 +197,14 @@ function toGqlPosition(p: Position) {
             ? {
                   educationLevel: c.education_level ?? null,
                   drivingLicense: c.driving_license ?? false,
+                  hasVehicle: (c as any).has_vehicle ?? (c as any).hasVehicle ?? false,
                   experienceRequired: c.experience_required ?? false,
                   trainingDomain: c.training_domain ?? null,
                   ageMin: c.age_min ?? null,
                   ageMax: c.age_max ?? null,
                   desiredSex: c.desired_sex ?? null,
                   softSkills: c.soft_skills ?? null,
-                  scheduleOptions: c.schedule_options ?? [],
+                  scheduleOptions: (c.schedule_options ?? []).map(toScheduleSlotGql),
                   conditions: c.conditions ?? null,
                   additionalComments: c.additional_comments ?? null,
               }
@@ -176,6 +217,8 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
 
     return {
         id: String(doc._id),
+        isRelanceDisabled: !!doc.is_relance_disabled,
+        administrationType: (doc as any).administration_type ?? AdministrationType.NON_RENSEIGNE,
         companyInfos: doc.company_infos
             ? {
                   id: doc.company_infos.id ?? null,
@@ -195,25 +238,37 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
             : null,
         salerInfo: doc.saler_info ? { id: doc.saler_info.id ?? null, email: doc.saler_info.email ?? null } : null,
         referents: doc.referents
-            ? {
-                  isSame: doc.referents.is_same ?? false,
-                  legalReferents: doc.referents.legal_referents
+            ? (() => {
+                  const legal = doc.referents.legal_referents
                       ? {
                             name: doc.referents.legal_referents.name ?? null,
                             phone: doc.referents.legal_referents.phone ?? null,
                             email: doc.referents.legal_referents.email ?? null,
                             function: doc.referents.legal_referents.function ?? null,
                         }
-                      : null,
-                  recruitmentReferents: doc.referents.recruitment_referents
+                      : null;
+                  const recruit = doc.referents.recruitment_referents
                       ? {
                             name: doc.referents.recruitment_referents.name ?? null,
                             phone: doc.referents.recruitment_referents.phone ?? null,
                             email: doc.referents.recruitment_referents.email ?? null,
                             function: doc.referents.recruitment_referents.function ?? null,
                         }
-                      : null,
-              }
+                      : null;
+                  const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function);
+                  const actuallySame =
+                      !hasRecruit ||
+                      ((recruit?.name ?? null) === (legal?.name ?? null) &&
+                          (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+                          (recruit?.email ?? null) === (legal?.email ?? null) &&
+                          (recruit?.function ?? null) === (legal?.function ?? null));
+                  const isSame = actuallySame ? (doc.referents.is_same ?? actuallySame) : false;
+                  return {
+                      isSame,
+                      legalReferents: legal,
+                      recruitmentReferents: recruit,
+                  };
+              })()
             : null,
         positionsCount: positions.reduce((sum, p) => sum + (p.count ?? 1), 0),
         positions,
@@ -221,10 +276,26 @@ export function toNeedsAnalysis(doc: NeedsAnalysisDocument) {
         immersionPeriod: doc.immersion_period ?? null,
         trainingDays: doc.training_days ?? '{}',
         yousignSignatureRequestID: doc.signature_request_id ?? null,
+        signatureUrl: doc.signature_url ?? null,
+        // Lien Drive du PDF d'AB archivé (rempli à l'archivage ; null pour les AB
+        // antérieures, résolues à la demande par la route `/ab-drive`).
+        abDriveUrl: doc.ab_drive_url ?? null,
+        signatureSentAt: doc.signature_sent_at ? new Date(doc.signature_sent_at).toISOString() : null,
+        lastRelanceAt: doc.last_relance_at ? new Date(doc.last_relance_at).toISOString() : null,
+        signedAt: doc.signed_at ? new Date(doc.signed_at).toISOString() : null,
         status: doc.status ?? NeedsAnalysisStatus.BROUILLON,
         tags: doc.tags ?? [],
+        isVisibleInMatching: !!(doc as any).is_visible_in_matching,
+        // Pastille manuelle : absente (`null`) = couleur automatique côté front.
+        // Volontairement non repris dans `toNeedsAnalysisDocument` : la mise à
+        // jour générique `update()` ne doit jamais réinitialiser ce champ.
+        // Idem pour `france_travail` / `koann` (suivi annuaire RH, mutations dédiées).
+        companyIndicator: (doc as any).company_indicator ?? null,
+        franceTravail: (doc as any).france_travail ?? null,
+        koann: (doc as any).koann ?? null,
         createdAt: doc.created_at ? new Date(doc.created_at).toISOString() : undefined,
         updatedAt: doc.updated_at ? new Date(doc.updated_at).toISOString() : undefined,
+        lastActiveAt: doc.last_active_at ? new Date(doc.last_active_at).toISOString() : null,
     };
 }
 

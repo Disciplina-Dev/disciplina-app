@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Camera, X, RefreshCw, Check, Loader2 } from 'lucide-react';
+import { IconCamera, IconCheck, IconClose, IconLoader, IconRefresh } from '@/components/ui/icons'
 import { uploadCandidateAvatar } from '@/api/candidates';
 
 interface WebcamCaptureModalProps {
@@ -103,15 +103,15 @@ export default function WebcamCaptureModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-gray-900">Photo de {candidateName}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X size={20} />
+          <h2 className="text-lg font-bold text-[var(--ds-text)]">Photo de {candidateName}</h2>
+          <button onClick={onClose} className="text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">
+            <IconClose width={20} height={20} />
           </button>
         </div>
 
-        <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-xl bg-gray-100">
+        <div className="relative mb-4 aspect-square w-full overflow-hidden rounded-xl bg-[var(--ds-surface-sunken)]">
           {previewUrl ? (
             <img src={previewUrl} alt="Aperçu" className="h-full w-full object-cover" />
           ) : (
@@ -119,7 +119,7 @@ export default function WebcamCaptureModal({
           )}
         </div>
 
-        {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mb-3 text-sm text-[var(--ds-danger)]">{error}</p>}
 
         <div className="flex justify-center gap-3">
           {!previewUrl ? (
@@ -128,23 +128,23 @@ export default function WebcamCaptureModal({
               disabled={!!error}
               className="flex items-center gap-2 rounded-lg bg-purple px-5 py-2.5 font-semibold text-white disabled:opacity-50"
             >
-              <Camera size={18} /> Prendre la photo
+              <IconCamera width={18} height={18} /> Prendre la photo
             </button>
           ) : (
             <>
               <button
                 onClick={retake}
                 disabled={saving}
-                className="flex items-center gap-2 rounded-lg bg-gray-100 px-4 py-2.5 font-semibold text-gray-700"
+                className="flex items-center gap-2 rounded-lg bg-[var(--ds-surface-sunken)] px-4 py-2.5 font-semibold text-[var(--ds-text-muted)]"
               >
-                <RefreshCw size={18} /> Reprendre
+                <IconRefresh width={18} height={18} /> Reprendre
               </button>
               <button
                 onClick={save}
                 disabled={saving}
                 className="flex items-center gap-2 rounded-lg bg-purple px-5 py-2.5 font-semibold text-white disabled:opacity-50"
               >
-                {saving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                {saving ? <IconLoader width={18} height={18} className="animate-spin" /> : <IconCheck width={18} height={18} />}
                 Enregistrer
               </button>
             </>

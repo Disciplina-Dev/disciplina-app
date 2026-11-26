@@ -1,98 +1,15 @@
 import express, { Router, Request, Response } from 'express';
 import { logger } from '../../external/logger';
-import { CandidateModel } from '../../db/mongo/schemas/candidate.schema';
+import { getModels } from '../../db/mongo/tenant';
+import { getRegion, runForAllRegions, syncWithRegion } from '../../db/tenant';
 import { classmarkerWebhookGuard } from '../middleware/webhookSignature';
 import { env } from '../../config/env';
 import { authenticateStaffStream } from '../middleware/sseAuth';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireRoles } from '../middleware/roleGuard';
-import { addClient, removeClient, notifyCandidate } from './sse';
-import { PdfService } from '../../services/PdfService';
-import { UserService } from '../../services/UserService';
-import { GoogleDriveService } from '../../external/google/drive.service';
-import { JobRole, Permission } from '../../types/user.types';
-import { Candidate } from '../../types/candidate.types';
-import { driveParentFolderForTp } from '../../external/google/drive.folders';
-
-const userService = new UserService();
-
-/**
- * Génère le PDF des résultats et le dépose dans le dossier Drive du candidat.
- * Best-effort : toute erreur est journalisée sans interrompre le webhook.
- * Le webhook n'ayant pas de contexte utilisateur, on agit via les jetons Google
- * du créateur (owner) du dossier candidat — c'est lui qui possède déjà le dossier
- * Drive. Repli sur un RH connecté s'il n'a pas de compte Google lié.
- */
-async function uploadResultPdf(candidate: Candidate): Promise<void> {
-    const ownerId = candidate.owner?.user_id;
-    const owner = ownerId ? await userService.findById(ownerId) : null;
-
-    let driveUser = owner?.oauthToken ? owner : null;
-    if (!driveUser) {
-        driveUser = await userService.findFirstGoogleConnectedUser([JobRole.RH]);
-        if (driveUser) {
-            logger.warn(
-                { candidateId: candidate._id, ownerId, fallbackUserId: driveUser.id },
-                'ClassMarker PDF: owner sans compte Google, repli sur un autre RH connecté',
-            );
-        }
-    }
-    if (!driveUser) {
-        logger.warn('ClassMarker PDF: no Google-connected user available, skipping upload');
-        return;
-    }
-
-    const driveService = GoogleDriveService.fromTokens(
-        { access_token: driveUser.oauthToken!, refresh_token: driveUser.refreshToken ?? undefined },
-        userService.googleTokenPersister(driveUser.id),
-    );
-
-    // Crée le dossier Drive du candidat s'il n'existe pas encore (même schéma de
-    // nommage que les autres flux : "<Nom> - <8 premiers caractères de l'id>").
-    const candidateId = String(candidate._id);
-    const update: Record<string, unknown> = {};
-    let folderId = candidate.drive_folder_id;
-    if (!folderId) {
-        const folderName = `${candidate.identity.full_name} - ${candidateId.substring(0, 8)}`;
-        const folder = await driveService.createFolder(
-            folderName,
-            await driveParentFolderForTp(candidate.tp_types?.[0], candidate.training_site),
-        );
-        folderId = folder.id;
-        update.drive_folder_id = folder.id;
-        update.drive_folder_link = folder.webViewLink;
-        logger.info({ candidateId: candidate._id, folderId }, 'ClassMarker PDF: created candidate Drive folder');
-    }
-
-    const pdfBuffer = await PdfService.generateClassMarkerPdf(candidate);
-    const safeName = candidate.identity.full_name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
-    // Nom unique par passage : test + horodatage. Évite l'écrasement / les
-    // fichiers homonymes orphelins dans Drive, garde la trace de chaque test.
-    const last = candidate.classmarker;
-    const safeTest = (last?.test_name ?? '').replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
-    const stamp = (last?.completed_at ? new Date(last.completed_at) : new Date())
-        .toISOString()
-        .slice(0, 19)
-        .replace(/[:T]/g, '-');
-    const fileName = `Resultats_test_${safeName || 'candidat'}${safeTest ? `_${safeTest}` : ''}_${stamp}.pdf`;
-
-    const { webViewLink } = await driveService.uploadFile(fileName, 'application/pdf', pdfBuffer, folderId);
-
-    update['classmarker.pdf_link'] = webViewLink;
-    // Relie aussi le PDF à la dernière entrée d'historique (celle qu'on vient
-    // de pousser) pour que chaque test garde son propre lien PDF.
-    const historyLen = candidate.classmarker_history?.length ?? 0;
-    if (historyLen > 0) {
-        update[`classmarker_history.${historyLen - 1}.pdf_link`] = webViewLink;
-    }
-    await CandidateModel.findByIdAndUpdate(candidate._id, { $set: update });
-
-    // Pousse le lien PDF aux clients SSE déjà connectés : le 1er notify (score)
-    // part avant l'upload, donc sans pdf_link. Sans ce 2e notify, le bouton
-    // "Voir le PDF" n'apparaît qu'après un rechargement de page.
-    notifyCandidate(candidateId, { pdf_link: webViewLink });
-    logger.info({ candidateId, webViewLink }, 'ClassMarker result PDF uploaded to Drive');
-}
+import { addClient, removeClient } from './sse';
+import { TestResultService } from '../../services/TestResultService';
+import { sseKey } from '../shared/sseChannel';
 
 export const router: Router = express.Router();
 
@@ -104,6 +21,12 @@ router.post(
         // Process fully — including the best-effort PDF upload — BEFORE sending
         // the response so the async work actually completes. Always answer 200
         // to avoid ClassMarker retry-storms.
+        // Le webhook n'a pas de JWT : on itère les deux bases régionales pour
+        // trouver le candidat (l'ObjectId n'existe que dans UNE des deux), puis
+        // on traite dans la région trouvée sous ALS — le push SSE et l'upload
+        // Drive repartent alors vers la bonne base et la bonne clé de canal.
+        let updated: any = null;
+        let handled = false;
         try {
             const body = req.body ?? {};
             const { payload_status, result, test, questions } = body;
@@ -139,37 +62,26 @@ router.post(
                     typeof result.time_finished === 'number' ? new Date(result.time_finished * 1000) : new Date(),
                 duration: typeof result.duration === 'string' ? result.duration : undefined,
                 questions: Array.isArray(questions) ? questions : undefined,
+                source: 'classmarker' as const,
             };
 
-            const updated = await CandidateModel.findByIdAndUpdate(
-                candidateId,
-                { $set: { classmarker: data }, $push: { classmarker_history: data } },
-                { returnDocument: 'after' },
-            );
+            await runForAllRegions(async () => {
+                if (handled) return;
+                try {
+                    const candidate = await TestResultService.saveTestResult(candidateId, data);
+                    if (!candidate) return;
+                    handled = true;
+                    updated = candidate;
+                } catch (err) {
+                    if (handled) throw err;
+                    logger.error({ err, region: getRegion() }, 'ClassMarker webhook handling failed');
+                }
+            });
+
             if (!updated) {
                 logger.warn({ candidateId }, 'ClassMarker webhook: candidate not found');
                 res.status(200).json({ received: true });
                 return;
-            }
-            logger.info(
-                { candidateId, percentage: data.percentage, passed: data.passed },
-                'ClassMarker result saved to DB',
-            );
-
-            notifyCandidate(candidateId, {
-                percentage: data.percentage,
-                passed: data.passed,
-                test_name: data.test_name ?? null,
-                completed_at: typeof result.time_finished === 'number' ? result.time_finished : null,
-                points_scored: data.points_scored,
-                points_available: data.points_available,
-                duration: data.duration ?? null,
-            });
-
-            try {
-                await uploadResultPdf(updated.toObject() as Candidate);
-            } catch (pdfErr) {
-                logger.error({ err: pdfErr }, 'ClassMarker result PDF generation/upload failed');
             }
 
             res.status(200).json({ received: true });
@@ -182,32 +94,35 @@ router.post(
 
 // Un staff observe le flux d'un candidat : candidateId reste un paramètre, le token est exigé.
 router.get('/classmarker/stream', (req: AuthRequest, res: Response) => {
-    if (!authenticateStaffStream(req, res)) return;
+    const staff = authenticateStaffStream(req, res);
+    if (!staff) return;
     const candidateId = typeof req.query.candidateId === 'string' ? req.query.candidateId : '';
     if (!candidateId) {
         res.status(400).end();
         return;
     }
 
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Accel-Buffering', 'no');
-    res.flushHeaders();
-    res.write(': connected\n\n');
+    syncWithRegion(staff.region, () => {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        res.flushHeaders();
+        res.write(': connected\n\n');
 
-    addClient(candidateId, res);
-    const heartbeat = setInterval(() => {
-        try {
-            res.write(': ping\n\n');
-        } catch {
-            /* ignore */
-        }
-    }, 30000);
+        addClient(sseKey(staff.region, candidateId), res);
+        const heartbeat = setInterval(() => {
+            try {
+                res.write(': ping\n\n');
+            } catch {
+                /* ignore */
+            }
+        }, 30000);
 
-    req.on('close', () => {
-        clearInterval(heartbeat);
-        removeClient(candidateId, res);
+        req.on('close', () => {
+            clearInterval(heartbeat);
+            removeClient(sseKey(staff.region, candidateId), res);
+        });
     });
 });
 
@@ -218,7 +133,7 @@ router.get(
     async (req: AuthRequest, res: Response) => {
         const { candidateId } = req.params;
         try {
-            const doc = await CandidateModel.findById(candidateId).select('classmarker classmarker_history').lean();
+            const doc = await getModels().Candidate.findById(candidateId).select('classmarker classmarker_history').lean();
             if (!doc) {
                 res.status(404).json({ error: 'Not found' });
                 return;

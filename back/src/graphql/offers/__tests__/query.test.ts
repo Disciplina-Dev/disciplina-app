@@ -1,14 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mintAuthCookies } from '../../../../test/helpers/auth';
+import { truncateMysql } from '../../../../test/helpers/db';
 import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
-import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
+import { OfferStatus, DesiredSex, Localisation, Sector, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
+import { OfferModel } from '../../../db/mongo/schemas/offer.schema';
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
 
 describe('GraphQL job queries', () => {
+    // Le matching filtre les candidats sur les secteurs de l'utilisateur appelant :
+    // un user id=1 laissé par un autre fichier de test (avec des secteurs) réduirait
+    // la mobilité géographique attendue ici. On repart d'une base MySQL vide.
+    beforeEach(async () => {
+        await truncateMysql();
+    });
+
     it('returns an empty list when no jobs exist', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
@@ -91,6 +100,76 @@ describe('GraphQL job queries', () => {
         expect(second.professionalExperience).toBe(true);
         expect(second.status).toBe('MATCHED');
         expect(second.localisation).toEqual(['SAINT_PAUL', 'LE_PORT']);
+    });
+
+    it('excludes contracted jobs by default and includes them with includeClosed', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+
+        const open = await seedOffer({ _id: `job-open-${suffix}`, status: OfferStatus.CV_SEND });
+        const closed = await seedOffer({ _id: `job-closed-${suffix}`, status: OfferStatus.CONTRACT });
+
+        const fetchOfferIds = async (query: string): Promise<string[]> => {
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query }),
+            });
+            const json = await res.json();
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            return json.data.offers.map((offer: { id: string }) => offer.id);
+        };
+
+        const defaultIds = await fetchOfferIds('{ offers { id } }');
+        expect(defaultIds).toContain(open._id);
+        expect(defaultIds).not.toContain(closed._id);
+
+        const allIds = await fetchOfferIds('{ offers(includeClosed: true) { id } }');
+        expect(allIds).toContain(open._id);
+        expect(allIds).toContain(closed._id);
+    });
+
+    it('excludes offers deactivated in the company directory, while includeClosed keeps them visible', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+
+        const active = await seedOffer({ _id: `job-active-${suffix}`, status: OfferStatus.NOT_MATCHED });
+        const inactive = await seedOffer({
+            _id: `job-inactive-${suffix}`,
+            status: OfferStatus.NOT_MATCHED,
+            is_active: false,
+        });
+
+        const fetchOfferIds = async (query: string): Promise<string[]> => {
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query }),
+            });
+            const json = await res.json();
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            return json.data.offers.map((offer: { id: string }) => offer.id);
+        };
+
+        const defaultIds = await fetchOfferIds('{ offers { id } }');
+        expect(defaultIds).toContain(active._id);
+        expect(defaultIds).not.toContain(inactive._id);
+
+        // L'annuaire entreprises s'appuie sur `includeClosed` : l'offre désactivée
+        // doit y rester visible pour pouvoir être réactivée.
+        const allIds = await fetchOfferIds('{ offers(includeClosed: true) { id } }');
+        expect(allIds).toContain(active._id);
+        expect(allIds).toContain(inactive._id);
     });
 
     it('returns a job by id', async () => {
@@ -183,6 +262,220 @@ describe('GraphQL job queries', () => {
         expect(json.data.matchOffer.suggestedCandidates[0].fullName).toBe(`Jane ${suffix}`);
     });
 
+    it('never suggests a candidate dismissed from the automatic matching', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        const candidateId = `cand-dismissed-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Paul ${suffix}`,
+                email: `paul-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 26,
+                driving_license_b: true,
+            },
+            desired_sectors: ['RESTAURATION'],
+            job_info: {
+                geographic_mobility: [Localisation.ENTRE_DEUX],
+            },
+        });
+
+        const offerId = `job-dismissed-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Dismiss Corp ${suffix}`,
+            desired_tp: 'AD',
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            status: OfferStatus.NOT_MATCHED,
+            localisation: [Localisation.ENTRE_DEUX],
+            dismissed_candidate_ids: [candidateId],
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchOffer(id: $id) { id suggestedCandidates { id } } }`,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(false);
+    });
+
+    it('relaxes the activity-sector matching criterion when only custom sectors are set', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        // L'offre ne porte que des secteurs libres (saisis à la main dans l'AB),
+        // inconnus du référentiel des candidats : aucun candidat ne pourra matcher
+        // `desired_sectors`. Le critère de secteur doit alors être relâché.
+        const offerId = `job-custom-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Custom Sector Corp ${suffix}`,
+            desired_tp: 'AD',
+            status: OfferStatus.NOT_MATCHED,
+            activities: ['Avocats', 'Cabinets de conseil'],
+        });
+
+        const candidateId = `cand-custom-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Claire ${suffix}`,
+                email: `claire-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 30,
+            },
+            desired_sectors: ['BTP'],
+            job_info: {},
+        });
+
+        const query = `query($id: String!) { matchOffer(id: $id) { id relaxedCriteria suggestedCandidates { id } } }`;
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(true);
+        expect(json.data.matchOffer.relaxedCriteria).toEqual(['sector']);
+    });
+
+    it('does not relax the activity-sector filter when no candidate wants the offer sector', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        // Secteur référencé que ce candidat n'a pas coché : il ne doit plus être
+        // proposé. L'ancien repli « aucun candidat → on ignore le secteur »
+        // présentait des candidats de secteurs non souhaités (restauration…).
+        const offerId = `job-flagged-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Flagged Sector Corp ${suffix}`,
+            desired_tp: 'AD',
+            status: OfferStatus.NOT_MATCHED,
+            activities: ['BOULANGERIE'],
+        });
+
+        const candidateId = `cand-flagged-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Marc ${suffix}`,
+                email: `marc-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 32,
+            },
+            desired_sectors: ['RESTAURATION'],
+            job_info: {},
+        });
+
+        const query = `query($id: String!) { matchOffer(id: $id) { id relaxedCriteria suggestedCandidates { id } } }`;
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(false);
+        expect(json.data.matchOffer.relaxedCriteria).toEqual([]);
+    });
+
+    it('matches a candidate enum sector against a legacy offer activity label', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        // Les fiches récentes stockent le code (`COMMERCIAL`), les anciennes AB
+        // le libellé (`Commerce / Vente`) : le matching doit les rapprocher.
+        const offerId = `job-label-sector-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Label Sector Corp ${suffix}`,
+            desired_tp: 'AD',
+            status: OfferStatus.NOT_MATCHED,
+            activities: ['Commerce / Vente'],
+        });
+
+        const candidateId = `cand-label-sector-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Lina ${suffix}`,
+                email: `lina-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 26,
+            },
+            desired_sectors: [Sector.COMMERCIAL],
+            job_info: {},
+        });
+
+        const query = `query($id: String!) { matchOffer(id: $id) { id relaxedCriteria suggestedCandidates { id } } }`;
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(true);
+        expect(json.data.matchOffer.relaxedCriteria).toEqual([]);
+    });
+
     it('errors when job not found', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
 
@@ -215,6 +508,118 @@ describe('GraphQL job queries', () => {
         expect(res.status).toBe(200);
         expect(json.errors).toBeDefined();
         expect(json.errors[0].message).toMatch(/unauthorized/i);
+    });
+
+    describe('schedule backward compatibility', () => {
+        const scheduleSelection = `schedule { day startHour endHour }`;
+
+        async function queryOffer(
+            query: string,
+            variables: Record<string, unknown>,
+            auth: ReturnType<typeof mintAuthCookies>,
+        ) {
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query, variables }),
+            });
+            return { status: res.status, json: await res.json() };
+        }
+
+        it('returns an empty schedule when the offer has no schedule field', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const seeded = await seedOffer({ _id: `job-no-sched-${suffix}`, company_name: `No Sched Corp ${suffix}` });
+
+            const { status, json } = await queryOffer(
+                `query($id: String!) { matchOffer(id: $id) { id ${scheduleSelection} } }`,
+                { id: seeded._id },
+                auth,
+            );
+
+            expect(status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.matchOffer.id).toBe(seeded._id);
+            expect(json.data.matchOffer.schedule).toEqual([]);
+        });
+
+        it('preserves legacy string[] schedule_options as ScheduleSlot objects', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const offerId = `job-legacy-sched-${suffix}`;
+
+            // Insertion brute (hors Mongoose) : simule une offre créée avant le passage
+            // aux créneaux structurés, dont `criteria.schedule_options` est un `string[]`.
+            await OfferModel.collection.insertOne({
+                _id: offerId,
+                needs_analysis_id: `ab-legacy-${suffix}`,
+                company_infos: { name: `Legacy Corp ${suffix}` },
+                localisation: [],
+                desired_tp: [],
+                criteria: {
+                    age_min: null,
+                    age_max: null,
+                    driving_license: false,
+                    experience_required: false,
+                    desired_sex: null,
+                    schedule_options: ['Lundi : 8h-12h', 'Vendredi : toute la journée'],
+                },
+                matching: { status: 'NOT_MATCHED', candidates: [], interview_slots: [] },
+            });
+
+            const { status, json } = await queryOffer(
+                `query($id: String!) { matchOffer(id: $id) { id ${scheduleSelection} } }`,
+                { id: offerId },
+                auth,
+            );
+
+            expect(status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.matchOffer.schedule).toEqual([
+                { day: null, startHour: 'Lundi : 8h-12h', endHour: null },
+                { day: null, startHour: 'Vendredi : toute la journée', endHour: null },
+            ]);
+        });
+
+        it('maps structured schedule_options slots to camelCase ScheduleSlot objects', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            await seedOffer({
+                _id: `job-structured-sched-${suffix}`,
+                company_name: `Structured Corp ${suffix}`,
+                criteria: {
+                    schedule_options: [
+                        { day: 'LUNDI', start_hour: '08:00', end_hour: '12:00' },
+                        { day: 'MERCREDI', start_hour: '14:00', end_hour: '17:00' },
+                    ],
+                },
+            });
+
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({
+                    query: `{ offers { id ${scheduleSelection} } }`,
+                }),
+            });
+            const json = await res.json();
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.offers).toHaveLength(1);
+            expect(json.data.offers[0].schedule).toEqual([
+                { day: 'LUNDI', startHour: '08:00', endHour: '12:00' },
+                { day: 'MERCREDI', startHour: '14:00', endHour: '17:00' },
+            ]);
+        });
     });
 
     describe('candidateMatchedOfferIds', () => {
@@ -272,6 +677,81 @@ describe('GraphQL job queries', () => {
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             expect(json.data.candidateMatchedOfferIds).toEqual([]);
+        });
+    });
+
+    describe('candidateMatchPropositions', () => {
+        const query = `query($candidateId: String!) {
+            candidateMatchPropositions(candidateId: $candidateId) {
+                offerId companyName status title jobRole needsAnalysisId
+            }
+        }`;
+
+        async function fetchPropositions(candidateId: string) {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query, variables: { candidateId } }),
+            });
+            return { res, json: await res.json() };
+        }
+
+        it('returns the propositions and the candidate answer (oui / non / en attente)', async () => {
+            const suffix = Date.now();
+            const candidateId = `cand-props-${suffix}`;
+
+            const acceptedId = `job-props-yes-${suffix}`;
+            const declinedId = `job-props-no-${suffix}`;
+            const pendingId = `job-props-pending-${suffix}`;
+            const sentId = `job-props-sent-${suffix}`;
+
+            await seedOffer({
+                _id: acceptedId,
+                company_name: `Oui Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.ACCEPTED }],
+            });
+            await seedOffer({
+                _id: declinedId,
+                company_name: `Non Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.DECLINED }],
+            });
+            await seedOffer({
+                _id: pendingId,
+                company_name: `Attente Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }],
+            });
+            // Déjà transmis à l'entreprise : ce n'est plus une proposition ouverte.
+            await seedOffer({
+                _id: sentId,
+                company_name: `Envoyé Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.SEND }],
+            });
+
+            const { res, json } = await fetchPropositions(candidateId);
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            const propositions = json.data.candidateMatchPropositions as Array<{ offerId: string; status: string }>;
+            expect(propositions).toHaveLength(3);
+            expect(propositions.map((p) => p.status).sort()).toEqual([
+                MatchedCandidateStatus.ACCEPTED,
+                MatchedCandidateStatus.DECLINED,
+                MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+            ]);
+            expect(propositions.map((p) => p.offerId).sort()).toEqual([acceptedId, declinedId, pendingId].sort());
+        });
+
+        it('returns an empty array when the candidate was never proposed an offer', async () => {
+            const { res, json } = await fetchPropositions(`no-props-${Date.now()}`);
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.candidateMatchPropositions).toEqual([]);
         });
     });
 });

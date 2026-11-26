@@ -17,13 +17,24 @@ export interface CalendarEvent {
   meetingLink?: string;
   /** Email de l'invité (confirmation / relance). */
   attendeeEmail?: string;
-  /** Présence : 'arrived' (venu) ou 'noshow' (pas venu). */
+  /** Prénom de l'invité (saisie libre, utilisé par la recherche). Absent des créneaux historiques. */
+  attendeeFirstName?: string;
+  /** Nom de l'invité (saisie libre, utilisé par la recherche). Absent des créneaux historiques. */
+  attendeeLastName?: string;
+  /** Présence : 'arrived' (venu), 'noshow' (pas venu), 'postponed' (reporté), 'declined' (décliné). */
   attendance?: Attendance;
   /** Marqué comme entretien (compté dans les KPI RH). */
   isInterview?: boolean;
+  /**
+   * Créneau occupé par l'entretien d'un RH du même secteur (#1241) : il bloque
+   * l'agenda mais ne s'édite pas depuis ici.
+   */
+  isOccupation?: boolean;
+  /** RH dont l'entretien occupe le créneau (absent pour ses propres créneaux). */
+  occupationOwnerName?: string;
 }
 
-export type Attendance = 'arrived' | 'noshow';
+export type Attendance = 'arrived' | 'noshow' | 'postponed' | 'declined';
 
 export interface CalendarEventInput {
   summary: string;
@@ -36,30 +47,28 @@ export interface CalendarEventInput {
   meetingLink?: string;
   /** Email de l'invité : si fourni, un mail de confirmation est envoyé à la création. */
   attendeeEmail?: string;
+  /** Prénom de l'invité (optionnel, saisie libre — sert à la recherche). */
+  attendeeFirstName?: string;
+  /** Nom de l'invité (optionnel, saisie libre — sert à la recherche). */
+  attendeeLastName?: string;
   /** Marqué comme entretien (compté dans les KPI RH). */
   isInterview?: boolean;
 }
 
-/** Couleurs Google Calendar (event colorId → hex officiel). */
-export const EVENT_COLORS: Record<string, { name: string; hex: string }> = {
-  '1': { name: 'Lavande', hex: '#7986cb' },
-  '2': { name: 'Sauge', hex: '#33b679' },
-  '3': { name: 'Raisin', hex: '#8e24aa' },
-  '4': { name: 'Flamant', hex: '#e67c73' },
-  '5': { name: 'Banane', hex: '#f6bf26' },
-  '6': { name: 'Mandarine', hex: '#f4511e' },
-  '7': { name: 'Paon', hex: '#039be5' },
-  '8': { name: 'Graphite', hex: '#616161' },
-  '9': { name: 'Myrtille', hex: '#3f51b5' },
-  '10': { name: 'Basilic', hex: '#0b8043' },
-  '11': { name: 'Tomate', hex: '#d50000' },
+/** Couleur d'un créneau déterminée uniquement par le statut d'entretien.
+ * RED pas venu, GREEN venu, PURPLE reporté, BLACK décliné, BLUE par défaut. */
+export const CALENDAR_STATUS_HEX: Record<Attendance, string> = {
+  noshow: '#C0152A',
+  arrived: '#1A7A4A',
+  postponed: '#60207E',
+  declined: '#111827',
 };
 
-/** Couleur par défaut (charte violet Disciplina) quand l'event n'a pas de colorId. */
-export const DEFAULT_EVENT_HEX = '#60207E';
+/** BLUE par défaut (aucun statut). */
+export const DEFAULT_CALENDAR_HEX = '#1130A7';
 
-export function eventHex(colorId?: string): string {
-  return (colorId && EVENT_COLORS[colorId]?.hex) || DEFAULT_EVENT_HEX;
+export function calendarHex(attendance?: Attendance): string {
+  return (attendance && CALENDAR_STATUS_HEX[attendance]) || DEFAULT_CALENDAR_HEX;
 }
 
 export interface CalendarUser {
@@ -71,25 +80,6 @@ export interface CalendarUser {
   sectors: string[];
   connected: boolean;
   isSelf: boolean;
-}
-
-/**
- * Palette pour distinguer les agendas par personne (couleur déterministe par id).
- * Rouge et vert sont réservés à la présence (venu / pas venu) : on les exclut ici,
- * et chaque teinte est franchement distincte des autres (aucune nuance proche).
- */
-const OWNER_PALETTE = [
-  '#1130A7', // indigo
-  '#B10F55', // magenta
-  '#E67E22', // orange
-  '#00A3C4', // cyan
-  '#F9A825', // ambre
-  '#5D4037', // brun
-  '#455A64', // ardoise
-]
-
-export function ownerColor(userId: number): string {
-  return OWNER_PALETTE[userId % OWNER_PALETTE.length]
 }
 
 export class CalendarNotConnectedError extends Error {}
@@ -149,5 +139,14 @@ export async function deleteCalendarEvent(id: string, ownerId?: number): Promise
 /** Marque la présence de l'invité. 'noshow' déclenche un mail de relance avec le lien de réservation. */
 export async function setEventAttendance(id: string, status: Attendance, ownerId?: number): Promise<CalendarEvent> {
   const res = await calFetch(`/events/${id}/attendance${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+  return ((await res.json()) as { event: CalendarEvent }).event;
+}
+
+/**
+ * « Reporté » d'un entretien : déplace le créneau à la nouvelle date/heure (`start`/`end`
+ * ISO) puis le marque reporté côté serveur.
+ */
+export async function reportCalendarEvent(id: string, start: string, end: string, ownerId?: number): Promise<CalendarEvent> {
+  const res = await calFetch(`/events/${id}/report${ownerQuery(ownerId)}`, { method: 'PATCH', body: JSON.stringify({ start, end }) });
   return ((await res.json()) as { event: CalendarEvent }).event;
 }

@@ -21,12 +21,27 @@ export const PEDA_LEVEL_HINTS: Record<PedaLevel, string> = {
   nivPlus: 'absences 8, 9 et 10',
 }
 
+/**
+ * Couleur de cadre (hex `#rrggbb`) appliquée au mail à l'envoi ; `null` = classique
+ * (pas d'enveloppe). Le fond pastel qui l'accompagne est dérivé automatiquement de
+ * cette couleur — miroir de back/src/services/mailTheme.ts, à garder identique.
+ */
+const PASTEL_WHITE_MIX = 0.85
+
+export function pastelizeThemeColor(hex: string): string {
+  const n = parseInt(hex.slice(1), 16)
+  const mix = (c: number) => Math.round(c + (255 - c) * PASTEL_WHITE_MIX)
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map(mix)
+  return '#' + [r, g, b].map((c) => c.toString(16).padStart(2, '0')).join('')
+}
+
 /** Données éditables d'un modèle (pedaLevel ignoré hors scope peda). */
 export interface MailTemplateInput {
   name: string
   subject: string
   body: string
   pedaLevel?: PedaLevel | null
+  theme?: string | null
 }
 
 /** Métadonnées de PJ renvoyées par l'API (le contenu reste sur Drive). */
@@ -36,7 +51,12 @@ export interface MailTemplateAttachmentMeta {
 }
 
 /** Modèle système (non supprimable, partagé) ; null pour un modèle utilisateur. */
-export type MailTemplateKind = 'ab_signature' | 'ab_relance' | 'proposition_candidat'
+export type MailTemplateKind =
+  | 'ab_signature'
+  | 'ab_relance'
+  | 'proposition_candidat'
+  | 'external_link'
+  | 'interview_invitation'
 
 export interface MailTemplate {
   id: string
@@ -45,6 +65,7 @@ export interface MailTemplate {
   body: string
   pedaLevel: PedaLevel | null
   kind: MailTemplateKind | null
+  theme: string | null
   attachment: MailTemplateAttachmentMeta | null
 }
 
@@ -119,4 +140,19 @@ export async function uploadSignature(scope: MailTemplatesScope, file: File): Pr
 
 export async function deleteSignature(scope: MailTemplatesScope): Promise<void> {
   await tplFetch(`/signature?scope=${scope}`, { method: 'DELETE' })
+}
+
+// ── Signature commerciale textuelle (section ajoutée au mail AB à signer) ──
+export async function fetchCommercialSignature(): Promise<string> {
+  const res = await tplFetch('/commercial-signature')
+  return ((await res.json()) as { body: string }).body
+}
+
+export async function saveCommercialSignature(body: string): Promise<string> {
+  const res = await tplFetch('/commercial-signature', {
+    method: 'PUT',
+    headers: jsonHeaders,
+    body: JSON.stringify({ body }),
+  })
+  return ((await res.json()) as { body: string }).body
 }

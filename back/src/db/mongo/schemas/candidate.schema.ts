@@ -2,6 +2,7 @@ import mongoose, { Schema, model, Document } from 'mongoose';
 import {
     Candidate,
     TitleProfessionalType,
+    LEGACY_TP_SA,
     CandidateStatus,
     SchoolLevel,
     TrainingSite,
@@ -21,7 +22,8 @@ import {
     Synthesis,
     ClassMarkerResult,
     CandidateOwner,
-    EmergencyContact,
+    CandidateConsentments,
+    CandidateRelanceEntry,
 } from '../../../types/candidate.types';
 import { Localisation } from '../../../types/matching.types';
 
@@ -34,13 +36,14 @@ const ownerSchema = new Schema<CandidateOwner>(
     { _id: false },
 );
 
-const emergencyContactSchema = new Schema<EmergencyContact>(
+const consentmentsSchema = new Schema<CandidateConsentments>(
     {
-        last_name: { type: String },
-        first_name: { type: String },
-        relationship: { type: String },
-        phone: { type: String },
-        email: { type: String },
+        data_processing: { type: Boolean, required: true },
+        data_sharing: { type: Boolean, required: true },
+        ai_processing: { type: Boolean, required: true },
+        photo_processing: { type: Boolean, required: true },
+        consent_date: { type: Date, required: true },
+        consent_version: { type: String, required: true },
     },
     { _id: false },
 );
@@ -50,6 +53,7 @@ const encryptedSsnSchema = new Schema<EncryptedSsn>(
         encrypted: { type: String, required: true },
         iv: { type: String, required: true },
         tag: { type: String, required: true },
+        kid: { type: String },
     },
     { _id: false },
 );
@@ -61,20 +65,27 @@ const identitySchema = new Schema<Identity>(
         date_of_birth: { type: Date },
         place_of_birth: { type: String },
         department_of_birth: { type: String },
+        born_in_france: { type: Boolean },
+        nationality: { type: Number, enum: [1, 2, 3] },
+        residence_permit: { type: Boolean },
         age: { type: Number },
         sex: { type: String },
         address: { type: String },
         postal_code: { type: String },
         city: { type: String },
+        country: { type: String },
         email: { type: String, required: true },
         phone: { type: String, required: true },
         driving_license_b: { type: Boolean },
         has_vehicle: { type: Boolean },
         transport_means: { type: String },
-        psh_referral_request: { type: Boolean },
+        // Chiffré au repos (GDPR_INF_02.3) : chaîne `h1:…` (health-cipher.ts) ; Mixed tolère le booléen en clair d'avant backfill.
+        psh_referral_request: { type: Schema.Types.Mixed },
         had_apprenticeship_contract: { type: Boolean },
         apprenticeship_contract_details: { type: String },
         description: { type: String },
+        // `auto` : résumé régénéré à chaque mise à jour ; `manual` : texte RH protégé.
+        description_source: { type: String, enum: ['auto', 'manual'] },
         avatar_updated_at: { type: Date },
         drive_avatar_file_id: { type: String },
     },
@@ -181,6 +192,7 @@ const jobInfoSchema = new Schema<JobInfo>(
         geographic_mobility: { type: [String], enum: Object.values(Localisation) },
         weekend_work: { type: Boolean },
         discovery_source: { type: String, enum: Object.values(DiscoverySource) },
+        job_search_platforms: { type: String },
     },
     { _id: false },
 );
@@ -193,7 +205,7 @@ const pedagogicalRecommendationsSchema = new Schema<PedagogicalRecommendations>(
         time_management_support: { type: Boolean },
         professional_posture_work: { type: Boolean },
         enhanced_company_immersion: { type: Boolean },
-        psh_specific_support: { type: Boolean },
+        psh_specific_support: { type: Schema.Types.Mixed }, // chiffré (GDPR_INF_02.3)
         individual_follow_up: { type: Boolean },
         language_training: { type: Boolean },
         stress_management_follow_up: { type: Boolean },
@@ -205,7 +217,7 @@ const synthesisSchema = new Schema<Synthesis>(
     {
         feasibility_conclusion: { type: String },
         pathway_relevance: { type: String },
-        special_needs: { type: String },
+        special_needs: { type: String }, // chiffré (GDPR_INF_02.3) : chaîne `h1:…`
         pedagogical_recommendations: { type: pedagogicalRecommendationsSchema },
         other_recommendations: { type: String },
         important_note: { type: String },
@@ -229,6 +241,40 @@ const classMarkerResultSchema = new Schema<ClassMarkerResult>(
         duration: { type: String },
         pdf_link: { type: String },
         questions: { type: [Schema.Types.Mixed], default: undefined },
+        source: { type: String, enum: ['classmarker', 'internal'] },
+        questionnaire_id: { type: String },
+        attempt_id: { type: String },
+        tab_switch_count: { type: Number },
+    },
+    { _id: false },
+);
+
+const candidateRelanceSchema = new Schema<CandidateRelanceEntry>(
+    {
+        sent_at: { type: Date, required: true },
+        kind: { type: String, enum: ['availability', 'template'], required: true },
+        template_id: { type: String },
+        subject: { type: String },
+        sent_by: { type: Number },
+        response_at: { type: Date },
+        answer: { type: String },
+    },
+    { _id: false },
+);
+
+// Créneau d'immersion : un jour peut porter deux plages facultatives (matin et
+// après-midi). Les champs legacy `start_hour`/`end_hour` restent déclarés pour
+// relire les fiches écrites avant le découpage ; l'API n'écrit plus que les
+// quatre nouveaux champs.
+const immersionScheduleSlotSchema = new Schema(
+    {
+        day: { type: String, default: null },
+        morning_start_hour: { type: String, default: null },
+        morning_end_hour: { type: String, default: null },
+        afternoon_start_hour: { type: String, default: null },
+        afternoon_end_hour: { type: String, default: null },
+        start_hour: { type: String, default: null },
+        end_hour: { type: String, default: null },
     },
     { _id: false },
 );
@@ -238,10 +284,20 @@ const candidateSchema = new Schema<Candidate & Document>(
         _id: { type: String, required: true },
         candidate_id: { type: String, required: true },
         owner: { type: ownerSchema },
-        tp_types: { type: [String], enum: Object.values(TitleProfessionalType), default: undefined },
+        // « SA » reste accepté pour les documents legacy écrits avant le renommage.
+        tp_types: {
+            type: [String],
+            enum: [...Object.values(TitleProfessionalType), LEGACY_TP_SA],
+            default: undefined,
+        },
         identity: { type: identitySchema, required: true },
-        emergency_contact: { type: emergencyContactSchema },
+        // Chiffré en bloc (GDPR_INF_02.3) : chaîne `h1:…` ; Mixed tolère l'objet en clair d'avant backfill.
+        emergency_contact: { type: Schema.Types.Mixed },
+        consentments: { type: consentmentsSchema },
         status: { type: String, enum: Object.values(CandidateStatus), required: true },
+        written_test_score: { type: Number, min: 0, max: 20 },
+        test_average: { type: Number, min: 0, max: 20 },
+        test_failure_pending: { type: Boolean },
         training_site: { type: String, enum: Object.values(TrainingSite) },
         training_sites: { type: [String], enum: Object.values(TrainingSite), default: undefined },
         immersion_agreement: { type: Boolean },
@@ -249,6 +305,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         immersion_end_date: { type: Date },
         immersion_company_id: { type: Number },
         immersion_company_name: { type: String },
+        immersion_convention_number: { type: String },
+        immersion_schedule: { type: [immersionScheduleSlotSchema], default: undefined },
         // Horodatage de l'envoi de la notification « immersion terminée » : évite
         // de re-notifier chaque jour une fois la date de fin passée (dédup scheduler).
         immersion_end_notified_at: { type: Date },
@@ -256,6 +314,9 @@ const candidateSchema = new Schema<Candidate & Document>(
         contract_company_id: { type: Number },
         contract_company_name: { type: String },
         contract_start_date: { type: Date },
+        contract_trial_end_date: { type: Date },
+        contract_session_id: { type: String },
+        contract_session_name: { type: String },
         desired_sectors: { type: [String] },
         expected_company_skills: { type: [String] },
         education: { type: educationSchema },
@@ -276,6 +337,8 @@ const candidateSchema = new Schema<Candidate & Document>(
         created_at: { type: Date },
         last_relance_at: { type: Date },
         relance_response_at: { type: Date },
+        relance_count: { type: Number, default: 0 },
+        relance_history: { type: [candidateRelanceSchema], default: undefined },
         classmarker_history: { type: [classMarkerResultSchema], default: undefined },
     },
     { collection: 'candidates' },
@@ -286,9 +349,18 @@ const candidateSchema = new Schema<Candidate & Document>(
 // seek O(log n) sur les bornes created_at. _id en tie-break déterministe.
 candidateSchema.index({ created_at: -1, _id: 1 });
 
-// Index full-text pour la recherche (candidatesPage → search) sur le résumé
-// auto-généré du candidat (nom, ville, métier visé, diplôme, mobilité...).
-candidateSchema.index({ 'identity.description': 'text' });
+// Index full-text pour la recherche (candidatesPage → search) :
+// - pondération 10× sur `identity.full_name` vs `identity.description` (le nom matche en tête)
+// - langue française (stemming « boulanger / boulangère », « patissier »)
+// - utilisé conjointement au `$regex` tokenisé (AND ordonné-indépendant) dans CandidateRepository.
+candidateSchema.index(
+    { 'identity.description': 'text', 'identity.full_name': 'text' },
+    {
+        default_language: 'french',
+        weights: { 'identity.full_name': 10, 'identity.description': 1 },
+        name: 'candidate_text_search',
+    },
+);
 
 export const CandidateModel = mongoose.models.Candidate || model<Candidate & Document>('Candidate', candidateSchema);
 

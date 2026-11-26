@@ -1,34 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import {
-  Building2,
-  Users,
-  Sparkles,
-  X,
-  Check,
-  Mail,
-  Phone,
-  MapPin,
-  User,
-  Loader2,
-  AlertCircle,
-  Briefcase,
-  Car,
-  ChevronRight,
-  UserCheck,
-  UserX,
-  Plus,
-  Info,
-  PlayCircle,
-  RefreshCw,
-  MailCheck,
-  Send,
-  Heart,
-  CalendarClock,
-  Trash2,
-  ArrowLeft,
-} from 'lucide-react'
-import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { IconAlert, IconArrowLeft, IconCar, IconCheck, IconChevronRight, IconClose, IconCompany, IconEye, IconFavorite, IconFolder, IconInfo, IconJob, IconLoader, IconMail, IconMailSent, IconMapPin, IconPhone, IconPlay, IconPlus, IconRefresh, IconSchedule, IconSend, IconSparkles, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers } from '@/components/ui/icons'
+import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION, DISMISS_SUGGESTED_CANDIDATE } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
@@ -36,7 +9,9 @@ import { JOB_STATUS_LABELS, JOB_STATUS_BADGE_CLASS } from '@/constants/jobStatus
 import { OfferStatus, formatEnumLabel } from '@/features/matching/constants/jobEnums'
 import { offerGraphqlClient, graphqlClient } from '@/graphql/client'
 import { useQuery } from 'urql'
-import { useCurrentUser, Permission } from '@/store/authStore'
+import { useCurrentUser, Permission, UserRole } from '@/store/authStore'
+import { useRegionStore } from '@/store/regionStore'
+import { regionTimezone, zonedWallClockToIso } from '@/lib/timezone'
 import { apiFetch } from '@/api/httpClient'
 import MailModal from '@/components/ui/MailModal'
 import InterviewModal from '@/features/matching/components/InterviewModal'
@@ -49,9 +24,15 @@ import SendToCompanyModal from '@/features/matching/components/SendToCompanyModa
 import HistoryModal from '@/features/matching/components/HistoryModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
-import { useNeedsAnalysis, useDeleteNeedsAnalysis } from '@/graphql/hooks'
+import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus, useUpdateOfferActive } from '@/graphql/hooks'
+import Badge from '@/components/ui/Badge'
+import { abStatusBadge, isAbArchivedOnDrive } from '@/types/needsAnalysis'
+import { needsAnalysisAbDriveUrl } from '@/api/needsAnalysis'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
+import { formatScheduleSlots } from '@/utils/schedule'
+import TruncatedText from '@/components/ui/TruncatedText'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -68,6 +49,8 @@ interface MatchedCandidate {
   identityDescription?: string | null
   comment?: string | null
   cvWebview?: string | null
+  hasCv?: boolean
+  isRupture?: boolean
   interviewLocation?: string
   bookedInterviewSlot?: string | null
   interviewConclusion?: InterviewConclusion | null
@@ -103,24 +86,34 @@ interface OfferTp {
   otherMissions?: string | null
 }
 
+interface ScheduleSlot {
+  day?: string | null
+  startHour?: string | null
+  endHour?: string | null
+}
+
 interface Job {
   id: string
   needsAnalysisId?: string | null
   companyInfos?: { id?: number; name?: string; address?: string | null; email?: string | null; activities?: string[] | null } | null
   softSkills?: string | null
+  schedule?: (ScheduleSlot | string)[] | null
   companyName: string
   ageRange: string
   desiredTp: OfferTp[]
   desiredSex: string | null
   drivingLicencseB: boolean | null
+  hasVehicle: boolean | null
   professionalExperience: boolean | null
   status: string | null
+  isActive?: boolean | null
   localisation: string[] | null
   sector: string | null
   salerInfo?: SalerInfo | null
   referents?: Referents | null
   title?: string | null
   jobRole?: string | null
+  relaxedCriteria?: string[] | null
 }
 
 interface MatchJobResult extends Job {
@@ -152,17 +145,17 @@ function tpLabel(raw: string | null | undefined): string {
     CC: 'CC – Conseiller Commercial',
     NTC: 'NTC – Négociateur technico-commercial',
     REM: "REM – Responsable d'établissement Marchand",
-    SA: 'SA',
+    CADGA: "CADGA – Chargé d'accueil et de gestion administrative",
   }
   return map[raw] ?? raw
 }
 
 function statusChip(status: string | null): { label: string; cls: string } {
-  if (!status) return { label: '—', cls: 'bg-gray-100 text-gray-600' }
+  if (!status) return { label: '—', cls: 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]' }
   const jobStatus = status as OfferStatus
   return JOB_STATUS_LABELS[jobStatus]
     ? { label: JOB_STATUS_LABELS[jobStatus], cls: JOB_STATUS_BADGE_CLASS[jobStatus] }
-    : { label: formatEnum(status), cls: 'bg-gray-100 text-gray-600' }
+    : { label: formatEnum(status), cls: 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]' }
 }
 
 function locLabel(raw: string): string {
@@ -186,17 +179,17 @@ function CandidateInfoDrawer({ candidate, onClose }: InfoDrawerProps) {
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="fixed right-0 top-0 z-50 h-full w-full max-w-sm overflow-y-auto bg-white shadow-2xl flex flex-col">
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
+      <div className="fixed right-0 top-0 z-50 h-full w-full max-w-sm overflow-y-auto bg-[var(--ds-surface)] shadow-2xl flex flex-col">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-[var(--ds-border)] bg-[var(--ds-surface)] px-5 py-4">
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-gray-900 truncate">{candidate.fullName}</p>
-            <p className="text-xs text-gray-400 mt-0.5">Fiche candidat</p>
+            <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{candidate.fullName}</p>
+            <p className="text-xs text-[var(--ds-text-subtle)] mt-0.5">Fiche candidat</p>
           </div>
           <button
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)] transition-colors"
           >
-            <X size={16} />
+            <IconClose width={16} height={16} />
           </button>
         </div>
         <div className="flex-1 px-5 py-4 space-y-0">
@@ -208,9 +201,9 @@ function CandidateInfoDrawer({ candidate, onClose }: InfoDrawerProps) {
             { label: 'Âge', value: candidate.age ? `${candidate.age} ans` : null },
             { label: 'Ville', value: formatEnum(candidate.city) },
           ].map((row, i) => (
-            <div key={i} className="flex items-start justify-between gap-3 border-b border-gray-50 py-3 last:border-b-0">
-              <span className="text-xs text-gray-400 shrink-0 min-w-[110px]">{row.label}</span>
-              <span className="text-xs font-medium text-gray-800 text-right break-words">
+            <div key={i} className="flex items-start justify-between gap-3 border-b border-[var(--ds-border)] py-3 last:border-b-0">
+              <span className="text-xs text-[var(--ds-text-subtle)] shrink-0 min-w-[110px]">{row.label}</span>
+              <span className="text-xs font-medium text-[var(--ds-text)] text-right break-words">
                 {row.value || '—'}
               </span>
             </div>
@@ -240,52 +233,60 @@ function CandidateRow({
   interviewSlots?: string[] | null
   interviewLocation?: string | null
 }) {
+  const timezone = regionTimezone(useRegionStore((s) => s.region))
   return (
-    <div className="rounded-lg border border-gray-100 p-3">
+    <div className="rounded-lg border border-[var(--ds-border)] p-3">
       <div className="flex items-center justify-between gap-2 mb-1">
-        <p className="text-sm font-semibold text-gray-900">{candidate.fullName}</p>
-        {candidate.status && (
-          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[candidate.status as MatchedCandidateStatus] ?? 'bg-gray-100 text-gray-600'}`}>
-            {MATCHED_CANDIDATE_STATUS_LABELS[candidate.status as MatchedCandidateStatus] ?? candidate.status}
-          </span>
-        )}
+        <p className="text-sm font-semibold text-[var(--ds-text)]">{candidate.fullName}</p>
+        <div className="flex shrink-0 items-center gap-1">
+          {candidate.isRupture && (
+            <span className="rounded-full bg-[var(--ds-danger-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ds-danger)]">
+              Rupture
+            </span>
+          )}
+          {candidate.status && (
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${MATCHED_CANDIDATE_STATUS_BADGE_CLASS[candidate.status as MatchedCandidateStatus] ?? 'bg-[var(--ds-surface-sunken)] text-[var(--ds-text-muted)]'}`}>
+              {MATCHED_CANDIDATE_STATUS_LABELS[candidate.status as MatchedCandidateStatus] ?? candidate.status}
+            </span>
+          )}
+        </div>
       </div>
       <div className="flex flex-wrap gap-3 mb-2">
         {candidate.email && (
-          <span className="flex items-center gap-1 text-xs text-gray-500">
-            <Mail size={10} className="text-gray-300" /> {candidate.email}
+          <span className="flex items-center gap-1 text-xs text-[var(--ds-text-subtle)]">
+            <IconMail width={10} height={10} className="text-[var(--ds-text-subtle)]" /> {candidate.email}
           </span>
         )}
         {candidate.city && (
-          <span className="flex items-center gap-1 text-xs text-gray-500">
-            <MapPin size={10} className="text-gray-300" /> {formatEnum(candidate.city)}
+          <span className="flex items-center gap-1 text-xs text-[var(--ds-text-subtle)]">
+            <IconMapPin width={10} height={10} className="text-[var(--ds-text-subtle)]" /> {formatEnum(candidate.city)}
           </span>
         )}
         {candidate.age && (
-          <span className="text-xs text-gray-500">{candidate.age} ans</span>
+          <span className="text-xs text-[var(--ds-text-subtle)]">{candidate.age} ans</span>
         )}
       </div>
 
       {candidate.status === MatchedCandidateStatus.REFUSED && candidate.comment && (
-        <p className="mb-2 rounded-md bg-gray-50 px-2 py-1 text-[11px] text-gray-600">
+        <p className="mb-2 rounded-md bg-[var(--ds-surface-sunken)] px-2 py-1 text-[11px] text-[var(--ds-text-muted)]">
           Motif du refus : {candidate.comment}
         </p>
       )}
 
       {candidate.bookedInterviewSlot && (
-        <div className="mb-2 rounded-md bg-green-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
-          <p><CalendarClock size={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot)}</p>
+        <div className="mb-2 rounded-md bg-[var(--ds-success-bg)] px-2 py-1 text-[11px] text-[var(--ds-text-muted)] border border-[var(--ds-border)]">
+          <p><IconSchedule width={11} height={11} className="inline mr-1" /> {formatSlot(candidate.bookedInterviewSlot, timezone)}</p>
           <p>{candidate.interviewLocation || interviewLocation || 'Lieu non précisé'}</p>
         </div>
       )}
 
       {!candidate.bookedInterviewSlot && interviewSlots && interviewSlots.length > 0 && (
-        <div className="mb-2 rounded-md bg-amber-50 px-2 py-1 text-[11px] text-gray-600 border border-gray-100">
+        <div className="mb-2 rounded-md bg-[var(--ds-warning-bg)] px-2 py-1 text-[11px] text-[var(--ds-text-muted)] border border-[var(--ds-border)]">
           <p className="font-medium mb-0.5">Créneaux proposés par l'entreprise</p>
           <div className="flex flex-wrap gap-1">
             {interviewSlots.map((slot) => (
-              <span key={slot} className="rounded bg-white px-1.5 py-0.5 text-[15px] text-gray-500">
-                {formatSlot(slot)}
+              <span key={slot} className="rounded bg-[var(--ds-surface)] px-1.5 py-0.5 text-[15px] text-[var(--ds-text-subtle)]">
+                {formatSlot(slot, timezone)}
               </span>
             ))}
           </div>
@@ -294,7 +295,7 @@ function CandidateRow({
       )}
 
       {candidate.immersionStartDate && candidate.immersionEndDate && (
-        <p className="mb-2 text-[11px] text-gray-500">
+        <p className="mb-2 text-[11px] text-[var(--ds-text-subtle)]">
           Immersion du {candidate.immersionStartDate} au {candidate.immersionEndDate}
         </p>
       )}
@@ -314,27 +315,27 @@ function CandidateRow({
       <div className="flex items-center gap-1">
         <button
           onClick={onInfo}
-          className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)] transition-colors"
           title="Voir la fiche"
         >
-          <Info size={14} />
+          <IconInfo width={14} height={14} />
         </button>
         {onSendMail && (
           <button
             onClick={onSendMail}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 hover:text-blue transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-blue transition-colors"
             title="Envoyer un mail"
           >
-            <Mail size={14} />
+            <IconMail width={14} height={14} />
           </button>
         )}
         {onRemove && (
           <button
             onClick={onRemove}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 hover:bg-danger-bg hover:text-danger transition-colors"
+            className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-danger-bg)] hover:text-[var(--ds-danger)] transition-colors"
             title="Retirer ce candidat"
           >
-            <UserX size={14} />
+            <IconUserRemove width={14} height={14} />
           </button>
         )}
         {actions}
@@ -382,47 +383,54 @@ function CandidateCard({
       onTransitionEnd={() => { if (isDismissing) onRemove() }}
     >
       <div className={[
-        'rounded-xl border bg-white',
-        isAccepted ? 'border-success/30 ring-1 ring-success/10 shadow-sm' : 'border-gray-100 shadow-sm',
+        'rounded-xl border bg-[var(--ds-surface)]',
+        isAccepted ? 'border-success/30 ring-1 ring-success/10 shadow-sm' : 'border-[var(--ds-border)] shadow-sm',
       ].join(' ')}>
         <div className="p-4">
           <div className="flex items-start gap-3 mb-3">
             <div className={[
               'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
-              isAccepted ? 'bg-success-bg text-success' : 'bg-purple-light text-purple',
+              isAccepted ? 'bg-[var(--ds-success-bg)] text-[var(--ds-success)]' : 'bg-purple-light text-purple',
             ].join(' ')}>
-              {isAccepted ? <UserCheck size={16} /> : <User size={16} />}
+              {isAccepted ? <IconUserCheck width={16} height={16} /> : <IconUser width={16} height={16} />}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-gray-900 truncate">{candidate.fullName}</p>
-              <p className="text-xs text-gray-400">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{candidate.fullName}</p>
+                {candidate.isRupture && (
+                  <span className="shrink-0 rounded-full bg-[var(--ds-danger-bg)] px-2 py-0.5 text-[10px] font-semibold text-[var(--ds-danger)]">
+                    Rupture
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-[var(--ds-text-subtle)]">
                 {sexLabel(candidate.sex)}{candidate.age ? ` · ${candidate.age} ans` : ''}
               </p>
             </div>
             <button
               onClick={onInfo}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-gray-300 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)] transition-colors"
             >
-              <Info size={14} />
+              <IconInfo width={14} height={14} />
             </button>
           </div>
 
           <div className="space-y-1.5 mb-3">
             {candidate.email && (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <Mail size={12} className="text-gray-300 shrink-0" />
+              <div className="flex items-center gap-2 text-xs text-[var(--ds-text-subtle)]">
+                <IconMail width={12} height={12} className="text-[var(--ds-text-subtle)] shrink-0" />
                 <span className="truncate">{candidate.email}</span>
               </div>
             )}
             {candidate.phone && (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <Phone size={12} className="text-gray-300 shrink-0" />
+              <div className="flex items-center gap-2 text-xs text-[var(--ds-text-subtle)]">
+                <IconPhone width={12} height={12} className="text-[var(--ds-text-subtle)] shrink-0" />
                 <span>{candidate.phone}</span>
               </div>
             )}
             {candidate.city && (
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <MapPin size={12} className="text-gray-300 shrink-0" />
+              <div className="flex items-center gap-2 text-xs text-[var(--ds-text-subtle)]">
+                <IconMapPin width={12} height={12} className="text-[var(--ds-text-subtle)] shrink-0" />
                 <span>{formatEnum(candidate.city)}</span>
               </div>
             )}
@@ -432,15 +440,15 @@ function CandidateCard({
             <div className="flex gap-2">
               <button
                 onClick={onDismiss}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-100 px-3 py-1.5 text-xs font-medium text-danger transition-all hover:bg-danger-bg hover:border-danger/20 active:scale-[0.97]"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-danger)] transition-all hover:bg-[var(--ds-danger-bg)] hover:border-danger/20 active:scale-[0.97]"
               >
-                <X size={13} /> Non
+                <IconClose width={13} height={13} /> Non
               </button>
               <button
                 onClick={onAccept}
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-100 px-3 py-1.5 text-xs font-medium text-success transition-all hover:bg-success-bg hover:border-success/20 active:scale-[0.97]"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-success)] transition-all hover:bg-[var(--ds-success-bg)] hover:border-success/20 active:scale-[0.97]"
               >
-                <Check size={13} /> Oui
+                <IconCheck width={13} height={13} /> Oui
               </button>
             </div>
           )}
@@ -448,24 +456,25 @@ function CandidateCard({
           {isAccepted && (
             <div className="flex flex-col gap-2">
               {isSaved ? (
-                <div className="flex items-center gap-1.5 text-xs text-success font-medium">
-                  <Check size={13} /> Retenu
+                <div className="flex items-center gap-1.5 text-xs text-[var(--ds-success)] font-medium">
+                  <IconCheck width={13} height={13} /> Retenu
                 </div>
               ) : (
                 <button
                   onClick={onSaveMatch}
                   disabled={isSaving}
-                  className="flex items-center justify-center gap-1.5 rounded-lg border border-success/30 bg-success-bg px-3 py-1.5 text-xs font-medium text-success transition-all hover:bg-success/10 active:scale-[0.97] disabled:opacity-50"
+                  className="flex items-center justify-center gap-1.5 rounded-lg border border-success/30 bg-[var(--ds-success-bg)] px-3 py-1.5 text-xs font-medium text-[var(--ds-success)] transition-all hover:bg-success/10 active:scale-[0.97] disabled:opacity-50"
                 >
-                  {isSaving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+                  {isSaving ? <IconLoader width={13} height={13} className="animate-spin" /> : <IconPlus width={13} height={13} />}
                   Enregistrer le match
                 </button>
               )}
               <button
                 onClick={onSendMail}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-100 px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 active:scale-[0.97]"
+                disabled={isSaving}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] transition-all hover:bg-[var(--ds-surface-sunken)] active:scale-[0.97] disabled:opacity-50"
               >
-                <Mail size={13} /> Envoyer un mail
+                <IconMail width={13} height={13} /> Envoyer un mail
               </button>
             </div>
           )}
@@ -495,7 +504,7 @@ function JobCard({
         'w-full text-left rounded-xl border p-4 transition-all duration-200 group',
         isSelected
           ? 'border-blue/30 bg-blue-light/30 ring-1 ring-blue/10 shadow-md'
-          : 'border-gray-100 bg-white shadow-sm hover:shadow-md hover:border-gray-200',
+          : 'border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-sm hover:shadow-md hover:border-[var(--ds-border)]',
       ].join(' ')}
     >
       <div className="flex items-start gap-3">
@@ -503,45 +512,51 @@ function JobCard({
           'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors',
           isSelected ? 'bg-blue text-white' : 'bg-blue-light text-blue',
         ].join(' ')}>
-          <Building2 size={18} />
+          <IconCompany width={18} height={18} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-900 truncate">{job.companyName}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{job.ageRange ? `${job.ageRange} ans` : '—'}</p>
+          <p className="text-sm font-semibold text-[var(--ds-text)] truncate">{job.companyName}</p>
+          <p className="text-xs text-[var(--ds-text-subtle)] mt-0.5">{job.ageRange ? `${job.ageRange} ans` : '—'}</p>
         </div>
-        <ChevronRight
-          size={16}
+        <IconChevronRight
+          width={16} height={16}
           className={[
-            'text-gray-300 transition-transform duration-200 shrink-0 mt-0.5',
-            isSelected ? 'rotate-90 text-blue' : 'group-hover:text-gray-400',
+            'text-[var(--ds-text-subtle)] transition-transform duration-200 shrink-0 mt-0.5',
+            isSelected ? 'rotate-90 text-blue' : 'group-hover:text-[var(--ds-text-subtle)]',
           ].join(' ')}
         />
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
         {job.desiredTp.length > 0 && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500 col-span-2">
-            <Briefcase size={11} className="text-gray-300 shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)] col-span-2">
+            <IconJob width={11} height={11} className="text-[var(--ds-text-subtle)] shrink-0" />
             <span className="truncate font-medium">
               {job.desiredTp.map((tp) => tpLabel(tp.tpType)).join(' · ')}
             </span>
           </div>
         )}
         {job.desiredSex && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <User size={11} className="text-gray-300 shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)]">
+            <IconUser width={11} height={11} className="text-[var(--ds-text-subtle)] shrink-0" />
             <span>{sexLabel(job.desiredSex)}</span>
           </div>
         )}
         {job.drivingLicencseB === true && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Car size={11} className="text-gray-300 shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)]">
+            <IconCar width={11} height={11} className="text-[var(--ds-text-subtle)] shrink-0" />
             <span>Permis B requis</span>
           </div>
         )}
+        {job.hasVehicle === true && (
+          <div className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)] ml-3 pl-3 border-l border-[var(--ds-border)]">
+            <IconCar width={11} height={11} className="text-[var(--ds-text-subtle)] shrink-0" />
+            <span>Véhiculé requis</span>
+          </div>
+        )}
         {job.sector && job.sector !== 'NONE' && (
-          <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Building2 size={11} className="text-gray-300 shrink-0" />
+          <div className="flex items-center gap-1.5 text-xs text-[var(--ds-text-subtle)]">
+            <IconCompany width={11} height={11} className="text-[var(--ds-text-subtle)] shrink-0" />
             <span className="truncate">{formatEnum(job.sector)}</span>
           </div>
         )}
@@ -550,22 +565,40 @@ function JobCard({
       {job.localisation && job.localisation.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1">
           {job.localisation.slice(0, 3).map((loc) => (
-            <span key={loc} className="rounded-md bg-gray-50 px-2 py-0.5 text-[10px] text-gray-500 border border-gray-100">
+            <span key={loc} className="rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-[10px] text-[var(--ds-text-subtle)] border border-[var(--ds-border)]">
               {locLabel(loc)}
             </span>
           ))}
           {job.localisation.length > 3 && (
-            <span className="rounded-md bg-gray-50 px-2 py-0.5 text-[10px] text-gray-400 border border-gray-100">
+            <span className="rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-[10px] text-[var(--ds-text-subtle)] border border-[var(--ds-border)]">
               +{job.localisation.length - 3}
             </span>
           )}
         </div>
       )}
 
-      <div className="mt-3">
+      {formatScheduleSlots(job.schedule).length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {formatScheduleSlots(job.schedule).slice(0, 3).map((s) => (
+            <span key={s} className="rounded-md bg-[var(--ds-surface-sunken)] px-2 py-0.5 text-[10px] text-[var(--ds-text-subtle)] border border-[var(--ds-border)]">
+              {s}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
           {chip.label}
         </span>
+        {job.isActive === false && (
+          <span
+            className="rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]"
+            title="Offre inactive dans l'annuaire entreprises"
+          >
+            Inactive
+          </span>
+        )}
       </div>
     </button>
   )
@@ -579,7 +612,11 @@ function JobDetailsSection({
   isCreatingSession,
   onProposeCandidates,
   onShowCompanyInfo,
+  onSetActive,
+  isSavingActive,
+  abStatus,
   onDeleteOffer,
+  onSeeAb,
 }: {
   job: MatchJobResult
   onSetStatus: (status: OfferStatus) => void
@@ -587,22 +624,33 @@ function JobDetailsSection({
   isCreatingSession: boolean
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
+  onSetActive: (active: boolean | null) => void
+  isSavingActive: boolean
+  /** Statut de l'AB parente, servant de repli quand l'offre est « Automatique ». */
+  abStatus?: string | null
   onDeleteOffer?: () => void
+  onSeeAb?: () => void
 }) {
   const chip = statusChip(job.status)
+  // Statut actif/inactif effectif : override de l'offre, sinon statut de l'AB
+  // (null tant que l'AB n'est pas chargée → pas de pastille).
+  const effectiveStatus =
+    job.isActive === true ? 'ACTIVE' : job.isActive === false ? 'INACTIVE' : (abStatus ?? null)
+  const effectiveTone = effectiveStatus === 'ACTIVE' ? 'success' : effectiveStatus === 'ARCHIVED' ? 'warning' : 'neutral'
+  const effectiveLabel = effectiveStatus === 'ACTIVE' ? 'Active' : effectiveStatus === 'ARCHIVED' ? 'Archivée' : 'Inactive'
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-light text-blue">
-            <Building2 size={20} />
+            <IconCompany width={20} height={20} />
           </div>
           <div className="min-w-0 flex-1">
             <button
               type="button"
               onClick={onShowCompanyInfo}
-              className="text-left text-base font-bold text-gray-900 truncate hover:text-blue hover:underline"
+              className="text-left text-base font-bold text-[var(--ds-text)] truncate hover:text-blue hover:underline"
               title="Voir toutes les infos de l'entreprise"
             >
               {job.companyName}
@@ -612,14 +660,42 @@ function JobDetailsSection({
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 shadow-sm"
+            title="Changer le statut de l'offre — « Automatique » suit le statut de l'analyse de besoin"
+          >
+            <span className="text-xs font-medium text-[var(--ds-text-subtle)]">Statut de l'offre</span>
+            <select
+              value={job.isActive === true ? 'ACTIVE' : job.isActive === false ? 'INACTIVE' : 'AUTO'}
+              onChange={(e) => onSetActive(e.target.value === 'AUTO' ? null : e.target.value === 'ACTIVE')}
+              disabled={isSavingActive}
+              aria-label="Statut de l'offre"
+              className="cursor-pointer bg-transparent text-sm font-semibold text-[var(--ds-text)] outline-none disabled:opacity-50"
+            >
+              <option value="AUTO">Automatique</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+            {effectiveStatus && <Badge tone={effectiveTone}>{effectiveLabel}</Badge>}
+          </div>
+          {onSeeAb && (
+            <button
+              onClick={onSeeAb}
+              className="flex items-center justify-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
+              title="Voir l'analyse de besoin"
+            >
+              <IconEye width={16} height={16} />
+              <span className="hidden md:inline">Voir l'AB</span>
+            </button>
+          )}
           {onDeleteOffer && (
             <button
               onClick={onDeleteOffer}
-              className="flex items-center justify-center gap-2 rounded-xl border border-danger/30 bg-white px-3 py-2 text-sm font-semibold text-danger shadow-sm transition-all hover:bg-danger-bg md:px-4"
+              className="flex items-center justify-center gap-2 rounded-xl border border-danger/30 bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-danger)] shadow-sm transition-all hover:bg-[var(--ds-danger-bg)] md:px-4"
               title="Supprimer l'offre"
             >
-              <Trash2 size={16} />
+              <IconTrash width={16} height={16} />
               <span className="hidden md:inline">Supprimer</span>
             </button>
           )}
@@ -630,25 +706,25 @@ function JobDetailsSection({
               className="flex shrink-0 items-center gap-2 rounded-xl border border-blue/20 px-4 py-2 text-sm font-semibold text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
               title="Proposer les candidats acceptés à l'entreprise via un lien sécurisé"
             >
-              {isCreatingSession ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+              {isCreatingSession ? <IconLoader width={16} height={16} className="animate-spin" /> : <IconSend width={16} height={16} />}
               Proposer les candidats
             </button>
           )}
         </div>
       </div>
 
-      <div className="mb-4 pb-4 border-b border-gray-50">
-        <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
-          <Briefcase size={10} className="inline mr-1 text-gray-300" />
+      <div className="mb-4 pb-4 border-b border-[var(--ds-border)]">
+        <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] mb-2">
+          <IconJob width={10} height={10} className="inline mr-1 text-[var(--ds-text-subtle)]" />
           Critères
         </p>
         <div className="grid grid-cols-2 gap-3">
           {job.desiredTp.length > 0 && (
             <div className="flex items-start gap-2">
-              <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <IconJob width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Type de TP</p>
-                <p className="text-xs font-medium text-gray-800 mt-0.5">
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Type de TP</p>
+                <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">
                   {job.desiredTp.map((tp) => tpLabel(tp.tpType)).join(' · ')}
                 </p>
               </div>
@@ -656,28 +732,28 @@ function JobDetailsSection({
           )}
           {job.title && (
             <div className="flex items-start gap-2">
-              <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <IconUser width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Intitulé du poste</p>
-                <p className="text-xs font-medium text-gray-800 mt-0.5">{job.title}</p>
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Intitulé du poste</p>
+                <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">{job.title}</p>
               </div>
             </div>
           )}
           {job.jobRole && (
             <div className="flex items-start gap-2">
-              <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <IconJob width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
               <div>
-                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Intitulé du métier</p>
-                <p className="text-xs font-medium text-gray-800 mt-0.5">{job.jobRole}</p>
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Intitulé du métier</p>
+                <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">{job.jobRole}</p>
               </div>
             </div>
           )}
           {job.companyInfos?.address && (
             <div className="flex items-start gap-2">
-              <Building2 size={13} className="text-gray-300 mt-0.5 shrink-0" />
+              <IconCompany width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
               <div className="min-w-0">
-                <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Siège social</p>
-                <p className="text-xs font-medium text-gray-800 mt-0.5 truncate">{job.companyInfos.address}</p>
+                <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Siège social</p>
+                <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5 truncate">{job.companyInfos.address}</p>
               </div>
             </div>
           )}
@@ -688,16 +764,16 @@ function JobDetailsSection({
             .map((tp) => (
               <div key={tp.tpType ?? ''}>
                 <details className="group">
-                  <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
-                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
-                      <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                  <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] list-none [&::-webkit-details-marker]:hidden">
+                    <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                      <IconChevronRight width={12} height={12} className="transition-transform group-open:rotate-90" />
                       {tpLabel(tp.tpType)} — {tp.missions.length} mission{tp.missions.length > 1 ? 's' : ''}
                     </span>
                   </summary>
-                  <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                  <div className="mt-2 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3 space-y-1.5">
                     {tp.missions.map((mission, i) => (
-                      <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
-                        <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                      <p key={i} className="text-xs font-medium text-[var(--ds-text-muted)] flex items-start gap-2">
+                        <span className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0">•</span>
                         {mission}
                       </p>
                     ))}
@@ -708,16 +784,16 @@ function JobDetailsSection({
           {job.companyInfos?.activities && job.companyInfos.activities.length > 0 && (
             <div>
               <details className="group">
-                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
-                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <IconChevronRight width={12} height={12} className="transition-transform group-open:rotate-90" />
                     {job.companyInfos.activities.length} secteur{job.companyInfos.activities.length > 1 ? 's' : ''} d'activité
                   </span>
                 </summary>
-                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                <div className="mt-2 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3 space-y-1.5">
                   {job.companyInfos.activities.map((activity, i) => (
-                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
-                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                    <p key={i} className="text-xs font-medium text-[var(--ds-text-muted)] flex items-start gap-2">
+                      <span className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0">•</span>
                       {SECTOR_LABELS[activity] ?? activity}
                     </p>
                   ))}
@@ -728,17 +804,37 @@ function JobDetailsSection({
           {job.softSkills && (
             <div>
               <details className="group">
-                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-gray-400 list-none [&::-webkit-details-marker]:hidden">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
-                    <ChevronRight size={12} className="transition-transform group-open:rotate-90" />
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <IconChevronRight width={12} height={12} className="transition-transform group-open:rotate-90" />
                     Soft skills
                   </span>
                 </summary>
-                <div className="mt-2 rounded-lg border border-gray-100 bg-gray-50/50 p-3 space-y-1.5">
+                <div className="mt-2 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3 space-y-1.5">
                   {job.softSkills.split(',').map((skill, i) => (
-                    <p key={i} className="text-xs font-medium text-gray-700 flex items-start gap-2">
-                      <span className="text-gray-300 mt-0.5 shrink-0">•</span>
+                    <p key={i} className="text-xs font-medium text-[var(--ds-text-muted)] flex items-start gap-2">
+                      <span className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0">•</span>
                       {skill.trim()}
+                    </p>
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
+          {formatScheduleSlots(job.schedule).length > 0 && (
+            <div>
+              <details className="group">
+                <summary className="flex cursor-pointer items-center gap-2 text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] list-none [&::-webkit-details-marker]:hidden">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] transition-colors group-open:bg-blue-light group-open:text-blue group-open:border-blue/20">
+                    <IconChevronRight width={12} height={12} className="transition-transform group-open:rotate-90" />
+                    Horaires
+                  </span>
+                </summary>
+                <div className="mt-2 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3 space-y-1.5">
+                  {formatScheduleSlots(job.schedule).map((s, i) => (
+                    <p key={i} className="text-xs font-medium text-[var(--ds-text-muted)] flex items-start gap-2">
+                      <span className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0">•</span>
+                      {s}
                     </p>
                   ))}
                 </div>
@@ -751,46 +847,55 @@ function JobDetailsSection({
       <div className="grid grid-cols-2 gap-3">
         {job.ageRange && (
           <div className="flex items-start gap-2">
-            <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconUser width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Tranche d'âge</p>
-              <p className="text-xs font-medium text-gray-800 mt-0.5">{job.ageRange} ans</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Tranche d'âge</p>
+              <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">{job.ageRange} ans</p>
             </div>
           </div>
         )}
         {job.sector && job.sector !== 'NONE' && (
           <div className="flex items-start gap-2">
-            <Building2 size={13} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconCompany width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Secteur</p>
-              <p className="text-xs font-medium text-gray-800 mt-0.5">{formatEnum(job.sector)}</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Secteur</p>
+              <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">{formatEnum(job.sector)}</p>
             </div>
           </div>
         )}
         {job.drivingLicencseB === true && (
           <div className="flex items-start gap-2">
-            <Car size={13} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconCar width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Permis B</p>
-              <p className="text-xs font-medium text-gray-800 mt-0.5">Requis</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Permis B</p>
+              <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">Requis</p>
+            </div>
+          </div>
+        )}
+        {job.hasVehicle != null && (
+          <div className="flex items-start gap-2 ml-3 pl-3 border-l border-[var(--ds-border)]">
+            <IconCar width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
+            <div>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Véhiculé</p>
+              <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">{job.hasVehicle ? 'Oui' : 'Non'}</p>
             </div>
           </div>
         )}
         {job.professionalExperience === true && (
           <div className="flex items-start gap-2">
-            <Briefcase size={13} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconJob width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Expérience</p>
-              <p className="text-xs font-medium text-gray-800 mt-0.5">Requise</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Expérience</p>
+              <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">Requise</p>
             </div>
           </div>
         )}
       </div>
 
       {job.localisation && job.localisation.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-50">
-          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
-            <MapPin size={10} className="inline mr-1 text-gray-300" />
+        <div className="mt-3 pt-3 border-t border-[var(--ds-border)]">
+          <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] mb-2">
+            <IconMapPin width={10} height={10} className="inline mr-1 text-[var(--ds-text-subtle)]" />
             Localisation{job.localisation.length > 1 ? 's' : ''}
           </p>
           <div className="flex flex-wrap gap-1.5">
@@ -804,27 +909,27 @@ function JobDetailsSection({
       )}
 
       {(job.salerInfo?.id != null || job.salerInfo?.email) && (
-        <div className="mt-3 pt-3 border-t border-gray-50">
-          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
-            <User size={10} className="inline mr-1 text-gray-300" />
+        <div className="mt-3 pt-3 border-t border-[var(--ds-border)]">
+          <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] mb-2">
+            <IconUser width={10} height={10} className="inline mr-1 text-[var(--ds-text-subtle)]" />
             Commercial
           </p>
           <div className="grid grid-cols-2 gap-3">
             {job.salerInfo.email && (
               <div className="flex items-start gap-2">
-                <Mail size={13} className="text-gray-300 mt-0.5 shrink-0" />
+                <IconMail width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Email commercial</p>
-                  <p className="text-xs font-medium text-gray-800 mt-0.5">{job.salerInfo.email}</p>
+                  <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Email commercial</p>
+                  <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">{job.salerInfo.email}</p>
                 </div>
               </div>
             )}
             {job.salerInfo.id != null && (
               <div className="flex items-start gap-2">
-                <User size={13} className="text-gray-300 mt-0.5 shrink-0" />
+                <IconUser width={13} height={13} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">ID commercial</p>
-                  <p className="text-xs font-medium text-gray-800 mt-0.5">{job.salerInfo.id}</p>
+                  <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">ID commercial</p>
+                  <p className="text-xs font-medium text-[var(--ds-text)] mt-0.5">{job.salerInfo.id}</p>
                 </div>
               </div>
             )}
@@ -832,28 +937,42 @@ function JobDetailsSection({
         </div>
       )}
 
-      {job.referents && (
-        <div className="mt-3 pt-3 border-t border-gray-50">
-          <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">
-            <User size={10} className="inline mr-1 text-gray-300" />
-            Référents
-          </p>
-          {job.referents.isSame
-            ? (
-              <ReferentBlock
-                label="Référent"
-                details={job.referents.legalReferents ?? job.referents.recruitmentReferents}
-              />
-            )
-            : (
-              <div className="grid grid-cols-2 gap-3">
-                <ReferentBlock label="Référent légal" details={job.referents.legalReferents} />
-                <ReferentBlock label="Référent recrutement" details={job.referents.recruitmentReferents} />
-              </div>
-            )
-          }
-        </div>
-      )}
+      {job.referents && (() => {
+        const legal = job.referents.legalReferents
+        const recruit = job.referents.recruitmentReferents
+        const hasRecruit = !!(recruit?.name || recruit?.phone || recruit?.email || recruit?.function)
+        // Stale isSame flag from old data may be inaccurate — also compare actual fields.
+        const actuallySame = !hasRecruit || (
+          (recruit?.name ?? null) === (legal?.name ?? null) &&
+          (recruit?.phone ?? null) === (legal?.phone ?? null) &&
+          (recruit?.email ?? null) === (legal?.email ?? null) &&
+          (recruit?.function ?? null) === (legal?.function ?? null)
+        )
+        const shouldShowBoth = !job.referents.isSame || !actuallySame
+        const showBoth = shouldShowBoth && hasRecruit
+        return (
+          <div className="mt-3 pt-3 border-t border-[var(--ds-border)]">
+            <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] mb-2">
+              <IconUser width={10} height={10} className="inline mr-1 text-[var(--ds-text-subtle)]" />
+              Référents
+            </p>
+            {showBoth
+              ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <ReferentBlock label="Référent légal" details={legal} />
+                  <ReferentBlock label="Référent recrutement" details={recruit} />
+                </div>
+              )
+              : (
+                <ReferentBlock
+                  label="Référent"
+                  details={legal ?? recruit}
+                />
+              )
+            }
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -864,42 +983,42 @@ function ReferentBlock({ label, details }: { label: string; details: ReferentDet
   if (!hasData) return null
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-gray-50/50 p-3">
-      <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400 mb-2">{label}</p>
+    <div className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-3">
+      <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)] mb-2">{label}</p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-2">
         {details.name && (
           <div className="flex items-start gap-1.5">
-            <User size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconUser width={11} height={11} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Nom</p>
-              <p className="text-xs font-medium text-gray-800">{details.name}</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Nom</p>
+              <p className="text-xs font-medium text-[var(--ds-text)]">{details.name}</p>
             </div>
           </div>
         )}
         {details.phone && (
           <div className="flex items-start gap-1.5">
-            <Phone size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconPhone width={11} height={11} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Téléphone</p>
-              <p className="text-xs font-medium text-gray-800">{details.phone}</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Téléphone</p>
+              <p className="text-xs font-medium text-[var(--ds-text)]">{details.phone}</p>
             </div>
           </div>
         )}
         {details.email && (
           <div className="flex items-start gap-1.5">
-            <Mail size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconMail width={11} height={11} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Email</p>
-              <p className="text-xs font-medium text-gray-800">{details.email}</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Email</p>
+              <p className="text-xs font-medium text-[var(--ds-text)]">{details.email}</p>
             </div>
           </div>
         )}
         {details.function && (
           <div className="flex items-start gap-1.5">
-            <Briefcase size={11} className="text-gray-300 mt-0.5 shrink-0" />
+            <IconJob width={11} height={11} className="text-[var(--ds-text-subtle)] mt-0.5 shrink-0" />
             <div>
-              <p className="text-[10px] uppercase font-semibold tracking-wider text-gray-400">Fonction</p>
-              <p className="text-xs font-medium text-gray-800">{details.function}</p>
+              <p className="text-[10px] uppercase font-semibold tracking-wider text-[var(--ds-text-subtle)]">Fonction</p>
+              <p className="text-xs font-medium text-[var(--ds-text)]">{details.function}</p>
             </div>
           </div>
         )}
@@ -930,13 +1049,16 @@ function PreselectedCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+  const canAdd =
+    currentUser?.role === UserRole.RH ||
+    currentUser?.permission === Permission.RESPONSABLE ||
+    currentUser?.permission === Permission.ADMIN
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
-        <UserCheck size={15} className="text-blue" />
-        <h3 className="text-sm font-semibold text-gray-800">Candidats pré-sélectionnés</h3>
+        <IconUserCheck width={15} height={15} className="text-blue" />
+        <h3 className="text-sm font-semibold text-[var(--ds-text)]">Candidats pré-sélectionnés</h3>
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-blue/10 text-blue">
           {candidates.length}
         </span>
@@ -947,7 +1069,7 @@ function PreselectedCandidatesSection({
               className="flex items-center gap-1 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue-light transition-colors"
               title="Ajouter manuellement un candidat pré-sélectionné"
             >
-              <Plus size={11} /> Ajouter un candidat
+              <IconPlus width={11} height={11} /> Ajouter un candidat
             </button>
           )}
           {candidates.length > 0 && (
@@ -957,9 +1079,9 @@ function PreselectedCandidatesSection({
               className="flex items-center gap-1 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
             >
               {isMailingAll ? (
-                <><Loader2 size={11} className="animate-spin" /> {mailAllProgress ? `${mailAllProgress.sent}/${mailAllProgress.total}` : '…'}</>
+                <><IconLoader width={11} height={11} className="animate-spin" /> {mailAllProgress ? `${mailAllProgress.sent}/${mailAllProgress.total}` : '…'}</>
               ) : (
-                <><MailCheck size={11} /> Mail à tous</>
+                <><IconMailSent width={11} height={11} /> IconMail à tous</>
               )}
             </button>
           )}
@@ -967,8 +1089,8 @@ function PreselectedCandidatesSection({
       </div>
 
       {candidates.length === 0 ? (
-        <div className="text-center py-4 px-3 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-400">Aucun candidat pré-sélectionné.</p>
+        <div className="text-center py-4 px-3 bg-[var(--ds-surface-sunken)] rounded-lg">
+          <p className="text-xs text-[var(--ds-text-subtle)]">Aucun candidat pré-sélectionné.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -987,7 +1109,7 @@ function PreselectedCandidatesSection({
   )
 }
 
-// ─── To-Send Candidates Section (ACCEPTED, SEND) ─────────────────────────────
+// ─── To-Send Candidates Section (ACCEPTED) ───────────────────────────────────
 
 function ToSendCandidatesSection({
   candidates,
@@ -1003,13 +1125,16 @@ function ToSendCandidatesSection({
   onAddCandidate?: () => void
 }) {
   const currentUser = useCurrentUser()
-  const canAdd = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+  const canAdd =
+    currentUser?.role === UserRole.RH ||
+    currentUser?.permission === Permission.RESPONSABLE ||
+    currentUser?.permission === Permission.ADMIN
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
-        <Send size={15} className="text-purple" />
-        <h3 className="text-sm font-semibold text-gray-800">Candidats à envoyer</h3>
+        <IconSend width={15} height={15} className="text-purple" />
+        <h3 className="text-sm font-semibold text-[var(--ds-text)]">Candidats à envoyer</h3>
         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple/10 text-purple">
           {candidates.length}
         </span>
@@ -1020,15 +1145,15 @@ function ToSendCandidatesSection({
               className="flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
               title="Ajouter manuellement un candidat accepté"
             >
-              <Plus size={11} /> Ajouter un candidat
+              <IconPlus width={11} height={11} /> Ajouter un candidat
             </button>
           )}
         </div>
       </div>
 
       {candidates.length === 0 ? (
-        <div className="text-center py-4 px-3 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-400">Aucun candidat à envoyer.</p>
+        <div className="text-center py-4 px-3 bg-[var(--ds-surface-sunken)] rounded-lg">
+          <p className="text-xs text-[var(--ds-text-subtle)]">Aucun candidat à envoyer.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -1047,7 +1172,7 @@ function ToSendCandidatesSection({
   )
 }
 
-// ─── Already-Sent Candidates Section (REFUSED, INTERVIEW, IMMERSING) ─────────
+// ─── Already-Sent Candidates Section (SEND, REFUSED, CONTRACT, INTERVIEW, IMMERSING) ─
 
 function AlreadySentCandidatesSection({
   candidates,
@@ -1069,14 +1194,17 @@ function AlreadySentCandidatesSection({
   interviewLocation?: string | null
 }) {
   const currentUser = useCurrentUser()
-  const canProposeOffers = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
+  const canProposeOffers =
+    currentUser?.role === UserRole.RH ||
+    currentUser?.permission === Permission.RESPONSABLE ||
+    currentUser?.permission === Permission.ADMIN
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
-        <Heart size={15} className="text-gray-400" />
-        <h3 className="text-sm font-semibold text-gray-800">Candidats déjà envoyés</h3>
-        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+        <IconFavorite width={15} height={15} className="text-[var(--ds-text-subtle)]" />
+        <h3 className="text-sm font-semibold text-[var(--ds-text)]">Candidats déjà envoyés</h3>
+        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)]">
           {candidates.length}
         </span>
         {canProposeOffers && (
@@ -1085,14 +1213,14 @@ function AlreadySentCandidatesSection({
             className="ml-auto flex items-center gap-1 rounded-lg border border-purple/20 px-2.5 py-1 text-xs font-medium text-purple hover:bg-purple/5 transition-colors"
             title="Ajouter manuellement un candidat pour entretien ou immersion"
           >
-            <Plus size={11} /> Ajouter un candidat
+            <IconPlus width={11} height={11} /> Ajouter un candidat
           </button>
         )}
       </div>
 
       {candidates.length === 0 ? (
-        <div className="text-center py-4 px-3 bg-gray-50 rounded-lg">
-          <p className="text-xs text-gray-400">Aucun candidat déjà envoyé.</p>
+        <div className="text-center py-4 px-3 bg-[var(--ds-surface-sunken)] rounded-lg">
+          <p className="text-xs text-[var(--ds-text-subtle)]">Aucun candidat déjà envoyé.</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -1116,7 +1244,7 @@ function AlreadySentCandidatesSection({
                         className="flex h-7 items-center gap-1 rounded-lg border border-purple/20 px-2 text-[11px] font-medium text-purple hover:bg-purple/5 transition-colors"
                         title="Envoyer les dates au candidat"
                       >
-                        <Mail size={11} /> Dates
+                        <IconMail width={11} height={11} /> Dates
                       </button>
                     )}
                     {needsInterviewConclusion && (
@@ -1124,7 +1252,7 @@ function AlreadySentCandidatesSection({
                         onClick={() => onConcludeInterview(c)}
                         className="flex h-7 items-center gap-1 rounded-lg border border-blue/20 px-2 text-[11px] font-medium text-blue hover:bg-blue/5 transition-colors"
                       >
-                        <CalendarClock size={11} /> Conclure entretien
+                        <IconSchedule width={11} height={11} /> Conclure entretien
                       </button>
                     )}
                     {needsImmersionConclusion && (
@@ -1132,7 +1260,7 @@ function AlreadySentCandidatesSection({
                         onClick={() => onConcludeImmersion(c)}
                         className="flex h-7 items-center gap-1 rounded-lg border border-blue/20 px-2 text-[11px] font-medium text-blue hover:bg-blue/5 transition-colors"
                       >
-                        <CalendarClock size={11} /> Conclure immersion
+                        <IconSchedule width={11} height={11} /> Conclure immersion
                       </button>
                     )}
                   </div>
@@ -1154,93 +1282,108 @@ function buildOfferMailBody(
   ouiUrl: string,
   nonUrl: string,
 ): string {
-  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  // Ce corps part tel quel vers /api/email/send, où `sanitizeMailHtml` supprime
+  // <style>, <div> et les classes : tout le style doit donc être inline sur les
+  // balises autorisées (a, p, span, ul/li). Sans ça les deux boutons arrivent en
+  // simples liens texte, ce qui pousse les candidats à répondre au mail.
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const name = esc(candidateName?.split(' ')[0] ?? 'Candidat')
+  const companyName = job.companyInfos?.name ?? job.companyName
+  const offerTitle = job.jobRole || job.title
   const segments: string[] = []
 
+  const label = (text: string) =>
+    `<span style="color:#6b7280;font-size:11px;font-weight:bold">${esc(text)}</span>`
+  const row = (text: string, html: string) =>
+    `<p>${label(text)}<br><span style="color:#111827;font-size:13px;font-weight:bold">${html}</span></p>`
+
+  if (offerTitle) segments.push(row('RÔLE', esc(offerTitle)))
   if (job.sector && job.sector !== 'NONE') {
-    segments.push(`<div class="field"><div class="field-label">Secteur</div><div class="field-value">${formatEnumLabel(job.sector)}</div></div>`)
+    segments.push(row('SECTEUR', esc(formatEnumLabel(job.sector))))
   }
   if (job.localisation && job.localisation.length > 0) {
     const locs = job.localisation
       .map((l) => LOCALISATION_LABELS[l as keyof typeof LOCALISATION_LABELS] ?? l)
       .filter(Boolean)
       .join(', ')
-    if (locs) {
-      segments.push(`<div class="field"><div class="field-label">Localisation</div><div class="field-value">${locs}</div></div>`)
-    }
+    if (locs) segments.push(row('LOCALISATION', esc(locs)))
   }
   for (const tp of job.desiredTp) {
     if (tp.missions.length === 0) continue
-    const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label">Missions — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+    const items = tp.missions.map((m) => `<li>${esc(m)}</li>`).join('')
+    segments.push(`<p>${label(`MISSIONS — ${tpLabel(tp.tpType)}`)}</p><ul>${items}</ul>`)
+  }
+  const schedule = formatScheduleSlots(job.schedule)
+  if (schedule.length > 0) {
+    const items = schedule.map((s) => `<li>${esc(s)}</li>`).join('')
+    segments.push(`<p>${label('HORAIRES')}</p><ul>${items}</ul>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
-    const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
-    segments.push(`<div class="field"><div class="field-label">Activités de l'entreprise</div><div>${tags}</div></div>`)
+    const acts = job.companyInfos.activities.map((a) => SECTOR_LABELS[a] ?? a).join(', ')
+    segments.push(row("ACTIVITÉS DE L'ENTREPRISE", esc(acts)))
   }
-  const offerCard = segments.length > 0
-    ? `<div class="offer-card">${segments.join('')}</div>`
-    : ''
+
+  const introCompany = companyName ? ` chez <strong>${esc(companyName)}</strong>` : ''
+
+  // Bouton « bulletproof » : <a> inline-block avec fond + padding. Empilés (un par
+  // paragraphe) plutôt qu'en flex : `display:flex` est supprimé par le sanitizer et
+  // mal supporté par Outlook, ce qui cassait la mise en page côte à côte.
+  const primaryButton =
+    `<p style="text-align:center">` +
+    `<a href="${esc(ouiUrl)}" style="display:inline-block;background-color:#60207E;color:#ffffff;` +
+    `padding:16px 40px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none">` +
+    `✓&nbsp;Oui, je veux postuler à cette offre</a>` +
+    `</p>`
+  const secondaryButton =
+    `<p style="text-align:center">` +
+    `<a href="${esc(nonUrl)}" style="display:inline-block;background-color:#f3f4f6;color:#374151;` +
+    `padding:16px 40px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none;border:none">` +
+    `✗&nbsp;Non, je ne suis pas intéressé(e)</a>` +
+    `</p>`
+
+  // La version texte du mail (générée côté back en retirant les balises) perd les
+  // href : on répète donc les URLs en clair pour les clients sans HTML.
+  const fallbackLinks =
+    `<p><span style="color:#6b7280;font-size:11px;font-weight:bold">LES BOUTONS NE S'AFFICHENT PAS ?</span><br>` +
+    `<span style="color:#6b7280;font-size:12px">Copiez-collez l'un de ces liens dans votre navigateur :<br>` +
+    `Oui&nbsp;: <a href="${esc(ouiUrl)}" style="color:#60207E;font-size:12px">${esc(ouiUrl)}</a><br>` +
+    `Non&nbsp;: <a href="${esc(nonUrl)}" style="color:#60207E;font-size:12px">${esc(nonUrl)}</a></span></p>`
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
-  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
-  p { line-height: 1.6; margin: 0 0 16px; }
-  .offer-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 16px 0; }
-  .field { margin-bottom: 10px; }
-  .field-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: #9ca3af; letter-spacing: 0.5px; }
-  .field-value { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 2px; }
-  .mission-list { list-style: none; padding: 0; margin: 4px 0 0; }
-  .mission-list li { padding: 3px 0; font-size: 13px; color: #374151; position: relative; padding-left: 16px; }
-  .mission-list li::before { content: "•"; position: absolute; left: 0; color: #60207E; }
-  .activity-tag { display: inline-block; background: #f3e8ff; color: #60207E; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 2px; }
-  .question { font-size: 17px; font-weight: 700; margin: 28px 0 24px; }
-  .buttons { display: flex; gap: 12px; margin: 28px 0; }
-  .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
-  .btn-oui { background: #60207E; color: #ffffff; }
-  .btn-non { background: #f3f4f6; color: #374151; }
-  .benefits { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 16px; margin: 20px 0; }
-  .benefits h4 { color: #60207E; font-size: 14px; margin: 0 0 8px; }
-  .benefits ul { margin: 0; padding-left: 20px; }
-  .benefits li { font-size: 13px; color: #374151; margin-bottom: 4px; }
-  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
-</style>
-</head>
+<head><meta charset="utf-8"></head>
 <body>
-  <div class="logo">DISCIPLINA</div>
+  <p style="color:#60207E;font-size:20px;font-weight:bold">DISCIPLINA</p>
   <p>Bonjour ${name},</p>
-  <p>Nous avons sélectionné pour vous une offre en alternance qui correspond à votre profil :</p>
-  ${offerCard}
-  <div class="benefits">
-    <h4>Pourquoi postuler ?</h4>
-    <ul>
-      <li>Une formation en alternance rémunérée</li>
-      <li>Une expérience professionnelle enrichissante</li>
-      <li>Un accompagnement personnalisé tout au long de votre parcours</li>
-      <li>Un diplôme reconnu à la clé</li>
-    </ul>
-  </div>
-  <p class="question">Souhaitez-vous postuler à cette offre ?</p>
-  <div class="buttons">
-    <a href="${ouiUrl}" class="btn btn-oui">✓ &nbsp;Oui, je suis intéressé(e)</a>
-    <a href="${nonUrl}" class="btn btn-non">✗ &nbsp;Non, merci</a>
-  </div>
-  <p>Un simple clic suffit. Notre équipe vous recontactera rapidement pour la suite du processus.</p>
-  <div class="footer">
-    Cordialement,<br>
-    L'équipe DISCIPLINA<br>
-    <small style="color:#9ca3af;">Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</small>
-  </div>
+  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil&nbsp;:</p>
+  ${segments.join('')}
+  <p><span style="color:#60207E;font-size:14px;font-weight:bold">Pourquoi postuler ?</span></p>
+  <ul>
+    <li>Une formation en alternance rémunérée</li>
+    <li>Une expérience professionnelle enrichissante</li>
+    <li>Un accompagnement personnalisé tout au long de votre parcours</li>
+    <li>Un diplôme reconnu à la clé</li>
+  </ul>
+  <p style="text-align:center;font-size:17px;font-weight:bold">Souhaitez-vous postuler à cette offre&nbsp;?</p>
+  ${primaryButton}
+  ${secondaryButton}
+  <p style="text-align:center;font-size:13px;color:#6b7280">Un simple clic suffit&nbsp;: votre réponse est enregistrée automatiquement.</p>
+  <p style="background-color:#fef3c7;color:#92400e;padding:12px 16px;border-radius:8px;font-size:13px">
+    <strong>Merci de ne pas répondre à cet e-mail.</strong> Une réponse par mail ne peut pas être traitée&nbsp;:
+    pour indiquer votre choix, cliquez sur l'un des deux boutons ci-dessus.
+  </p>
+  ${fallbackLinks}
+  <hr style="border:none;height:1px;background-color:#e5e7eb">
+  <p><span style="color:#9ca3af;font-size:12px">Cordialement,<br>L'équipe DISCIPLINA<br>Cet e-mail a été envoyé automatiquement, merci de ne pas y répondre.</span></p>
 </body>
 </html>`
 }
 
-function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string): string {
+function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: string, interviewLocation: string, tz: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false })
+  const dateFormatted = new Date(bookedInterviewSlot).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1271,10 +1414,10 @@ function buildInterviewMailBody(candidateName: string, bookedInterviewSlot: stri
 </html>`
 }
 
-function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string): string {
+function buildImmersionMailBody(candidateName: string, startDate: string, endDate: string, location: string, tz: string): string {
   const name = candidateName?.split(' ')[0] ?? 'Candidat'
-  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const startFormatted = new Date(startDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz })
+  const endFormatted = new Date(endDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: tz })
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8">
@@ -1314,6 +1457,7 @@ function MatchingSection({
   matchError,
   hasLaunched,
   savingIds,
+  relaxedCriteria,
   onLaunch,
   onAccept,
   onDismiss,
@@ -1329,6 +1473,7 @@ function MatchingSection({
   matchError: string | null
   hasLaunched: boolean
   savingIds: Set<string>
+  relaxedCriteria?: string[] | null
   onLaunch: () => void
   onAccept: (id: string) => void
   onDismiss: (id: string) => void
@@ -1341,35 +1486,45 @@ function MatchingSection({
   const acceptedThisSession = Object.values(decisions).filter((d) => d === 'accepted').length
 
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
+    <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={15} className="text-blue" />
-        <h3 className="text-sm font-semibold text-gray-800">Matching automatique</h3>
+        <IconSparkles width={15} height={15} className="text-blue" />
+        <h3 className="text-sm font-semibold text-[var(--ds-text)]">Matching automatique</h3>
         {hasLaunched && !isMatching && (
           <span className="ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-light text-blue">
             {suggestedCandidates.length} suggestion{suggestedCandidates.length > 1 ? 's' : ''}
           </span>
         )}
         {(retainedCount > 0 || acceptedThisSession > 0) && hasLaunched && !isMatching && (
-          <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-success-bg text-success">
-            <Check size={10} /> {retainedCount + acceptedThisSession} retenu{retainedCount + acceptedThisSession > 1 ? 's' : ''}
+          <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-[var(--ds-success-bg)] text-[var(--ds-success)]">
+            <IconCheck width={10} height={10} /> {retainedCount + acceptedThisSession} retenu{retainedCount + acceptedThisSession > 1 ? 's' : ''}
           </span>
         )}
       </div>
 
+      {hasLaunched && !isMatching && relaxedCriteria?.includes('sector') && (
+        <div className="mb-3 flex items-start gap-2 rounded-xl bg-[var(--ds-warning-bg)] border border-[var(--ds-warning)] px-4 py-3 text-xs text-[var(--ds-warning)]">
+          <IconAlert width={14} height={14} className="mt-0.5 shrink-0 text-[var(--ds-warning)]" />
+          <span>
+            Secteur(s) d'activité non reconnu(s) dans le référentiel candidat&nbsp;: ce critère n'a pas pu être
+            appliqué.
+          </span>
+        </div>
+      )}
+
       {!hasLaunched && (
         <div className="flex flex-col items-center gap-3 py-6">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-light text-blue">
-            <Sparkles size={22} />
+            <IconSparkles width={22} height={22} />
           </div>
-          <p className="text-xs text-gray-500 text-center max-w-[220px]">
+          <p className="text-xs text-[var(--ds-text-subtle)] text-center max-w-[220px]">
             Lancez le matching pour trouver les candidats correspondant aux critères de cette offre.
           </p>
           <button
             onClick={onLaunch}
             className="flex items-center gap-2 rounded-xl bg-blue px-5 py-2.5 text-sm font-semibold text-white transition-all hover:bg-blue/90 active:scale-[0.97] shadow-sm"
           >
-            <PlayCircle size={16} />
+            <IconPlay width={16} height={16} />
             Lancer le matching
           </button>
         </div>
@@ -1379,15 +1534,15 @@ function MatchingSection({
         <div className="flex flex-col items-center gap-3 py-8">
           <div className="relative">
             <div className="h-12 w-12 rounded-full border-2 border-blue-light" />
-            <Loader2 size={20} className="absolute inset-0 m-auto animate-spin text-blue" />
+            <IconLoader width={20} height={20} className="absolute inset-0 m-auto animate-spin text-blue" />
           </div>
-          <p className="text-sm text-gray-400">Matching en cours…</p>
+          <p className="text-sm text-[var(--ds-text-subtle)]">Matching en cours…</p>
         </div>
       )}
 
       {hasLaunched && !isMatching && matchError && (
-        <div className="flex items-start gap-2 rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
-          <AlertCircle size={16} className="mt-0.5 shrink-0" />
+        <div className="flex items-start gap-2 rounded-xl bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)]">
+          <IconAlert width={16} height={16} className="mt-0.5 shrink-0" />
           <span>{matchError}</span>
         </div>
       )}
@@ -1396,15 +1551,15 @@ function MatchingSection({
         <>
           {suggestedCandidates.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-6 text-center">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gray-100">
-                <Users size={18} className="text-gray-300" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[var(--ds-surface-sunken)]">
+                <IconUsers width={18} height={18} className="text-[var(--ds-text-subtle)]" />
               </div>
-              <p className="text-xs text-gray-400">Aucun profil disponible ne correspond à cette offre.</p>
+              <p className="text-xs text-[var(--ds-text-subtle)]">Aucun profil disponible ne correspond à cette offre.</p>
               <button
                 onClick={onLaunch}
                 className="flex items-center gap-1.5 text-xs font-medium text-blue hover:text-blue/80 transition-colors mt-1"
               >
-                <RefreshCw size={12} /> Relancer
+                <IconRefresh width={12} height={12} /> Relancer
               </button>
             </div>
           ) : (
@@ -1426,9 +1581,9 @@ function MatchingSection({
               ))}
               <button
                 onClick={onLaunch}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-gray-100 px-3 py-2 text-xs font-medium text-gray-500 transition-all hover:bg-gray-50 mt-1"
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-2 text-xs font-medium text-[var(--ds-text-subtle)] transition-all hover:bg-[var(--ds-surface-sunken)] mt-1"
               >
-                <RefreshCw size={12} /> Relancer le matching
+                <IconRefresh width={12} height={12} /> Relancer le matching
               </button>
             </div>
           )}
@@ -1440,13 +1595,16 @@ function MatchingSection({
 
 // ─── Right Panel ──────────────────────────────────────────────────────────────
 
-function formatSlot(iso: string): string {
-  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+function formatSlot(iso: string, tz: string): string {
+  return new Date(iso).toLocaleString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz })
 }
 
 
 
-function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void }) {
+function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void; onOfferUpdated?: () => void }) {
+  // Fuseau du tenant : regionStore est la source de vérité (persistée au login
+  // par LoginPage.tsx), plutôt que AppUser qui peut être null au 1er rendu.
+  const region = useRegionStore((s) => s.region)
   const [jobData, setJobData] = useState<MatchJobResult | null>(null)
   const [showCompanyInfo, setShowCompanyInfo] = useState(false)
   const [suggestedCandidates, setSuggestedCandidates] = useState<MatchedCandidate[]>([])
@@ -1486,6 +1644,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const [offersInNA, setOffersInNA] = useState(0)
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [showOfferAbDetail, setShowOfferAbDetail] = useState(false)
+  const [isActiveSaving, setIsActiveSaving] = useState(false)
+  const { updateOfferActive } = useUpdateOfferActive()
 
   const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
   const interviewDefaultLocation =
@@ -1501,9 +1662,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   ]
   const toSendStatuses: MatchedCandidateStatus[] = [
     MatchedCandidateStatus.ACCEPTED,
-    MatchedCandidateStatus.SEND,
   ]
   const alreadySentStatuses: MatchedCandidateStatus[] = [
+    MatchedCandidateStatus.SEND,
     MatchedCandidateStatus.REFUSED,
     MatchedCandidateStatus.CONTRACT,
     MatchedCandidateStatus.INTERVIEW,
@@ -1570,18 +1731,39 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJob?.id])
 
-  const handleSaveMatch = async (candidateId: string) => {
+  const handleDismissCandidate = async (candidate: MatchedCandidate) => {
+    setDecisions((p) => ({ ...p, [candidate.id]: 'dismissed' }))
     if (!selectedJob) return
+    try {
+      const result = await offerGraphqlClient.mutation(DISMISS_SUGGESTED_CANDIDATE, {
+        offerId: selectedJob.id,
+        candidateId: candidate.id,
+      }).toPromise()
+      if (result.error) throw new Error(result.error.message)
+    } catch (err: unknown) {
+      // Échec de persistance : on annule l'écartement pour ne pas laisser croire
+      // que le candidat ne reviendra pas au prochain chargement.
+      setMatchError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setDecisions((p) => { const n = { ...p }; delete n[candidate.id]; return n })
+      setSuggestedCandidates((p) => (p.some((c) => c.id === candidate.id) ? p : [candidate, ...p]))
+    }
+  }
+
+  const handleSaveMatch = async (candidateId: string): Promise<boolean> => {
+    if (!selectedJob) return false
     setSavingIds((p) => new Set(p).add(candidateId))
     try {
       const result = await offerGraphqlClient.mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId }).toPromise()
-      if (!result.error) {
-        setSavedCandidateIds((p) => new Set(p).add(candidateId))
-        setSuggestedCandidates((p) => p.filter((c) => c.id !== candidateId))
-        if (result.data?.addCandidateToOffer?.matchedCandidate && jobData) {
-          setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToOffer.matchedCandidate })
-        }
+      if (result.error) {
+        setMatchError(result.error.message)
+        return false
       }
+      setSavedCandidateIds((p) => new Set(p).add(candidateId))
+      setSuggestedCandidates((p) => p.filter((c) => c.id !== candidateId))
+      if (result.data?.addCandidateToOffer?.matchedCandidate && jobData) {
+        setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToOffer.matchedCandidate })
+      }
+      return true
     } finally {
       setSavingIds((p) => { const n = new Set(p); n.delete(candidateId); return n })
     }
@@ -1651,6 +1833,17 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     }
   }
 
+  // Depuis le matching automatique, « Envoyer un mail » doit d'abord enregistrer
+  // le match : sans candidat rattaché à l'offre, les liens Oui/Non du mail ne
+  // peuvent pas enregistrer la réponse et le candidat n'apparaît nulle part.
+  const handleSendMailFromSuggestion = async (candidate: MatchedCandidate) => {
+    if (!savedCandidateIds.has(candidate.id)) {
+      const saved = await handleSaveMatch(candidate.id)
+      if (!saved) return
+    }
+    await handleOpenMail(candidate)
+  }
+
   const handleMailSent = async (candidate: MatchedCandidate) => {
     if (!selectedJob) return
     await offerGraphqlClient.mutation(UPDATE_MATCHED_CANDIDATE_STATUS, { offerId: selectedJob.id, candidateId: candidate.id, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }).toPromise()
@@ -1688,7 +1881,10 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
           candidateName,
           type: 'interview',
           interviewLocation: location,
-          bookedInterviewSlot: new Date(`${dateOrStartDate}T${hourOrEndDate}`).toISOString(),
+          bookedInterviewSlot: zonedWallClockToIso(
+            `${dateOrStartDate}T${hourOrEndDate}`,
+            regionTimezone(region),
+          ),
         })
       } else {
         const result = await offerGraphqlClient
@@ -1787,7 +1983,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     setAddPreselectedOpen(false)
   }
 
-  const handleAddAcceptedCandidate = async (candidateId: string, _candidateName: string) => {
+  const handleAddAcceptedCandidate = async (candidateId: string) => {
     if (!selectedJob) return
     try {
       const result = await offerGraphqlClient
@@ -1818,9 +2014,24 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     }
   }
 
-  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string): Promise<string> => {
+  /** Statut actif/inactif propre à l'offre ; null = hérite du statut de l'AB. */
+  const handleSetActive = async (active: boolean | null) => {
+    if (!selectedJob) return
+    setIsActiveSaving(true)
+    try {
+      const result = await updateOfferActive(selectedJob.id, active)
+      if (!result.error) {
+        setJobData((prev) => (prev ? { ...prev, isActive: active } : prev))
+        onOfferUpdated?.()
+      }
+    } finally {
+      setIsActiveSaving(false)
+    }
+  }
+
+  const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string, cc?: string[]): Promise<string> => {
     const result = await offerGraphqlClient
-      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates, templateId })
+      .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates, templateId, cc })
       .toPromise()
     if (result.error) throw new Error(result.error.message)
     const signature = result.data?.createMatchSession
@@ -1913,10 +2124,10 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 py-24 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-light text-blue">
-          <Sparkles size={24} />
+          <IconSparkles width={24} height={24} />
         </div>
-        <p className="text-sm font-medium text-gray-700">Sélectionnez une offre</p>
-        <p className="text-xs text-gray-400 max-w-[200px]">
+        <p className="text-sm font-medium text-[var(--ds-text-muted)]">Sélectionnez une offre</p>
+        <p className="text-xs text-[var(--ds-text-subtle)] max-w-[200px]">
           Cliquez sur une offre pour voir ses détails et lancer le matching.
         </p>
       </div>
@@ -1926,16 +2137,16 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24">
-        <Loader2 size={28} className="animate-spin text-blue" />
-        <p className="text-sm text-gray-400">Chargement de l'offre…</p>
+        <IconLoader width={28} height={28} className="animate-spin text-blue" />
+        <p className="text-sm text-[var(--ds-text-subtle)]">Chargement de l'offre…</p>
       </div>
     )
   }
 
   if (loadError) {
     return (
-      <div className="flex items-start gap-2 rounded-xl bg-danger-bg px-4 py-3 text-sm text-danger">
-        <AlertCircle size={16} className="mt-0.5 shrink-0" />
+      <div className="flex items-start gap-2 rounded-xl bg-[var(--ds-danger-bg)] px-4 py-3 text-sm text-[var(--ds-danger)]">
+        <IconAlert width={16} height={16} className="mt-0.5 shrink-0" />
         <span>{loadError}</span>
       </div>
     )
@@ -1952,10 +2163,10 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     <div className="flex flex-col gap-4 pb-6">
 
       {contractCandidates.length > 0 && (
-        <div className="rounded-xl border border-success/20 bg-success-bg p-4 shadow-sm">
+        <div className="rounded-xl border border-success/20 bg-[var(--ds-success-bg)] p-4 shadow-sm">
           <div className="flex items-center gap-2">
-            <UserCheck size={16} className="text-success" />
-            <p className="text-sm font-semibold text-success">
+            <IconUserCheck width={16} height={16} className="text-[var(--ds-success)]" />
+            <p className="text-sm font-semibold text-[var(--ds-success)]">
               En contrat avec {contractCandidates.map((c) => c.fullName).join(', ')}
             </p>
           </div>
@@ -1965,6 +2176,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
+        onSetActive={handleSetActive}
+        isSavingActive={isActiveSaving}
+        abStatus={interviewLocationNeedsAnalysis.data?.needsAnalysis?.abStatus}
         hasAcceptedCandidates={toSendCandidates.length > 0}
         isCreatingSession={false}
         onProposeCandidates={() => setSendToCompanyOpen(true)}
@@ -1974,6 +2188,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
             ? handleDeleteClick
             : undefined
         }
+        onSeeAb={jobData.needsAnalysisId ? () => setShowOfferAbDetail(true) : undefined}
       />
 
       <HistoryModal offerId={selectedJob.id} />
@@ -2020,16 +2235,20 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         matchError={matchError}
         hasLaunched={hasLaunched}
         savingIds={savingIds}
+        relaxedCriteria={jobData?.relaxedCriteria}
         onLaunch={() => runMatch(selectedJob)}
         onAccept={(id) => setDecisions((p) => ({ ...p, [id]: 'accepted' }))}
-        onDismiss={(id) => setDecisions((p) => ({ ...p, [id]: 'dismissed' }))}
+        onDismiss={(id) => {
+          const candidate = suggestedCandidates.find((c) => c.id === id)
+          if (candidate) handleDismissCandidate(candidate)
+        }}
         onRemove={(id) => {
           setSuggestedCandidates((p) => p.filter((c) => c.id !== id))
           setDecisions((p) => { const n = { ...p }; delete n[id]; return n })
         }}
         onInfo={setDrawerCandidate}
         onSaveMatch={handleSaveMatch}
-        onSendMail={handleOpenMail}
+        onSendMail={handleSendMailFromSuggestion}
       />
 
       {sendToCompanyOpen && (
@@ -2071,6 +2290,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
                 datesMailState.fullName,
                 datesMailState.bookedInterviewSlot,
                 datesMailState.interviewLocation || jobData?.interviewLocation || '',
+                regionTimezone(region),
               )
               : ''
           }
@@ -2094,12 +2314,14 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
                   notifyMailState.candidateName,
                   notifyMailState.bookedInterviewSlot ?? '',
                   notifyMailState.interviewLocation ?? '',
+                  regionTimezone(region),
                 )
               : buildImmersionMailBody(
                   notifyMailState.candidateName,
                   notifyMailState.immersionStartDate ?? '',
                   notifyMailState.immersionEndDate ?? '',
                   notifyMailState.interviewLocation ?? '',
+                  regionTimezone(region),
                 )
           }
           scope="rh"
@@ -2158,22 +2380,22 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
 
       {deleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+          <div className="w-full max-w-md rounded-xl bg-[var(--ds-surface)] p-6 shadow-xl">
             {deleteStep === 'reason' && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900">Supprimer l'offre</h3>
-                <p className="text-xs text-gray-500">Veuillez indiquer la raison de la suppression.</p>
+                <h3 className="text-sm font-semibold text-[var(--ds-text)]">Supprimer l'offre</h3>
+                <p className="text-xs text-[var(--ds-text-subtle)]">Veuillez indiquer la raison de la suppression.</p>
                 <textarea
                   value={deleteReason}
                   onChange={(e) => setDeleteReason(e.target.value)}
                   placeholder="Raison de la suppression…"
                   rows={3}
-                  className="w-full resize-none rounded-lg border border-gray-200 p-3 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
+                  className="w-full resize-none rounded-lg border border-[var(--ds-border)] p-3 text-sm outline-none transition focus:border-blue focus:ring-1 focus:ring-blue"
                 />
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={handleDeleteClose}
-                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100"
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)]"
                   >
                     Annuler
                   </button>
@@ -2190,14 +2412,14 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
 
             {deleteStep === 'confirmAll' && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900">Supprimer les offres liées ?</h3>
-                <p className="text-xs text-gray-500">
+                <h3 className="text-sm font-semibold text-[var(--ds-text)]">Supprimer les offres liées ?</h3>
+                <p className="text-xs text-[var(--ds-text-subtle)]">
                   Cette analyse de besoin contient {offersInNA} offre{offersInNA > 1 ? 's' : ''}. Voulez-vous supprimer toutes les offres de cette analyse de besoin ou uniquement celle-ci ?
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => handleDeleteConfirmAll(false)}
-                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                    className="rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)]"
                   >
                     Cette offre uniquement
                   </button>
@@ -2213,14 +2435,14 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
 
             {deleteStep === 'blacklist' && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900">Blacklister l'entreprise ?</h3>
-                <p className="text-xs text-gray-500">
+                <h3 className="text-sm font-semibold text-[var(--ds-text)]">Blacklister l'entreprise ?</h3>
+                <p className="text-xs text-[var(--ds-text-subtle)]">
                   Voulez-vous blacklister cette entreprise ? Cela supprimera toutes ses analyses de besoin et offres associées, et l'entreprise ne pourra plus être prospectée.
                 </p>
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => handleDeleteBlacklistChoice(false)}
-                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50"
+                    className="rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] transition hover:bg-[var(--ds-surface-sunken)]"
                   >
                     Non
                   </button>
@@ -2236,14 +2458,14 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
 
             {deleteStep === 'confirming' && (
               <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-gray-900">Confirmer la suppression</h3>
-                <div className="space-y-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+                <h3 className="text-sm font-semibold text-[var(--ds-text)]">Confirmer la suppression</h3>
+                <div className="space-y-2 rounded-lg bg-[var(--ds-surface-sunken)] p-3 text-xs text-[var(--ds-text-muted)]">
                   <p><strong>Raison :</strong> {deleteReason}</p>
                   <p><strong>Action :</strong> {shouldBlacklist ? 'Blacklistage de l\'entreprise (supprime toutes ses AB et offres)' : deleteAllFromNA ? 'Suppression de toutes les offres de l\'AB' : 'Suppression de cette offre uniquement'}</p>
                 </div>
                 {deleteError && (
-                  <div className="flex items-start gap-2 rounded-lg bg-danger-bg p-3 text-xs text-danger">
-                    <AlertCircle size={14} className="mt-0.5 shrink-0" />
+                  <div className="flex items-start gap-2 rounded-lg bg-[var(--ds-danger-bg)] p-3 text-xs text-[var(--ds-danger)]">
+                    <IconAlert width={14} height={14} className="mt-0.5 shrink-0" />
                     <span>{deleteError}</span>
                   </div>
                 )}
@@ -2251,7 +2473,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
                   <button
                     onClick={handleDeleteClose}
                     disabled={isDeleting}
-                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 transition hover:bg-gray-100 disabled:opacity-40"
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-[var(--ds-text-subtle)] transition hover:bg-[var(--ds-surface-sunken)] disabled:opacity-40"
                   >
                     Annuler
                   </button>
@@ -2260,7 +2482,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
                     disabled={isDeleting}
                     className="flex items-center gap-1.5 rounded-lg bg-danger px-3 py-1.5 text-xs font-medium text-white transition hover:bg-danger/90 disabled:opacity-40"
                   >
-                    {isDeleting && <Loader2 size={14} className="animate-spin" />}
+                    {isDeleting && <IconLoader width={14} height={14} className="animate-spin" />}
                     {isDeleting ? 'Suppression…' : 'Confirmer la suppression'}
                   </button>
                 </div>
@@ -2268,6 +2490,10 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
             )}
           </div>
         </div>
+      )}
+
+      {showOfferAbDetail && jobData?.needsAnalysisId && (
+        <ABDetailModal id={jobData.needsAnalysisId} onClose={() => setShowOfferAbDetail(false)} />
       )}
     </div>
   )
@@ -2290,14 +2516,38 @@ function AbHeader({
   onBack: () => void
   onEdited: () => void
 }) {
-  const abResult = useNeedsAnalysis(needsAnalysisId)
+   const abResult = useNeedsAnalysis(needsAnalysisId)
   const ab = abResult.data?.needsAnalysis
   const info = ab?.companyInfos
   const legalReferent = ab?.referents?.legalReferents
+  const recruitmentReferent = ab?.referents?.recruitmentReferents
+  const isSameReferent = ab?.referents?.isSame ?? true
+  const hasRecruitmentHeader = !!(recruitmentReferent?.name || recruitmentReferent?.email || recruitmentReferent?.phone || recruitmentReferent?.function)
+  const actuallySameHeader = !hasRecruitmentHeader || (
+    (recruitmentReferent?.name ?? null) === (legalReferent?.name ?? null) &&
+    (recruitmentReferent?.phone ?? null) === (legalReferent?.phone ?? null) &&
+    (recruitmentReferent?.email ?? null) === (legalReferent?.email ?? null) &&
+    (recruitmentReferent?.function ?? null) === (legalReferent?.function ?? null)
+  )
+  const showRecruitmentInHeader = (!isSameReferent || !actuallySameHeader) && hasRecruitmentHeader
   const canEdit = currentUser?.permission === Permission.RESPONSABLE || currentUser?.permission === Permission.ADMIN
   const navigate = useNavigate()
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [abStatusSaving, setAbStatusSaving] = useState(false)
+  const [showAbDetail, setShowAbDetail] = useState(false)
   const { deleteNeedsAnalysis, result: deleteResult } = useDeleteNeedsAnalysis()
+  const { updateAbStatus } = useUpdateNeedsAnalysisAbStatus()
+
+  const handleAbStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    setAbStatusSaving(true)
+    try {
+      const res = await updateAbStatus(needsAnalysisId, value === 'AUTO' ? null : value)
+      if (!res.error) abResult.refetch()
+    } finally {
+      setAbStatusSaving(false)
+    }
+  }
 
   const handleDelete = async () => {
     await deleteNeedsAnalysis(needsAnalysisId)
@@ -2309,17 +2559,32 @@ function AbHeader({
       <div className="flex items-start gap-3">
         <button
           onClick={onBack}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[var(--ds-text-subtle)] transition-colors hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text-muted)]"
           title="Retour à la liste"
         >
-          <ArrowLeft size={18} />
+          <IconArrowLeft width={18} height={18} />
         </button>
         <div className="min-w-0">
-          <h1 className="text-lg font-semibold text-gray-900">{info?.name ?? fallbackName ?? 'Analyse de besoin'}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-semibold text-[var(--ds-text)]">{info?.name ?? fallbackName ?? 'Analyse de besoin'}</h1>
+            {ab && (() => {
+              const badge = abStatusBadge(ab.status, ab.isVisibleInMatching)
+              return (
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${badge.bg} ${badge.text}`}>
+                  {badge.label}
+                </span>
+              )
+            })()}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--ds-text-subtle)]">
             {info?.siret && <span>SIRET&nbsp;: {info.siret}</span>}
             {info?.activities && info.activities.length > 0 && (
-              <span>{info.activities.map((a: string) => SECTOR_LABELS[a] ?? a).join(' · ')}</span>
+              // Un intitulé NAF non référencé est une phrase entière : coupé
+              // ici pour ne pas pousser l'en-tête sur plusieurs lignes.
+              <TruncatedText
+                className="max-w-md"
+                text={info.activities.map((a: string) => SECTOR_LABELS[a] ?? a).join(' · ')}
+              />
             )}
             {ab?.tags && ab.tags.length > 0 && (
               <span className="flex flex-wrap items-center gap-1">
@@ -2331,56 +2596,111 @@ function AbHeader({
               </span>
             )}
             {legalReferent?.name && (
-              <span className="flex items-center gap-1"><User size={11} className="text-gray-300" /> {legalReferent.name}</span>
+              <span className="flex items-center gap-1"><IconUser width={11} height={11} className="text-[var(--ds-text-subtle)]" /> {legalReferent.name}{legalReferent.function ? ` (${legalReferent.function})` : ''}</span>
             )}
             {legalReferent?.phone && (
-              <span className="flex items-center gap-1"><Phone size={11} className="text-gray-300" /> {legalReferent.phone}</span>
+              <span className="flex items-center gap-1"><IconPhone width={11} height={11} className="text-[var(--ds-text-subtle)]" /> {legalReferent.phone}</span>
             )}
             {legalReferent?.email && (
-              <span className="flex items-center gap-1"><Mail size={11} className="text-gray-300" /> {legalReferent.email}</span>
+              <span className="flex items-center gap-1"><IconMail width={11} height={11} className="text-[var(--ds-text-subtle)]" /> {legalReferent.email}</span>
+            )}
+            {showRecruitmentInHeader && (
+              <>
+                <span className="text-[var(--ds-text-subtle)]">|</span>
+                {recruitmentReferent?.name && (
+                  <span className="flex items-center gap-1"><IconUser width={11} height={11} className="text-[var(--ds-text-subtle)]" /> {recruitmentReferent.name}{recruitmentReferent.function ? ` (${recruitmentReferent.function})` : ''} <span className="text-[10px] text-[var(--ds-text-subtle)]">(recrutement)</span></span>
+                )}
+                {recruitmentReferent?.phone && (
+                  <span className="flex items-center gap-1"><IconPhone width={11} height={11} className="text-[var(--ds-text-subtle)]" /> {recruitmentReferent.phone}</span>
+                )}
+                {recruitmentReferent?.email && (
+                  <span className="flex items-center gap-1"><IconMail width={11} height={11} className="text-[var(--ds-text-subtle)]" /> {recruitmentReferent.email}</span>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
-      {ab && canEdit && (
+      {ab && (
         <div className="flex items-center gap-2">
-          {confirmDelete ? (
-            <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2">
-              <span className="text-xs font-medium text-red-700">Supprimer cette AB ?</span>
-              <button
-                onClick={() => setConfirmDelete(false)}
-                className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={deleteResult.fetching}
-                className="rounded-lg bg-red-500 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-600 disabled:opacity-50"
-              >
-                {deleteResult.fetching ? 'Suppression…' : 'Confirmer'}
-              </button>
-            </div>
-          ) : (
+          {isAbArchivedOnDrive(ab.status) && (
+            <a
+              href={needsAnalysisAbDriveUrl(ab.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
+              title="Ouvrir l'AB dans le Drive"
+            >
+              <IconFolder width={16} height={16} />
+              <span className="hidden md:inline">AB dans le Drive</span>
+            </a>
+          )}
+          <button
+            onClick={() => setShowAbDetail(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
+            title="Voir l'analyse de besoin"
+          >
+            <IconEye width={16} height={16} />
+            <span className="hidden md:inline">Voir l'AB</span>
+          </button>
+          <div className="flex items-center gap-2 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 shadow-sm" title="Changer le statut de l'analyse de besoin — onglet de la liste matching">
+            <span className="text-xs font-medium text-[var(--ds-text-subtle)]">Statut</span>
+            <select
+              value={ab.abStatus ?? 'AUTO'}
+              onChange={handleAbStatusChange}
+              disabled={abStatusSaving}
+              className="cursor-pointer bg-transparent text-sm font-semibold text-[var(--ds-text)] outline-none disabled:opacity-50"
+            >
+              <option value="AUTO">Automatique</option>
+              <option value="ACTIVE">Actif</option>
+              <option value="ARCHIVED">Archivé</option>
+              <option value="INACTIVE">Inactif</option>
+            </select>
+          </div>
+          {canEdit && (
             <>
-              <button
-                onClick={() => setConfirmDelete(true)}
-                className="flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-semibold text-red-600 shadow-sm transition-all hover:bg-red-50 md:px-4"
-                title="Supprimer l'analyse du besoin"
-              >
-                <Trash2 size={16} />
-                <span className="hidden md:inline">Supprimer</span>
-              </button>
-              <EditNeedsAnalysisButton
-                needsAnalysisData={ab}
-                currentUser={currentUser!}
-                companyId={info?.id ?? fallbackCompanyId}
-                companyName={info?.name ?? fallbackName}
-                onSuccess={onEdited}
-              />
+              {confirmDelete ? (
+                <div className="flex items-center gap-2 rounded-xl border border-[var(--ds-danger)] bg-[var(--ds-danger-bg)] px-3 py-2">
+                  <span className="text-xs font-medium text-[var(--ds-danger)]">Supprimer cette AB ?</span>
+                  <button
+                    onClick={() => setConfirmDelete(false)}
+                    className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2.5 py-1 text-xs font-medium text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)]"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleteResult.fetching}
+                    className="rounded-lg bg-[var(--ds-danger)] px-2.5 py-1 text-xs font-medium text-white hover:bg-[var(--ds-danger)] disabled:opacity-50"
+                  >
+                    {deleteResult.fetching ? 'Suppression…' : 'Confirmer'}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-[var(--ds-danger)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-danger)] shadow-sm transition-all hover:bg-[var(--ds-danger-bg)] md:px-4"
+                    title="Supprimer l'analyse du besoin"
+                  >
+                    <IconTrash width={16} height={16} />
+                    <span className="hidden md:inline">Supprimer</span>
+                  </button>
+                  <EditNeedsAnalysisButton
+                    needsAnalysisData={ab}
+                    currentUser={currentUser!}
+                    companyId={info?.id ?? fallbackCompanyId}
+                    companyName={info?.name ?? fallbackName}
+                    onSuccess={onEdited}
+                  />
+                </>
+              )}
             </>
           )}
         </div>
+      )}
+      {showAbDetail && (
+        <ABDetailModal id={needsAnalysisId} onClose={() => setShowAbDetail(false)} />
       )}
     </div>
   )
@@ -2417,8 +2737,8 @@ export default function Matching() {
   if (jobsResult.fetching) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-3">
-        <Loader2 size={28} className="animate-spin text-blue" />
-        <p className="text-sm text-gray-400">Chargement des offres…</p>
+        <IconLoader width={28} height={28} className="animate-spin text-blue" />
+        <p className="text-sm text-[var(--ds-text-subtle)]">Chargement des offres…</p>
       </div>
     )
   }
@@ -2426,10 +2746,10 @@ export default function Matching() {
   if (jobsResult.error) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
-        <div className="flex flex-col items-center gap-3 rounded-xl border border-danger/20 bg-danger-bg px-6 py-8 text-center">
-          <AlertCircle size={28} className="text-danger" />
-          <p className="text-sm font-medium text-danger">Erreur de chargement</p>
-          <p className="text-xs text-danger/70">{jobsResult.error.message}</p>
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-danger/20 bg-[var(--ds-danger-bg)] px-6 py-8 text-center">
+          <IconAlert width={28} height={28} className="text-[var(--ds-danger)]" />
+          <p className="text-sm font-medium text-[var(--ds-danger)]">Erreur de chargement</p>
+          <p className="text-xs text-[var(--ds-danger)]">{jobsResult.error.message}</p>
         </div>
       </div>
     )
@@ -2438,7 +2758,7 @@ export default function Matching() {
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col">
       {/* Top bar — infos de l'analyse de besoin */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 bg-white/80 backdrop-blur-sm">
+      <div className="flex-shrink-0 px-6 py-4 border-b border-[var(--ds-border)] bg-[var(--ds-surface)] backdrop-blur-sm">
         {needsAnalysisId && (
           <AbHeader
             needsAnalysisId={needsAnalysisId}
@@ -2454,14 +2774,14 @@ export default function Matching() {
       {/* Two-column layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* ─ Left: Job list ─ */}
-        <div className="w-[360px] shrink-0 flex flex-col border-r border-gray-100 bg-gray-50/50 overflow-y-auto">
+        <div className="w-[360px] shrink-0 flex flex-col border-r border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] overflow-y-auto">
           <div className="px-4 pt-4 pb-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Offres entreprises</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--ds-text-subtle)]">Offres entreprises</p>
           </div>
           {jobs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-16 text-center px-6">
-              <Building2 size={28} className="text-gray-300" />
-              <p className="text-sm text-gray-400">Aucune offre pour cette analyse de besoin</p>
+              <IconCompany width={28} height={28} className="text-[var(--ds-text-subtle)]" />
+              <p className="text-sm text-[var(--ds-text-subtle)]">Aucune offre pour cette analyse de besoin</p>
             </div>
           ) : (
             <div className="flex flex-col gap-2 px-4 pb-6">
@@ -2479,7 +2799,7 @@ export default function Matching() {
 
         {/* ─ Right: Detail panel ─ */}
         <div className="flex-1 overflow-y-auto px-5 pt-5">
-          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} />
+          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} onOfferUpdated={() => reexecuteJobsQuery({ requestPolicy: 'network-only' })} />
         </div>
       </div>
     </div>

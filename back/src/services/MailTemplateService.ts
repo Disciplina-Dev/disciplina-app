@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { gzipSync, gunzipSync } from 'zlib';
-import { MailTemplateModel, MailSignatureModel } from '../db/mongo/schemas/mailTemplate.schema';
+import { getModels } from '../db/mongo/tenant';
 import {
     MailTemplate,
     MailTemplateScope,
@@ -13,8 +13,12 @@ import { AB_SIGNATURE_SUBJECT, AB_SIGNATURE_BODY } from './abSignatureTemplate';
 import { AB_RELANCE_SUBJECT, AB_RELANCE_BODY } from './abRelanceTemplate';
 import { CV_IMPORT_SUBJECT, CV_IMPORT_BODY } from './cvImportDefaultTemplate';
 import { PROPOSITION_CANDIDAT_SUBJECT, PROPOSITION_CANDIDAT_BODY } from './propositionCandidatsTemplate';
+import { INTERVIEW_INVITATION_SUBJECT, INTERVIEW_INVITATION_BODY } from './interviewInvitationTemplate';
+import { TEST_FAILURE_REDIRECTION_SUBJECT, TEST_FAILURE_REDIRECTION_BODY } from './testFailureRedirectionTemplate';
+import { EXTERNAL_LINK_SUBJECT, EXTERNAL_LINK_BODY } from './externalLinkDefaultTemplate';
 import { AppSettingsRepository } from '../repositories/mysql/AppSettingsRepository';
 import { logger } from '../external/logger';
+import { sanitizeMailHtml } from './sanitizeMailHtml';
 import { UserService } from './UserService';
 import { GoogleDriveService } from '../external/google/drive.service';
 import { GoogleTokens } from '../external/google/types';
@@ -56,8 +60,22 @@ export const AB_RELANCE_SEEDED_KEY = 'ab_relance_template_seeded';
 /** Clé app_settings : le modèle « Import CV » par défaut a déjà été semé une fois. */
 export const CV_IMPORT_SEEDED_KEY = 'cv_import_template_seeded';
 
+/** Clé app_settings : le modèle « Import CV » a été rafraîchi (bouton, sans code). */
+export const CV_IMPORT_TEMPLATE_V2_KEY = 'cv_import_template_v2';
+
 /** Clé app_settings : le modèle « Invitation sélection candidats » a déjà été semé une fois. */
 export const PROPOSITION_CANDIDAT_SEEDED_KEY = 'proposition_candidat_template_seeded';
+
+/** Clé app_settings : le modèle « Invitation entretien » a déjà été semé une fois. */
+export const INTERVIEW_INVITATION_SEEDED_KEY = 'interview_invitation_template_seeded';
+
+/** Clé app_settings : le modèle « Redirection test non réussi » a déjà été semé une fois. */
+export const TEST_FAILURE_REDIRECTION_SEEDED_KEY = 'test_failure_redirection_template_seeded';
+
+/** Clé app_settings : les modèles « sans code » (matching + entretien) ont été rafraîchis. */
+export const NO_CODE_RH_TEMPLATES_V2_KEY = 'mails_no_code_rh_templates_v2';
+
+export const EXTERNAL_LINK_SEEDED_KEY = 'external_link_template_seeded';
 
 /** Forme renvoyée au front : pas de _id Mongo brut, pas de contenu de PJ (juste les métadonnées). */
 export interface MailTemplateDTO {
@@ -69,6 +87,8 @@ export interface MailTemplateDTO {
     pedaLevel: PedaLevel | null;
     /** Modèle système non supprimable (ex. `ab_signature`) ; null pour les modèles utilisateur. */
     kind: MailTemplateKind | null;
+    /** Couleur de cadre hex appliquée à l'envoi ; null = classique (pas d'enveloppe). */
+    theme: string | null;
     attachment: { filename: string; contentType: string } | null;
 }
 
@@ -78,6 +98,7 @@ export interface MailTemplateInput {
     subject: string;
     body: string;
     pedaLevel?: PedaLevel | null;
+    theme?: string | null;
 }
 
 function toDTO(t: MailTemplate): MailTemplateDTO {
@@ -88,6 +109,7 @@ function toDTO(t: MailTemplate): MailTemplateDTO {
         body: t.body,
         pedaLevel: t.peda_level ?? null,
         kind: t.kind ?? null,
+        theme: t.theme ?? null,
         attachment: t.attachment ? { filename: t.attachment.filename, contentType: t.attachment.contentType } : null,
     };
 }
@@ -133,25 +155,25 @@ export class MailTemplateService {
             scope === 'commercial'
                 ? { scope, $or: [{ user_id: userId }, { kind: { $ne: null } }] }
                 : { user_id: this.ownerFor(userId, scope), scope };
-        const docs = await MailTemplateModel.find(filter).sort({ created_at: 1 }).lean<MailTemplate[]>();
+        const docs = await getModels().MailTemplate.find(filter).sort({ created_at: 1 }).lean<MailTemplate[]>();
         return docs.map(toDTO);
     }
 
     /** Modèle système du scope commercial (ex. mail « AB à signer »), ou null s'il n'existe pas. */
     async findCommercialTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ scope: 'commercial', kind }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ scope: 'commercial', kind }).lean<MailTemplate>();
         return doc ? toDTO(doc) : null;
     }
 
     /** Modèle système du scope rh (ex. invitation à la sélection de candidats), ou null s'il n'existe pas. */
     async findRhTemplateByKind(kind: MailTemplateKind): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
         return doc ? toDTO(doc) : null;
     }
 
     /** Modèle accessible à un user (toutes scopes), ou null s'il est introuvable / non autorisé. */
     async findById(userId: number, id: string): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!doc || !this.canAccess(doc, userId)) return null;
         return toDTO(doc);
     }
@@ -166,7 +188,7 @@ export class MailTemplateService {
         if (!level) return;
         const filter: Record<string, unknown> = { scope: 'peda', peda_level: level };
         if (exceptId) filter._id = { $ne: exceptId };
-        if (await MailTemplateModel.exists(filter)) {
+        if (await getModels().MailTemplate.exists(filter)) {
             throw new DuplicatePedaLevelError(`Un modèle porte déjà le niveau ${level}`);
         }
     }
@@ -175,14 +197,15 @@ export class MailTemplateService {
         const now = new Date();
         const pedaLevel = this.pedaLevelFor(scope, data.pedaLevel);
         await this.assertLevelFree(pedaLevel);
-        const doc = await MailTemplateModel.create({
+        const doc = await getModels().MailTemplate.create({
             _id: randomUUID(),
             user_id: this.ownerFor(userId, scope),
             scope,
             name: data.name,
             subject: data.subject,
-            body: data.body,
+            body: sanitizeMailHtml(data.body),
             peda_level: pedaLevel,
+            theme: data.theme ?? null,
             attachment: null,
             created_at: now,
             updated_at: now,
@@ -191,30 +214,33 @@ export class MailTemplateService {
     }
 
     async update(userId: number, id: string, data: MailTemplateInput): Promise<MailTemplateDTO> {
-        const existing = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const existing = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!existing || !this.canAccess(existing, userId)) throw new TemplateNotFoundError();
         const pedaLevel = this.pedaLevelFor(existing.scope, data.pedaLevel);
         await this.assertLevelFree(pedaLevel, id);
-        const doc = await MailTemplateModel.findOneAndUpdate(
-            { _id: id },
-            {
-                $set: {
-                    name: data.name,
-                    subject: data.subject,
-                    body: data.body,
-                    peda_level: pedaLevel,
-                    updated_at: new Date(),
+        const doc = await getModels()
+            .MailTemplate.findOneAndUpdate(
+                { _id: id },
+                {
+                    $set: {
+                        name: data.name,
+                        subject: data.subject,
+                        body: sanitizeMailHtml(data.body),
+                        peda_level: pedaLevel,
+                        theme: data.theme ?? null,
+                        updated_at: new Date(),
+                    },
                 },
-            },
-            { new: true },
-        ).lean<MailTemplate>();
+                { new: true },
+            )
+            .lean<MailTemplate>();
         if (!doc) throw new TemplateNotFoundError();
         return toDTO(doc);
     }
 
     /** Modèle Peda associé à un niveau de relance, ou null s'il n'a pas été défini. */
     async findPedaTemplateByLevel(level: PedaLevel): Promise<MailTemplateDTO | null> {
-        const doc = await MailTemplateModel.findOne({ scope: 'peda', peda_level: level }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ scope: 'peda', peda_level: level }).lean<MailTemplate>();
         return doc ? toDTO(doc) : null;
     }
 
@@ -230,9 +256,9 @@ export class MailTemplateService {
         let created = 0;
         for (const tpl of PEDA_DEFAULT_TEMPLATES) {
             // Un modèle déjà présent sur ce niveau (créé à la main) a la priorité.
-            if (await MailTemplateModel.exists({ scope: 'peda', peda_level: tpl.pedaLevel })) continue;
+            if (await getModels().MailTemplate.exists({ scope: 'peda', peda_level: tpl.pedaLevel })) continue;
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_PEDA_USER_ID,
                 scope: 'peda',
@@ -259,9 +285,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(AB_SIGNATURE_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'commercial', kind: 'ab_signature' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'commercial', kind: 'ab_signature' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_COMMERCIAL_USER_ID,
                 scope: 'commercial',
@@ -289,9 +315,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(AB_RELANCE_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'commercial', kind: 'ab_relance' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'commercial', kind: 'ab_relance' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_COMMERCIAL_USER_ID,
                 scope: 'commercial',
@@ -317,9 +343,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(CV_IMPORT_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'rh', name: 'Import CV' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', name: 'Import CV' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
@@ -337,6 +363,54 @@ export class MailTemplateService {
     }
 
     /**
+     * Rafraîchit une seule fois le modèle « Import CV » déjà présent en base
+     * (semé avant le passage au bouton /external/authenticate et à la
+     * suppression du code en ligne). N'écrase que les corps obsolètes.
+     */
+    async refreshCvImportTemplateButton(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(CV_IMPORT_TEMPLATE_V2_KEY)) return;
+
+        const doc = await getModels().MailTemplate.findOne({ scope: 'rh', name: 'Import CV' }).lean<MailTemplate>();
+        if (doc && (doc.body.includes('/public/cv-import') || doc.body.includes('{{code}}'))) {
+            await getModels().MailTemplate.updateOne(
+                { _id: doc._id },
+                { $set: { subject: CV_IMPORT_SUBJECT, body: CV_IMPORT_BODY, updated_at: new Date() } },
+            );
+            logger.info('cv-import: modèle « Import CV » rafraîchi (bouton, sans code)');
+        }
+        await settings.set(CV_IMPORT_TEMPLATE_V2_KEY, '1');
+    }
+
+    /**
+     * Rafraîchit une seule fois les modèles « Proposition de candidats » et
+     * « Invitation entretien » déjà présents en base (semés avant la migration
+     * vers les sessions sans code en ligne). N'écrase que les corps obsolètes
+     * (placeholders {{code}}/{{id}}), laissés par les anciens défauts.
+     */
+    async refreshNoCodeRHTemplates(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(NO_CODE_RH_TEMPLATES_V2_KEY)) return;
+
+        const defaults = [
+            { kind: 'proposition_candidat', subject: PROPOSITION_CANDIDAT_SUBJECT, body: PROPOSITION_CANDIDAT_BODY },
+            { kind: 'interview_invitation', subject: INTERVIEW_INVITATION_SUBJECT, body: INTERVIEW_INVITATION_BODY },
+        ] as const;
+
+        for (const { kind, subject, body } of defaults) {
+            const doc = await getModels().MailTemplate.findOne({ scope: 'rh', kind }).lean<MailTemplate>();
+            if (doc && (doc.body.includes('{{code}}') || doc.body.includes('{{id}}'))) {
+                await getModels().MailTemplate.updateOne(
+                    { _id: doc._id },
+                    { $set: { subject, body, updated_at: new Date() } },
+                );
+                logger.info(`mail-template: modèle « ${kind} » rafraîchi (bouton, sans code)`);
+            }
+        }
+        await settings.set(NO_CODE_RH_TEMPLATES_V2_KEY, '1');
+    }
+
+    /**
      * Sème le modèle système « Proposition de candidats » (scope rh,
      * kind `proposition_candidat`) au premier démarrage. Idempotent via flag app_settings
      * ET vérification d'existence, pour ne pas dupliquer si un modèle a déjà ce kind.
@@ -345,9 +419,9 @@ export class MailTemplateService {
         const settings = new AppSettingsRepository();
         if (await settings.get(PROPOSITION_CANDIDAT_SEEDED_KEY)) return;
 
-        if (!(await MailTemplateModel.exists({ scope: 'rh', kind: 'proposition_candidat' }))) {
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'proposition_candidat' }))) {
             const now = new Date();
-            await MailTemplateModel.create({
+            await getModels().MailTemplate.create({
                 _id: randomUUID(),
                 user_id: SHARED_RH_USER_ID,
                 scope: 'rh',
@@ -365,8 +439,95 @@ export class MailTemplateService {
         await settings.set(PROPOSITION_CANDIDAT_SEEDED_KEY, '1');
     }
 
+    /**
+     * Sème le modèle système « Invitation entretien » (scope rh,
+     * kind `interview_invitation`) au premier démarrage. Idempotent via flag
+     * app_settings ET vérification d'existence.
+     */
+    async seedInterviewInvitationDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(INTERVIEW_INVITATION_SEEDED_KEY)) return;
+
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'interview_invitation' }))) {
+            const now = new Date();
+            await getModels().MailTemplate.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Invitation entretien',
+                subject: INTERVIEW_INVITATION_SUBJECT,
+                body: INTERVIEW_INVITATION_BODY,
+                peda_level: null,
+                kind: 'interview_invitation',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('interview-invitation: modèle système semé');
+        }
+        await settings.set(INTERVIEW_INVITATION_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Lien d'accès externe » (scope rh,
+     * kind `external_link`) au premier démarrage. Idempotent via flag app_settings
+     * ET vérification d'existence.
+     */
+    async seedExternalLinkDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(EXTERNAL_LINK_SEEDED_KEY)) return;
+
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'external_link' }))) {
+            const now = new Date();
+            await getModels().MailTemplate.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: "Lien d'accès externe",
+                subject: EXTERNAL_LINK_SUBJECT,
+                body: EXTERNAL_LINK_BODY,
+                peda_level: null,
+                kind: 'external_link',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('external-link: modèle système semé');
+        }
+        await settings.set(EXTERNAL_LINK_SEEDED_KEY, '1');
+    }
+
+    /**
+     * Sème le modèle système « Redirection test non réussi » (scope rh,
+     * kind `test_failure_redirection`) au premier démarrage. Idempotent via
+     * flag app_settings ET vérification d'existence.
+     */
+    async seedTestFailureRedirectionDefault(): Promise<void> {
+        const settings = new AppSettingsRepository();
+        if (await settings.get(TEST_FAILURE_REDIRECTION_SEEDED_KEY)) return;
+
+        if (!(await getModels().MailTemplate.exists({ scope: 'rh', kind: 'test_failure_redirection' }))) {
+            const now = new Date();
+            await getModels().MailTemplate.create({
+                _id: randomUUID(),
+                user_id: SHARED_RH_USER_ID,
+                scope: 'rh',
+                name: 'Redirection test non réussi',
+                subject: TEST_FAILURE_REDIRECTION_SUBJECT,
+                body: TEST_FAILURE_REDIRECTION_BODY,
+                peda_level: null,
+                kind: 'test_failure_redirection',
+                attachment: null,
+                created_at: now,
+                updated_at: now,
+            });
+            logger.info('test-failure-redirection: modèle système semé');
+        }
+        await settings.set(TEST_FAILURE_REDIRECTION_SEEDED_KEY, '1');
+    }
+
     async remove(userId: number, id: string): Promise<void> {
-        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
         // Un modèle système (kind) ne peut pas être supprimé, seulement édité.
         if (doc.kind) throw new SystemTemplateError();
@@ -379,7 +540,7 @@ export class MailTemplateService {
                 /* ignore : on supprime quand même le modèle */
             }
         }
-        await MailTemplateModel.deleteOne({ _id: id });
+        await getModels().MailTemplate.deleteOne({ _id: id });
     }
 
     // ── Pièce jointe (1 par modèle, zippée sur Drive) ────────────────────
@@ -390,7 +551,7 @@ export class MailTemplateService {
         contentType: string,
         content: Buffer,
     ): Promise<MailTemplateDTO> {
-        const doc = await MailTemplateModel.findOne({ _id: id });
+        const doc = await getModels().MailTemplate.findOne({ _id: id });
         if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
 
         const drive = await this.driveForUser(userId);
@@ -418,7 +579,7 @@ export class MailTemplateService {
     }
 
     async removeAttachment(userId: number, id: string): Promise<MailTemplateDTO> {
-        const doc = await MailTemplateModel.findOne({ _id: id });
+        const doc = await getModels().MailTemplate.findOne({ _id: id });
         if (!doc || !this.canAccess(doc, userId)) throw new TemplateNotFoundError();
         if (doc.attachment?.driveFileId) {
             try {
@@ -438,7 +599,7 @@ export class MailTemplateService {
         userId: number,
         id: string,
     ): Promise<{ filename: string; contentType: string; content: string }> {
-        const doc = await MailTemplateModel.findOne({ _id: id }).lean<MailTemplate>();
+        const doc = await getModels().MailTemplate.findOne({ _id: id }).lean<MailTemplate>();
         if (!doc || !this.canAccess(doc, userId) || !doc.attachment) throw new TemplateNotFoundError();
         const drive = await this.driveForUser(userId);
         const { buffer } = await drive.downloadFile(doc.attachment.driveFileId);
@@ -452,7 +613,7 @@ export class MailTemplateService {
 
     // ── Signature (une par user+scope, image sur Drive) ──────────────────
     async getSignature(userId: number, scope: MailTemplateScope): Promise<string | null> {
-        const sig = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{
+        const sig = await getModels().MailSignature.findOne({ user_id: userId, scope }).lean<{
             driveFileId: string;
             contentType: string;
         }>();
@@ -473,7 +634,9 @@ export class MailTemplateService {
         const user = await this.userService.findById(userId);
         if (!user || !user.oauthToken) throw new GoogleNotConnectedError('Google Drive non connecté');
         const drive = await this.driveForUser(userId);
-        const existing = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
+        const existing = await getModels()
+            .MailSignature.findOne({ user_id: userId, scope })
+            .lean<{ driveFileId: string }>();
         if (existing?.driveFileId) {
             try {
                 await drive.deleteFile(existing.driveFileId);
@@ -487,7 +650,7 @@ export class MailTemplateService {
             `${user.firstName} ${user.lastName}`.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || `user${userId}`;
         const filename = `Signature DISCIPLINA - ${safeName} (${scope}).${ext}`;
         const uploaded = await drive.uploadFile(filename, contentType, content, env.DRIVE_TEMPLATES_FOLDER_ID);
-        await MailSignatureModel.findOneAndUpdate(
+        await getModels().MailSignature.findOneAndUpdate(
             { _id: `${userId}:${scope}` },
             {
                 $set: {
@@ -505,7 +668,7 @@ export class MailTemplateService {
     }
 
     async removeSignature(userId: number, scope: MailTemplateScope): Promise<void> {
-        const sig = await MailSignatureModel.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
+        const sig = await getModels().MailSignature.findOne({ user_id: userId, scope }).lean<{ driveFileId: string }>();
         if (!sig) return;
         try {
             const drive = await this.driveForUser(userId);
@@ -513,6 +676,6 @@ export class MailTemplateService {
         } catch {
             /* ignore */
         }
-        await MailSignatureModel.deleteOne({ _id: `${userId}:${scope}` });
+        await getModels().MailSignature.deleteOne({ _id: `${userId}:${scope}` });
     }
 }

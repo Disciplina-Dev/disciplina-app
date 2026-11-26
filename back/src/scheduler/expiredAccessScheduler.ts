@@ -1,7 +1,10 @@
-import { InterviewAccessRepository } from '../repositories/mysql/InterviewAccessRepository';
-import { MatchLinkRepository } from '../repositories/mysql/MatchLinkRepository';
-import { ExternalLinkRepository } from '../repositories/mysql/ExternalLinkRepository';
+import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
 import { RefreshTokenRepository } from '../repositories/mysql/RefreshTokenRepository';
+import { runForAllRegions, getRegion } from '../db/tenant';
+import { McpOAuthClientStore } from '../mcp/oauth/clientStore';
+import { McpOAuthRefreshTokenStore } from '../mcp/oauth/refreshTokenStore';
+import { McpAuditStore, AUDIT_RETENTION_DAYS } from '../mcp/auditStore';
+import { AccessLogService } from '../services/AccessLogService';
 import { logger } from '../external/logger/logger';
 
 // Tick quotidien : la granularité « jour » suffit pour de la purge de rétention.
@@ -16,42 +19,58 @@ const FIRST_RUN_MS = 60_000;
 // un lien périmé signalé par un RH avant que la ligne ne disparaisse.
 const GRACE_DAYS = 7;
 
+// Clients OAuth MCP (DCR) sans activité depuis 90 jours : réenregistrés au besoin par le client.
+const MCP_CLIENT_INACTIVE_DAYS = 90;
+
 /**
  * Planificateur de purge des accès éphémères : supprime les liens signés et les
  * refresh tokens expirés depuis plus de GRACE_DAYS jours.
  *
- * Ces tables (interview_access, match_link, external_link, refresh_tokens) stockent des
- * couples signature/code associés à des emails et n'étaient jamais purgées : elles
- * croissaient indéfiniment, sans aucune valeur métier passé l'expiration.
+ * Ces tables (external_access, refresh_tokens) stockent des liens magiques
+ * associés à des emails et n'étaient jamais purgées : elles croissaient
+ * indéfiniment, sans aucune valeur métier passé l'expiration.
  * Cf. database/DATA_CLASSIFICATION.md. In-process (setInterval), à l'image de
  * `unavailableExpiryScheduler`.
  */
 export function startExpiredAccessScheduler(): NodeJS.Timeout {
-    const interviewAccessRepository = new InterviewAccessRepository();
-    const matchLinkRepository = new MatchLinkRepository();
-    const externalLinkRepository = new ExternalLinkRepository();
+    const externalAccessRepository = new ExternalAccessRepository();
     const refreshTokenRepository = new RefreshTokenRepository();
+    const mcpAuditStore = new McpAuditStore();
+    const accessLogService = new AccessLogService();
+    const mcpClientStore = new McpOAuthClientStore();
+    const mcpRefreshStore = new McpOAuthRefreshTokenStore();
     let running = false;
 
     const tick = async () => {
         if (running) return;
         running = true;
         try {
-            // Séquentiel : une purge de fond ne doit pas mobiliser quatre connexions du
-            // pool d'un coup au détriment du trafic applicatif.
-            const interviewAccess = await interviewAccessRepository.deleteExpired(GRACE_DAYS);
-            const matchLink = await matchLinkRepository.deleteExpired(GRACE_DAYS);
-            const externalLink = await externalLinkRepository.deleteExpired(GRACE_DAYS);
-            const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
-            const total = interviewAccess + matchLink + externalLink + refreshTokens;
-            if (total > 0) {
-                logger.info(
-                    { interviewAccess, matchLink, externalLink, refreshTokens, total },
-                    'expired-access: accès expirés purgés',
-                );
-            }
-        } catch (err) {
-            logger.error({ err }, 'expired-access: tick du scheduler en erreur');
+            // Séquentiel : une purge de fond ne doit pas mobiliser plusieurs connexions du
+            // pool d'un coup au détriment du trafic applicatif. Vérifié par tenant.
+            await runForAllRegions(async () => {
+                const region = getRegion();
+                try {
+                    const externalAccess = await externalAccessRepository.deleteExpired(GRACE_DAYS);
+                    const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
+                    // Journal d'accès MCP : rétention 1 an (politique de confidentialité).
+                    const mcpAudit = await mcpAuditStore.deleteOlderThan(AUDIT_RETENTION_DAYS);
+                    // Journal d'accès aux données candidat (GDPR_INF_06.5) : rétention 1 an.
+                    const accessLog = await accessLogService.purgeExpired();
+                    // Sessions OAuth MCP : jetons expirés/révoqués et clients DCR inactifs depuis 90 j.
+                    const mcpOauth =
+                        (await mcpRefreshStore.deleteExpired(GRACE_DAYS)) +
+                        (await mcpClientStore.deleteInactive(MCP_CLIENT_INACTIVE_DAYS));
+                    const total = externalAccess + refreshTokens + mcpAudit + accessLog + mcpOauth;
+                    if (total > 0) {
+                        logger.info(
+                            { region, externalAccess, refreshTokens, mcpAudit, accessLog, mcpOauth, total },
+                            'expired-access: accès expirés purgés',
+                        );
+                    }
+                } catch (err) {
+                    logger.error({ err, region }, 'expired-access: tick du scheduler en erreur');
+                }
+            });
         } finally {
             running = false;
         }

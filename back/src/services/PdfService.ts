@@ -1,3 +1,4 @@
+import { decryptCandidateHealth } from './candidateHealthFields';
 import type { Browser } from 'puppeteer-core';
 import PDFDocument from 'pdfkit';
 import fs from 'fs';
@@ -6,6 +7,9 @@ import { Candidate } from '../types/candidate.types';
 import { Companies } from '../types/company.types';
 import { NeedsAnalysisGql } from './mappers/needsAnalysis.mapper';
 import { MASKED_SSN } from '../external/crypto/ssn-cipher';
+import { tenantDocuments } from '../config/tenantDocuments';
+import { getRegion } from '../db/tenant';
+import type { Region } from '../types/tenant';
 
 // ─── Browser launcher ─────────────────────────────────────────────────────────
 // On utilise le Chromium natif du système (installé dans l'image Docker via apt)
@@ -108,6 +112,9 @@ function label(v: string | null | undefined): string {
         SALON: 'Salon',
         RSMA: 'RSMA',
         RESEAUX_SOCIAUX: 'Réseaux sociaux',
+        NON_RENSEIGNE: 'Non renseigné',
+        ADMINISTRATION_PUBLIQUE: 'Administration publique',
+        ADMINISTRATION_PRIVEE: 'Administration privée',
     };
     return MAP[v ?? ''] ?? esc(v);
 }
@@ -166,25 +173,44 @@ function getLogoDataUrl(): string {
 
 // ─── Header / Footer templates ────────────────────────────────────────────────
 
-function buildHeaderTemplate(logoDataUrl: string): string {
+function buildHeaderTemplate(logoDataUrl: string, region: Region): string {
+    const { brandColor } = tenantDocuments(region);
     const logoHtml = logoDataUrl
         ? `<img src="${logoDataUrl}" style="height:128px;display:block;" />`
-        : `<div style="font-size:22px;font-weight:bold;color:#1130A7;">Disciplina</div>`;
+        : `<div style="font-size:22px;font-weight:bold;color:${brandColor};">Disciplina</div>`;
     return `
     <div style="width:100%;padding:6px 18mm 0;font-family:Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;">
         ${logoHtml}
     </div>`;
 }
 
-function buildFooterTemplate(): string {
+function buildFooterTemplate(region: Region): string {
+    const { legal } = tenantDocuments(region);
     return `
     <div style="width:100%;padding:0 18mm 4px;font-family:Arial,Helvetica,sans-serif;font-size:7px;text-align:center;color:#333;-webkit-print-color-adjust:exact;">
         <div style="border-top:1px solid #999;padding-top:4px;">
-            <strong>DISCIPLINA</strong> | 71 rue Roger Payet, Sainte-Marie 97438 | Numéro SIRET : <em>97828986600011</em><br/>
-            Déclaration d'activité enregistrée sous le n° 04973484197 auprès du Préfet de région de Réunion. Cet enregistrement ne vaut pas agrément de l'Etat<br/>
-            Mis à jour le 25/02/2026
+            <strong>${esc(legal.companyName)}</strong> | ${esc(legal.address)} | Numéro SIRET : <em>${esc(legal.siret)}</em><br/>
+            ${esc(legal.activityDeclaration)}<br/>
+            Mis à jour le ${esc(legal.updatedAt)}
         </div>
     </div>`;
+}
+
+/** Page « Contacts » : coordonnées du tenant courant, jamais celles d'un autre. */
+function buildContactsSection(region: Region): string {
+    const groups = tenantDocuments(region)
+        .contacts.map(
+            (group) => `
+    <p class="site-title">${esc(group.title)}</p>
+    <ul>
+        ${group.people.map((person) => `<li>${esc(person)}</li>`).join('\n        ')}
+    </ul>`,
+        )
+        .join('');
+    return `
+<div class="contacts-section">
+    <p class="contacts-title">Contacts</p>${groups}
+</div>`;
 }
 
 // ─── HTML builder (pages 1-5) ─────────────────────────────────────────────────
@@ -224,7 +250,7 @@ ${fr('Titre professionnel visé :', TP_LABELS[tp.tpType ?? ''] ?? tp.tpType ?? '
 </div>${complementaire}`;
 }
 
-function buildHtml(analysis: NeedsAnalysisGql, company: Companies): string {
+function buildHtml(analysis: NeedsAnalysisGql, company: Companies, region: Region): string {
     const days = parseDays(analysis.trainingDays ?? '{}');
 
     const legalRepFunction = analysis.referents?.legalReferents?.function ?? '';
@@ -263,7 +289,12 @@ ${tpBlocks}`;
                           .filter(Boolean)
                           .join(' ')
                     : '';
-            const conditions = c.conditions ?? (c.scheduleOptions ?? []).join(', ');
+            const scheduleOptions = (c.scheduleOptions ?? []).map((s: any) =>
+                typeof s === 'string'
+                    ? s
+                    : [s.day || null, [s.startHour, s.endHour].filter(Boolean).join('-')].filter(Boolean).join(' : '),
+            );
+            const conditions = c.conditions ?? (scheduleOptions.length ? scheduleOptions.join(', ') : null);
             const commentaires = c.additionalComments ?? '';
             return `
 ${sh(title)}
@@ -271,6 +302,12 @@ ${sh(title)}
     <span class="field-label">Permis :</span><br/>
     <div class="option-block">${chk(c.drivingLicense === true)}&nbsp;Oui</div>
     <div class="option-block">${chk(c.drivingLicense === false)}&nbsp;Optionnel</div>
+</div>
+
+<div class="field-row">
+    <span class="field-label">Véhiculé :</span><br/>
+    <div class="option-block">${chk((c as any).hasVehicle === true)}&nbsp;Oui</div>
+    <div class="option-block">${chk((c as any).hasVehicle === false)}&nbsp;Non</div>
 </div>
 
 <div class="field-row">
@@ -456,6 +493,7 @@ ${
         ? fr('Comment a-t-il connu DISCIPLINA ? :', label(analysis.companyInfos.referralSource))
         : ''
 }
+${(analysis as any).administrationType ? fr('Administration :', label((analysis as any).administrationType)) : ''}
 ${fr('Nombre de poste à pourvoir :', analysis.positionsCount?.toString())}
 
 ${positionBlocks}
@@ -491,43 +529,7 @@ ${criteriaBlocks}
 </div>
 
 <!-- ═══ PAGE 4 — Contacts ═══ -->
-<div class="page-break">
-<div class="contacts-section">
-    <p class="contacts-title">Contacts</p>
-    <p class="site-title">Fonction centrale : 8 rue Pondichéry, ZI La Mare, 97438 Ste Marie</p>
-    <ul>
-        <li>Lorenzo ENCATASSAMY en qualité de Directeur : direction@disciplina.re / 0693 85 59 91</li>
-    </ul>
-    <p class="site-title">DISCIPLINA Nord : 8 rue Pondichéry, ZI La Mare, 97438 Ste Marie</p>
-    <ul>
-        <li>Amanda SINAMAN en qualité de Responsable Commerciale : sinaman.commercial@disciplina.re / 0693 00 76 91</li>
-        <li>Brandon GALMAR en qualité de Commercial : galmar.commercial@disciplina.re / 0693 39 52 07</li>
-        <li>Emile LEBON en qualité de Commercial : lebon.commercial@disciplina.re / 0692 39 66 29</li>
-        <li>Loïc GRONDIN en qualité de Responsable de recrutement : grondin.rh@disciplina.re / 0693 88 00 20</li>
-        <li>Marion GOUARD en qualité d'Assistante de recrutement : gouard.rh@disciplina.re / 0692 44 37 99</li>
-        <li>Séverine DUGAIN en qualité de Responsable administrative : dugain.administration@disciplina.re / 0693 88 00 20</li>
-        <li>Sébastien COUVIN en qualité de Responsable pédagogique CFA et OF : couvin.pedagogie@disciplina.re / 0692 23 22 98</li>
-        <li>Emmanuella MAONDA en qualité de Coordinatrice pédagogique CFA : maonda.pedagogie@disciplina.re / 0692 40 42 93</li>
-        <li>Samantha BERTILLE en qualité d'Assistante pédagogique CFA : bertille.pedagogie@disciplina.re / 0692 52 38 75</li>
-        <li>Rachelle ADAVAMIS en qualité d'Assistante pédagogique OF : adavamis.of@disciplina.re / 0693 06 23 12</li>
-    </ul>
-    <p class="site-title">DISCIPLINA Ouest : 14 rue Jules Thirel, 97460 Saint-Paul</p>
-    <ul>
-        <li>Marion LAURET en qualité de Responsable Commerciale : lauret.commercial@disciplina.re / 0693 06 92 01</li>
-        <li>Martin HARDIER en qualité de Commercial : hardier.commercial@disciplina.re / 0693 06 92 04</li>
-        <li>Lucas MADELEINE en qualité de Commercial : madeleine.commercial@disciplina.re / 0693 06 92 03</li>
-        <li>Célia GALAIS en qualité de Responsable de recrutement : galais.rh@disciplina.re / 0693 06 92 20</li>
-        <li>Alice NATIVEL en qualité d'Assistante de recrutement : nativel.rh@disciplina.re / 0692 44 37 99</li>
-        <li>Mayli ARMOUET en qualité d'Assistante de recrutement : armouet.rh@disciplina.re / 0693 06 92 21</li>
-        <li>Alexia TURPIN en qualité de Responsable administrative : turpin.administration@disciplina.re / 06 93 06 92 13</li>
-        <li>Emma NIRLO en qualité de Coordinatrice pédagogique CFA : nirlo.pedagogie@disciplina.re / 0693 06 92 17</li>
-        <li>Nolwenn ALEX en qualité d'Assistante pédagogique CFA : alex.pedagogie@disciplina.re / 0692 51 78 51</li>
-    </ul>
-    <p class="site-title">DISCIPLINA Sud : 249 avenue du Général de Gaulle, 97410 Saint-Pierre</p>
-    <ul>
-        <li>Céline BOYER en qualité de Responsable de recrutement : boyer.rh@disciplina.re / 0693 88 80 23</li>
-    </ul>
-</div>
+<div class="page-break">${buildContactsSection(region)}
 </div>
 
 <!-- ═══ PAGE 5 — Engagement, clause & signature ═══ -->
@@ -570,7 +572,9 @@ const TP_LABELS: Record<string, string> = {
     CC: 'CC — Conseiller Commercial',
     NTC: 'NTC — Négociateur Technico-Commercial',
     REM: "REM — Responsable d'Établissement Marchand",
-    SA: 'SA — Secrétaire Assistant',
+    CADGA: "CADGA — Chargé d'accueil et de gestion administrative",
+    // Rétro-compat : documents générés avant le renommage du TP.
+    SA: "CADGA — Chargé d'accueil et de gestion administrative",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -750,6 +754,7 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
     kv('Ville', id.city);
     kv('Code postal', id.postal_code);
     if (id.driving_license_b != null) kv('Permis B', yn(id.driving_license_b));
+    if (id.has_vehicle != null) kv('Véhiculé', yn(id.has_vehicle));
     kv('Moyen de transport', id.transport_means);
     if (id.psh_referral_request != null) kv('Accompagnement PSH', yn(id.psh_referral_request));
     if (id.had_apprenticeship_contract != null)
@@ -863,6 +868,10 @@ function renderCandidatePdf(doc: PDFKit.PDFDocument, c: Candidate): void {
         c.job_info?.discovery_source
             ? (DISCOVERY_LABELS[c.job_info.discovery_source] ?? c.job_info.discovery_source)
             : '',
+    );
+    para(
+        'Sites ou plateformes de recherche et de candidature aux offres d’alternance',
+        c.job_info?.job_search_platforms,
     );
     para('Motivation pour ce domaine', c.job_info?.domain_motivation);
     para('Questions / préoccupations', c.job_info?.questions_concerns);
@@ -1175,10 +1184,13 @@ function renderClassMarkerPdf(doc: PDFKit.PDFDocument, c: Candidate): void {
             } else {
                 // multiplechoice : liste des options, marquage candidat / bonne réponse
                 doc.font('Helvetica').fontSize(9.5);
+                // Questionnaire interne à réponses multiples : clés séparées par des virgules ("A,C").
+                const correctKeys = (q.correct_option ?? '').split(',');
+                const chosenKeys = (q.user_response ?? '').split(',');
                 Object.entries(opts).forEach(([key, val]) => {
                     if (typeof val !== 'string') return;
-                    const isCorrect = key === q.correct_option;
-                    const isChosen = key === q.user_response;
+                    const isCorrect = correctKeys.includes(key);
+                    const isChosen = chosenKeys.includes(key);
                     const marks = [isChosen ? 'choix du candidat' : '', isCorrect ? 'bonne réponse' : '']
                         .filter(Boolean)
                         .join(', ');
@@ -1256,7 +1268,7 @@ export class PdfService {
                 doc.on('end', () => resolve(Buffer.concat(chunks)));
                 doc.on('error', reject);
 
-                renderCandidatePdf(doc, candidate);
+                renderCandidatePdf(doc, decryptCandidateHealth(candidate));
                 addPageFooters(doc);
                 doc.end();
             } catch (e) {
@@ -1265,9 +1277,13 @@ export class PdfService {
         });
     }
 
-    static async generateNeedsAnalysisPdf(analysis: NeedsAnalysisGql, company: Companies): Promise<Buffer> {
+    static async generateNeedsAnalysisPdf(
+        analysis: NeedsAnalysisGql,
+        company: Companies,
+        region: Region = getRegion(),
+    ): Promise<Buffer> {
         const logoDataUrl = getLogoDataUrl();
-        const html = buildHtml(analysis, company);
+        const html = buildHtml(analysis, company, region);
 
         const browser = await launchBrowser();
 
@@ -1280,8 +1296,8 @@ export class PdfService {
                 format: 'A4',
                 printBackground: true,
                 displayHeaderFooter: true,
-                headerTemplate: buildHeaderTemplate(logoDataUrl),
-                footerTemplate: buildFooterTemplate(),
+                headerTemplate: buildHeaderTemplate(logoDataUrl, region),
+                footerTemplate: buildFooterTemplate(region),
                 margin: { top: '38mm', right: '18mm', bottom: '25mm', left: '18mm' },
             });
 

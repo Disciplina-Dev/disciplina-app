@@ -1,19 +1,9 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { CompanyWithSalePerson } from "@/types/entreprise";
-import {
-  Search,
-  X,
-  Copy,
-  Check,
-  Clock,
-  ArrowRight,
-  AlertTriangle,
-  Building2,
-  ExternalLink,
-  Mail,
-  Phone,
-} from "lucide-react";
+import { IconArrowRight, IconCheck, IconClock, IconClose, IconCompany, IconCopy, IconExternalLink, IconMail, IconPhone, IconSearch, IconWarning } from '@/components/ui/icons'
 import { apiFetch } from "@/api/httpClient";
+import { useRegionStore } from "@/store/regionStore";
+import { ANNEMASSE_COMMUNES } from "@/data/reunionCommunes";
 import NAF_CODES from "@socialgouv/codes-naf";
 import {
   normalizeSiret,
@@ -112,6 +102,52 @@ function legalFormShort(code: string | null): string {
   return LEGAL_FORMS[code] || code;
 }
 
+const REGIONS: Array<{ code: string; label: string }> = [
+  { code: "84", label: "Auvergne-Rhône-Alpes" },
+  { code: "27", label: "Bourgogne-Franche-Comté" },
+  { code: "53", label: "Bretagne" },
+  { code: "24", label: "Centre-Val de Loire" },
+  { code: "94", label: "Corse" },
+  { code: "44", label: "Grand Est" },
+  { code: "01", label: "Guadeloupe" },
+  { code: "03", label: "Guyane" },
+  { code: "32", label: "Hauts-de-France" },
+  { code: "11", label: "Île-de-France" },
+  { code: "02", label: "Martinique" },
+  { code: "06", label: "Mayotte" },
+  { code: "28", label: "Normandie" },
+  { code: "75", label: "Nouvelle-Aquitaine" },
+  { code: "76", label: "Occitanie" },
+  { code: "52", label: "Pays de la Loire" },
+  { code: "93", label: "Provence-Alpes-Côte d'Azur" },
+  { code: "04", label: "La Réunion" },
+];
+
+const CATEGORIES_ENTREPRISE: Array<{ code: string; label: string }> = [
+  { code: "PME", label: "PME" },
+  { code: "ETI", label: "ETI (intermédiaire)" },
+  { code: "GE", label: "GE (grande entreprise)" },
+];
+
+const TRANCHES_EFFECTIF: Array<{ code: string; label: string }> = [
+  { code: "NN", label: "Non employeur" },
+  { code: "00", label: "0 salarié" },
+  { code: "01", label: "1-2 salariés" },
+  { code: "02", label: "3-5 salariés" },
+  { code: "03", label: "6-9 salariés" },
+  { code: "11", label: "10-19 salariés" },
+  { code: "12", label: "20-49 salariés" },
+  { code: "21", label: "50-99 salariés" },
+  { code: "22", label: "100-199 salariés" },
+  { code: "31", label: "200-249 salariés" },
+  { code: "32", label: "250-499 salariés" },
+  { code: "41", label: "500-999 salariés" },
+  { code: "42", label: "1 000-1 999 salariés" },
+  { code: "51", label: "2 000-4 999 salariés" },
+  { code: "52", label: "5 000-9 999 salariés" },
+  { code: "53", label: "10 000+ salariés" },
+];
+
 async function fetchCompaniesByCriteria(
   criteria: SireneCriterion[],
   offset = 0,
@@ -129,19 +165,65 @@ async function fetchCompaniesByCriteria(
   return (await res.json()) as SireneListResult;
 }
 
-function buildCriteria(commune: string, naf: string, isReunionOnly: boolean): SireneCriterion[] {
+export interface MulticriteriaFilters {
+  commune: string;
+  naf: string;
+  deptPrefix: string | null;
+  denomination: string;
+  codePostal: string;
+  departement: string;
+  region: string;
+  dirigeantNom: string;
+  dirigeantPrenom: string;
+  etatAdministratif: string;
+  categorie: string;
+  tranche: string;
+}
+
+function buildCriteria(filters: MulticriteriaFilters): SireneCriterion[] {
   const criteria: SireneCriterion[] = [];
-  if (commune.trim()) {
+  const commune = filters.commune.trim();
+  const naf = filters.naf.trim();
+  if (commune) {
     criteria.push({
       paramName: "libelleCommuneEtablissement",
-      value: denormalizeCommune(commune.trim()),
+      value: denormalizeCommune(commune),
     });
   }
-  if (naf.trim()) {
-    criteria.push({ paramName: "activitePrincipaleUniteLegale", value: naf.trim() });
+  if (naf) {
+    criteria.push({ paramName: "activitePrincipaleUniteLegale", value: naf });
   }
-  if (isReunionOnly) {
-    criteria.push({ paramName: "codeCommuneEtablissement", value: "974*" });
+  // Filtre départemental : 974* (La Réunion) ou 74* (Haute-Savoie / Annemasse).
+  if (filters.deptPrefix) {
+    criteria.push({ paramName: "codeCommuneEtablissement", value: filters.deptPrefix });
+  }
+  // Filtres servis par l'API Recherche d'entreprises (voient la bascule backend).
+  if (filters.denomination.trim()) {
+    criteria.push({ paramName: "denomination", value: filters.denomination.trim() });
+  }
+  if (filters.codePostal.trim()) {
+    criteria.push({ paramName: "codePostal", value: filters.codePostal.trim() });
+  }
+  if (filters.departement.trim()) {
+    criteria.push({ paramName: "departement", value: filters.departement.trim() });
+  }
+  if (filters.region.trim()) {
+    criteria.push({ paramName: "region", value: filters.region.trim() });
+  }
+  if (filters.dirigeantNom.trim()) {
+    criteria.push({ paramName: "nomDirigeant", value: filters.dirigeantNom.trim() });
+  }
+  if (filters.dirigeantPrenom.trim()) {
+    criteria.push({ paramName: "prenomDirigeant", value: filters.dirigeantPrenom.trim() });
+  }
+  if (filters.etatAdministratif.trim()) {
+    criteria.push({ paramName: "etatAdministratif", value: filters.etatAdministratif.trim() });
+  }
+  if (filters.categorie.trim()) {
+    criteria.push({ paramName: "categorieEntreprise", value: filters.categorie.trim() });
+  }
+  if (filters.tranche.trim()) {
+    criteria.push({ paramName: "trancheEffectif", value: filters.tranche.trim() });
   }
   return criteria;
 }
@@ -163,10 +245,10 @@ function SirenSearchBar({
   return (
     <form
       className={[
-        "flex items-center gap-2.5 bg-white border-[1.5px] rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms]",
+        "flex items-center gap-2.5 bg-[var(--ds-surface)] border-[1.5px] rounded-[14px] py-[7px] pl-[14px] pr-2 transition-[border-color,box-shadow] duration-[180ms]",
         error
           ? "border-danger shadow-[0_0_0_4px_var(--color-danger-bg)]"
-          : "border-gray-100 focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]",
+          : "border-[var(--ds-border)] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]",
       ].join(" ")}
       onSubmit={(e) => {
         e.preventDefault();
@@ -174,29 +256,33 @@ function SirenSearchBar({
       }}
     >
       <span
-        className={["flex", error ? "text-danger" : "text-gray-500"].join(" ")}
+        className={["flex", error ? "text-[var(--ds-danger)]" : "text-[var(--ds-text-subtle)]"].join(" ")}
       >
-        <Search className="w-5 h-5" />
+        <IconSearch className="w-5 h-5" />
       </span>
       <input
-        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 placeholder:text-gray-300 placeholder:font-normal"
+        className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
         inputMode="numeric"
+        name="siren-search"
         autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck={false}
         placeholder="Entrez un numéro SIREN (9 chiffres)"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
-      <span className="font-mono text-[12px] text-gray-300 flex-shrink-0">
+      <span className="font-mono text-[12px] text-[var(--ds-text-subtle)] flex-shrink-0">
         {digits.length}/9
       </span>
       {value && (
         <button
           type="button"
-          className="flex border-0 bg-gray-50 text-gray-500 w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-100 hover:text-gray-900"
+          className="flex border-0 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] w-[26px] h-[26px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)]"
           onClick={() => onChange("")}
           aria-label="Effacer"
         >
-          <X className="w-4 h-4" />
+          <IconClose className="w-4 h-4" />
         </button>
       )}
       <button
@@ -209,7 +295,7 @@ function SirenSearchBar({
         ) : (
           <>
             <span className="max-sm:hidden">Rechercher</span>
-            <ArrowRight className="w-4 h-4" />
+            <IconArrowRight className="w-4 h-4" />
           </>
         )}
       </button>
@@ -235,15 +321,15 @@ function CopyField({ label, value, mono, wide }: CopyFieldProps) {
   return (
     <div
       className={[
-        "bg-white py-[18px] px-[26px]",
+        "bg-[var(--ds-surface)] py-[18px] px-[26px]",
         wide ? "col-span-full" : "",
       ].join(" ")}
     >
-      <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
+      <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
         {label}
       </span>
       <button
-        className="group inline-flex items-center gap-[9px] mt-2 border-0 bg-transparent cursor-pointer p-0 text-[18px] font-semibold text-gray-900"
+        className="group inline-flex items-center gap-[9px] mt-2 border-0 bg-transparent cursor-pointer p-0 text-[18px] font-semibold text-[var(--ds-text)]"
         onClick={copy}
         title="Copier"
       >
@@ -253,13 +339,13 @@ function CopyField({ label, value, mono, wide }: CopyFieldProps) {
         <span
           className={[
             "flex transition-colors duration-150",
-            copied ? "text-success" : "text-gray-300 group-hover:text-blue",
+            copied ? "text-[var(--ds-success)]" : "text-[var(--ds-text-subtle)] group-hover:text-blue",
           ].join(" ")}
         >
           {copied ? (
-            <Check className="w-[15px] h-[15px]" />
+            <IconCheck className="w-[15px] h-[15px]" />
           ) : (
-            <Copy className="w-[15px] h-[15px]" />
+            <IconCopy className="w-[15px] h-[15px]" />
           )}
         </span>
       </button>
@@ -285,14 +371,14 @@ function ResultCard({
   const address = displayAddress(data.adresse);
 
   return (
-    <article className="bg-white border border-gray-100 rounded-[20px] shadow-[0_1px_2px_rgba(13,13,13,0.04),0_8px_28px_rgba(13,13,13,0.06)] overflow-hidden animate-[rise_0.34s_cubic-bezier(0.2,0.7,0.3,1)_both]">
-      <div className="flex items-center gap-4 py-6 px-[26px] bg-gradient-to-b from-blue-light to-white border-b border-gray-100">
+    <article className="bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[20px] shadow-[0_1px_2px_rgba(13,13,13,0.04),0_8px_28px_rgba(13,13,13,0.06)] overflow-hidden animate-[rise_0.34s_cubic-bezier(0.2,0.7,0.3,1)_both]">
+      <div className="flex items-center gap-4 py-6 px-[26px] bg-gradient-to-b from-blue-light to-white border-b border-[var(--ds-border)]">
         <span className="w-[52px] h-[52px] flex-shrink-0 rounded-[10px] bg-blue text-white flex items-center justify-center">
-          <Building2 className="w-[26px] h-[26px]" />
+          <IconCompany className="w-[26px] h-[26px]" />
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h2 className="text-[24px] font-extrabold text-black tracking-[-0.02em] leading-[1.1]">
+            <h2 className="text-[24px] font-extrabold text-[var(--ds-text)] tracking-[-0.02em] leading-[1.1]">
               {name}
             </h2>
             {data.categorieJuridique && (
@@ -302,7 +388,7 @@ function ResultCard({
             )}
           </div>
           {(city || data.siegeSocial) && (
-            <p className="text-[13.5px] text-gray-500 mt-[5px] font-normal">
+            <p className="text-[13.5px] text-[var(--ds-text-subtle)] mt-[5px] font-normal">
               {data.siegeSocial && <>Siège social{city ? " · " : ""}</>}
               {city}
             </p>
@@ -311,7 +397,7 @@ function ResultCard({
         <span
           className={[
             "inline-flex items-center gap-1.5 flex-shrink-0 text-[12.5px] font-semibold py-[5px] px-[11px] rounded-full",
-            closed ? "bg-danger-bg text-danger" : "bg-success-bg text-success",
+            closed ? "bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]" : "bg-[var(--ds-success-bg)] text-[var(--ds-success)]",
           ].join(" ")}
         >
           <span
@@ -329,48 +415,78 @@ function ResultCard({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-px bg-gray-100 max-sm:grid-cols-1">
+      <div className="grid grid-cols-2 gap-px bg-[var(--ds-surface-sunken)] max-sm:grid-cols-1">
         <CopyField label="SIREN" value={formatSiren(data.siren)} mono />
         <CopyField label="SIRET (siège)" value={formatSiret(data.siret)} mono />
         {address && (
-          <div className="bg-white py-[18px] px-[26px] col-span-full">
-            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px] col-span-full">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
               Adresse
             </span>
-            <p className="mt-2 text-[15px] font-medium text-gray-900">
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)]">
               {address}
             </p>
           </div>
         )}
         {data.categorieEntreprise && (
-          <div className="bg-white py-[18px] px-[26px]">
-            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px]">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
               Catégorie d'entreprise
             </span>
-            <p className="mt-2 text-[15px] font-medium text-gray-900">
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)]">
               {data.categorieEntreprise}
             </p>
           </div>
         )}
         {data.categorieJuridique && (
-          <div className="bg-white py-[18px] px-[26px]">
-            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px]">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
               Forme juridique
             </span>
             <div className="flex items-baseline gap-3 mt-2 flex-wrap">
               <span className="text-[18px] font-semibold text-blue bg-blue-light py-[2px] px-[9px] rounded-[6px] font-mono">
                 {data.categorieJuridique}
               </span>
-              <span className="text-[15px] font-medium text-gray-900">
+              <span className="text-[15px] font-medium text-[var(--ds-text)]">
                 {legalShort}
               </span>
             </div>
           </div>
         )}
+        {data.dirigeants && (
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px] col-span-full">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+              Dirigeant(e)s
+            </span>
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)]">
+              {data.dirigeants}
+            </p>
+          </div>
+        )}
+        {data.trancheEffectifs && (
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px]">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+              Effectif salarié
+            </span>
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)] font-mono">
+              {data.trancheEffectifs}
+            </p>
+          </div>
+        )}
+        {data.activitePrincipale && (
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px]">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+              Activité principale (NAF)
+            </span>
+            <p className="mt-2 text-[15px] font-medium text-[var(--ds-text)] font-mono">
+              {data.activitePrincipale}
+            </p>
+          </div>
+        )}
       </div>
 
       {onAdditionalSearch && (
-        <div className="bg-white py-4 px-[26px] border-t border-gray-100">
+        <div className="bg-[var(--ds-surface)] py-4 px-[26px] border-t border-[var(--ds-border)]">
           <button
             type="button"
             onClick={onAdditionalSearch}
@@ -384,7 +500,7 @@ function ResultCard({
               </>
             ) : (
               <>
-                <Search className="w-4 h-4" />
+                <IconSearch className="w-4 h-4" />
                 <span>Recherche complémentaire</span>
               </>
             )}
@@ -400,10 +516,10 @@ function Skeleton() {
     "block rounded-[6px] bg-[linear-gradient(90deg,var(--color-gray-50)_25%,var(--color-gray-100)_37%,var(--color-gray-50)_63%)] bg-[length:400%_100%] animate-[shimmer_1.3s_ease-in-out_infinite]";
   return (
     <article
-      className="bg-white border border-gray-100 rounded-[20px] shadow-[0_1px_2px_rgba(13,13,13,0.04),0_8px_28px_rgba(13,13,13,0.06)] overflow-hidden"
+      className="bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[20px] shadow-[0_1px_2px_rgba(13,13,13,0.04),0_8px_28px_rgba(13,13,13,0.06)] overflow-hidden"
       aria-busy="true"
     >
-      <div className="flex items-center gap-4 py-6 px-[26px] bg-gradient-to-b from-blue-light to-white border-b border-gray-100">
+      <div className="flex items-center gap-4 py-6 px-[26px] bg-gradient-to-b from-blue-light to-white border-b border-[var(--ds-border)]">
         <span
           className={`${sk} w-[52px] h-[52px] rounded-[10px] flex-shrink-0`}
         />
@@ -415,9 +531,9 @@ function Skeleton() {
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-px bg-gray-100 max-sm:grid-cols-1">
+      <div className="grid grid-cols-2 gap-px bg-[var(--ds-surface-sunken)] max-sm:grid-cols-1">
         {[0, 1].map((i) => (
-          <div className="bg-white py-[18px] px-[26px]" key={i}>
+          <div className="bg-[var(--ds-surface)] py-[18px] px-[26px]" key={i}>
             <span className={sk} style={{ width: 60, height: 11 }} />
             <span
               className={sk}
@@ -425,7 +541,7 @@ function Skeleton() {
             />
           </div>
         ))}
-        <div className="bg-white py-[18px] px-[26px] col-span-full">
+        <div className="bg-[var(--ds-surface)] py-[18px] px-[26px] col-span-full">
           <span className={sk} style={{ width: 120, height: 11 }} />
           <span
             className={sk}
@@ -447,7 +563,7 @@ function NotFound({ kind, query }: NotFoundProps) {
   let body: React.ReactNode = (
     <>
       Aucune entreprise ne correspond au SIREN{" "}
-      <b className="font-mono font-semibold text-gray-900">{query}</b> dans le
+      <b className="font-mono font-semibold text-[var(--ds-text)]">{query}</b> dans le
       registre INSEE.
     </>
   );
@@ -463,13 +579,13 @@ function NotFound({ kind, query }: NotFoundProps) {
 
   return (
     <div className="text-center py-11 px-6 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
-      <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
-        <AlertTriangle className="w-7 h-7" />
+      <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]">
+        <IconWarning className="w-7 h-7" />
       </span>
-      <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+      <h3 className="text-[21px] font-bold text-[var(--ds-text)] tracking-[-0.01em]">
         {title}
       </h3>
-      <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+      <p className="text-[14.5px] text-[var(--ds-text-subtle)] mt-[9px] leading-[1.55]">
         {body}
       </p>
     </div>
@@ -485,22 +601,22 @@ interface BlacklistedNoticeProps {
 function BlacklistedNotice({ message, entries, query }: BlacklistedNoticeProps) {
   return (
     <div className="text-center py-11 px-6 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
-      <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
-        <AlertTriangle className="w-7 h-7" />
+      <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]">
+        <IconWarning className="w-7 h-7" />
       </span>
-      <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+      <h3 className="text-[21px] font-bold text-[var(--ds-text)] tracking-[-0.01em]">
         Entreprise blacklistée
       </h3>
-      <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+      <p className="text-[14.5px] text-[var(--ds-text-subtle)] mt-[9px] leading-[1.55]">
         {message ?? `Cette entreprise (SIREN ${query}) est blacklistée, vous ne pouvez donc pas la prospecter.`}
       </p>
       {entries.length > 0 && (
         <div className="mt-6 flex flex-col gap-2 text-left">
           {entries.map((b, i) => (
-            <div key={`${b.siret}-${i}`} className="bg-danger-bg border border-danger/20 rounded-lg px-4 py-3">
-              <p className="text-sm font-semibold text-gray-900">{b.name ?? "Établissement"}</p>
-              <p className="text-xs text-gray-500 font-mono">{formatSiret(b.siret ?? "")}</p>
-              {b.conclusion && <p className="text-xs text-gray-500 mt-1">{b.conclusion}</p>}
+            <div key={`${b.siret}-${i}`} className="bg-[var(--ds-danger-bg)] border border-danger/20 rounded-lg px-4 py-3">
+              <p className="text-sm font-semibold text-[var(--ds-text)]">{b.name ?? "Établissement"}</p>
+              <p className="text-xs text-[var(--ds-text-subtle)] font-mono">{formatSiret(b.siret ?? "")}</p>
+              {b.conclusion && <p className="text-xs text-[var(--ds-text-subtle)] mt-1">{b.conclusion}</p>}
             </div>
           ))}
         </div>
@@ -525,25 +641,25 @@ function EmptyState({
   return (
     <div className="text-center py-11 px-6 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
       <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-blue-light text-blue">
-        <Search className="w-7 h-7" />
+        <IconSearch className="w-7 h-7" />
       </span>
-      <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+      <h3 className="text-[21px] font-bold text-[var(--ds-text)] tracking-[-0.01em]">
         Recherchez une entreprise
       </h3>
-      <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+      <p className="text-[14.5px] text-[var(--ds-text-subtle)] mt-[9px] leading-[1.55]">
         Saisissez un numéro SIREN à 9 chiffres pour afficher tous les établissements
         de cette unité légale.
       </p>
 
       <div className="flex items-center justify-center gap-2 flex-wrap mt-[26px]">
-        <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-gray-300">
+        <span className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[var(--ds-text-subtle)]">
           Exemples
         </span>
         {examples.map((s) => (
           <button
             key={s}
             type="button"
-            className="border border-gray-100 bg-white text-gray-700 text-[13px] font-semibold py-[7px] px-3 rounded-full cursor-pointer transition-all duration-150 font-mono tracking-[-0.01em] hover:border-blue hover:text-blue hover:bg-blue-light"
+            className="border border-[var(--ds-border)] bg-[var(--ds-surface)] text-[var(--ds-text-muted)] text-[13px] font-semibold py-[7px] px-3 rounded-full cursor-pointer transition-all duration-150 font-mono tracking-[-0.01em] hover:border-blue hover:text-blue hover:bg-blue-light"
             onClick={() => onPick(s)}
           >
             {formatSiren(s)}
@@ -554,8 +670,8 @@ function EmptyState({
       {recents.length > 0 && (
         <div className="mt-[34px] text-left">
           <div className="flex items-center justify-between mb-2.5 px-1">
-            <span className="flex items-center gap-[7px] text-[12px] font-semibold uppercase tracking-[0.06em] text-gray-500">
-              <Clock className="w-[15px] h-[15px]" /> Recherches récentes
+            <span className="flex items-center gap-[7px] text-[12px] font-semibold uppercase tracking-[0.06em] text-[var(--ds-text-subtle)]">
+              <IconClock className="w-[15px] h-[15px]" /> Recherches récentes
             </span>
             <button
               type="button"
@@ -570,21 +686,21 @@ function EmptyState({
               <li key={r.siren}>
                 <button
                   type="button"
-                  className="w-full flex items-center gap-[13px] text-left cursor-pointer bg-white border border-gray-100 rounded-[10px] py-3 px-3.5 transition-all duration-150 hover:border-blue hover:shadow-[0_4px_14px_rgba(17,48,167,0.08)] hover:-translate-y-px"
+                  className="w-full flex items-center gap-[13px] text-left cursor-pointer bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[10px] py-3 px-3.5 transition-all duration-150 hover:border-blue hover:shadow-[0_4px_14px_rgba(17,48,167,0.08)] hover:-translate-y-px"
                   onClick={() => onPick(r.siren)}
                 >
-                  <span className="w-[34px] h-[34px] flex-shrink-0 rounded-lg bg-gray-50 text-gray-500 flex items-center justify-center">
-                    <Building2 className="w-4 h-4" />
+                  <span className="w-[34px] h-[34px] flex-shrink-0 rounded-lg bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] flex items-center justify-center">
+                    <IconCompany className="w-4 h-4" />
                   </span>
                   <span className="flex-1 flex flex-col gap-[2px] min-w-0">
-                    <span className="text-[14.5px] font-semibold text-gray-900">
+                    <span className="text-[14.5px] font-semibold text-[var(--ds-text)]">
                       {r.name}
                     </span>
-                    <span className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
+                    <span className="text-[12.5px] text-[var(--ds-text-subtle)] font-mono tracking-[-0.01em]">
                       {formatSiren(r.siren)}
                     </span>
                   </span>
-                  <ArrowRight className="w-4 h-4 text-gray-300" />
+                  <IconArrowRight className="w-4 h-4 text-[var(--ds-text-subtle)]" />
                 </button>
               </li>
             ))}
@@ -616,29 +732,29 @@ function ContactCard({ name, value }: ContactCardProps) {
         : null;
 
   const Icon = isUrl(value)
-    ? ExternalLink
+    ? IconExternalLink
     : isEmail(value)
-      ? Mail
+      ? IconMail
       : isPhone(value)
-        ? Phone
-        : Copy;
+        ? IconPhone
+        : IconCopy;
 
   const cardClass =
-    "bg-white border border-gray-100 rounded-[10px] px-4 py-3 flex flex-col gap-1.5 text-left hover:border-blue/30 transition-colors cursor-pointer";
+    "bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[10px] px-4 py-3 flex flex-col gap-1.5 text-left hover:border-blue/30 transition-colors cursor-pointer";
 
   const body = (
     <>
       <span className="flex items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-gray-500">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
           {name}
         </span>
         {copied ? (
-          <Check className="w-3.5 h-3.5 text-success flex-shrink-0" />
+          <IconCheck className="w-3.5 h-3.5 text-[var(--ds-success)] flex-shrink-0" />
         ) : (
-          <Icon className="w-3.5 h-3.5 text-gray-300 flex-shrink-0" />
+          <Icon className="w-3.5 h-3.5 text-[var(--ds-text-subtle)] flex-shrink-0" />
         )}
       </span>
-      <span className="text-[15px] font-medium text-gray-900 break-all">
+      <span className="text-[15px] font-medium text-[var(--ds-text)] break-all">
         {value}
       </span>
     </>
@@ -689,7 +805,7 @@ function ModeTab({
         "px-5 py-2 rounded-full text-[13px] font-semibold transition-all duration-150 border",
         active
           ? "bg-blue text-white border-blue shadow-[0_2px_8px_-2px_rgba(17,48,167,0.35)]"
-          : "bg-white text-gray-500 border-gray-100 hover:border-blue/30 hover:text-blue",
+          : "bg-[var(--ds-surface)] text-[var(--ds-text-subtle)] border-[var(--ds-border)] hover:border-blue/30 hover:text-blue",
       ].join(" ")}
     >
       {label}
@@ -698,62 +814,94 @@ function ModeTab({
 }
 
 function MulticriteriaSearchBar({
-  communeValue,
-  onCommuneChange,
-  nafValue,
-  onNafChange,
-  isReunionOnly,
-  onIsReunionOnlyChange,
+  filters,
+  onFiltersChange,
+  communeOptions,
+  isLocalOnly,
+  onIsLocalOnlyChange,
+  localLabel,
   onSubmit,
   busy,
 }: {
-  communeValue: string;
-  onCommuneChange: (v: string) => void;
-  nafValue: string;
-  onNafChange: (v: string) => void;
-  isReunionOnly: boolean;
-  onIsReunionOnlyChange: (v: boolean) => void;
+  filters: MulticriteriaFilters;
+  onFiltersChange: (f: MulticriteriaFilters) => void;
+  communeOptions: string[];
+  isLocalOnly: boolean;
+  onIsLocalOnlyChange: (v: boolean) => void;
+  localLabel: string;
   onSubmit: () => void;
   busy: boolean;
 }) {
-  const hasValue = !!(communeValue.trim() || nafValue.trim() || isReunionOnly);
+  const set = (patch: Partial<MulticriteriaFilters>) => onFiltersChange({ ...filters, ...patch });
+  const hasValue = !!(
+    filters.commune.trim() ||
+    filters.naf.trim() ||
+    isLocalOnly ||
+    filters.denomination.trim() ||
+    filters.codePostal.trim() ||
+    filters.departement.trim() ||
+    filters.region.trim() ||
+    filters.dirigeantNom.trim() ||
+    filters.dirigeantPrenom.trim() ||
+    filters.etatAdministratif.trim() ||
+    filters.categorie.trim() ||
+    filters.tranche.trim()
+  );
+  const clear = () => {
+    onFiltersChange({
+      commune: "",
+      naf: "",
+      deptPrefix: null,
+      denomination: "",
+      codePostal: "",
+      departement: "",
+      region: "",
+      dirigeantNom: "",
+      dirigeantPrenom: "",
+      etatAdministratif: "",
+      categorie: "",
+      tranche: "",
+    });
+    onIsLocalOnlyChange(false);
+  };
+  const selectClass =
+    "flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] cursor-pointer";
+  const inputClass =
+    "flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-[var(--ds-text)] placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal";
+  const rowClass = "flex items-center gap-2.5";
+  const iconHidden = (
+    <span className="flex text-[var(--ds-text-subtle)] flex-shrink-0 invisible">
+      <IconSearch className="w-5 h-5" />
+    </span>
+  );
   return (
     <form
-      className="flex flex-col gap-3 bg-white border-[1.5px] border-gray-100 rounded-[14px] p-4 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
+      className="flex flex-col gap-3 bg-[var(--ds-surface)] border-[1.5px] border-[var(--ds-border)] rounded-[14px] p-4 transition-[border-color,box-shadow] duration-[180ms] focus-within:border-blue focus-within:shadow-[0_0_0_4px_var(--color-blue-light)]"
       onSubmit={(e) => {
         e.preventDefault();
         onSubmit();
       }}
     >
-      <div className="flex items-center gap-2.5">
-        <span className="flex text-gray-500 flex-shrink-0">
-          <Search className="w-5 h-5" />
+      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)]">
+        Entreprise
+      </p>
+      <div className={rowClass}>
+        <span className="flex text-[var(--ds-text-subtle)] flex-shrink-0">
+          <IconSearch className="w-5 h-5" />
         </span>
-        <select
-          className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
-          value={communeValue}
-          onChange={(e) => onCommuneChange(e.target.value)}
-        >
-          <option value="">Sélectionnez une commune</option>
-          {REUNION_COMMUNES.map((commune) => (
-            <option key={commune} value={commune}>
-              {commune
-                .split("-")
-                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                .join("-")}
-            </option>
-          ))}
-        </select>
+        <input
+          className={inputClass}
+          placeholder="Nom, enseigne ou mot-clé"
+          value={filters.denomination}
+          onChange={(e) => set({ denomination: e.target.value })}
+        />
       </div>
-
-      <div className="flex items-center gap-2.5">
-        <span className="flex text-gray-500 flex-shrink-0 invisible">
-          <Search className="w-5 h-5" />
-        </span>
+      <div className={rowClass}>
+        {iconHidden}
         <select
-          className="flex-1 border-0 outline-none bg-transparent text-[15px] font-medium text-gray-900 cursor-pointer"
-          value={nafValue}
-          onChange={(e) => onNafChange(e.target.value)}
+          className={selectClass}
+          value={filters.naf}
+          onChange={(e) => set({ naf: e.target.value })}
         >
           <option value="">Tous secteurs (NAF)</option>
           {NAF_CODES.map((n) => (
@@ -763,31 +911,135 @@ function MulticriteriaSearchBar({
           ))}
         </select>
       </div>
+      <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
+        <select
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.categorie}
+          onChange={(e) => set({ categorie: e.target.value })}
+          aria-label="Taille d'entreprise"
+        >
+          <option value="">Taille : toutes</option>
+          {CATEGORIES_ENTREPRISE.map((c) => (
+            <option key={c.code} value={c.code}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.tranche}
+          onChange={(e) => set({ tranche: e.target.value })}
+          aria-label="Tranche d'effectif"
+        >
+          <option value="">Effectif : tous</option>
+          {TRANCHES_EFFECTIF.map((t) => (
+            <option key={t.code} value={t.code}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.etatAdministratif}
+          onChange={(e) => set({ etatAdministratif: e.target.value })}
+          aria-label="Situation administrative"
+        >
+          <option value="">En activité + cessées</option>
+          <option value="A">En activité</option>
+          <option value="C">Cessée</option>
+        </select>
+      </div>
+
+      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)] mt-1">
+        Zone géographique
+      </p>
+      <div className={rowClass}>
+        <span className="flex text-[var(--ds-text-subtle)] flex-shrink-0">
+          <IconSearch className="w-5 h-5" />
+        </span>
+        <select
+          className={selectClass}
+          value={filters.commune}
+          onChange={(e) => set({ commune: e.target.value })}
+        >
+          <option value="">Sélectionnez une commune</option>
+          {communeOptions.map((commune) => (
+            <option key={commune} value={commune}>
+              {commune
+                .split("-")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join("-")}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-3 gap-2 max-sm:grid-cols-1">
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          inputMode="numeric"
+          placeholder="Code postal (ex. 97400)"
+          value={filters.codePostal}
+          onChange={(e) => set({ codePostal: e.target.value })}
+        />
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          placeholder="Département (ex. 974)"
+          value={filters.departement}
+          onChange={(e) => set({ departement: e.target.value })}
+        />
+        <select
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 cursor-pointer"
+          value={filters.region}
+          onChange={(e) => set({ region: e.target.value })}
+          aria-label="Région"
+        >
+          <option value="">Région : toutes</option>
+          {REGIONS.map((r) => (
+            <option key={r.code} value={r.code}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <p className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--ds-text-subtle)] mt-1">
+        Dirigeant
+      </p>
+      <div className="grid grid-cols-2 gap-2 max-sm:grid-cols-1">
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          placeholder="Nom du dirigeant"
+          value={filters.dirigeantNom}
+          onChange={(e) => set({ dirigeantNom: e.target.value })}
+        />
+        <input
+          className="border border-[var(--ds-border)] rounded-[10px] bg-transparent text-[14px] font-medium text-[var(--ds-text)] px-3 py-2 placeholder:text-[var(--ds-text-subtle)] placeholder:font-normal"
+          placeholder="Prénom du dirigeant"
+          value={filters.dirigeantPrenom}
+          onChange={(e) => set({ dirigeantPrenom: e.target.value })}
+        />
+      </div>
 
       <div className="flex items-center justify-between gap-3">
-        <label className="flex items-center gap-2 cursor-pointer px-3 py-2 bg-gray-50 rounded-[10px] hover:bg-gray-100 transition-colors">
+        <label className="flex items-center gap-2 cursor-pointer px-3 py-2 bg-[var(--ds-surface-sunken)] rounded-[10px] hover:bg-[var(--ds-surface-sunken)] transition-colors">
           <input
             type="checkbox"
-            checked={isReunionOnly}
-            onChange={(e) => onIsReunionOnlyChange(e.target.checked)}
+            checked={isLocalOnly}
+            onChange={(e) => onIsLocalOnlyChange(e.target.checked)}
             className="w-4 h-4 cursor-pointer accent-blue"
           />
-          <span className="text-[14px] font-medium text-gray-700 whitespace-nowrap">
-            Entreprise Réunionaise
+          <span className="text-[14px] font-medium text-[var(--ds-text-subtle)] whitespace-nowrap">
+            {localLabel}
           </span>
         </label>
         {hasValue && (
           <button
             type="button"
-            className="flex border-0 bg-gray-100 text-gray-500 w-[28px] h-[28px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-gray-200 hover:text-gray-900 transition-colors"
-            onClick={() => {
-              onCommuneChange("");
-              onNafChange("");
-              onIsReunionOnlyChange(false);
-            }}
+            className="flex border-0 bg-[var(--ds-surface-sunken)] text-[var(--ds-text-subtle)] w-[28px] h-[28px] rounded-full items-center justify-center cursor-pointer flex-shrink-0 hover:bg-[var(--ds-surface-sunken)] hover:text-[var(--ds-text)] transition-colors"
+            onClick={clear}
             aria-label="Effacer"
           >
-            <X className="w-4 h-4" />
+            <IconClose className="w-4 h-4" />
           </button>
         )}
       </div>
@@ -804,7 +1056,7 @@ function MulticriteriaSearchBar({
           </>
         ) : (
           <>
-            <Search className="w-4 h-4" />
+            <IconSearch className="w-4 h-4" />
             <span>Rechercher</span>
           </>
         )}
@@ -821,7 +1073,7 @@ function CommuneSkeleton() {
       {[0, 1, 2, 3, 4].map((i) => (
         <div
           key={i}
-          className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4"
+          className="bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[14px] px-5 py-4 flex items-center gap-4"
         >
           <span className={`${sk} w-9 h-9 rounded-[8px] flex-shrink-0`} />
           <div className="flex-1">
@@ -854,13 +1106,13 @@ function CommuneResultList({
 }: CommuneResultListProps) {
   return (
     <div>
-      <p className="text-[13px] text-gray-500 mb-4 text-center">
-        <span className="font-semibold text-gray-900">
+      <p className="text-[13px] text-[var(--ds-text-subtle)] mb-4 text-center">
+        <span className="font-semibold text-[var(--ds-text)]">
           {result.header.nombre}
         </span>{" "}
         établissement{result.header.nombre !== 1 ? "s" : ""} affiché
         {result.header.nombre !== 1 ? "s" : ""} sur{" "}
-        <span className="font-semibold text-gray-900">
+        <span className="font-semibold text-[var(--ds-text)]">
           {result.header.total.toLocaleString("fr-FR")}
         </span>{" "}
         trouvés
@@ -877,21 +1129,21 @@ function CommuneResultList({
               type="button"
               onClick={() => onSelect?.(e)}
               className={[
-                "text-left bg-white border rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both] cursor-pointer transition-all border-0",
+                "text-left bg-[var(--ds-surface)] border rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both] cursor-pointer transition-all border-0",
                 isSelected
                   ? "ring-2 ring-blue bg-blue-light/30"
-                  : "border-gray-100 hover:border-blue/30",
+                  : "border-[var(--ds-border)] hover:border-blue/30",
               ].join(" ")}
             >
               <div className="flex items-center gap-4 flex-1 min-w-0">
                 <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
-                  <Building2 className="w-4 h-4" />
+                  <IconCompany className="w-4 h-4" />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[15px] font-semibold text-gray-900 truncate">
+                  <p className="text-[15px] font-semibold text-[var(--ds-text)] truncate">
                     {name}
                   </p>
-                  <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
+                  <p className="text-[12.5px] text-[var(--ds-text-subtle)] font-mono tracking-[-0.01em]">
                     {formatSiret(e.siret)}
                     {city ? ` · ${city}` : ""}
                   </p>
@@ -902,8 +1154,8 @@ function CommuneResultList({
                   className={[
                     "inline-flex items-center gap-1.5 text-[12px] font-semibold py-1 px-2.5 rounded-full flex-shrink-0",
                     closed
-                      ? "bg-danger-bg text-danger"
-                      : "bg-success-bg text-success",
+                      ? "bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]"
+                      : "bg-[var(--ds-success-bg)] text-[var(--ds-success)]",
                   ].join(" ")}
                 >
                   <span
@@ -927,14 +1179,14 @@ function ExistingCompanyList({ items }: { items: CompanyWithSalePerson[] }) {
   return (
     <div className="flex flex-col gap-2">
       {items.map(({ company, salePerson }) => (
-        <div key={company.id} className="bg-white border border-gray-100 rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both]">
+        <div key={company.id} className="bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[14px] px-5 py-4 flex items-center gap-4 shadow-[0_1px_4px_rgba(13,13,13,0.04)] animate-[rise_0.2s_ease_both]">
           <div className="flex items-center gap-4 flex-1 min-w-0">
             <span className="w-9 h-9 flex-shrink-0 rounded-[8px] bg-blue-light text-blue flex items-center justify-center">
-              <Building2 className="w-4 h-4" />
+              <IconCompany className="w-4 h-4" />
             </span>
             <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-semibold text-gray-900 truncate">{company.name}</p>
-              <p className="text-[12.5px] text-gray-500 font-mono tracking-[-0.01em]">
+              <p className="text-[15px] font-semibold text-[var(--ds-text)] truncate">{company.name}</p>
+              <p className="text-[12.5px] text-[var(--ds-text-subtle)] font-mono tracking-[-0.01em]">
                 {formatSiret(company.siret ?? "")}
               </p>
             </div>
@@ -964,10 +1216,32 @@ export default function Sourcing() {
     value: string;
   }> | null>(null);
 
-  // Commune mode state
-  const [communeQuery, setCommuneQuery] = useState("");
-  const [nafCode, setNafCode] = useState("");
-  const [isReunionOnly, setIsReunionOnly] = useState(false);
+  // Commune mode state — communes et filtre départemental selon le tenant
+  // (Réunion : 974* ; Annemasse : 74* Haute-Savoie).
+  const region = useRegionStore((s) => s.region);
+  const isAnnemasse = region === "annemasse";
+  const communeOptions = isAnnemasse ? ANNEMASSE_COMMUNES : REUNION_COMMUNES;
+  const localLabel = isAnnemasse ? "Entreprise Haut-Savoyarde" : "Entreprise Réunionaise";
+  const [multiFilters, setMultiFilters] = useState<Omit<MulticriteriaFilters, "deptPrefix">>({
+    commune: "",
+    naf: "",
+    denomination: "",
+    codePostal: "",
+    departement: "",
+    region: "",
+    dirigeantNom: "",
+    dirigeantPrenom: "",
+    etatAdministratif: "",
+    categorie: "",
+    tranche: "",
+  });
+  const [isLocalOnly, setIsLocalOnly] = useState(false);
+  const deptPrefix = isLocalOnly ? (isAnnemasse ? "74*" : "974*") : null;
+  // Identité stable pour les dépendances des callbacks de pagination.
+  const filtersWithDept: MulticriteriaFilters = useMemo(
+    () => ({ ...multiFilters, deptPrefix }),
+    [multiFilters, deptPrefix],
+  );
   const [communeView, setCommuneView] = useState<CommuneView>("empty");
   const [communeResult, setCommuneResult] = useState<SireneListResult | null>(
     null,
@@ -991,6 +1265,28 @@ export default function Sourcing() {
       /* ignore */
     }
   }, [recents]);
+
+  // Changement de tenant : la commune sélectionnée appartient à l'autre
+  // référentiel — on repart d'une recherche vide.
+  useEffect(() => {
+    setMultiFilters({
+      commune: "",
+      naf: "",
+      denomination: "",
+      codePostal: "",
+      departement: "",
+      region: "",
+      dirigeantNom: "",
+      dirigeantPrenom: "",
+      etatAdministratif: "",
+      categorie: "",
+      tranche: "",
+    });
+    setIsLocalOnly(false);
+    setCommuneView("empty");
+    setCommuneResult(null);
+    setSelectedCommune(null);
+  }, [region]);
 
   const pushRecent = useCallback((data: SirenSearchResult) => {
     const name =
@@ -1045,7 +1341,7 @@ export default function Sourcing() {
 
   const runCommune = useCallback(
     async () => {
-      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
+      const criteria = buildCriteria(filtersWithDept);
       if (criteria.length === 0) return;
       setCommuneView("loading");
       setOffsetHistory([]);
@@ -1059,13 +1355,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly],
+    [filtersWithDept],
   );
 
   const loadNextPage = useCallback(
     async () => {
       if (!communeResult) return;
-      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
+      const criteria = buildCriteria(filtersWithDept);
       if (criteria.length === 0) return;
       const nextOffset =
         communeResult.header.offset + communeResult.etablissements.length;
@@ -1081,13 +1377,13 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly, communeResult],
+    [filtersWithDept, communeResult],
   );
 
   const loadPrevPage = useCallback(
     async () => {
       if (!communeResult || offsetHistory.length === 0) return;
-      const criteria = buildCriteria(communeQuery, nafCode, isReunionOnly);
+      const criteria = buildCriteria(filtersWithDept);
       if (criteria.length === 0) return;
       const prevOffset = offsetHistory[offsetHistory.length - 1];
       setOffsetHistory((h) => h.slice(0, -1));
@@ -1102,7 +1398,7 @@ export default function Sourcing() {
         setCommuneView(msg === "notfound" ? "notfound" : "error");
       }
     },
-    [communeQuery, nafCode, isReunionOnly, communeResult, offsetHistory],
+    [filtersWithDept, communeResult, offsetHistory],
   );
 
   const submit = () => run(query);
@@ -1150,7 +1446,7 @@ export default function Sourcing() {
   }, [result, selectedCommune]);
 
   return (
-    <div className="min-h-full bg-background">
+    <div className="min-h-full bg-[var(--ds-bg)]">
       <style>{`
         @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
         @keyframes shimmer { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
@@ -1197,7 +1493,7 @@ export default function Sourcing() {
                   <>
                     {result.companiesWithSale.length > 0 && (
                       <div className="mb-6">
-                        <h3 className="text-[13px] font-semibold text-gray-700 mb-3">
+                        <h3 className="text-[13px] font-semibold text-[var(--ds-text-muted)] mb-3">
                           Existantes ({result.companiesWithSale.length})
                         </h3>
                         <ExistingCompanyList items={result.companiesWithSale} />
@@ -1205,7 +1501,7 @@ export default function Sourcing() {
                     )}
                     {result.etablissements.length > 0 && (
                       <div className="mb-6">
-                        <h3 className="text-[13px] font-semibold text-gray-700 mb-3">
+                        <h3 className="text-[13px] font-semibold text-[var(--ds-text-muted)] mb-3">
                           Non existantes ({result.etablissements.length})
                         </h3>
                         {!selectedEtablissement ? (
@@ -1229,7 +1525,7 @@ export default function Sourcing() {
                                 setSelectedEtablissement(null);
                                 setContacts(null);
                               }}
-                              className="mb-4 px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all"
+                              className="mb-4 px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all"
                             >
                               ← Retour à la liste
                             </button>
@@ -1241,14 +1537,14 @@ export default function Sourcing() {
                             {contacts && (
                               <div className="mt-6 animate-[rise_0.3s_ease_both]">
                                 {contacts.length === 0 ? (
-                                  <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
-                                    <p className="text-[14px] text-gray-500">
+                                  <div className="text-center py-6 px-4 bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[14px]">
+                                    <p className="text-[14px] text-[var(--ds-text-subtle)]">
                                       Aucune information de contact trouvée
                                     </p>
                                   </div>
                                 ) : (
                                   <div>
-                                    <p className="text-[13px] font-semibold text-gray-700 mb-3">
+                                    <p className="text-[13px] font-semibold text-[var(--ds-text-muted)] mb-3">
                                       {contacts.length} information
                                       {contacts.length !== 1 ? "s" : ""} trouvée
                                       {contacts.length !== 1 ? "s" : ""}
@@ -1293,27 +1589,34 @@ export default function Sourcing() {
           <div>
             <div className="mb-6">
               <MulticriteriaSearchBar
-                communeValue={communeQuery}
-                onCommuneChange={(v) => {
-                  setCommuneQuery(v);
+                filters={filtersWithDept}
+                onFiltersChange={(f) => {
+                  setMultiFilters({
+                    commune: f.commune,
+                    naf: f.naf,
+                    denomination: f.denomination,
+                    codePostal: f.codePostal,
+                    departement: f.departement,
+                    region: f.region,
+                    dirigeantNom: f.dirigeantNom,
+                    dirigeantPrenom: f.dirigeantPrenom,
+                    etatAdministratif: f.etatAdministratif,
+                    categorie: f.categorie,
+                    tranche: f.tranche,
+                  });
                   if (communeView !== "empty") setCommuneView("empty");
                   setContacts(null);
                   setSelectedCommune(null);
                 }}
-                nafValue={nafCode}
-                onNafChange={(v) => {
-                  setNafCode(v);
+                communeOptions={communeOptions}
+                isLocalOnly={isLocalOnly}
+                onIsLocalOnlyChange={(v) => {
+                  setIsLocalOnly(v);
                   if (communeView !== "empty") setCommuneView("empty");
                   setContacts(null);
                   setSelectedCommune(null);
                 }}
-                isReunionOnly={isReunionOnly}
-                onIsReunionOnlyChange={(v) => {
-                  setIsReunionOnly(v);
-                  if (communeView !== "empty") setCommuneView("empty");
-                  setContacts(null);
-                  setSelectedCommune(null);
-                }}
+                localLabel={localLabel}
                 onSubmit={() => runCommune()}
                 busy={communeView === "loading"}
               />
@@ -1321,13 +1624,15 @@ export default function Sourcing() {
             {communeView === "empty" && (
               <div className="text-center py-11 animate-[rise_0.3s_ease_both]">
                 <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-blue-light text-blue">
-                  <Building2 className="w-7 h-7" />
+                  <IconCompany className="w-7 h-7" />
                 </span>
-                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+                <h3 className="text-[21px] font-bold text-[var(--ds-text)] tracking-[-0.01em]">
                   Recherche multicritère
                 </h3>
-                <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
-                  Sélectionnez une commune et/ou un secteur d'activité (NAF) pour lister les établissements enregistrés dans le registre INSEE.
+                <p className="text-[14.5px] text-[var(--ds-text-subtle)] mt-[9px] leading-[1.55]">
+                  Combinez nom, secteur (NAF), taille, effectif, situation administrative, zone
+                  géographique (commune, code postal, département, région) et dirigeant pour lister
+                  les établissements du registre national.
                 </p>
               </div>
             )}
@@ -1339,7 +1644,7 @@ export default function Sourcing() {
                     type="button"
                     onClick={loadPrevPage}
                     disabled={offsetHistory.length === 0}
-                    className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     ← Page précédente
                   </button>
@@ -1351,7 +1656,7 @@ export default function Sourcing() {
                         communeResult.etablissements.length >=
                       communeResult.header.total
                     }
-                    className="px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Page suivante →
                   </button>
@@ -1371,7 +1676,7 @@ export default function Sourcing() {
                     setSelectedCommune(null);
                     setContacts(null);
                   }}
-                  className="mb-4 px-4 py-2 border border-gray-200 text-gray-700 font-semibold text-[13px] rounded-[8px] hover:border-gray-300 bg-white cursor-pointer transition-all"
+                  className="mb-4 px-4 py-2 border border-[var(--ds-border)] text-[var(--ds-text-muted)] font-semibold text-[13px] rounded-[8px] hover:border-[var(--ds-border-strong)] bg-[var(--ds-surface)] cursor-pointer transition-all"
                 >
                   ← Retour à la liste
                 </button>
@@ -1383,14 +1688,14 @@ export default function Sourcing() {
                 {contacts && (
                   <div className="mt-6 animate-[rise_0.3s_ease_both]">
                     {contacts.length === 0 ? (
-                      <div className="text-center py-6 px-4 bg-white border border-gray-100 rounded-[14px]">
-                        <p className="text-[14px] text-gray-500">
+                      <div className="text-center py-6 px-4 bg-[var(--ds-surface)] border border-[var(--ds-border)] rounded-[14px]">
+                        <p className="text-[14px] text-[var(--ds-text-subtle)]">
                           Aucune information de contact trouvée
                         </p>
                       </div>
                     ) : (
                       <div>
-                        <p className="text-[13px] font-semibold text-gray-700 mb-3">
+                        <p className="text-[13px] font-semibold text-[var(--ds-text-muted)] mb-3">
                           {contacts.length} information
                           {contacts.length !== 1 ? "s" : ""} trouvée
                           {contacts.length !== 1 ? "s" : ""}
@@ -1412,26 +1717,26 @@ export default function Sourcing() {
             )}
             {communeView === "notfound" && (
               <div className="text-center py-11 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
-                <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
-                  <AlertTriangle className="w-7 h-7" />
+                <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]">
+                  <IconWarning className="w-7 h-7" />
                 </span>
-                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+                <h3 className="text-[21px] font-bold text-[var(--ds-text)] tracking-[-0.01em]">
                   Aucun résultat
                 </h3>
-                <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+                <p className="text-[14.5px] text-[var(--ds-text-subtle)] mt-[9px] leading-[1.55]">
                   Aucun établissement trouvé pour ces critères dans le registre INSEE.
                 </p>
               </div>
             )}
             {communeView === "error" && (
               <div className="text-center py-11 max-w-[520px] mx-auto animate-[rise_0.3s_ease_both]">
-                <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-danger-bg text-danger">
-                  <AlertTriangle className="w-7 h-7" />
+                <span className="w-[60px] h-[60px] rounded-[14px] mx-auto mb-5 flex items-center justify-center bg-[var(--ds-danger-bg)] text-[var(--ds-danger)]">
+                  <IconWarning className="w-7 h-7" />
                 </span>
-                <h3 className="text-[21px] font-bold text-black tracking-[-0.01em]">
+                <h3 className="text-[21px] font-bold text-[var(--ds-text)] tracking-[-0.01em]">
                   Erreur de connexion
                 </h3>
-                <p className="text-[14.5px] text-gray-500 mt-[9px] leading-[1.55]">
+                <p className="text-[14.5px] text-[var(--ds-text-subtle)] mt-[9px] leading-[1.55]">
                   Impossible d'interroger le registre INSEE. Réessayez dans
                   quelques instants.
                 </p>

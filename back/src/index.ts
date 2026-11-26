@@ -2,12 +2,15 @@ import './config/env'; // validate env vars at startup
 import './instrumentation'; // OpenTelemetry SDK (must be before any module that uses pino, express, etc.)
 import express, { NextFunction, Request, Response } from 'express';
 import http from 'http';
-import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI } from './graphql/server';
-import { expressMiddleware } from '@as-integrations/express4';
-import { jwtContext } from './graphql/context';
-import { connectMySQL } from './db/mysql/connection';
+import { CompanyAPI, CandidateAPI, OfferAPI, NeedsAnalysisAPI, PedaAPI } from './graphql/server';
+import { expressMiddleware } from '@as-integrations/express5';
+import { jwtContext, graphqlRegionMiddleware } from './graphql/context';
+import { connectMySQL, getPool } from './db/mysql/connection';
 import { runMysqlMigrations } from './db/mysql/migrations';
+import { TENANT_TIMEZONE } from './config/tenant';
 import { connectMongoDB } from './db/mongo/connection';
+import { migrateLegacyKpiTables } from './db/mongo/legacyKpiImport';
+import { query } from './db/mysql/connection';
 import session from 'express-session';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -30,19 +33,22 @@ import { router as notificationsRouter } from './rest/notifications/route';
 import { router as calendarRouter } from './rest/calendar/route';
 import { router as bookingRouter } from './rest/booking/route';
 import { router as mailTemplatesRouter } from './rest/mailTemplates/route';
-import { router as matchRouter } from './rest/match/route';
-import { router as interviewRouter } from './rest/interview/route';
 import { router as externalRouter } from './rest/external/route';
 import { router as filizRouter } from './rest/filiz/route';
 import { router as sectorSettingsRouter } from './rest/sectorSettings/route';
 import { router as pedaRouter } from './rest/peda/route';
+import { router as questionnaireRouter } from './rest/questionnaire/route';
+import { router as questionnairePublicRouter } from './rest/questionnaire/public.route';
 import { startPedaDraftScheduler } from './scheduler/pedaDraftScheduler';
 import { startImmersionEndScheduler } from './scheduler/immersionEndScheduler';
+import { startSaNotificationScheduler } from './scheduler/saNotificationScheduler';
 import { startUnavailableExpiryScheduler } from './scheduler/unavailableExpiryScheduler';
 import { startAbSignatureRelanceScheduler } from './scheduler/abSignatureRelanceScheduler';
 import { startExpiredAccessScheduler } from './scheduler/expiredAccessScheduler';
+import { startFilizSyncScheduler } from './scheduler/filizSyncScheduler';
 import { MailTemplateService } from './services/MailTemplateService';
 import { router as mcpRouter } from './mcp/route';
+import { buildMcpOAuthRouter } from './mcp/oauth/router';
 import { errorHandler } from './rest/middleware/errorHandler';
 import { emailRateLimiter, relanceRateLimiter, graphqlRateLimiter } from './rest/middleware/rateLimiter';
 import { httpLogger } from './rest/middleware/httpLogger';
@@ -64,28 +70,65 @@ export async function createApp(): Promise<express.Express> {
     // laisserait n'importe qui forger son IP et contourner les rate limits.
     if (isProduction) app.set('trust proxy', 1);
 
+    // Les endpoints OAuth MCP sont à la racine de l'issuer et affichent la
+    // page de consentement (GET /authorize) dont le formulaire POSTe sur
+    // /authorize : le `form-action 'self'` du CSP Helmet par défaut bloque
+    // la soumission quand l'origine est opaque (iframe sandbox claude.ai,
+    // Origin: null — 'self' ne matche pas) ou redirigée vers le client.
+    // On leur donne donc leur propre CSP : mêmes défauts Helmet, seule
+    // `form-action` est élargie à l'issuer explicite + origines clientes.
+    const mcpOAuthRootPaths = new Set(['/authorize', '/token', '/register', '/revoke']);
+    const isMcpOAuthPath = (path: string): boolean =>
+        mcpOAuthRootPaths.has(path) || path.startsWith('/.well-known/oauth');
+    const mcpOAuthHelmet = helmet({
+        contentSecurityPolicy: isProduction
+            ? {
+                  directives: {
+                      'form-action': [
+                          "'self'",
+                          'https://app-reunion.disciplina.re/',
+                          'https://claude.ai/',
+                          'https://*.claude.ai',
+                      ],
+                  },
+              }
+            : false,
+        hsts: isProduction ? undefined : false,
+    });
+
     // CSP coupée hors production (elle casse la sandbox Apollo), HSTS aussi
     // (le navigateur mémorise l'en-tête et force ensuite https://localhost).
-    app.use(
-        helmet({
-            contentSecurityPolicy: isProduction ? undefined : false,
-            hsts: isProduction ? undefined : false,
-        }),
-    );
+    const defaultHelmet = helmet({
+        contentSecurityPolicy: isProduction ? undefined : false,
+        hsts: isProduction ? undefined : false,
+    });
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        if (isMcpOAuthPath(req.path)) return mcpOAuthHelmet(req, res, next);
+        return defaultHelmet(req, res, next);
+    });
 
     app.use(httpLogger);
 
-    app.use(
-        cors({
-            origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
-                // No Origin header: same-origin, curl, server-to-server
-                if (!origin) return callback(null, true);
-                if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
-                return callback(new Error(`CORS: origin ${origin} not allowed`));
-            },
-            credentials: true,
-        }),
-    );
+    const corsMiddleware = cors({
+        origin(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+            // No Origin header: same-origin, curl, server-to-server
+            if (!origin) return callback(null, true);
+            if (env.CORS_ORIGINS.includes(origin)) return callback(null, true);
+            return callback(new Error(`CORS: origin ${origin} not allowed`));
+        },
+        credentials: true,
+    });
+
+    // Les endpoints OAuth MCP sont à la racine de l'issuer et sont consommés par
+    // claude.ai web depuis une iframe sandbox (Origin: null) : le contrôle
+    // d'origine CORS y est inapplicable et bloquerait le POST /authorize (500).
+    // Le consentement est protégé par le login CRM (email + mot de passe) de la page /authorize.
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        if (isMcpOAuthPath(req.path)) {
+            return next();
+        }
+        return corsMiddleware(req, res, next);
+    });
 
     app.use(cookieParser());
 
@@ -129,18 +172,47 @@ export async function createApp(): Promise<express.Express> {
     app.use('/api/calendar', calendarRouter);
     app.use('/api/booking', bookingRouter);
     app.use('/api/mail-templates', mailTemplatesRouter);
-    app.use('/api/match', matchRouter);
-    app.use('/api/interview', interviewRouter);
     app.use('/api/external', externalRouter);
     app.use('/api/filiz', filizRouter);
     app.use('/api/sector-settings', sectorSettingsRouter);
     app.use('/api/peda', pedaRouter);
+    app.use('/api/questionnaires', questionnaireRouter);
+    app.use('/api/q', questionnairePublicRouter);
+    // OAuth MCP (claude.ai web) : endpoints .well-known/authorize/token/register/
+    // revoke à la racine de l'issuer — avant mcpRouter et errorHandler.
+    app.use(buildMcpOAuthRouter());
     app.use(mcpRouter);
     app.use(errorHandler);
 
     await connectMySQL();
-    await runMysqlMigrations();
+    await runMysqlMigrations(undefined, TENANT_TIMEZONE.reunion);
+    // Les migrations tournent aussi sur la base annemasse : même schéma, même
+    // exigence de colonnes, mais le fuseau des pages de réservation est celui du
+    // tenant. getPool('annemasse') est hors ALS (boot, pas requête), d'où la
+    // région passée explicitement.
+    await runMysqlMigrations(async <T>(sql: string, params?: unknown[]): Promise<T> => {
+        const [rows] = await getPool('annemasse').execute(sql as string, params as (string | number)[]);
+        return rows as T;
+    }, TENANT_TIMEZONE.annemasse);
     await connectMongoDB();
+
+    // Ex-tables commercial_kpi / rh_kpi (#513) : import vers Mongo `kpis` puis
+    // drop. Best-effort : en cas d'échec les tables sont conservées et le
+    // retry repart au prochain boot ; ne doit jamais bloquer le démarrage.
+    try {
+        const legacy = await migrateLegacyKpiTables(
+            { all: (sql, params) => query(sql as never, params) },
+            { dropAfter: true },
+        );
+        if (legacy.commercial || legacy.rh || legacy.dropped.length > 0) {
+            logger.info(
+                { commercial: legacy.commercial, rh: legacy.rh, dropped: legacy.dropped },
+                'Legacy MySQL KPI tables migrated to MongoDB',
+            );
+        }
+    } catch (err) {
+        logger.error({ err }, 'Legacy KPI migration failed, tables kept for retry');
+    }
 
     app.use('/api/graphql', graphqlRateLimiter);
 
@@ -150,12 +222,13 @@ export async function createApp(): Promise<express.Express> {
         next();
     });
 
-    // Express 4 middleware d'Apollo : pas de CORS installé (contrairement à
+    // Express 5 middleware d'Apollo : pas de CORS installé (contrairement à
     // applyMiddleware en v3) → la config globale ci-dessus (cors + credentials)
     // s'applique sans être écrasée. Le parsing du corps JSON est aussi à notre
     // charge, d'où l'express.json() ci-dessous.
     await CompanyAPI.start();
     app.use('/api/graphql', express.json());
+    app.use('/api/graphql', graphqlRegionMiddleware);
     app.use('/api/graphql/companies', expressMiddleware(CompanyAPI, { context: jwtContext }));
 
     await CandidateAPI.start();
@@ -166,6 +239,9 @@ export async function createApp(): Promise<express.Express> {
 
     await NeedsAnalysisAPI.start();
     app.use('/api/graphql/needs-analysis', expressMiddleware(NeedsAnalysisAPI, { context: jwtContext }));
+
+    await PedaAPI.start();
+    app.use('/api/graphql/peda', expressMiddleware(PedaAPI, { context: jwtContext }));
 
     return app;
 }
@@ -202,13 +278,30 @@ export async function startServer(): Promise<http.Server> {
         .seedCvImportDefault()
         .catch((err) => logger.error({ err }, 'cv-import: seed du modèle par défaut échoué'));
     mailTemplateService
+        .refreshCvImportTemplateButton()
+        .catch((err) => logger.error({ err }, 'cv-import: refresh du modèle par défaut échoué'));
+    mailTemplateService
         .seedpropositionCandidatsDefault()
         .catch((err) => logger.error({ err }, 'match-invitation: seed du modèle système échoué'));
+    mailTemplateService
+        .seedInterviewInvitationDefault()
+        .catch((err) => logger.error({ err }, 'interview-invitation: seed du modèle système échoué'));
+    mailTemplateService
+        .seedTestFailureRedirectionDefault()
+        .catch((err) => logger.error({ err }, 'test-failure-redirection: seed du modèle système échoué'));
+    mailTemplateService
+        .refreshNoCodeRHTemplates()
+        .catch((err) => logger.error({ err }, 'mail-template: refresh des modèles sans code échoué'));
+    mailTemplateService
+        .seedExternalLinkDefault()
+        .catch((err) => logger.error({ err }, 'external-link: seed du modèle système échoué'));
     startPedaDraftScheduler();
     startImmersionEndScheduler();
+    startSaNotificationScheduler();
     startUnavailableExpiryScheduler();
     startAbSignatureRelanceScheduler();
     startExpiredAccessScheduler();
+    startFilizSyncScheduler();
     return server;
 }
 
