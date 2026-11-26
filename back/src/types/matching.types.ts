@@ -198,6 +198,8 @@ export interface MatchingCandidate {
 export interface Matching {
     status?: OfferStatus;
     candidates?: MatchingCandidate[];
+    /** Candidats écartés du matching automatique par un RH (bouton « Non ») — exclus des suggestions. */
+    dismissed_candidate_ids?: string[];
     interview_slots?: string[];
     interview_location?: string;
 }

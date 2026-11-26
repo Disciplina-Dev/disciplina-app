@@ -1437,6 +1437,14 @@ export const CREATE_MATCH_SESSION = gql`
   }
 `
 
+export const DISMISS_SUGGESTED_CANDIDATE = gql`
+  mutation DismissSuggestedCandidate($offerId: String!, $candidateId: String!) {
+    dismissSuggestedCandidate(offerId: $offerId, candidateId: $candidateId) {
+      id
+    }
+  }
+`
+
 export const ADD_CANDIDATE_TO_OFFER = gql`
   mutation AddCandidateToOffer($offerId: String!, $candidateId: String!) {
     addCandidateToOffer(offerId: $offerId, candidateId: $candidateId) {

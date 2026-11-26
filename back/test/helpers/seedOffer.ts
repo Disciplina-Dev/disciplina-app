@@ -20,6 +20,7 @@ export interface SeedOfferInput {
     sector?: Sector;
     activities?: string[];
     candidates?: MatchingCandidate[];
+    dismissed_candidate_ids?: string[];
     interview_slots?: string[];
     interview_location?: string;
     /** Champs criteria bruts (ex. schedule_options legacy `string[]` ou slots structurés). */
@@ -54,6 +55,7 @@ export async function seedOffer(input: SeedOfferInput = {}): Promise<{ _id: stri
         matching: {
             status: input.status ?? OfferStatus.NOT_MATCHED,
             candidates: input.candidates ?? [],
+            dismissed_candidate_ids: input.dismissed_candidate_ids ?? [],
             interview_slots: input.interview_slots ?? [],
             interview_location: input.interview_location,
         },
