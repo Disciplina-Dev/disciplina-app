@@ -471,7 +471,8 @@ function CandidateCard({
               )}
               <button
                 onClick={onSendMail}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] transition-all hover:bg-[var(--ds-surface-sunken)] active:scale-[0.97]"
+                disabled={isSaving}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] transition-all hover:bg-[var(--ds-surface-sunken)] active:scale-[0.97] disabled:opacity-50"
               >
                 <IconMail width={13} height={13} /> Envoyer un mail
               </button>
@@ -1730,18 +1731,21 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJob?.id])
 
-  const handleSaveMatch = async (candidateId: string) => {
-    if (!selectedJob) return
+  const handleSaveMatch = async (candidateId: string): Promise<boolean> => {
+    if (!selectedJob) return false
     setSavingIds((p) => new Set(p).add(candidateId))
     try {
       const result = await offerGraphqlClient.mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId }).toPromise()
-      if (!result.error) {
-        setSavedCandidateIds((p) => new Set(p).add(candidateId))
-        setSuggestedCandidates((p) => p.filter((c) => c.id !== candidateId))
-        if (result.data?.addCandidateToOffer?.matchedCandidate && jobData) {
-          setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToOffer.matchedCandidate })
-        }
+      if (result.error) {
+        setMatchError(result.error.message)
+        return false
       }
+      setSavedCandidateIds((p) => new Set(p).add(candidateId))
+      setSuggestedCandidates((p) => p.filter((c) => c.id !== candidateId))
+      if (result.data?.addCandidateToOffer?.matchedCandidate && jobData) {
+        setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToOffer.matchedCandidate })
+      }
+      return true
     } finally {
       setSavingIds((p) => { const n = new Set(p); n.delete(candidateId); return n })
     }
@@ -1809,6 +1813,17 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
       const { ouiUrl, nonUrl } = result.data.offerResponseLinks
       setMailState({ candidate, ouiUrl, nonUrl })
     }
+  }
+
+  // Depuis le matching automatique, « Envoyer un mail » doit d'abord enregistrer
+  // le match : sans candidat rattaché à l'offre, les liens Oui/Non du mail ne
+  // peuvent pas enregistrer la réponse et le candidat n'apparaît nulle part.
+  const handleSendMailFromSuggestion = async (candidate: MatchedCandidate) => {
+    if (!savedCandidateIds.has(candidate.id)) {
+      const saved = await handleSaveMatch(candidate.id)
+      if (!saved) return
+    }
+    await handleOpenMail(candidate)
   }
 
   const handleMailSent = async (candidate: MatchedCandidate) => {
@@ -2212,7 +2227,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
         }}
         onInfo={setDrawerCandidate}
         onSaveMatch={handleSaveMatch}
-        onSendMail={handleOpenMail}
+        onSendMail={handleSendMailFromSuggestion}
       />
 
       {sendToCompanyOpen && (

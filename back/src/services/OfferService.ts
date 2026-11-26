@@ -38,6 +38,14 @@ const PROPOSED_STATUSES = [
     MatchedCandidateStatus.IMMERSING,
 ];
 
+// Statuts d'une offre réellement proposée au candidat : proposition envoyée
+// (réponse en attente), puis réponse oui (ACCEPTED) ou non (DECLINED).
+const MATCH_PROPOSITION_STATUSES = [
+    MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+    MatchedCandidateStatus.ACCEPTED,
+    MatchedCandidateStatus.DECLINED,
+];
+
 const INTERVIEW_CONCLUSION_TO_CANDIDATE_STATUS: Record<InterviewConclusion, CandidateStatus> = {
     [InterviewConclusion.REJECTED]: CandidateStatus.SEEKING,
     [InterviewConclusion.IMMERSING]: CandidateStatus.IMMERSING,
@@ -510,6 +518,28 @@ export class OfferService {
             });
         }
         return sent;
+    }
+
+    /**
+     * Offres proposées au candidat via le matching, avec sa réponse : proposition
+     * envoyée (en attente), acceptée (« oui ») ou déclinée (« non »).
+     */
+    async getCandidateMatchPropositions(candidateId: string): Promise<object[]> {
+        const offers = await this.offerRepository.findWithCandidate(candidateId);
+        const propositions: object[] = [];
+        for (const offer of offers) {
+            const candidate = offer.matching?.candidates?.find((c) => c.id === candidateId);
+            if (!candidate?.status || !MATCH_PROPOSITION_STATUSES.includes(candidate.status)) continue;
+            propositions.push({
+                offerId: offer._id,
+                companyName: offer.company_infos?.name ?? null,
+                status: candidate.status,
+                title: offer.title ?? null,
+                jobRole: offer.job_role ?? null,
+                needsAnalysisId: offer.needs_analysis_id ?? null,
+            });
+        }
+        return propositions;
     }
 
     async getCandidatePlacement(candidateId: string): Promise<object | null> {

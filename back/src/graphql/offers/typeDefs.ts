@@ -381,6 +381,19 @@ export const typeDefs = gql`
         needsAnalysisId: String
     }
 
+    """
+    Offre proposée au candidat via le matching, avec sa réponse éventuelle
+    (PRE_SELECTED_MAIL_SEND = en attente, ACCEPTED = oui, DECLINED = non).
+    """
+    type CandidateMatchProposition {
+        offerId: String!
+        companyName: String
+        status: MatchedCandidateStatus
+        title: String
+        jobRole: String
+        needsAnalysisId: String
+    }
+
     type Query {
         """
         Offres du matching. Le paramètre includeClosed ajoute les offres déjà
@@ -392,6 +405,7 @@ export const typeDefs = gql`
         offerResponseLinks(offerId: String!, candidateId: String!): OfferLinks!
         candidateMatchedOfferIds(candidateId: String!): [String!]!
         candidateSentCompanies(candidateId: String!): [CandidateSentCompany!]!
+        candidateMatchPropositions(candidateId: String!): [CandidateMatchProposition!]!
         candidatePlacement(candidateId: String!): CandidatePlacement
         offersByNeedsAnalysis(needsAnalysisId: String!): [Offer!]!
         offerHistory(offerId: String!): [OfferHistoryEntry!]!
