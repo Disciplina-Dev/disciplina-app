@@ -27,7 +27,23 @@ import { CompanyRepository } from '../repositories/mysql/CompanyRepository';
 import { UserRowJoined } from '../types/db-rows.types';
 import { logger } from '../external/logger';
 import { QuestionnaireRepository } from '../repositories/mongo/QuestionnaireRepository';
+import { CandidateHistoryRepository } from '../repositories/mongo/CandidateHistoryRepository';
+import { NotificationRepository } from '../repositories/mongo/NotificationRepository';
+import { AlternantRepository } from '../repositories/mongo/AlternantRepository';
+import { ExternalAccessRepository } from '../repositories/mysql/ExternalAccessRepository';
+import { GoogleDriveService, extractDriveFileId } from '../external/google/drive.service';
 import { encryptSsn, MASKED_SSN } from '../external/crypto/ssn-cipher';
+import { decryptHealthIfNeeded } from '../external/crypto/health-cipher';
+import { encryptCandidateHealth } from './candidateHealthFields';
+import { ConsentType } from './consentGuard';
+
+/** Sous-ensemble de GoogleDriveService nécessaire à l'effacement. */
+export type DriveEraser = Pick<GoogleDriveService, 'deleteFile'>;
+
+function isDriveNotFound(error: unknown): boolean {
+    const e = error as { code?: number | string; status?: number; response?: { status?: number } };
+    return e?.code === 404 || e?.code === '404' || e?.status === 404 || e?.response?.status === 404;
+}
 
 function encryptIdentitySsn(identity?: Candidate['identity']): void {
     if (!identity || typeof identity.social_security_number !== 'string') return;
@@ -197,6 +213,7 @@ export class CandidateService {
             }
         }
         encryptIdentitySsn(data.identity);
+        encryptCandidateHealth(data);
         const created = await this.repository.create(data);
         if (created.status === CandidateStatus.CONTRACT) {
             await this.notifyCommercialOnContract(created);
@@ -236,6 +253,14 @@ export class CandidateService {
             ) {
                 data.immersion_agreement = false;
             }
+        }
+        // Le contact d'urgence est chiffré en bloc : une mise à jour partielle doit fusionner avec
+        // l'existant (avant, `flattenObject` ne touchait que les sous-champs envoyés).
+        if (existing?.emergency_contact && data.emergency_contact && typeof data.emergency_contact === 'object') {
+            data.emergency_contact = {
+                ...decryptHealthIfNeeded<Candidate['emergency_contact']>(existing.emergency_contact),
+                ...data.emergency_contact,
+            };
         }
         if (existing) {
             const merged: Candidate = {
@@ -287,6 +312,7 @@ export class CandidateService {
             }
         }
         encryptIdentitySsn(data.identity);
+        encryptCandidateHealth(data);
         const updated = await this.repository.update(id, data);
         if (updated) {
             // Passage en contrat : l'offre liée bascule elle aussi en contrat.
@@ -296,6 +322,23 @@ export class CandidateService {
             }
         }
         return updated;
+    }
+
+    /**
+     * Retire les consentements demandés (GDPR_INF_08.2). Renvoie l'état avant/après,
+     * ou null si la fiche n'existe pas. Seuls les types encore accordés sont modifiés :
+     * un retrait déjà effectif ne change rien (pas de nouvel événement d'historique).
+     */
+    async withdrawConsents(
+        id: string,
+        types: ConsentType[],
+    ): Promise<{ previous: Candidate; updated: Candidate } | null> {
+        const previous = await this.repository.findById(id);
+        if (!previous) return null;
+        const granted = types.filter((type) => previous.consentments?.[type] === true);
+        if (granted.length === 0) return { previous, updated: previous };
+        const updated = await this.repository.withdrawConsents(id, granted);
+        return updated ? { previous, updated } : null;
     }
 
     /** Enregistre une relance envoyée (compteur + historique + `last_relance_at`). */
@@ -390,10 +433,83 @@ export class CandidateService {
         }
     }
 
-    async delete(id: string): Promise<boolean> {
-        const deleted = await this.repository.delete(id);
-        // Droit à l'effacement : les passages de questionnaire partent avec le candidat.
-        if (deleted) await new QuestionnaireRepository().deleteAttemptsByCandidate(id);
+    /**
+     * Droit à l'effacement (GDPR_INF_06.4). Les copies tierces (Drive) sont supprimées
+     * en premier : en cas d'échec réel on s'arrête, le candidat reste et l'appel est
+     * rejouable. Le document candidat est supprimé en dernier pour la même raison.
+     * Filiz n'expose pas d'API de suppression : les folder_id sont journalisés pour
+     * suppression manuelle. DocuSeal ne contient aucune donnée candidat.
+     * `candidate_consent_history` est conservée volontairement (preuve, art. 7.1).
+     */
+    async delete(id: string, drive: DriveEraser | null = null): Promise<boolean> {
+        const candidate = await this.repository.findById(id);
+        if (!candidate) return false;
+
+        try {
+            const driveFiles = await this.eraseDriveCopies(candidate, drive);
+
+            const avatar = await this.repository.deleteAvatar(id);
+            const history = await new CandidateHistoryRepository().deleteByCandidate(id);
+            const offerMatchings = await this.offerRepository.removeCandidateFromAllMatchings(id);
+            const notifications = await new NotificationRepository().deleteByCandidateLink(id);
+            const attempts = await new QuestionnaireRepository().deleteAttemptsByCandidate(id);
+            const externalAccess = await new ExternalAccessRepository().deleteByCandidate(id);
+
+            const filizFolderIds = await new AlternantRepository().unlinkCandidate(id);
+            if (candidate.filiz_folder_id) filizFolderIds.push(candidate.filiz_folder_id);
+            if (filizFolderIds.length > 0) {
+                logger.warn(
+                    { candidateId: id, filizFolderIds: [...new Set(filizFolderIds)] },
+                    '[Erasure] suppression manuelle Filiz requise (pas d\'API de suppression)',
+                );
+            }
+
+            const deleted = await this.repository.delete(id);
+            logger.info(
+                {
+                    candidateId: id,
+                    driveFiles,
+                    avatar,
+                    history,
+                    offerMatchings,
+                    notifications,
+                    attempts,
+                    externalAccess,
+                    filizManual: filizFolderIds.length,
+                },
+                '[Erasure] candidat effacé',
+            );
+            return deleted;
+        } catch (error) {
+            logger.error({ err: error, candidateId: id }, '[Erasure] échec de l\'effacement du candidat');
+            throw error;
+        }
+    }
+
+    /** Supprime dossier Drive + fichiers hors dossier. 404 = déjà supprimé. Retourne le nombre supprimé. */
+    private async eraseDriveCopies(candidate: Candidate, drive: DriveEraser | null): Promise<number> {
+        // Set conserve l'ordre d'insertion : le dossier (qui emporte son contenu) part en premier.
+        const ids = new Set<string>();
+        if (candidate.drive_folder_id) ids.add(candidate.drive_folder_id);
+        if (candidate.identity?.drive_avatar_file_id) ids.add(candidate.identity.drive_avatar_file_id);
+        for (const link of [candidate.cv_link, candidate.pdf_link, candidate.photo_link]) {
+            const fileId = link ? extractDriveFileId(link) : null;
+            if (fileId) ids.add(fileId);
+        }
+        if (ids.size === 0) return 0;
+        if (!drive) {
+            throw new Error('Google Drive non connecté : impossible de supprimer les copies Drive du candidat');
+        }
+
+        let deleted = 0;
+        for (const fileId of ids) {
+            try {
+                await drive.deleteFile(fileId);
+                deleted++;
+            } catch (error) {
+                if (!isDriveNotFound(error)) throw error;
+            }
+        }
         return deleted;
     }
 
@@ -409,7 +525,12 @@ export class CandidateService {
         ]);
 
         const inactiveSet = new Set<string>(inactiveIds.map(String));
-        const activeAssigned = assignedOffers.filter((offer) => !inactiveSet.has(String(offer.needs_analysis_id)));
+        // Une offre désactivée dans l'annuaire entreprises (ou rattachée à une AB
+        // inactive) n'est plus proposée au candidat, y compris si elle lui avait
+        // déjà été assignée.
+        const activeAssigned = assignedOffers.filter(
+            (offer) => offer.is_active !== false && !inactiveSet.has(String(offer.needs_analysis_id)),
+        );
 
         const matched = allOffers.filter((offer) => this.offerMatchesCandidate(offer, candidate));
         const matchedIds = new Set(matched.map((o) => String(o._id)));

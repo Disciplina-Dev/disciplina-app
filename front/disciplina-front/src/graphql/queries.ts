@@ -1364,6 +1364,7 @@ export const MATCH_OFFER = gql`
       hasVehicle
       professionalExperience
       status
+      isActive
       localisation
       sector
       softSkills
@@ -1433,6 +1434,14 @@ export const MATCH_OFFER = gql`
 export const CREATE_MATCH_SESSION = gql`
   mutation CreateMatchSession($offerId: String!, $companyEmail: String!, $candidates: [ProposedCandidateInput!]!, $templateId: String, $cc: [String!]) {
     createMatchSession(offerId: $offerId, companyEmail: $companyEmail, candidates: $candidates, templateId: $templateId, cc: $cc)
+  }
+`
+
+export const DISMISS_SUGGESTED_CANDIDATE = gql`
+  mutation DismissSuggestedCandidate($offerId: String!, $candidateId: String!) {
+    dismissSuggestedCandidate(offerId: $offerId, candidateId: $candidateId) {
+      id
+    }
   }
 `
 
@@ -1600,6 +1609,15 @@ export const UPDATE_OFFER = gql`
   }
 `
 
+export const UPDATE_OFFER_ACTIVE = gql`
+  mutation UpdateOfferActive($id: String!, $active: Boolean) {
+    updateOfferActive(id: $id, active: $active) {
+      id
+      isActive
+    }
+  }
+`
+
 export const UNMATCH_OFFER = gql`
   mutation UnmatchOffer($id: String!) {
     unmatchOffer(id: $id) {
@@ -1705,6 +1723,7 @@ export const OFFERS_BY_NEEDS_ANALYSIS = gql`
       hasVehicle
       professionalExperience
       status
+      isActive
       localisation
       sector
       title
@@ -1743,6 +1762,19 @@ export const GET_CANDIDATE_SENT_COMPANIES = gql`
   }
 `
 
+export const GET_CANDIDATE_MATCH_PROPOSITIONS = gql`
+  query GetCandidateMatchPropositions($candidateId: String!) {
+    candidateMatchPropositions(candidateId: $candidateId) {
+      offerId
+      companyName
+      status
+      title
+      jobRole
+      needsAnalysisId
+    }
+  }
+`
+
 export const GET_CANDIDATE_HISTORY = gql`
   query CandidateHistory($candidateId: String!) {
     candidateHistory(candidateId: $candidateId) {
@@ -1751,6 +1783,29 @@ export const GET_CANDIDATE_HISTORY = gql`
       description
       ownerEmail
       createdAt
+    }
+  }
+`
+
+export const GET_CANDIDATE_CONSENT_HISTORY = gql`
+  query CandidateConsentHistory($candidateId: String!) {
+    candidateConsentHistory(candidateId: $candidateId) {
+      id
+      consentType
+      action
+      consentVersion
+      source
+      recordedByName
+      recordedAt
+    }
+  }
+`
+
+export const WITHDRAW_CANDIDATE_CONSENT = gql`
+  mutation WithdrawCandidateConsent($id: String!, $types: [ConsentType!]!) {
+    withdrawCandidateConsent(id: $id, types: $types) {
+      id
+      consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
     }
   }
 `
@@ -1866,6 +1921,7 @@ export const GET_OFFERS_DIRECTORY = gql`
       title
       jobRole
       status
+      isActive
       localisation
       desiredTp {
         tpType

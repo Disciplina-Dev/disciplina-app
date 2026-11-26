@@ -30,6 +30,15 @@ export class ExternalAccessRepository {
         return rows.length > 0 ? rows[0] : null;
     }
 
+    /** Effacement candidat : supprime les accès magiques (email, prénom) liés au candidat. */
+    async deleteByCandidate(candidateId: string): Promise<number> {
+        const result = await query<{ affectedRows: number }>(
+            "DELETE FROM external_access WHERE external_type = 'CANDIDATE' AND external_id = ?",
+            [candidateId],
+        );
+        return result.affectedRows ?? 0;
+    }
+
     async create(row: CreateExternalAccessRow): Promise<void> {
         await query(
             `INSERT INTO external_access

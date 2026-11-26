@@ -25,6 +25,13 @@ export interface CalendarEvent {
   attendance?: Attendance;
   /** Marqué comme entretien (compté dans les KPI RH). */
   isInterview?: boolean;
+  /**
+   * Créneau occupé par l'entretien d'un RH du même secteur (#1241) : il bloque
+   * l'agenda mais ne s'édite pas depuis ici.
+   */
+  isOccupation?: boolean;
+  /** RH dont l'entretien occupe le créneau (absent pour ses propres créneaux). */
+  occupationOwnerName?: string;
 }
 
 export type Attendance = 'arrived' | 'noshow' | 'postponed' | 'declined';

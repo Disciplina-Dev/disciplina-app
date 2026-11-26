@@ -36,10 +36,10 @@ export interface Slot {
   end: string;
 }
 
-/** Portée d'un blocage de date : un seul RH, ou tout le monde. */
-export type DayBlockScope = 'SELF' | 'ALL';
+/** Portée d'un blocage de date : un seul RH, un secteur, tout le monde, ou des personnes choisies. */
+export type DayBlockScope = 'SELF' | 'ALL' | 'SECTOR' | 'USERS';
 
-/** Jour bloqué dans l'agenda (un jour = une entrée). */
+/** Blocage tel qu'exposé par l'API (une entrée par jour, rattachée à sa période). */
 export interface DayBlock {
   id: number;
   /** Date locale `YYYY-MM-DD`. */
@@ -48,8 +48,28 @@ export interface DayBlock {
   reason: string;
   createdByName: string | null;
   createdAt: string;
-  /** Blocage « tout le monde » dont l'utilisateur courant s'est rendu disponible. */
+  /** Période de saisie : identique pour tous les jours d'un même blocage. */
+  groupKey: string;
+  /** Libellés ciblés : secteurs (`SECTOR`) ou noms des personnes (`USERS`). */
+  targetLabels: string[];
+  /** Nombre de cibles (les noms ne sont exposés qu'à l'auteur d'un blocage nominatif). */
+  targetCount: number;
+  /** Le blocage s'applique-t-il à l'utilisateur courant ? (l'auteur voit aussi ses blocages ciblés ailleurs) */
+  appliesToMe: boolean;
+  /** Blocage collectif dont l'utilisateur courant s'est rendu disponible. */
   releasedForMe?: boolean;
+}
+
+/** Saisie d'un blocage : une période (un seul jour si `to` = `from`). */
+export interface DayBlockInput {
+  from: string;
+  to: string;
+  scope: DayBlockScope;
+  reason: string;
+  /** Portée `SECTOR` : libellés de ses propres secteurs. */
+  sectors?: string[];
+  /** Portée `USERS` : personnes sélectionnées manuellement. */
+  userIds?: number[];
 }
 
 async function bookFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -79,7 +99,7 @@ export async function updateMyBookingSettings(patch: BookingSettingsPatch): Prom
 }
 
 // ── Blocage de dates (espace RH) ──────────────────────────────────────────
-/** Blocages visibles : les miens + ceux « pour tout le monde » (filtrables par plage). */
+/** Blocages qui concernent l'utilisateur (filtrables par plage de jours). */
 export async function fetchDayBlocks(from?: string, to?: string): Promise<DayBlock[]> {
   const params = new URLSearchParams();
   if (from) params.set('from', from);
@@ -89,20 +109,21 @@ export async function fetchDayBlocks(from?: string, to?: string): Promise<DayBlo
   return ((await res.json()) as { blocks: DayBlock[] }).blocks;
 }
 
-export async function createDayBlock(input: { day: string; scope: DayBlockScope; reason: string }): Promise<DayBlock[]> {
+/** Bloque une période pour la portée choisie (soi, son secteur, tout le monde, des personnes). */
+export async function createDayBlock(input: DayBlockInput): Promise<DayBlock[]> {
   const res = await bookFetch('/blocks', { method: 'POST', body: JSON.stringify(input) });
   return ((await res.json()) as { blocks: DayBlock[] }).blocks;
 }
 
-/** « Me rendre disponible » sur un blocage « tout le monde » (bascule). */
-export async function releaseDayBlock(id: number): Promise<DayBlock[]> {
-  const res = await bookFetch(`/blocks/${id}/release`, { method: 'POST' });
+/** « Me rendre disponible » sur toute la période d'un blocage collectif (bascule). */
+export async function releaseDayBlockGroup(groupKey: string): Promise<DayBlock[]> {
+  const res = await bookFetch(`/blocks/groups/${groupKey}/release`, { method: 'POST' });
   return ((await res.json()) as { blocks: DayBlock[] }).blocks;
 }
 
-/** Annule un blocage : le mien, ou un blocage « tout le monde » pour tous. */
-export async function deleteDayBlock(id: number): Promise<DayBlock[]> {
-  const res = await bookFetch(`/blocks/${id}`, { method: 'DELETE' });
+/** Annule toute une période : la sienne, ou un blocage collectif pour tout le monde. */
+export async function deleteDayBlockGroup(groupKey: string): Promise<DayBlock[]> {
+  const res = await bookFetch(`/blocks/groups/${groupKey}`, { method: 'DELETE' });
   return ((await res.json()) as { blocks: DayBlock[] }).blocks;
 }
 

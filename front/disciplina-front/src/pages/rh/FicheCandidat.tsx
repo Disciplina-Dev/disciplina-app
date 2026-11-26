@@ -6,6 +6,7 @@ import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
 import ImmersionScheduleEditor from '@/features/candidats/components/ImmersionScheduleEditor'
 import CandidateSentCompaniesCallout from '@/features/candidats/components/CandidateSentCompaniesCallout'
+import CandidateMatchPropositionsCallout from '@/features/candidats/components/CandidateMatchPropositionsCallout'
 import CandidateHistory from '@/features/candidats/components/CandidateHistory'
 import ContractModal from '@/features/candidats/components/ContractModal'
 import CandidateFormModal from '@/components/rh/CandidateFormModal'
@@ -1042,6 +1043,9 @@ export default function FicheCandidat() {
         {/* ── Déjà envoyé en entreprise via le matching ── */}
         {id && <CandidateSentCompaniesCallout candidateId={id} />}
 
+        {/* ── Propositions de matching et réponses oui / non du candidat ── */}
+        {id && <CandidateMatchPropositionsCallout candidateId={id} />}
+
         {formData.status === CandidateStatus.TEST_FAILED && formData.test_failure_pending && (
           <div className="rounded-xl border border-[var(--ds-warning)] bg-[var(--ds-warning-bg)] p-4 flex flex-col gap-3">
             <div className="flex items-center gap-2 text-[var(--ds-warning)] font-bold text-sm">
@@ -1853,7 +1857,7 @@ export default function FicheCandidat() {
                 ) : <p className={valueCls}>{formData.job_info?.questions_concerns || '—'}</p>}
               </Field>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Disponible le week-end">
+                <Field label="Inconvénient de travailler le week-end">
                   {isEditing ? (
                     <label className="mt-2 flex items-center gap-2 cursor-pointer">
                       <input type="checkbox" className="rounded" checked={!!formData.job_info?.weekend_work}

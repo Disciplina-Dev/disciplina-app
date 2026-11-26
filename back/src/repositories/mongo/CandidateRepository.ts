@@ -420,6 +420,23 @@ export class CandidateRepository {
     }
 
     /**
+     * Retrait de consentement (GDPR_INF_08.2) : passe les types donnés à `false`
+     * sans toucher au reste de la fiche (ni date ni version : l'horodatage du
+     * retrait vit dans `candidate_consent_history`). Sans effet sur une fiche
+     * dépourvue de `consentments`.
+     */
+    async withdrawConsents(id: string, types: string[]): Promise<Candidate | null> {
+        const set = Object.fromEntries(types.map((type) => [`consentments.${type}`, false]));
+        return getModels()
+            .Candidate.findOneAndUpdate(
+                { _id: id, consentments: { $exists: true } },
+                { $set: set },
+                { returnDocument: 'after', runValidators: true, context: 'query' },
+            )
+            .lean();
+    }
+
+    /**
      * Statistiques agrégées des candidats, calculées côté MongoDB via un seul
      * pipeline `$facet` (aucun document n'est rapatrié dans Node). Renvoie les
      * répartitions par statut, par type de TP, par site de formation, ainsi que
@@ -629,6 +646,11 @@ export class CandidateRepository {
 
     async delete(id: string): Promise<boolean> {
         return (await getModels().Candidate.deleteOne({ _id: id })).deletedCount > 0;
+    }
+
+    /** Effacement : supprime l'avatar stocké en base (collection candidate_avatars). */
+    async deleteAvatar(id: string): Promise<boolean> {
+        return (await getModels().CandidateAvatar.deleteOne({ candidate_id: id })).deletedCount > 0;
     }
 
     /**

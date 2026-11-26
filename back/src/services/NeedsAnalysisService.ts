@@ -350,6 +350,29 @@ export class NeedsAnalysisService {
         return doc ? toNeedsAnalysis(doc) : null;
     }
 
+    /**
+     * Lien Drive du PDF d'AB : lien mémorisé à l'archivage, sinon résolution à
+     * la demande pour les AB antérieures au champ (avec mémorisation au
+     * passage). `null` si l'AB n'a jamais été archivée (brouillon) ou reste
+     * introuvable sur le Drive.
+     */
+    async resolveAbDriveUrl(analysis: NeedsAnalysisGql, actingUserId?: number): Promise<string | null> {
+        if (analysis.abDriveUrl) return analysis.abDriveUrl;
+        // Seules les AB envoyées en signature / signées sont archivées sur le Drive.
+        if (analysis.status === NeedsAnalysisStatus.BROUILLON) return null;
+
+        const resolved = await abDriveConfigService.resolveAbPdfLink(analysis, actingUserId);
+        if (!resolved) return null;
+        // On ne mémorise que le fichier : le repli dossier peut devenir obsolète
+        // dès que le PDF apparaît, il doit donc être résolu à chaque clic.
+        if (resolved.isFile) {
+            await this.repository.update(analysis.id, { ab_drive_url: resolved.url }).catch((err) => {
+                logger.warn({ err, id: analysis.id }, "[NeedsAnalysis] Impossible d'enregistrer le lien Drive de l'AB");
+            });
+        }
+        return resolved.url;
+    }
+
     async findByCompanyId(companyId: number): Promise<NeedsAnalysisGql[]> {
         const docs = await this.repository.findByCompanyId(companyId);
         return docs.map(toNeedsAnalysis);
@@ -395,6 +418,14 @@ export class NeedsAnalysisService {
         if (!company) {
             logger.error({ companyID: data.companyID }, '[NeedsAnalysis] Company not found');
             throw new Error(`Company with ID ${data.companyID} not found`);
+        }
+        // Le représentant légal est facultatif (parfois inconnu), mais une AB doit
+        // toujours porter au moins un contact référent : représentant légal (porté
+        // par l'entreprise) ou responsable de recrutement.
+        if (!company.legalReferent?.trim() && !data.recruitmentResponsibleName?.trim()) {
+            throw new Error(
+                'Un représentant légal ou un responsable de recrutement est requis pour créer une analyse du besoin.',
+            );
         }
 
         const saler = data.userID ? await this.userRepository.findById(data.userID) : null;
@@ -516,7 +547,7 @@ export class NeedsAnalysisService {
         // Archivage Drive du PDF non signé, dans le dossier du secteur de l'AB
         // (région de l'entreprise), pas celui du commercial.
         // Best-effort : n'échoue pas l'envoi en signature.
-        await abDriveConfigService.archiveAbPdf(
+        const driveLink = await abDriveConfigService.archiveAbPdf(
             analysis.companyInfos?.sector,
             'UNSIGNED',
             buffer,
@@ -525,6 +556,12 @@ export class NeedsAnalysisService {
             analysis.salerInfo?.id ?? undefined,
             actingUserId,
         );
+        if (driveLink) {
+            // Mémorise le lien pour le bouton « Ouvrir l'AB dans le Drive ».
+            await this.repository.update(id, { ab_drive_url: driveLink }).catch((err) => {
+                logger.warn({ err, id }, "[NeedsAnalysis] Impossible d'enregistrer le lien Drive de l'AB");
+            });
+        }
 
         // Au premier envoi : créer les offres de matching et notifier les RH.
         // Hors du chemin critique de signature : on log mais on ne fait pas échouer l'envoi.

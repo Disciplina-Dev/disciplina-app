@@ -6,8 +6,7 @@ import { candidateGraphqlClient } from '@/graphql/client'
 import { CREATE_CANDIDATE, CHECK_CANDIDATE_EMAIL } from '@/graphql/queries'
 import { TitleProfessionalType } from '@/types/candidate'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
-
-const CONSENT_VERSION = '2026-08-v1'
+import { AI_PROCESSING_CONSENT_LABEL, CONSENT_VERSION } from '@/constants/consent'
 
 interface CandidateQuickCreateModalProps {
   prefill?: { fullName?: string; email?: string; phone?: string }
@@ -243,8 +242,7 @@ export default function CandidateQuickCreateModal({
                   checked={consentAiProcessing}
                   onChange={() => setConsentAiProcessing(!consentAiProcessing)}
                 />
-                Le candidat accepte le traitement de ses données par intelligence artificielle locale pour générer un résumé
-                de profil.
+                {AI_PROCESSING_CONSENT_LABEL}
               </label>
               <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
                 <input

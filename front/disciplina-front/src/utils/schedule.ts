@@ -30,3 +30,33 @@ export function offerSlotToImmersionSlot(slot: OfferScheduleSlot): ImmersionSche
     afternoonEndHour: slot.endHour ?? null,
   }
 }
+
+/**
+ * Les réponses GraphQL mises en cache par urql portent un `__typename` sur chaque
+ * objet. Ces objets finissent tels quels dans l'état local des formulaires, et
+ * GraphQL refuse un champ inconnu en entrée de mutation (`Field "__typename" is
+ * not defined by type "ScheduleSlotInput"`). On ne conserve donc que les champs
+ * du type d'entrée avant l'envoi.
+ */
+export function toScheduleSlotInput(
+  slots: OfferScheduleSlot[] | null | undefined,
+): OfferScheduleSlot[] {
+  return (slots ?? []).map((slot) => ({
+    day: slot.day ?? null,
+    startHour: slot.startHour ?? null,
+    endHour: slot.endHour ?? null,
+  }))
+}
+
+/** Équivalent de {@link toScheduleSlotInput} pour les créneaux d'immersion. */
+export function toImmersionScheduleInput(
+  slots: ImmersionScheduleSlot[] | null | undefined,
+): ImmersionScheduleSlot[] {
+  return (slots ?? []).map((slot) => ({
+    day: slot.day ?? null,
+    morningStartHour: slot.morningStartHour ?? null,
+    morningEndHour: slot.morningEndHour ?? null,
+    afternoonStartHour: slot.afternoonStartHour ?? null,
+    afternoonEndHour: slot.afternoonEndHour ?? null,
+  }))
+}

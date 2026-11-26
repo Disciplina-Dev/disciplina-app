@@ -11,6 +11,7 @@ import { MatchingCandidate } from '../../types/matching.types';
 import { logger } from '../../external/logger';
 import { GeocodageService } from '../../external/insee/geocodage.service';
 import { assertConsent, hasConsent, ConsentType } from '../../services/consentGuard';
+import { AccessLogService } from '../../services/AccessLogService';
 
 const matchAccessService = new MatchAccessService();
 const candidateService = new CandidateService();
@@ -18,6 +19,7 @@ const candidateRepository = new CandidateRepository();
 const userService = new UserService();
 const notificationService = new NotificationService();
 const geocodageService = new GeocodageService();
+const accessLogService = new AccessLogService();
 
 /** Vérifie que la session external concernée est bien une session de matching (reference 2). */
 export function requireMatchingReference(req: ExternalGuestRequest, res: Response, next: () => void): void {
@@ -88,6 +90,8 @@ async function streamCandidateCv(candidateId: string, rhEmail: string | null, re
         const persist = (refreshed: GoogleTokens) =>
             userService.updateGoogleTokens(rh.id, refreshed.access_token ?? null, refreshed.refresh_token ?? null);
         const { buffer, mimeType } = await GoogleDriveService.fromTokens(creds, persist).downloadFile(fileId);
+        // Acteur externe : lien signé d'une entreprise, aucun compte (GDPR_INF_06.5).
+        await accessLogService.record({ candidateId, actorId: null, actorType: 'EXTERNAL', action: 'CV_READ' });
         res.json({
             filename: `CV_${candidate!.identity.full_name}.pdf`,
             contentType: mimeType,

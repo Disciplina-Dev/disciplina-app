@@ -68,7 +68,7 @@
 export interface CandidateConsentments {
     data_processing: boolean       // Traitement général (obligatoire)
     data_sharing: boolean          // Partage avec entreprises
-    ai_processing: boolean         // Résumé IA via Ollama
+    ai_processing: boolean         // Résumé IA local (Ollama) + assistant IA tiers (MCP) depuis 2026-11-v2
     photo_processing: boolean      // Stockage photo/avatar
     data_retention_years: number   // Durée acceptée (ex: 3)
     consent_date: Date
@@ -1037,7 +1037,7 @@ const html = `
 - [ ] **F1** Ajouter le consentement explicite des candidats (checkbox + stockage)
 - [x] **F2** Créer et publier la politique de confidentialité (`/privacy`) — *corpus rédigé et publié ; placeholders et relecture juridique en attente*
 - [ ] **F3** Créer le registre des traitements
-- [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification
+- [ ] **F4** Implémenter les endpoints d'accès / suppression / rectification — *retrait de consentement + historique faits (GDPR_INF_08.2, `withdrawCandidateConsent`)*
 - [x] **F5** Chiffrer le numéro de sécurité sociale en base — *AES-256-GCM, cf. `external/crypto/ssn-cipher.ts`*
 - [ ] **F11** Nettoyer les secrets du dépôt Git + `.gitignore`
 - [ ] **F15** Ajouter mentions légales + footer RGPD sur les portails publics — *fait côté portails et footer applicatif ; reste les templates d'emails*
@@ -1054,7 +1054,7 @@ const html = `
 
 - [ ] **F10** Chiffrer les avatars stockés en base
 - [ ] **F13** Restreindre les accès Drive par dossier + valider la minimisation
-- [ ] **F14** Ajouter les logs d'accès (consultation, export) en base
+- [x] **F14** Ajouter les logs d'accès (consultation, export) en base — `candidate_access_log` (GDPR_INF_06.5)
 - [ ] **F7** Basculer DocuSeal vers `api.docuseal.eu`
 - [ ] **F11** Remplacer les secrets faibles (`JWTSecret974` → `openssl rand -hex 32`)
 

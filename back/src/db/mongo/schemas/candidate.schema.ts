@@ -22,7 +22,6 @@ import {
     Synthesis,
     ClassMarkerResult,
     CandidateOwner,
-    EmergencyContact,
     CandidateConsentments,
     CandidateRelanceEntry,
 } from '../../../types/candidate.types';
@@ -33,17 +32,6 @@ const ownerSchema = new Schema<CandidateOwner>(
         user_id: { type: Number, required: true },
         name: { type: String, required: true },
         sector: { type: String },
-    },
-    { _id: false },
-);
-
-const emergencyContactSchema = new Schema<EmergencyContact>(
-    {
-        last_name: { type: String },
-        first_name: { type: String },
-        relationship: { type: String },
-        phone: { type: String },
-        email: { type: String },
     },
     { _id: false },
 );
@@ -65,6 +53,7 @@ const encryptedSsnSchema = new Schema<EncryptedSsn>(
         encrypted: { type: String, required: true },
         iv: { type: String, required: true },
         tag: { type: String, required: true },
+        kid: { type: String },
     },
     { _id: false },
 );
@@ -90,7 +79,8 @@ const identitySchema = new Schema<Identity>(
         driving_license_b: { type: Boolean },
         has_vehicle: { type: Boolean },
         transport_means: { type: String },
-        psh_referral_request: { type: Boolean },
+        // Chiffré au repos (GDPR_INF_02.3) : chaîne `h1:…` (health-cipher.ts) ; Mixed tolère le booléen en clair d'avant backfill.
+        psh_referral_request: { type: Schema.Types.Mixed },
         had_apprenticeship_contract: { type: Boolean },
         apprenticeship_contract_details: { type: String },
         description: { type: String },
@@ -215,7 +205,7 @@ const pedagogicalRecommendationsSchema = new Schema<PedagogicalRecommendations>(
         time_management_support: { type: Boolean },
         professional_posture_work: { type: Boolean },
         enhanced_company_immersion: { type: Boolean },
-        psh_specific_support: { type: Boolean },
+        psh_specific_support: { type: Schema.Types.Mixed }, // chiffré (GDPR_INF_02.3)
         individual_follow_up: { type: Boolean },
         language_training: { type: Boolean },
         stress_management_follow_up: { type: Boolean },
@@ -227,7 +217,7 @@ const synthesisSchema = new Schema<Synthesis>(
     {
         feasibility_conclusion: { type: String },
         pathway_relevance: { type: String },
-        special_needs: { type: String },
+        special_needs: { type: String }, // chiffré (GDPR_INF_02.3) : chaîne `h1:…`
         pedagogical_recommendations: { type: pedagogicalRecommendationsSchema },
         other_recommendations: { type: String },
         important_note: { type: String },
@@ -301,7 +291,8 @@ const candidateSchema = new Schema<Candidate & Document>(
             default: undefined,
         },
         identity: { type: identitySchema, required: true },
-        emergency_contact: { type: emergencyContactSchema },
+        // Chiffré en bloc (GDPR_INF_02.3) : chaîne `h1:…` ; Mixed tolère l'objet en clair d'avant backfill.
+        emergency_contact: { type: Schema.Types.Mixed },
         consentments: { type: consentmentsSchema },
         status: { type: String, enum: Object.values(CandidateStatus), required: true },
         written_test_score: { type: Number, min: 0, max: 20 },

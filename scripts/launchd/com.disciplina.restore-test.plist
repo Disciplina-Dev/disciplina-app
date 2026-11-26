@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.disciplina.restore-test</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/ABSOLUTE/PATH/TO/disciplina-app/scripts/restore-test.sh</string>
+    </array>
+    <!-- Same bare-PATH caveat as com.disciplina.backup.plist (docker, age live in
+         /usr/local/bin or /opt/homebrew/bin). BACKUP_AGE_IDENTITY: path of the age
+         PRIVATE key file, kept outside the repo (see HOWTODEPLOY.md). -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>BACKUP_AGE_IDENTITY</key>
+        <string>/ABSOLUTE/PATH/TO/age-identity.txt</string>
+    </dict>
+    <!-- Weekly, Sunday 04:00 (after the 03:00 daily backup). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USER/Library/Logs/disciplina-restore-test.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USER/Library/Logs/disciplina-restore-test.log</string>
+</dict>
+</plist>

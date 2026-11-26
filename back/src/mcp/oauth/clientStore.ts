@@ -2,6 +2,7 @@ import type { OAuthClientInformationFull } from '@modelcontextprotocol/sdk/share
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import { randomUUID } from 'crypto';
 import { query } from '../../db/mysql/connection';
+import { encryptToken, decryptToken, isEncryptedToken } from '../../external/crypto/token-cipher';
 import { logger } from '../../external/logger';
 import type { Region } from '../../types/tenant';
 
@@ -30,7 +31,10 @@ function rowToClient(row: McpOAuthClientRow): OAuthClientInformationFull {
     if (row.client_name) client.client_name = row.client_name;
     if (row.client_uri) client.client_uri = row.client_uri;
     if (row.logo_uri) client.logo_uri = row.logo_uri;
-    if (row.client_secret) client.client_secret = row.client_secret;
+    if (row.client_secret)
+        client.client_secret = isEncryptedToken(row.client_secret)
+            ? decryptToken(row.client_secret)
+            : row.client_secret; // legacy clair, chiffré par la migration
     if (row.client_id_issued_at !== null) client.client_id_issued_at = row.client_id_issued_at;
     if (row.client_secret_expires_at !== null) client.client_secret_expires_at = row.client_secret_expires_at;
     return client;
@@ -67,7 +71,7 @@ export class McpOAuthClientStore implements OAuthRegisteredClientsStore {
                 JSON.stringify(registered.redirect_uris),
                 registered.token_endpoint_auth_method ?? 'none',
                 registered.scope ?? null,
-                registered.client_secret ?? null,
+                registered.client_secret ? encryptToken(registered.client_secret) : null,
                 registered.client_id_issued_at ?? null,
                 registered.client_secret_expires_at ?? null,
             ],

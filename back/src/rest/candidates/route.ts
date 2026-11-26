@@ -10,6 +10,8 @@ import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.ty
 import { assertConsent, hasConsent, ConsentType } from '../../services/consentGuard';
 import { logger } from '../../external/logger';
 import { UserService } from '../../services/UserService';
+import { AccessLogService } from '../../services/AccessLogService';
+import { AccessAction } from '../../types/accessLog.types';
 import { GoogleDriveService, extractDriveFileId } from '../../external/google/drive.service';
 import { OllamaService } from '../../external/ollama/ollama.service';
 import { getModels } from '../../db/mongo/tenant';
@@ -51,6 +53,18 @@ export const router: Router = express.Router();
 const candidateService = new CandidateService();
 const candidateRepository = new CandidateRepository();
 const userService = new UserService();
+const accessLogService = new AccessLogService();
+
+/** Journalise une lecture / un export de données candidat (GDPR_INF_06.5). Ne lève jamais. */
+async function recordAccess(req: AuthRequest, candidateId: string, action: AccessAction): Promise<void> {
+    const actorId = Number(req.user?.id);
+    await accessLogService.record({
+        candidateId,
+        actorId: Number.isFinite(actorId) ? actorId : null,
+        actorType: 'STAFF',
+        action,
+    });
+}
 
 function normalizeName(name: string): string {
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -75,6 +89,7 @@ router.get('/:id/pdf', authenticate, async (req: AuthRequest, res: Response) => 
 
         const pdfBuffer = await PdfService.generateCandidatePdf(candidate);
         const safeName = candidate.identity.full_name.replace(/[^\p{L}\p{N}]+/gu, '_').replace(/^_+|_+$/g, '');
+        await recordAccess(req, id, 'PDF_EXPORT');
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="AB_${safeName || 'candidat'}.pdf"`);
         res.send(pdfBuffer);
@@ -134,6 +149,7 @@ router.post('/:id/ab-to-drive', authenticate, async (req: AuthRequest, res: Resp
         );
 
         await candidateService.update(id, { pdf_link: webViewLink });
+        await recordAccess(req, id, 'PDF_EXPORT');
 
         res.json({ fileLink: webViewLink });
     } catch (err) {
@@ -261,6 +277,7 @@ router.get('/:id/cv-file', authenticate, async (req: AuthRequest, res: Response)
 
         const { buffer, mimeType } = await driveService.downloadFile(fileId);
 
+        await recordAccess(req, id, 'CV_READ');
         res.json({
             filename: `CV_${candidate.identity.full_name}.pdf`,
             contentType: mimeType,
@@ -305,6 +322,7 @@ router.get('/:id/drive-files', authenticate, async (req: AuthRequest, res: Respo
         );
 
         const files = await driveService.listFolderFiles(candidate.drive_folder_id);
+        await recordAccess(req, id, 'FILE_READ');
         res.json({ files });
 
         // Best-effort, hors chemin de réponse : si aucune photo n'est réellement
@@ -382,6 +400,7 @@ router.get('/:id/drive-files/:fileId/content', authenticate, async (req: AuthReq
             ({ buffer, mimeType } = await driveService.downloadFile(fileId));
         }
 
+        await recordAccess(req, id, 'FILE_READ');
         res.setHeader('Content-Type', mimeType);
         res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(meta.name || fileId)}"`);
         res.setHeader('Cache-Control', 'private, max-age=60');

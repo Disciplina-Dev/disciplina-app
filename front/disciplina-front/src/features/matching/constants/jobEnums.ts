@@ -20,32 +20,8 @@ export enum DesiredSex {
   GARCON = 'GARCON',
 }
 
-export enum Sector {
-  BOULANGERIE = 'BOULANGERIE',
-  RESTAURATION = 'RESTAURATION',
-  STATION = 'STATION',
-  PAP = 'PAP',
-  LIBRE_SERVICE = 'LIBRE_SERVICE',
-  TELEPHONIE = 'TELEPHONIE',
-  AUTO = 'AUTO',
-  COMMERCIAL = 'COMMERCIAL',
-  BIJOUX = 'BIJOUX',
-  COSMETIQUE = 'COSMETIQUE',
-  IMMOBILIER = 'IMMOBILIER',
-  ASSURANCE = 'ASSURANCE',
-  ANIMAUX = 'ANIMAUX',
-  SPORT = 'SPORT',
-  ENFANT = 'ENFANT',
-  PHARMACIE = 'PHARMACIE',
-  BAZAR = 'BAZAR',
-  BTP = 'BTP',
-  ASSOCIATION = 'ASSOCIATION',
-  MEDICAL = 'MEDICAL',
-  ENERGIE = 'ENERGIE',
-  IMPORT_EXPORT = 'IMPORT_EXPORT',
-  SOCIAL = 'SOCIAL',
-  NONE = 'NONE',
-}
+// Référentiel unique des secteurs d'activité (libellés inclus).
+export { Sector } from '@/data/sectors'
 
 export enum Localisation {
   SAINT_DENIS = 'SAINT_DENIS',

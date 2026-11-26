@@ -282,6 +282,16 @@ async function processSignedAbOnce(submissionId: string): Promise<boolean> {
                     analysis.salerInfo?.id ?? undefined,
                 );
                 if (link) driveLinks.push(link);
+                // Mémorise le lien de la copie signée de l'AB (pas le mandat ni le
+                // catalogue) pour le bouton « Ouvrir l'AB dans le Drive ».
+                if (link && fname.startsWith('Analyse_Besoin_')) {
+                    await needsAnalysisRepo.update(analysis.id, { ab_drive_url: link }).catch((err) => {
+                        logger.warn(
+                            { err, analysisId: analysis.id },
+                            "[SignedAb] Impossible d'enregistrer le lien Drive de l'AB",
+                        );
+                    });
+                }
             }
 
             const safeCompanyName = safeName;

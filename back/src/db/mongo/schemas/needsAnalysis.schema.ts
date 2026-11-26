@@ -46,6 +46,7 @@ const needsAnalysisSchema = new Schema<NeedsAnalysis & Document>(
         signature_request_id: { type: String, default: null },
         signature_sent_at: { type: Date, default: null },
         signature_url: { type: String, default: null },
+        ab_drive_url: { type: String, default: null },
         last_relance_at: { type: Date, default: null },
         is_relance_disabled: { type: Boolean, default: false },
         signed_at: { type: Date, default: null },

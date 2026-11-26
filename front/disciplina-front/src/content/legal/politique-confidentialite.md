@@ -68,7 +68,7 @@ institutionnels de l'orientation et de la formation.
 |---|---|
 | Accompagnement du candidat vers l'alternance, gestion de son dossier | Exécution du contrat ou de mesures précontractuelles — art. 6.1.b |
 | Mise en relation avec les entreprises et transmission du profil | Consentement — art. 6.1.a |
-| Génération d'un résumé de profil par intelligence artificielle locale | Consentement — art. 6.1.a |
+| Traitement par intelligence artificielle : résumé de profil par un modèle local, aide au suivi du dossier et du parcours en alternance par un assistant IA tiers | Consentement — art. 6.1.a |
 | Conservation et affichage d'une photographie | Consentement — art. 6.1.a |
 | Collecte du numéro de sécurité sociale pour l'établissement d'un contrat | Obligation légale / exécution du contrat — art. 6.1.c et 6.1.b |
 | Gestion de la relation avec les entreprises partenaires, prospection auprès des professionnels | Intérêt légitime — art. 6.1.f |
@@ -123,6 +123,7 @@ des [conditions générales d'utilisation](/legal/cgu/entreprise).
 | ClassMarker | Évaluations en ligne — en cours de remplacement par le questionnaire interne de l'application (aucun transfert externe) ; retiré à la fin de la période de transition | Identifiant du candidat, résultats des tests | Hors Union européenne |
 | Brevo | Acheminement des emails | Adresse email, contenu des messages | Union européenne |
 | Modèle de langage local | Génération du résumé de profil | Données du dossier candidat | Infrastructure de [[NOM_ORGANISME]], aucun transfert externe |
+| Fournisseur d'assistant IA tiers | Aide à la consultation des dossiers par l'équipe (suivi des candidatures et du parcours en alternance), uniquement pour les candidats ayant consenti au traitement par intelligence artificielle | Données du dossier candidat et du suivi pédagogique, pseudonymisées ou réduites au strict nécessaire (prénom et initiale du nom, sans coordonnées) | Hors Union européenne |
 
 Les bases de données de l'application sont hébergées sur l'infrastructure de
 [[NOM_ORGANISME]] et ne sont pas externalisées.
@@ -178,25 +179,39 @@ justice.
 en cours de mise en œuvre. Dans l'intervalle, les suppressions sont réalisées sur
 demande et lors des revues périodiques des dossiers.
 
+**Sauvegardes** : lorsqu'un dossier est effacé, ses copies dans nos sauvegardes chiffrées
+sont supprimées par expiration automatique au plus tard 7 jours après l'effacement.
+
 ## 8. Décision automatisée et profilage
 
 Aucune décision produisant des effets juridiques à l'égard d'une personne ou
 l'affectant de manière significative n'est prise sur le seul fondement d'un
 traitement automatisé, au sens de l'article 22 du RGPD.
 
-L'application génère, avec le consentement du candidat, un **résumé de profil** au
-moyen d'un modèle de langage hébergé localement par [[NOM_ORGANISME]]. Ce résumé
-constitue une aide à la présentation et à la lecture du profil ; il est soumis à
-la relecture des chargés d'accompagnement et ne se substitue pas à l'appréciation
-humaine, ni du côté de [[NOM_ORGANISME]], ni du côté des entreprises, auxquelles
-il est rappelé leur obligation de procéder à un examen individuel des
-candidatures.
+Avec le consentement du candidat, l'application recourt à l'intelligence
+artificielle de deux manières :
 
-Aucune donnée n'est transmise à un fournisseur d'intelligence artificielle externe
-à l'occasion de ce traitement.
+- **Résumé de profil** : généré au moyen d'un modèle de langage hébergé localement
+  par [[NOM_ORGANISME]]. Aucune donnée n'est transmise à un tiers à l'occasion de
+  ce traitement.
+- **Assistant IA tiers** : l'équipe de [[NOM_ORGANISME]] peut interroger un
+  assistant d'intelligence artificielle fourni par un prestataire externe pour
+  l'aider à consulter les dossiers (suivi des candidatures, du parcours en
+  alternance et du suivi pédagogique). Les données transmises sont réduites au
+  strict nécessaire (prénom et initiale du nom, sans coordonnées) et peuvent être
+  traitées hors de l'Union européenne, dans les conditions décrites à la
+  section 6. Les candidats n'ayant pas donné ce consentement ne sont pas exposés
+  à cet assistant.
 
-Le candidat peut s'opposer à la génération de ce résumé, en demander la
-rectification ou la suppression, sans conséquence sur son accompagnement.
+Ces outils constituent une aide à la lecture du profil et du dossier ; leurs
+résultats sont soumis à la relecture des chargés d'accompagnement et ne se
+substituent pas à l'appréciation humaine, ni du côté de [[NOM_ORGANISME]], ni du
+côté des entreprises, auxquelles il est rappelé leur obligation de procéder à un
+examen individuel des candidatures.
+
+Le candidat peut retirer ce consentement, s'opposer à ces traitements, demander
+la rectification ou la suppression du résumé, sans conséquence sur son
+accompagnement.
 
 ## 9. Sécurité
 
@@ -216,11 +231,13 @@ adaptées, parmi lesquelles :
   email, téléphones, numéros de sécurité sociale, dates de naissance) ;
 - habilitations par rôle et journalisation des modifications apportées aux
   dossiers ;
+- journalisation des consultations et des exports des dossiers candidats
+  (qui, quand, quelle opération), sans reproduire le contenu consulté, conservée
+  un an ;
 - accès aux portails externes par liens signés à durée limitée.
 
 **Engagements en cours** : le chiffrement au repos du numéro de sécurité sociale et
-des photographies, ainsi que la journalisation des consultations et des exports,
-font l'objet de travaux en cours.
+des photographies fait l'objet de travaux en cours.
 
 En cas de violation de données susceptible d'engendrer un risque élevé pour les
 droits et libertés des personnes concernées, [[NOM_ORGANISME]] en informe ces

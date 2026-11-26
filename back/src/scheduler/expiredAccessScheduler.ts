@@ -4,6 +4,7 @@ import { runForAllRegions, getRegion } from '../db/tenant';
 import { McpOAuthClientStore } from '../mcp/oauth/clientStore';
 import { McpOAuthRefreshTokenStore } from '../mcp/oauth/refreshTokenStore';
 import { McpAuditStore, AUDIT_RETENTION_DAYS } from '../mcp/auditStore';
+import { AccessLogService } from '../services/AccessLogService';
 import { logger } from '../external/logger/logger';
 
 // Tick quotidien : la granularité « jour » suffit pour de la purge de rétention.
@@ -35,6 +36,7 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
     const externalAccessRepository = new ExternalAccessRepository();
     const refreshTokenRepository = new RefreshTokenRepository();
     const mcpAuditStore = new McpAuditStore();
+    const accessLogService = new AccessLogService();
     const mcpClientStore = new McpOAuthClientStore();
     const mcpRefreshStore = new McpOAuthRefreshTokenStore();
     let running = false;
@@ -52,14 +54,16 @@ export function startExpiredAccessScheduler(): NodeJS.Timeout {
                     const refreshTokens = await refreshTokenRepository.deleteExpired(GRACE_DAYS);
                     // Journal d'accès MCP : rétention 1 an (politique de confidentialité).
                     const mcpAudit = await mcpAuditStore.deleteOlderThan(AUDIT_RETENTION_DAYS);
+                    // Journal d'accès aux données candidat (GDPR_INF_06.5) : rétention 1 an.
+                    const accessLog = await accessLogService.purgeExpired();
                     // Sessions OAuth MCP : jetons expirés/révoqués et clients DCR inactifs depuis 90 j.
                     const mcpOauth =
                         (await mcpRefreshStore.deleteExpired(GRACE_DAYS)) +
                         (await mcpClientStore.deleteInactive(MCP_CLIENT_INACTIVE_DAYS));
-                    const total = externalAccess + refreshTokens + mcpAudit + mcpOauth;
+                    const total = externalAccess + refreshTokens + mcpAudit + accessLog + mcpOauth;
                     if (total > 0) {
                         logger.info(
-                            { region, externalAccess, refreshTokens, mcpAudit, mcpOauth, total },
+                            { region, externalAccess, refreshTokens, mcpAudit, accessLog, mcpOauth, total },
                             'expired-access: accès expirés purgés',
                         );
                     }

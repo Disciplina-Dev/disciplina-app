@@ -9,4 +9,4 @@ export {
 } from './signers';
 export { generateSignature, generateExternalSignature, generateIdentifier } from './generators';
 export { timingSafeEqualString } from './compare';
-export { sha256Hex } from './hash';
+export { sha256Hex, shortHash } from './hash';

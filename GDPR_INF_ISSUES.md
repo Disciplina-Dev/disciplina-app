@@ -39,7 +39,7 @@
 - `scripts/backup-db.sh` only backs up `disciplina` (MySQL, l. 239) and `human_ressources` (Mongo, l. 245). **`disciplina_annemasse` is never backed up** (MySQL and Mongo). `scripts/rollback.sh` does not restore it either.
 - Plain dumps (`.sql`, `.archive`) in `<repo>/backups/` on the **same disk** as the DBs. 7-day retention (`find -mtime +7 -delete`). No off-machine copy (acknowledged in `HOWTODEPLOY.md:48-49`, `README.md:68`, BACKLOG DB-5).
 - No restore test, checksum or failure alert.
-- Passwords passed as arguments (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244): visible in the process list.
+- Passwords passed as arguments (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244 — now `scripts/backup*.sh`, `rollback.sh`; fixed in #1112 via `MYSQL_PWD` + `scripts/mongo-exec.sh`): visible in the process list.
 - No `umask`/`chmod`: default permissions.
 - The Mac mini may sleep at 03:00 (`README.md:177`), delaying or missing the backup.
 
@@ -215,7 +215,7 @@ No general processing register (`rgpd/README.md:50-53`, F3); DPAs "to archive" f
 **Labels:** `gdpr` `severity:high` · **Standard:** Art. 15-22
 
 ### Finding
-No export/portability, rectification, objection or consent-withdrawal endpoint for candidates (`RGPD.md` F4, `:222-290`). Erasure only by an HR employee (`deleteCandidate`, `graphql/candidate/resolver.ts:408`). No journal showing a candidate who consulted their data (F14).
+No export/portability, rectification, objection or consent-withdrawal endpoint for candidates (`RGPD.md` F4, `:222-290`). Erasure only by an HR employee (`deleteCandidate`, `graphql/candidate/resolver.ts`). No journal showing a candidate who consulted their data (F14).
 
 #### [GDPR_INF_06.1] Export / portability
 **Labels:** `gdpr` `severity:high`
@@ -235,11 +235,13 @@ No export/portability, rectification, objection or consent-withdrawal endpoint f
 **Labels:** `gdpr` `severity:high`
 - Extend `deleteCandidate` cascade to Drive, Filiz, DocuSeal, avatars; document backup expiry vs. erasure.
 - **AC:** erasure leaves no copy except backups expiring within the stated delay.
+- **Status (2026-11-25):** implemented in `CandidateService.delete` (Drive, avatar, history, matching, external access, notifications, alternant unlink). Filiz = manual deletion from the `[Erasure]` log line (no API); DocuSeal = N/A (no candidate data); backups expire ≤ 7 days (`scripts/backup-db.sh`). Linked `alternants` records are detached (`candidate_id` = null), not erased (decision 2026-11-25).
 
 #### [GDPR_INF_06.5] Access journal for candidate data (F14)
 **Labels:** `gdpr` `severity:high`
 - Record who read candidate files, exports, and `unmaskCandidateSsn`; able to answer a candidate's access request.
 - **AC:** read/export events logged and queryable. (Shared with GDPR_INF_15.3.)
+- **Status (2026-11-25):** implemented. `candidate_access_log` (append-only, UUID only, 365 days, purged by `expiredAccessScheduler`) records sheet views, bulk lists (size only), `unmaskCandidateSsn`, AB PDF export, CV download, Drive listing/content, and the external signed-link CV. Queryable via GraphQL `candidateAccessLog(candidateId)` (RESPONSABLE+). Not logged: avatar thumbnails (UI noise), the public `GET /:id/avatar`, questionnaire PDFs, and which sheets a bulk list contained. MCP reads stay in `mcp_audit_log`.
 
 ---
 
@@ -280,6 +282,7 @@ Existing purges: `external_access`, `refresh_tokens` (D+7), `mcp_audit_log` (365
 **Labels:** `gdpr` `severity:high`
 - Keep every consent event (date, version, scope); allow withdrawal.
 - **AC:** history table + migration in both places (`mysql-init.sql` and `REQUIRED_COLUMNS`).
+- **Done (#1141):** `candidate_consent_history` (append-only; `mysql-init.sql` + `REQUIRED_TABLES`, a new table is not a column), written on create / update / `withdrawCandidateConsent`, read via `candidateConsentHistory` (RH form). Server-side timestamp, consent version checked against `ACCEPTED_CONSENT_VERSIONS`. Existing consents taken over by `back/src/cli/backfillConsentHistory.ts`, run by `deploy.sh` (`HOWTODEPLOY.md`). Out of scope: `block` mode (08.1), erasure on withdrawal (06.3 / 06.4).
 
 #### [GDPR_INF_08.3] Cookie banner with real choice (Sentry gated)
 **Labels:** `gdpr` `severity:high`
@@ -331,7 +334,7 @@ Code default `https://api.docuseal.com` (US) and signing URL `docuseal.com` (`ba
 **Labels:** `gdpr` `severity:high` · **Standard:** Art. 13, 28
 
 ### Finding
-Policy (`front/disciplina-front/src/content/legal/politique-confidentialite.md:116-128`) lists Brevo (unused: email goes through Gmail OAuth, `back/README.md:261`) and omits: Yousign, Filiz, DuckDuckGo (`external/ddg`, LLM-generated queries with company name/address), Anthropic (MCP), Mistral/OpenAI (n8n `veille*.json`), Google Fonts (`index.css:1`, IP/UA transfer to Google). Google: "EU with possible non-EU access" vs `RGPD.md:429-437` "US". ClassMarker: non-EU, integration still active.
+Policy (`front/disciplina-front/src/content/legal/politique-confidentialite.md:116-128`) lists Brevo (unused: email goes through Gmail OAuth, `back/README.md:261`) and omits: Yousign, Filiz, DuckDuckGo (`external/ddg`, LLM-generated queries with company name/address), Anthropic (MCP), Mistral/OpenAI (n8n `veille*.json`), Google Fonts (`index.css:1`, IP/UA transfer to Google; self-hosted, fixed in #1149). Google: "EU with possible non-EU access" vs `RGPD.md:429-437` "US". ClassMarker: non-EU, integration still active.
 
 #### [GDPR_INF_11.1] Exact sub-processor table + privacy policy update
 **Labels:** `gdpr` `severity:high`
@@ -342,6 +345,7 @@ Policy (`front/disciplina-front/src/content/legal/politique-confidentialite.md:1
 **Labels:** `gdpr` `severity:medium`
 - Remove the Google import in `index.css:1`.
 - **AC:** no request to Google fonts; frontend lint/build pass.
+- **Status:** fixed in #1149. Front: `@fontsource-variable/figtree` + `@fontsource-variable/outfit` (woff2 bundled by Vite into `dist/assets/`). Back: the MCP OAuth consent page (`back/src/mcp/oauth/consentPage.ts`) also loaded Poppins from Google; now uses the system font stack, asserted in `back/src/mcp/__tests__/oauth.test.ts`. Verified in browser: 0 request to `fonts.googleapis.com` / `fonts.gstatic.com` on the login page and `/authorize`. Frontend build passes; frontend lint fails on pre-existing errors unrelated to this change.
 
 #### [GDPR_INF_11.3] Decide fate of n8n LLM workflows
 **Labels:** `gdpr` `severity:high`
@@ -448,6 +452,7 @@ Docker `json-file` logs with no rotation or retention (no `logging:` in compose 
 **Labels:** `gdpr` `severity:medium`
 - Shared with GDPR_INF_06.5.
 - **AC:** events for reads, exports and `unmaskCandidateSsn`.
+- **Status (2026-11-25):** done with GDPR_INF_06.5 (#1136). Events go to `candidate_access_log` (`VIEW`, `LIST`, `SSN_UNMASK`, `PDF_EXPORT`, `CV_READ`, `FILE_READ`), queryable via GraphQL `candidateAccessLog(candidateId)` (RESPONSABLE+).
 
 #### [GDPR_INF_15.4] Stop printing log lines in `deploy.sh:241`
 **Labels:** `gdpr` `severity:medium`

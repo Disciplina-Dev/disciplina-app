@@ -63,6 +63,57 @@ describe('GraphQL job mutations', () => {
         });
     });
 
+    describe('updateOfferActive', () => {
+        it('stores a per-offer override and resets it to inherit the AB status', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const seeded = await seedOffer({
+                _id: `job-active-${suffix}`,
+                company_name: `Active Corp ${suffix}`,
+                status: OfferStatus.NOT_MATCHED,
+            });
+
+            const mutate = (active: boolean | null) =>
+                gql(auth, {
+                    query: `mutation($id: String!, $active: Boolean) {
+                        updateOfferActive(id: $id, active: $active) { id isActive }
+                    }`,
+                    variables: { id: seeded._id, active },
+                });
+
+            const inactive = await mutate(false);
+            expect(inactive.json.errors).toBeUndefined();
+            expect(inactive.json.data.updateOfferActive.isActive).toBe(false);
+
+            const active = await mutate(true);
+            expect(active.json.data.updateOfferActive.isActive).toBe(true);
+
+            // null efface l'override : l'offre hérite à nouveau de son AB.
+            const inherited = await mutate(null);
+            expect(inherited.json.data.updateOfferActive.isActive).toBeNull();
+
+            // La valeur est bien persistée et relue par les requêtes d'offres.
+            const { json: readJson } = await gql(auth, {
+                query: `query($id: String!) { matchOffer(id: $id) { isActive } }`,
+                variables: { id: seeded._id },
+            });
+            expect(readJson.data.matchOffer.isActive).toBeNull();
+        });
+
+        it('returns null when updating a non-existent job', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+
+            const { res, json } = await gql(auth, {
+                query: `mutation($id: String!) { updateOfferActive(id: $id, active: false) { id isActive } }`,
+                variables: { id: 'non-existent-id' },
+            });
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateOfferActive).toBeNull();
+        });
+    });
+
     describe('unmatchOffer', () => {
         it('clears matched candidates and sets NOT_MATCHED', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
@@ -110,6 +161,64 @@ describe('GraphQL job mutations', () => {
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             expect(json.data.unmatchOffer).toBeNull();
+        });
+    });
+
+    describe('dismissSuggestedCandidate', () => {
+        it('persists « Non » and excludes the candidate from later suggestions', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const candidateRepo = new CandidateRepository();
+
+            const candidateId = `cand-dismiss-${suffix}`;
+            await candidateRepo.create({
+                _id: candidateId,
+                candidate_id: candidateId,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Sam ${suffix}`,
+                    email: `sam-${suffix}@test.local`,
+                    phone: '0600000000',
+                    age: 27,
+                    driving_license_b: true,
+                },
+                desired_sectors: ['RESTAURATION'],
+                job_info: { geographic_mobility: [Localisation.SAINT_DENIS] },
+            });
+
+            const offerId = `job-dismiss-${suffix}`;
+            await seedOffer({
+                _id: offerId,
+                company_name: `Dismiss Corp ${suffix}`,
+                desired_tp: TitleProfessionalType.AD,
+                driving_license_b: true,
+                desired_sex: DesiredSex.MIXTE,
+                age_range: '20-40',
+                status: OfferStatus.NOT_MATCHED,
+                localisation: [Localisation.SAINT_DENIS],
+            });
+
+            const { res, json } = await gql(auth, {
+                query: `mutation($offerId: String!, $candidateId: String!) {
+                    dismissSuggestedCandidate(offerId: $offerId, candidateId: $candidateId) { id }
+                }`,
+                variables: { offerId, candidateId },
+            });
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.dismissSuggestedCandidate.id).toBe(offerId);
+
+            const stored = await new OfferRepository().findById(offerId);
+            expect(stored?.matching?.dismissed_candidate_ids).toContain(candidateId);
+
+            const { json: queryJson } = await gql(auth, {
+                query: `query($id: String!) { matchOffer(id: $id) { suggestedCandidates { id } } }`,
+                variables: { id: offerId },
+            });
+            expect(
+                queryJson.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId),
+            ).toBe(false);
         });
     });
 

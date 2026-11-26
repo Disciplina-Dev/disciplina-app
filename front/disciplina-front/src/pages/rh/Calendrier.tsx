@@ -4,7 +4,7 @@ import DOMPurify from 'dompurify'
 import { IconAlert, IconCalendar, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconEdit, IconLink, IconLoader, IconLock, IconMail, IconMapPin, IconPlus, IconRepeat, IconSearch, IconSettings, IconShare, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers, IconVideo } from '@/components/ui/icons'
 import {
   fetchMyBookingSettings, updateMyBookingSettings, bookingPublicUrl,
-  fetchDayBlocks, createDayBlock, releaseDayBlock, deleteDayBlock,
+  fetchDayBlocks, createDayBlock, releaseDayBlockGroup, deleteDayBlockGroup,
   type BookingSettings, type WorkingHours, type DayBlock, type DayBlockScope,
 } from '@/api/booking'
 import { useAuthStore } from '@/store/authStore'
@@ -24,15 +24,20 @@ import {
   type CalendarEvent, type CalendarEventInput, type CalendarUser, type Attendance,
 } from '@/api/calendar'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import ChipGroup from '@/components/ui/ChipGroup'
+import MultiSelectField from '@/components/ui/MultiSelectField'
 
 type View = 'month' | 'week'
 /** Event enrichi de son propriétaire (pour vue multi-agendas). */
 type OwnedEvent = CalendarEvent & { ownerId: number }
 
+/** Gris des créneaux occupés par l'entretien d'un RH du même secteur (#1241). */
+const OCCUPATION_HEX = '#6B7280'
+
 /** Couleur des cases déterminée uniquement par le statut : rouge = pas venu, vert = venu,
- * violet = reporté, noir = décliné, bleu = défaut. */
+ * violet = reporté, noir = décliné, bleu = défaut ; gris = créneau bloqué par un collègue. */
 function displayHex(e: OwnedEvent): string {
-  return calendarHex(e.attendance)
+  return e.isOccupation ? OCCUPATION_HEX : calendarHex(e.attendance)
 }
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -138,15 +143,39 @@ function formatBlockDay(day: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
-/** Le jour est-il bloqué pour moi ? (blocage perso, ou blocage global non dérogé) */
+/** « Du lundi 12 au vendredi 23 novembre 2026 · 12 jours », ou le jour seul. */
+function formatBlockPeriod(from: string, to: string): string {
+  if (from === to) return formatBlockDay(from)
+  const days = Math.round((Date.parse(`${to}T12:00:00`) - Date.parse(`${from}T12:00:00`)) / 86_400_000) + 1
+  const format = (day: string, withYear: boolean) =>
+    new Date(`${day}T12:00:00`).toLocaleDateString('fr-FR', {
+      weekday: 'long', day: 'numeric', month: 'long', ...(withYear ? { year: 'numeric' } : {}),
+    })
+  const sameYear = from.slice(0, 4) === to.slice(0, 4)
+  return `Du ${format(from, !sameYear)} au ${format(to, true)} · ${days} jour${days > 1 ? 's' : ''}`
+}
+
+/** Le jour est-il bloqué pour moi ? (blocage qui s'applique à moi, non dérogé) */
 function blocksMe(blocks: DayBlock[]): boolean {
-  return blocks.some((b) => b.scope === 'SELF' || !b.releasedForMe)
+  return blocks.some((b) => b.appliesToMe && (b.scope === 'SELF' || !b.releasedForMe))
+}
+
+/** Libellé court de la portée d'un blocage (infobulles, liste des périodes). */
+function blockScopeLabel(scope: DayBlockScope, targetLabels: string[], targetCount = targetLabels.length): string {
+  if (scope === 'SELF') return 'Moi'
+  if (scope === 'ALL') return 'Tout le monde'
+  if (scope === 'SECTOR') return targetLabels.length > 0 ? `Secteur ${targetLabels.join(', ')}` : 'Mon secteur'
+  if (targetLabels.length === 1) return targetLabels[0]
+  return `${targetCount} personne${targetCount > 1 ? 's' : ''}`
 }
 
 /** Infobulle listant les blocages d'un jour (portée, motif, auteur). */
 function blocksTitle(blocks: DayBlock[]): string {
   return blocks
-    .map((b) => `${b.scope === 'ALL' ? 'Tout le monde' : 'Moi'} — ${b.reason}${b.releasedForMe ? ' (disponible pour moi)' : ''}${b.createdByName ? ` · ${b.createdByName}` : ''}`)
+    .map((b) => {
+      const status = b.appliesToMe ? (b.releasedForMe ? ' (disponible pour moi)' : '') : ' (ne vous concerne pas)'
+      return `${blockScopeLabel(b.scope, b.targetLabels, b.targetCount)} — ${b.reason}${status}${b.createdByName ? ` · ${b.createdByName}` : ''}`
+    })
     .join('\n')
 }
 
@@ -293,7 +322,17 @@ export default function Calendrier() {
       )
       // Cumule les échecs (un rechargement sans erreur ne masque pas la bannière : fermeture via la croix).
       setUnavailableIds((prev) => (failed.length ? Array.from(new Set([...prev, ...failed])) : prev))
-      setEvents(perUser.flat())
+      // Un créneau occupé par un entretien du secteur est renvoyé par l'agenda de
+      // chaque RH concerné : on ne le garde qu'une fois (id `occupation-<n>` stable).
+      const seenOccupations = new Set<string>()
+      setEvents(
+        perUser.flat().filter((e) => {
+          if (!e.isOccupation) return true
+          if (seenOccupations.has(e.id)) return false
+          seenOccupations.add(e.id)
+          return true
+        }),
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
     } finally {
@@ -610,7 +649,9 @@ export default function Calendrier() {
         </div>
       )}
 
-      {detail && (
+      {detail && (detail.isOccupation ? (
+        <OccupationModal event={detail} onClose={() => setDetail(null)} />
+      ) : (
         <EventModal
           event={detail}
           isOwn={detail.ownerId === selfId}
@@ -620,7 +661,7 @@ export default function Calendrier() {
           onAttendance={(e) => { setDetail((d) => (d ? { ...d, ...e } : d)); void load() }}
           onArrived={(e) => { setDetail(null); setCreateFromEvent(e) }}
         />
-      )}
+      ))}
       {createFromEvent && (
         <CandidateQuickCreateModal
           prefill={{
@@ -648,6 +689,7 @@ export default function Calendrier() {
       {showBooking && <BookingSettingsModal onClose={() => setShowBooking(false)} />}
       {showBlocks && (
         <DayBlocksModal
+          users={users}
           onClose={() => setShowBlocks(false)}
           onChanged={() => setBlocksVersion((v) => v + 1)}
         />
@@ -896,22 +938,85 @@ function BookingSettingsModal({ onClose }: { onClose: () => void }) {
 
 const inputCls = 'w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-[13px] outline-none focus:border-purple'
 
+/** Une période bloquée : les jours d'une même saisie, vus comme une seule entrée. */
+interface BlockGroup {
+  key: string
+  from: string
+  to: string
+  days: number
+  releasedDays: number
+  scope: DayBlockScope
+  reason: string
+  targetLabels: string[]
+  targetCount: number
+  appliesToMe: boolean
+  createdByName: string | null
+}
+
+/** Regroupe les jours bloqués par période (`groupKey`) : « Congés du 12 au 23 » = 1 entrée. */
+function groupDayBlocks(blocks: DayBlock[]): BlockGroup[] {
+  const map = new Map<string, BlockGroup>()
+  for (const b of blocks) {
+    const group = map.get(b.groupKey)
+    if (!group) {
+      map.set(b.groupKey, {
+        key: b.groupKey,
+        from: b.day,
+        to: b.day,
+        days: 1,
+        releasedDays: b.releasedForMe ? 1 : 0,
+        scope: b.scope,
+        reason: b.reason,
+        targetLabels: b.targetLabels,
+        targetCount: b.targetCount,
+        appliesToMe: b.appliesToMe,
+        createdByName: b.createdByName,
+      })
+      continue
+    }
+    if (b.day < group.from) group.from = b.day
+    if (b.day > group.to) group.to = b.day
+    group.days += 1
+    if (b.releasedForMe) group.releasedDays += 1
+  }
+  return [...map.values()].sort((a, b) => a.from.localeCompare(b.from) || a.key.localeCompare(b.key))
+}
+
 /**
- * Blocage de dates : le jour n'est plus proposé sur la page de réservation,
+ * Blocage de dates : la période n'est plus proposée sur la page de réservation,
  * quelles que soient les disponibilités hebdomadaires.
- * - « Pour moi » : seul mon agenda partagé est bloqué.
- * - « Pour tout le monde » : blocage pour tous les RH ; annulable « pour moi »
- *   (dérogation personnelle) ou « pour tout le monde ».
+ * - « Moi » : seul mon agenda partagé est bloqué.
+ * - « Mon secteur » : tous les RH de mes secteurs.
+ * - « Tout le monde » : tous les RH.
+ * - « + » : sélection manuelle de personnes.
+ * Un blocage collectif peut être annulé « pour moi » (dérogation personnelle,
+ * re-bloquable) ou « pour tout le monde ».
  */
-function DayBlocksModal({ onClose, onChanged }: { onClose: () => void; onChanged: () => void }) {
+function DayBlocksModal({ onClose, onChanged, users }: {
+  onClose: () => void
+  onChanged: () => void
+  users: CalendarUser[]
+}) {
   const [blocks, setBlocks] = useState<DayBlock[] | null>(null)
-  const [day, setDay] = useState(() => toDateInput(new Date()))
+  const [from, setFrom] = useState(() => toDateInput(new Date()))
+  const [to, setTo] = useState(() => toDateInput(new Date()))
   const [scope, setScope] = useState<DayBlockScope>('SELF')
+  // Blocage sectoriel : sous-ensemble de mes secteurs (vide = tous les miens).
+  const [sectors, setSectors] = useState<string[]>([])
+  // Blocage nominatif : personnes cochées manuellement.
+  const [peopleIds, setPeopleIds] = useState<number[]>([])
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  // Blocage « tout le monde » dont on est en train de choisir la portée d'annulation.
-  const [releasing, setReleasing] = useState<number | null>(null)
+  // Blocage collectif dont on est en train de choisir la portée d'annulation.
+  const [releasing, setReleasing] = useState<string | null>(null)
+
+  const mySectors = users.find((u) => u.isSelf)?.sectors ?? []
+  const selectableUsers = users.filter((u) => !u.isSelf)
+  const userLabel = (id: string) => {
+    const user = users.find((u) => u.id === Number(id))
+    return user ? `${user.firstName} ${user.lastName}` : id
+  }
 
   useEffect(() => {
     fetchDayBlocks()
@@ -930,9 +1035,18 @@ function DayBlocksModal({ onClose, onChanged }: { onClose: () => void; onChanged
 
   const submit = async () => {
     if (!reason.trim()) { setErr('Motif requis'); return }
+    if (to < from) { setErr('La date de fin doit suivre la date de début'); return }
+    if (scope === 'USERS' && peopleIds.length === 0) { setErr('Choisissez au moins une personne'); return }
     setBusy(true); setErr(null)
     try {
-      apply(await createDayBlock({ day, scope, reason: reason.trim() }))
+      apply(await createDayBlock({
+        from,
+        to,
+        scope,
+        reason: reason.trim(),
+        ...(scope === 'SECTOR' ? { sectors: sectors.length > 0 ? sectors : mySectors } : {}),
+        ...(scope === 'USERS' ? { userIds: peopleIds } : {}),
+      }))
       setReason('')
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Erreur')
@@ -941,6 +1055,7 @@ function DayBlocksModal({ onClose, onChanged }: { onClose: () => void; onChanged
     }
   }
 
+  const groups = groupDayBlocks(blocks ?? [])
   const smallBtn = 'rounded-lg border border-[var(--ds-border)] px-2.5 py-1.5 text-[12px] font-bold text-[var(--ds-text-muted)] transition-colors hover:bg-[var(--ds-surface-sunken)] disabled:opacity-60'
 
   return (
@@ -958,22 +1073,76 @@ function DayBlocksModal({ onClose, onChanged }: { onClose: () => void; onChanged
         <div className="space-y-4">
           {/* Nouveau blocage */}
           <div className="rounded-xl border border-[var(--ds-border)] p-3">
-            <Field label="Date à bloquer">
-              <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className={inputCls} />
-            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Du">
+                <input
+                  type="date"
+                  value={from}
+                  max={to}
+                  onChange={(e) => setFrom(e.target.value)}
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Au">
+                <input
+                  type="date"
+                  value={to}
+                  min={from}
+                  onChange={(e) => setTo(e.target.value)}
+                  className={inputCls}
+                />
+              </Field>
+            </div>
             <div className="mt-3">
-              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Portée</p>
+              <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Pour qui</p>
               <SegmentedControl
                 label="Portée du blocage"
                 tone="purple"
                 size="sm"
                 value={scope}
-                onChange={setScope}
+                onChange={(value) => {
+                  setScope(value)
+                  if (value !== 'USERS') setPeopleIds([])
+                }}
                 options={[
-                  { value: 'SELF' as DayBlockScope, label: 'Pour moi' },
-                  { value: 'ALL' as DayBlockScope, label: 'Pour tout le monde' },
+                  { value: 'SELF' as DayBlockScope, label: 'Moi' },
+                  ...(mySectors.length > 0 ? [{ value: 'SECTOR' as DayBlockScope, label: 'Mon secteur' }] : []),
+                  { value: 'ALL' as DayBlockScope, label: 'Tout le monde' },
+                  { value: 'USERS' as DayBlockScope, label: <>+<span className="sr-only"> Choisir des personnes</span></> },
                 ]}
               />
+              {/* Plusieurs secteurs : on choisit lesquels (vide = tous les miens). */}
+              {scope === 'SECTOR' && mySectors.length > 1 && (
+                <div className="mt-2">
+                  <ChipGroup
+                    label="Secteurs bloqués"
+                    allLabel="Tous mes secteurs"
+                    tone="purple"
+                    selected={sectors}
+                    onSelectAll={() => setSectors([])}
+                    onToggle={(sector) => setSectors((prev) => (prev.includes(sector) ? prev.filter((s) => s !== sector) : [...prev, sector]))}
+                    options={mySectors.map((sector) => ({ value: sector, label: sector }))}
+                  />
+                </div>
+              )}
+              {/* Sélection manuelle : mêmes personnes que la liste des agendas. */}
+              {scope === 'USERS' && (
+                <div className="mt-2">
+                  {selectableUsers.length === 0 ? (
+                    <p className="text-[12px] text-[var(--ds-text-subtle)]">Aucune personne à sélectionner pour le moment.</p>
+                  ) : (
+                    <MultiSelectField
+                      id="block-people"
+                      label="Personnes"
+                      options={selectableUsers.map((u) => String(u.id))}
+                      value={peopleIds.map(String)}
+                      onChange={(values) => setPeopleIds(values.map(Number))}
+                      placeholder="Choisir des personnes…"
+                      getOptionLabel={userLabel}
+                    />
+                  )}
+                </div>
+              )}
             </div>
             <Field label="Motif" className="mt-3">
               <input
@@ -985,8 +1154,9 @@ function DayBlocksModal({ onClose, onChanged }: { onClose: () => void; onChanged
               />
             </Field>
             <p className="mt-2 text-[11px] leading-relaxed text-[var(--ds-text-subtle)]">
-              « Pour moi » ne bloque que votre agenda partagé ; « pour tout le monde » s'applique à tous les RH.
-              Un jour bloqué n'est jamais proposé sur la page de réservation, quelles que soient les disponibilités hebdomadaires.
+              « Moi » ne bloque que votre agenda partagé ; « Mon secteur » et « Tout le monde » s'appliquent à
+              plusieurs RH. Une date bloquée n'est jamais proposée sur la page de réservation, quelles que soient
+              les disponibilités hebdomadaires.
             </p>
             {err && <p className="mt-2 text-[12px] text-[var(--ds-danger)]">{err}</p>}
             <div className="mt-3 flex justify-end">
@@ -996,67 +1166,77 @@ function DayBlocksModal({ onClose, onChanged }: { onClose: () => void; onChanged
                 className="flex items-center gap-1.5 rounded-lg bg-purple px-4 py-2 text-[13px] font-bold text-white transition-colors hover:bg-purple-dark disabled:opacity-60"
               >
                 {busy ? <IconLoader width={15} height={15} className="animate-spin" /> : <IconLock width={15} height={15} />}
-                Bloquer ce jour
+                {from === to ? 'Bloquer ce jour' : 'Bloquer la période'}
               </button>
             </div>
           </div>
 
-          {/* Blocages existants */}
+          {/* Blocages existants, regroupés par période */}
           <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Jours bloqués</p>
+            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[var(--ds-text-subtle)]">Dates bloquées</p>
             {blocks === null ? (
               <div className="flex justify-center py-6"><IconLoader width={22} height={22} className="animate-spin text-purple" /></div>
-            ) : blocks.length === 0 ? (
+            ) : groups.length === 0 ? (
               <p className="py-2 text-[12px] text-[var(--ds-text-subtle)]">Aucune date bloquée.</p>
             ) : (
               <ul className="space-y-1.5">
-                {blocks.map((b) => {
-                  const global = b.scope === 'ALL'
-                  // Blocage perso le même jour : « pour moi » n'aurait rien à rouvrir.
-                  const blockedForMe = blocks.some((x) => x.scope === 'SELF' && x.day === b.day)
+                {groups.map((group) => {
+                  const collective = group.scope !== 'SELF'
+                  const released = group.releasedDays === group.days
+                  const partiallyReleased = group.releasedDays > 0 && !released
+                  // Blocage perso sur la période : « pour moi » n'aurait rien à rouvrir.
+                  const blockedForMe = (blocks ?? []).some(
+                    (x) => x.scope === 'SELF' && x.day >= group.from && x.day <= group.to,
+                  )
+                  const badge = blockScopeLabel(group.scope, group.targetLabels, group.targetCount)
                   return (
-                    <li key={b.id} className="rounded-xl border border-[var(--ds-border)] px-3 py-2">
+                    <li key={group.key} className="rounded-xl border border-[var(--ds-border)] px-3 py-2">
                       <div className="flex items-start gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[13px] font-bold text-[var(--ds-text)]">{formatBlockDay(b.day)}</p>
-                          <p className="truncate text-[12px] text-[var(--ds-text-muted)]">{b.reason}</p>
+                          <p className="truncate text-[13px] font-bold text-[var(--ds-text)]">{formatBlockPeriod(group.from, group.to)}</p>
+                          <p className="truncate text-[12px] text-[var(--ds-text-muted)]">{group.reason}</p>
                           <p className="mt-0.5 flex flex-wrap items-center gap-1 text-[11px] text-[var(--ds-text-subtle)]">
-                            <span className={`rounded px-1.5 py-0.5 font-bold ${global ? 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)]' : 'bg-purple-light text-purple'}`}>
-                              {global ? 'Tout le monde' : 'Moi'}
+                            <span className={`rounded px-1.5 py-0.5 font-bold ${group.scope === 'ALL' ? 'bg-[var(--ds-warning-bg)] text-[var(--ds-warning)]' : 'bg-purple-light text-purple'}`}>
+                              {badge}
                             </span>
-                            {global && b.releasedForMe && (
+                            {released && (
                               <span className="rounded bg-[var(--ds-success-bg)] px-1.5 py-0.5 font-bold text-[var(--ds-success)]">Disponible pour moi</span>
                             )}
-                            {b.createdByName && <span>· {b.createdByName}</span>}
+                            {partiallyReleased && (
+                              <span className="rounded bg-[var(--ds-success-bg)] px-1.5 py-0.5 font-bold text-[var(--ds-success)]">
+                                Disponible {group.releasedDays}/{group.days} jours
+                              </span>
+                            )}
+                            {group.createdByName && <span>· {group.createdByName}</span>}
                           </p>
                         </div>
                         <div className="flex-shrink-0">
-                          {global ? (
-                            b.releasedForMe ? (
-                              <button onClick={() => run(() => releaseDayBlock(b.id))} disabled={busy} className={smallBtn}>
+                          {collective ? (
+                            released ? (
+                              <button onClick={() => run(() => releaseDayBlockGroup(group.key))} disabled={busy} className={smallBtn}>
                                 Me re-bloquer
                               </button>
                             ) : (
-                              <button onClick={() => setReleasing(releasing === b.id ? null : b.id)} className={smallBtn}>
+                              <button onClick={() => setReleasing(releasing === group.key ? null : group.key)} className={smallBtn}>
                                 Annuler…
                               </button>
                             )
                           ) : (
-                            <button onClick={() => run(() => deleteDayBlock(b.id))} disabled={busy} className={smallBtn}>
+                            <button onClick={() => run(() => deleteDayBlockGroup(group.key))} disabled={busy} className={smallBtn}>
                               Débloquer
                             </button>
                           )}
                         </div>
                       </div>
-                      {global && !b.releasedForMe && releasing === b.id && (
+                      {collective && !released && releasing === group.key && (
                         <div className="mt-2 flex flex-wrap items-center justify-end gap-1.5 border-t border-[var(--ds-border)] pt-2">
                           <span className="mr-auto text-[11px] font-semibold text-[var(--ds-text-subtle)]">Rendre disponible :</span>
-                          {!blockedForMe && (
-                            <button onClick={() => run(() => releaseDayBlock(b.id))} disabled={busy} className={smallBtn}>
+                          {!blockedForMe && group.appliesToMe && (
+                            <button onClick={() => run(() => releaseDayBlockGroup(group.key))} disabled={busy} className={smallBtn}>
                               pour moi
                             </button>
                           )}
-                          <button onClick={() => run(() => deleteDayBlock(b.id))} disabled={busy} className={`${smallBtn} border-[var(--ds-danger)]/40 text-[var(--ds-danger)]`}>
+                          <button onClick={() => run(() => deleteDayBlockGroup(group.key))} disabled={busy} className={`${smallBtn} border-[var(--ds-danger)]/40 text-[var(--ds-danger)]`}>
                             pour tout le monde
                           </button>
                         </div>
@@ -1282,9 +1462,13 @@ function WeekView({ days, today, eventsByDay, onEvent, onSlot, highlightedIds, b
                   const isHighlighted = highlightedIds?.has(event.id) ?? false
                   return (
                     <button key={event.id} onClick={(e) => { e.stopPropagation(); onEvent(event) }}
+                      title={event.isOccupation ? `Occupé${event.occupationOwnerName ? ` — ${event.occupationOwnerName}` : ''}` : undefined}
                       className={`absolute overflow-hidden rounded-md px-1.5 py-1 text-left transition-opacity hover:opacity-90 ${isHighlighted ? 'z-10 ring-2 ring-amber-400 ring-offset-0 shadow-md' : ''}`}
                       style={{ top, height, width, left, backgroundColor: isHighlighted ? `${hex}40` : `${hex}26`, borderLeft: `3px solid ${hex}`, ...(isHighlighted ? { boxShadow: '0 0 0 1px #f59e0b, 0 2px 6px rgba(0,0,0,0.12)' } : {}) }}>
-                      <div className="truncate text-[11px] font-bold" style={{ color: hex }}>{event.summary}</div>
+                      <div className="flex items-center gap-1 truncate text-[11px] font-bold" style={{ color: hex }}>
+                        {event.isOccupation && <IconLock width={10} height={10} className="flex-shrink-0" />}
+                        <span className="truncate">{event.summary}</span>
+                      </div>
                       {height > 30 && <div className="truncate text-[10px] font-medium text-[var(--ds-text-subtle)]">{formatTime(event.start)} – {formatTime(event.end)}</div>}
                     </button>
                   )
@@ -1430,6 +1614,43 @@ function ConnectPrompt({ onConnect, isConnecting, onDone }: { onConnect: () => P
   )
 }
 
+/**
+ * Détail en lecture seule d'un créneau occupé par l'entretien d'un RH du même
+ * secteur (#1241) : l'agenda est bloqué pour ce créneau, rien n'est modifiable ici.
+ */
+function OccupationModal({ event, onClose }: { event: OwnedEvent; onClose: () => void }) {
+  const start = new Date(event.start)
+  const dateLabel = start.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+  const timeLabel = `${formatTime(event.start)} – ${formatTime(event.end)}`
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-[var(--ds-surface)] p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start gap-3">
+          <IconLock width={17} height={17} className="mt-1 flex-shrink-0 text-[var(--ds-text-subtle)]" />
+          <div className="flex-1">
+            <h2 className="text-[17px] font-extrabold leading-snug text-[var(--ds-text)]">{event.summary}</h2>
+            <p className="text-[12px] text-[var(--ds-text-subtle)]">
+              Créneau occupé : les RH de votre secteur sont bloqués sur ce créneau.
+            </p>
+          </div>
+        </div>
+        <div className="space-y-2 text-[13px] text-[var(--ds-text-muted)]">
+          {event.occupationOwnerName && (
+            <p className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[12px] font-bold" style={{ backgroundColor: `${OCCUPATION_HEX}22`, color: OCCUPATION_HEX }}>
+              <IconUser width={12} height={12} /> {event.occupationOwnerName}
+            </p>
+          )}
+          <p className="font-semibold capitalize text-[var(--ds-text)]">{dateLabel}</p>
+          <p>{timeLabel}</p>
+        </div>
+        <div className="mt-5 flex justify-end">
+          <button onClick={onClose} className="rounded-lg px-3 py-2 text-[13px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)]">Fermer</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, onArrived }: {
   event: OwnedEvent; isOwn: boolean; ownerName?: string
   onClose: () => void; onEdit: () => void; onAttendance: (e: CalendarEvent) => void
@@ -1442,6 +1663,8 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
 
   const [savingAtt, setSavingAtt] = useState<Attendance | null>(null)
   const [attErr, setAttErr] = useState<string | null>(null)
+  // Distingue « À reprogrammer » (date à définir) de « Déplacer et marquer reporté » dans les spinners.
+  const [savingPending, setSavingPending] = useState(false)
   const isPast = new Date(event.end).getTime() < Date.now()
   // « Reporté » d'un entretien : on demande d'abord la nouvelle date/heure, puis on déplace le créneau.
   const [rescheduling, setRescheduling] = useState(false)
@@ -1449,15 +1672,17 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
   const [newStart, setNewStart] = useState(() => toTimeInput(new Date(event.start)))
   const [newEnd, setNewEnd] = useState(() => toTimeInput(new Date(event.end)))
 
-  const mark = async (status: Attendance) => {
+  const mark = async (status: Attendance): Promise<boolean> => {
     setSavingAtt(status); setAttErr(null)
     try {
       const updated = await setEventAttendance(event.id, status, event.ownerId)
       onAttendance(updated)
       // « Arrivé » (entretien uniquement) → création du candidat pré-rempli puis redirection vers sa fiche.
       if (status === 'arrived' && event.isInterview) onArrived(updated)
+      return true
     } catch (e) {
       setAttErr(e instanceof Error ? e.message : 'Erreur')
+      return false
     } finally {
       setSavingAtt(null)
     }
@@ -1546,14 +1771,24 @@ function EventModal({ event, isOwn, ownerName, onClose, onEdit, onAttendance, on
                 <input type="time" value={newEnd} onChange={(e) => setNewEnd(e.target.value)} disabled={savingAtt !== null}
                   className="rounded-lg border border-[var(--ds-border)] px-2 py-2 text-[13px] outline-none focus:border-purple" />
               </div>
-              <div className="mt-2 flex items-center justify-end gap-2">
+              <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                {/* Date pas encore fixée : on marque reporté sans déplacer le créneau (à reprogrammer plus tard). */}
+                <button onClick={async () => {
+                  setSavingPending(true)
+                  if (await mark('postponed')) setRescheduling(false)
+                  setSavingPending(false)
+                }} disabled={savingAtt !== null}
+                  className="mr-auto flex items-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-[12px] font-bold text-[var(--ds-text-muted)] hover:bg-[var(--ds-surface-sunken)] disabled:opacity-60">
+                  {savingPending && <IconLoader width={13} height={13} className="animate-spin" />} À reprogrammer
+                </button>
                 <button onClick={() => setRescheduling(false)} disabled={savingAtt !== null}
                   className="rounded-lg px-3 py-1.5 text-[12px] font-bold text-[var(--ds-text-subtle)] hover:text-[var(--ds-text-muted)] disabled:opacity-60">Annuler</button>
                 <button onClick={confirmReport} disabled={savingAtt !== null}
                   className="flex items-center gap-1.5 rounded-lg bg-purple px-3 py-1.5 text-[12px] font-bold text-white hover:bg-purple-dark disabled:opacity-60">
-                  {savingAtt === 'postponed' && <IconLoader width={13} height={13} className="animate-spin" />} Déplacer et marquer reporté
+                  {!savingPending && savingAtt === 'postponed' && <IconLoader width={13} height={13} className="animate-spin" />} Déplacer et marquer reporté
                 </button>
               </div>
+              <p className="mt-2 text-[11px] text-[var(--ds-text-subtle)]">Nouvelle date pas encore fixée ? Choisissez « À reprogrammer » : le créneau reste reporté en attendant.</p>
             </div>
           )}
           {event.isInterview && event.attendance === 'noshow' && (
