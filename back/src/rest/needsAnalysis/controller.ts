@@ -49,6 +49,61 @@ export async function downloadPdf(req: AuthRequest, res: Response): Promise<void
     }
 }
 
+/**
+ * Redirige vers le PDF de l'AB archivé sur le Drive (« Ouvrir l'AB dans le
+ * Drive »). Le lien est mémorisé à l'archivage ; pour les AB antérieures il est
+ * résolu à la demande, avec repli sur le dossier Drive si le fichier est
+ * introuvable. Répond 404 si aucun dossier n'est configuré.
+ *
+ * Les rôles autorisés (commercial, RH, ou responsable/admin) sont contrôlés en
+ * amont par `requireRolesOrManager` ; reste ici la portée fine : un commercial
+ * n'ouvre que les AB de son portefeuille.
+ */
+export async function openAbDrive(req: AuthRequest, res: Response): Promise<void> {
+    const role = req.user?.role;
+    const permission = req.user?.permission;
+    const isManager = permission === Permission.RESPONSABLE || permission === Permission.ADMIN;
+
+    const id = req.params.id as string;
+    if (!id) {
+        res.status(400).json({ error: 'Invalid needs analysis ID' });
+        return;
+    }
+
+    try {
+        const analysis = await needsAnalysisService.findById(id);
+        if (!analysis) {
+            res.status(404).json({ error: 'Needs analysis not found' });
+            return;
+        }
+        // Un commercial n'ouvre que les AB dont il est le propriétaire.
+        if (
+            role === JobRole.COMMERCIAL &&
+            !isManager &&
+            analysis.salerInfo?.id &&
+            analysis.salerInfo.id !== req.user?.id
+        ) {
+            res.status(403).json({ error: 'Forbidden' });
+            return;
+        }
+
+        const target = await needsAnalysisService.resolveAbDriveUrl(
+            analysis,
+            req.user?.id !== undefined ? Number(req.user.id) : undefined,
+        );
+        // Le lien vient de l'API Drive ou de la base : on n'ouvre qu'un domaine
+        // Google Drive (garde-fou contre une redirection ouverte).
+        if (!target || !/^https:\/\/drive\.google\.com\//.test(target)) {
+            res.status(404).json({ error: 'AB introuvable sur le Drive' });
+            return;
+        }
+        res.redirect(302, target);
+    } catch (error) {
+        logger.error({ err: error, id }, '[NeedsAnalysis] AB Drive link resolution failed');
+        res.status(500).json({ error: 'Failed to resolve AB Drive link' });
+    }
+}
+
 /** Sert un PDF statique (mandat / catalogue) en inline pour l'aperçu avant envoi. */
 function serveSignatureAsset(req: AuthRequest, res: Response, kind: 'mandat' | 'catalogue'): void {
     const perm = req.user?.permission;

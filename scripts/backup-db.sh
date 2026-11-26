@@ -16,6 +16,11 @@ RETENTION_DAYS=7
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=scripts/mongo-exec.sh
+source "$REPO_ROOT/scripts/mongo-exec.sh"
+# shellcheck source=scripts/notify.sh
+source "$REPO_ROOT/scripts/notify.sh"
+
 # .env contient des valeurs avec métacaractères shell (ex. `&` dans MONGO_URI),
 # donc `source .env` échoue en parse error. On n'extrait que les clés nécessaires.
 load_env() {
@@ -46,6 +51,42 @@ fi
 
 DATE=$(date +%Y-%m-%d_%H%M%S)
 mkdir -p backups
+chmod 700 backups
+
+# Un échec en cours de route ne doit laisser aucun fichier partiel dans backups/,
+# et doit déclencher une alerte webhook (BACKUP_ALERT_WEBHOOK, voir notify.sh).
+on_exit() {
+    local rc=$?
+    rm -f backups/*.part
+    if ((rc != 0)); then
+        notify_failure "Backup FAILED" "backup-db.sh exit ${rc}"
+    fi
+}
+trap on_exit EXIT
+
+# sha256 d'un fichier : sha256sum (Linux) ou shasum (macOS).
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum -- "$1"
+    else
+        shasum -a 256 -- "$1"
+    fi
+}
+
+# dump_encrypted <fichier final> <commande de dump…>
+# Le dump est chiffré à la volée vers <fichier>.part puis renommé : un dump
+# interrompu (pipefail) n'est jamais exposé sous son nom final, et rien n'est
+# écrit en clair sur le disque.
+dump_encrypted() {
+    local out="$1"
+    shift
+    "$@" | age -r "$AGE_RECIPIENT" > "${out}.part"
+    chmod 600 "${out}.part"
+    mv "${out}.part" "$out"
+    # Checksum ecrit a la sauvegarde (nom de fichier relatif : verifiable depuis backups/).
+    (cd "$(dirname "$out")" && sha256_of "$(basename "$out")" > "$(basename "$out").sha256")
+    chmod 600 "${out}.sha256"
+}
 
 # Un échec en cours de route ne doit laisser aucun fichier partiel dans backups/.
 trap 'rm -f backups/*.part' EXIT
@@ -65,13 +106,13 @@ echo "[$(date -Iseconds)] Starting backup"
 
 MYSQL_DUMP="backups/backup_mysql_${DATE}.sql.age"
 dump_encrypted "$MYSQL_DUMP" \
-  docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+  env MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysqldump -h127.0.0.1 -uroot disciplina
 echo "[$(date -Iseconds)] MySQL dump done: $MYSQL_DUMP ($(du -h "$MYSQL_DUMP" | cut -f1))"
 
 MONGO_DUMP="backups/backup_mongo_${DATE}.archive.age"
 dump_encrypted "$MONGO_DUMP" \
-  docker compose exec -T nosql-db mongodump \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  mongo_exec mongodump \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --db human_ressources --archive
 echo "[$(date -Iseconds)] MongoDB dump done: $MONGO_DUMP ($(du -h "$MONGO_DUMP" | cut -f1))"
 
@@ -79,19 +120,27 @@ echo "[$(date -Iseconds)] MongoDB dump done: $MONGO_DUMP ($(du -h "$MONGO_DUMP" 
 # backup_mongo_* utilisés par deploy.sh pour retrouver le dump du tenant Réunion.
 MYSQL_ANNEMASSE_DUMP="backups/backup_annemasse_mysql_${DATE}.sql.age"
 dump_encrypted "$MYSQL_ANNEMASSE_DUMP" \
-  docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_ANNEMASSE_DATABASE"
+  env MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysqldump -h127.0.0.1 -uroot "$MYSQL_ANNEMASSE_DATABASE"
 echo "[$(date -Iseconds)] MySQL Annemasse dump done: $MYSQL_ANNEMASSE_DUMP ($(du -h "$MYSQL_ANNEMASSE_DUMP" | cut -f1))"
 
 MONGO_ANNEMASSE_DUMP="backups/backup_annemasse_mongo_${DATE}.archive.age"
 dump_encrypted "$MONGO_ANNEMASSE_DUMP" \
-  docker compose exec -T nosql-db mongodump \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  mongo_exec mongodump \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --db "$MONGO_ANNEMASSE_DATABASE" --archive
 echo "[$(date -Iseconds)] MongoDB Annemasse dump done: $MONGO_ANNEMASSE_DUMP ($(du -h "$MONGO_ANNEMASSE_DUMP" | cut -f1))"
 
 find backups -name 'backup_mysql_*.sql.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_mysql_*.sql.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_mongo_*.archive.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_mongo_*.archive.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_annemasse_mysql_*.sql.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_annemasse_mysql_*.sql.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
 find backups -name 'backup_annemasse_mongo_*.archive.age' -mtime "+${RETENTION_DAYS}" -delete
+find backups -name 'backup_annemasse_mongo_*.archive.age.sha256' -mtime "+${RETENTION_DAYS}" -delete
+
+# Marqueur de succes lu par backup-watchdog.sh / deploy.sh (detection des runs manques).
+date -Iseconds > backups/.last-backup
+chmod 600 backups/.last-backup
 
 echo "[$(date -Iseconds)] Backup finished, rotation applied (retention: ${RETENTION_DAYS}d)"

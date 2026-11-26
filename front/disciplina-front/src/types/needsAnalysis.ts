@@ -153,3 +153,12 @@ export function abStatusBadge(
 export function abStatusLabel(status?: string | null, isVisibleInMatching?: boolean | null): string {
   return abStatusBadge(status, isVisibleInMatching).label
 }
+
+/**
+ * Statuts pour lesquels un PDF d'AB a été archivé sur le Drive : l'envoi en
+ * signature archive la copie non signée, la signature la copie signée.
+ * Un brouillon (même publié au matching) n'a pas d'archive.
+ */
+export function isAbArchivedOnDrive(status?: string | null): boolean {
+  return status === 'EN_ATTENTE_SIGNATURE' || status === 'SIGNE' || status === 'EXPIRE'
+}

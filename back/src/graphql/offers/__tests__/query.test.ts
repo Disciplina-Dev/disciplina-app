@@ -5,7 +5,7 @@ import { OfferRepository } from '../../../repositories/mongo/OfferRepository';
 import { seedOffer } from '../../../../test/helpers/seedOffer';
 import { CandidateRepository } from '../../../repositories/mongo/CandidateRepository';
 import { env } from '../../../config/env';
-import { OfferStatus, DesiredSex, Localisation, Sector } from '../../../types/matching.types';
+import { OfferStatus, DesiredSex, Localisation, Sector, MatchedCandidateStatus } from '../../../types/matching.types';
 import { CandidateStatus, TitleProfessionalType } from '../../../types/candidate.types';
 import { OfferModel } from '../../../db/mongo/schemas/offer.schema';
 const ENDPOINT = `http://localhost:${env.API_PORT}/api/graphql/offers`;
@@ -134,6 +134,44 @@ describe('GraphQL job queries', () => {
         expect(allIds).toContain(closed._id);
     });
 
+    it('excludes offers deactivated in the company directory, while includeClosed keeps them visible', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+
+        const active = await seedOffer({ _id: `job-active-${suffix}`, status: OfferStatus.NOT_MATCHED });
+        const inactive = await seedOffer({
+            _id: `job-inactive-${suffix}`,
+            status: OfferStatus.NOT_MATCHED,
+            is_active: false,
+        });
+
+        const fetchOfferIds = async (query: string): Promise<string[]> => {
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query }),
+            });
+            const json = await res.json();
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            return json.data.offers.map((offer: { id: string }) => offer.id);
+        };
+
+        const defaultIds = await fetchOfferIds('{ offers { id } }');
+        expect(defaultIds).toContain(active._id);
+        expect(defaultIds).not.toContain(inactive._id);
+
+        // L'annuaire entreprises s'appuie sur `includeClosed` : l'offre désactivée
+        // doit y rester visible pour pouvoir être réactivée.
+        const allIds = await fetchOfferIds('{ offers(includeClosed: true) { id } }');
+        expect(allIds).toContain(active._id);
+        expect(allIds).toContain(inactive._id);
+    });
+
     it('returns a job by id', async () => {
         const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
         const suffix = Date.now();
@@ -222,6 +260,61 @@ describe('GraphQL job queries', () => {
         expect(json.data.matchOffer.id).toBe(offerId);
         expect(json.data.matchOffer.suggestedCandidates.length).toBeGreaterThanOrEqual(1);
         expect(json.data.matchOffer.suggestedCandidates[0].fullName).toBe(`Jane ${suffix}`);
+    });
+
+    it('never suggests a candidate dismissed from the automatic matching', async () => {
+        const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+        const suffix = Date.now();
+        const candidateRepo = new CandidateRepository();
+
+        const candidateId = `cand-dismissed-${suffix}`;
+        await candidateRepo.create({
+            _id: candidateId,
+            candidate_id: candidateId,
+            tp_types: [TitleProfessionalType.AD],
+            status: CandidateStatus.SEEKING,
+            identity: {
+                full_name: `Paul ${suffix}`,
+                email: `paul-${suffix}@test.local`,
+                phone: '0600000000',
+                age: 26,
+                driving_license_b: true,
+            },
+            desired_sectors: ['RESTAURATION'],
+            job_info: {
+                geographic_mobility: [Localisation.ENTRE_DEUX],
+            },
+        });
+
+        const offerId = `job-dismissed-${suffix}`;
+        await seedOffer({
+            _id: offerId,
+            company_name: `Dismiss Corp ${suffix}`,
+            desired_tp: 'AD',
+            driving_license_b: true,
+            desired_sex: DesiredSex.MIXTE,
+            age_range: '20-40',
+            status: OfferStatus.NOT_MATCHED,
+            localisation: [Localisation.ENTRE_DEUX],
+            dismissed_candidate_ids: [candidateId],
+        });
+
+        const res = await fetch(ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Cookie: auth.cookieHeader,
+                'x-csrf-token': auth.csrfHeader,
+            },
+            body: JSON.stringify({
+                query: `query($id: String!) { matchOffer(id: $id) { id suggestedCandidates { id } } }`,
+                variables: { id: offerId },
+            }),
+        });
+        const json = await res.json();
+        expect(res.status).toBe(200);
+        expect(json.errors).toBeUndefined();
+        expect(json.data.matchOffer.suggestedCandidates.some((c: { id: string }) => c.id === candidateId)).toBe(false);
     });
 
     it('relaxes the activity-sector matching criterion when only custom sectors are set', async () => {
@@ -584,6 +677,81 @@ describe('GraphQL job queries', () => {
             expect(res.status).toBe(200);
             expect(json.errors).toBeUndefined();
             expect(json.data.candidateMatchedOfferIds).toEqual([]);
+        });
+    });
+
+    describe('candidateMatchPropositions', () => {
+        const query = `query($candidateId: String!) {
+            candidateMatchPropositions(candidateId: $candidateId) {
+                offerId companyName status title jobRole needsAnalysisId
+            }
+        }`;
+
+        async function fetchPropositions(candidateId: string) {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const res = await fetch(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Cookie: auth.cookieHeader,
+                    'x-csrf-token': auth.csrfHeader,
+                },
+                body: JSON.stringify({ query, variables: { candidateId } }),
+            });
+            return { res, json: await res.json() };
+        }
+
+        it('returns the propositions and the candidate answer (oui / non / en attente)', async () => {
+            const suffix = Date.now();
+            const candidateId = `cand-props-${suffix}`;
+
+            const acceptedId = `job-props-yes-${suffix}`;
+            const declinedId = `job-props-no-${suffix}`;
+            const pendingId = `job-props-pending-${suffix}`;
+            const sentId = `job-props-sent-${suffix}`;
+
+            await seedOffer({
+                _id: acceptedId,
+                company_name: `Oui Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.ACCEPTED }],
+            });
+            await seedOffer({
+                _id: declinedId,
+                company_name: `Non Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.DECLINED }],
+            });
+            await seedOffer({
+                _id: pendingId,
+                company_name: `Attente Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND }],
+            });
+            // Déjà transmis à l'entreprise : ce n'est plus une proposition ouverte.
+            await seedOffer({
+                _id: sentId,
+                company_name: `Envoyé Corp ${suffix}`,
+                candidates: [{ id: candidateId, status: MatchedCandidateStatus.SEND }],
+            });
+
+            const { res, json } = await fetchPropositions(candidateId);
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            const propositions = json.data.candidateMatchPropositions as Array<{ offerId: string; status: string }>;
+            expect(propositions).toHaveLength(3);
+            expect(propositions.map((p) => p.status).sort()).toEqual([
+                MatchedCandidateStatus.ACCEPTED,
+                MatchedCandidateStatus.DECLINED,
+                MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+            ]);
+            expect(propositions.map((p) => p.offerId).sort()).toEqual([acceptedId, declinedId, pendingId].sort());
+        });
+
+        it('returns an empty array when the candidate was never proposed an offer', async () => {
+            const { res, json } = await fetchPropositions(`no-props-${Date.now()}`);
+
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.candidateMatchPropositions).toEqual([]);
         });
     });
 });

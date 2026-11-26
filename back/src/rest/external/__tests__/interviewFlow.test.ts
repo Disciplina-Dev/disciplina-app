@@ -12,6 +12,7 @@ import { signAccessToken, ACCESS_TOKEN_COOKIE } from '../../middleware/tokenAuth
 import { GuestRole, Permission } from '../../../types/user.types';
 import { OfferStatus, MatchedCandidateStatus, Sex } from '../../../types/matching.types';
 import { CandidateHistoryType } from '../../../types/candidate.types';
+import { SlotOccupationRepository } from '../../../repositories/mysql/SlotOccupationRepository';
 
 const BASE = `http://localhost:${env.API_PORT}/api/external`;
 
@@ -33,7 +34,11 @@ function guestCookie(sig: string, referenceId = 3): string {
     return `${ACCESS_TOKEN_COOKIE}=${token}`;
 }
 
-async function createRhUser(suffix: number, oauth = false): Promise<{ id: number; email: string }> {
+async function createRhUser(
+    suffix: number,
+    oauth = false,
+    sectors: string[] | null = null,
+): Promise<{ id: number; email: string }> {
     const email = `rh-interview-ext-${suffix}@test.local`;
     const id = await userRepository.create({
         email,
@@ -42,7 +47,7 @@ async function createRhUser(suffix: number, oauth = false): Promise<{ id: number
         password: 'hashed',
         role_id: 2,
         permission_id: 1,
-        sectors: null,
+        sectors,
         oauth_token: oauth ? 'oauth-access-token' : null,
         refresh_token: oauth ? 'oauth-refresh-token' : null,
     });
@@ -384,6 +389,80 @@ describe('External interview flow (reference 3)', () => {
             });
             expect(res.status).toBe(409);
             await expect(res.json()).resolves.toMatchObject({ error: 'Session already completed' });
+        });
+    });
+
+    describe('interview slots occupied by HRs of the same sector (#1241)', () => {
+        const sectors = ['Ouest'];
+        const occupationRepository = new SlotOccupationRepository();
+
+        it('blocks the slot booked by a candidate for other HRs of the same sector', async () => {
+            const suffix = Date.now();
+            const rh = await createRhUser(suffix, false, sectors);
+            const peer = await createRhUser(suffix + 1, false, sectors);
+            const slot = '2030-09-01T09:00:00.000Z';
+
+            // Session du RH qui reçoit la réservation…
+            const candidateId = `cand-share-${suffix}`;
+            const offerId = await seedInterviewOffer(suffix, [slot], [
+                { id: candidateId, email: `share-${suffix}@test.local` },
+            ]);
+            const sig = signature('sig-interview-share');
+            await createInterviewSession(rh.id, offerId, candidateId, sig);
+
+            // …et session d'un RH du même secteur proposant le même créneau.
+            const peerCandidateId = `cand-share-peer-${suffix}`;
+            const peerOfferId = await seedInterviewOffer(suffix + 1, [slot], [
+                { id: peerCandidateId, email: `share-peer-${suffix}@test.local` },
+            ]);
+            const peerSig = signature('sig-interview-share-peer');
+            await createInterviewSession(peer.id, peerOfferId, peerCandidateId, peerSig);
+
+            const book = (s: string) =>
+                fetch(`${BASE}/${s}/interview/book`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Cookie: guestCookie(s) },
+                    body: JSON.stringify({ slot }),
+                });
+
+            expect((await book(sig)).status).toBe(200);
+            // Le créneau est refusé au RH du secteur…
+            expect((await book(peerSig)).status).toBe(409);
+            // …et affiché comme pris sur sa page de créneaux.
+            const res = await fetch(`${BASE}/${peerSig}/interview/slots`, {
+                headers: { Cookie: guestCookie(peerSig) },
+            });
+            expect(res.status).toBe(200);
+            expect(((await res.json()) as { slots: { slot: string; taken: boolean }[] }).slots).toEqual([
+                { slot, taken: true },
+            ]);
+        });
+
+        it('marks a slot occupied by another HR of the same sector as taken', async () => {
+            const suffix = Date.now();
+            const rh = await createRhUser(suffix, false, sectors);
+            const peer = await createRhUser(suffix + 1, false, sectors);
+            const slot = '2030-09-02T09:00:00.000Z';
+            await occupationRepository.upsert({
+                ownerUserId: peer.id,
+                start: slot,
+                end: new Date(Date.parse(slot) + 60 * 60_000).toISOString(),
+                label: 'Entretien — Collègue',
+                source: 'CALENDAR',
+                sourceEventId: `evt-peer-${suffix}`,
+            });
+
+            const candidateId = `cand-peer-${suffix}`;
+            const offerId = await seedInterviewOffer(suffix, [slot], [
+                { id: candidateId, email: `peer-${suffix}@test.local` },
+            ]);
+            const sig = signature('sig-interview-peer');
+            await createInterviewSession(rh.id, offerId, candidateId, sig);
+
+            const res = await fetch(`${BASE}/${sig}/interview/slots`, { headers: { Cookie: guestCookie(sig) } });
+            expect(res.status).toBe(200);
+            const json = (await res.json()) as { slots: { slot: string; taken: boolean }[] };
+            expect(json.slots).toEqual([{ slot, taken: true }]);
         });
     });
 });

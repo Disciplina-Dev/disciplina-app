@@ -29,6 +29,11 @@ services:
       # TLS obligatoire en production : la base est le MySQL auto-hébergé ci-dessous,
       # dont le certificat auto-signé n'est vérifiable qu'avec sa propre CA.
       - MYSQL_SSL_CA=/run/secrets/mysql-ca.pem
+      # Minimisation (RGPD Art. 5-1-c) : 10 % des traces au lieu de always_on (dev).
+      # Les valeurs GraphQL (variables, donnees perso) ne sont jamais tracees.
+      - OTEL_TRACES_SAMPLER=parentbased_traceidratio
+      - OTEL_TRACES_SAMPLER_ARG=0.1
+      - OTEL_GRAPHQL_ALLOW_VALUES=false
     volumes:
       - ./database/mysql/mysql-data/ca.pem:/run/secrets/mysql-ca.pem:ro
     develop: !reset null
@@ -46,6 +51,15 @@ services:
 
   nosql-db:
     ports: !reset []
+
+  # Observabilité : aucun port public. Le backend joint le collector via le réseau compose.
+  otel-collector:
+    ports: !reset []
+
+  # UI Jaeger gardée en boucle locale (HOWTODEPLOY.md : spot-check via localhost:16686).
+  jaeger:
+    ports: !override
+      - "127.0.0.1:16686:16686"
 
   startup-script:
     environment:

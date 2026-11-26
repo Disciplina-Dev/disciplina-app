@@ -24,7 +24,11 @@ describe('AB Drive archive', () => {
     let findFolderResult: { id: string; webViewLink: string } | null;
     let folderFiles: { id: string; name: string }[];
 
-    async function createCommercial(label: string, oauthToken: string | null, refreshToken: string | null): Promise<number> {
+    async function createCommercial(
+        label: string,
+        oauthToken: string | null,
+        refreshToken: string | null,
+    ): Promise<number> {
         return new UserRepository().create({
             email: `ab-drive-${label}-${Date.now()}@test.local`,
             first_name: 'Commercial',
@@ -219,5 +223,101 @@ describe('AB Drive archive', () => {
         expect(link).toBe('https://drive.test/file');
         expect(deleteFileCalls).toHaveLength(0);
         expect(uploadFileCalls).toHaveLength(1);
+    });
+
+    describe('resolveAbPdfLink', () => {
+        it('retrouve la copie signée de l’AB, sans confondre mandat ou catalogue', async () => {
+            findFolderResult = { id: 'existing-company-folder', webViewLink: 'https://drive.test/company-folder' };
+            folderFiles = [
+                {
+                    id: 'mandat',
+                    name: 'Mandat_Publication_ACME_ab123456_Signe.pdf',
+                    webViewLink: 'https://drive.test/mandat',
+                },
+                {
+                    id: 'catalogue',
+                    name: 'Catalogue_Disciplina_ACME_ab123456_Signe.pdf',
+                    webViewLink: 'https://drive.test/catalogue',
+                },
+                {
+                    id: 'ab',
+                    name: 'Analyse_Besoin_AncienNom_ab123456_Signee.pdf',
+                    webViewLink: 'https://drive.test/ab-signee',
+                },
+            ] as any;
+
+            const creatorId = await createCommercial('creator', 'tok-creator', 'refresh-creator');
+            const resolved = await service.resolveAbPdfLink(
+                {
+                    id: 'ab1234567890',
+                    status: 'SIGNE',
+                    companyInfos: { name: 'ACME', sector: CompanyRegion.SUD },
+                    salerInfo: { id: creatorId },
+                },
+                creatorId,
+            );
+
+            expect(resolved).toEqual({ url: 'https://drive.test/ab-signee', isFile: true });
+            expect(findFolderCalls[0]).toEqual(['ACME', 'folder-sud-signed']);
+        });
+
+        it('retombe sur le dossier non signé pour une AB en attente de signature', async () => {
+            await AbDriveConfigModel.findByIdAndUpdate(
+                AB_DRIVE_CONFIG_ID,
+                { sector_folders: { Sud_UNSIGNED: 'folder-sud-unsigned' } },
+                { upsert: true, setDefaultsOnInsert: true },
+            );
+            folderFiles = [
+                {
+                    id: 'ab',
+                    name: 'Analyse_Besoin_ACME_ab1234567890.pdf',
+                    webViewLink: 'https://drive.test/ab-unsigned',
+                },
+            ] as any;
+
+            const creatorId = await createCommercial('creator', 'tok-creator', 'refresh-creator');
+            const resolved = await service.resolveAbPdfLink({
+                id: 'ab1234567890',
+                status: 'EN_ATTENTE_SIGNATURE',
+                companyInfos: { name: 'ACME', sector: CompanyRegion.SUD },
+                salerInfo: { id: creatorId },
+            });
+
+            expect(resolved).toEqual({ url: 'https://drive.test/ab-unsigned', isFile: true });
+            expect(findFolderCalls).toHaveLength(0);
+        });
+
+        it('replie sur le dossier Drive quand le PDF est introuvable', async () => {
+            await AbDriveConfigModel.findByIdAndUpdate(
+                AB_DRIVE_CONFIG_ID,
+                { sector_folders: { Sud_UNSIGNED: 'folder-sud-unsigned' } },
+                { upsert: true, setDefaultsOnInsert: true },
+            );
+            folderFiles = [{ id: 'other', name: 'autre-document.pdf' }] as any;
+
+            const creatorId = await createCommercial('creator', 'tok-creator', 'refresh-creator');
+            const resolved = await service.resolveAbPdfLink({
+                id: 'ab1234567890',
+                status: 'EN_ATTENTE_SIGNATURE',
+                companyInfos: { name: 'ACME', sector: CompanyRegion.SUD },
+                salerInfo: { id: creatorId },
+            });
+
+            expect(resolved).toEqual({
+                url: 'https://drive.google.com/drive/folders/folder-sud-unsigned',
+                isFile: false,
+            });
+        });
+
+        it('renvoie null sans compte Google connecté', async () => {
+            const resolved = await service.resolveAbPdfLink({
+                id: 'ab1234567890',
+                status: 'EN_ATTENTE_SIGNATURE',
+                companyInfos: { name: 'ACME', sector: CompanyRegion.SUD },
+                salerInfo: { id: 999999 },
+            });
+
+            expect(resolved).toBeNull();
+        });
     });
 });

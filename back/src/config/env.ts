@@ -214,6 +214,12 @@ const data = {
 
     OLLAMA_BASE_URL: stringWithDefault('OLLAMA_BASE_URL', 'http://localhost:11434'),
 
+    // Boîte Google d'envoi des mails « système » (notifications internes,
+    // codes d'accès externes). Doit exister dans la base du tenant ET avoir un
+    // consentement Google valide ; sinon repli sur un compte du staff connecté
+    // (cf. external/google/system-mail.ts). Un compte par tenant.
+    SYSTEM_MAIL_SENDER: stringWithDefault('SYSTEM_MAIL_SENDER', 'dev@disciplina.re'),
+
     // Dossier partagé racine "Candidat Nord" (fallback si pas de sous-dossier par TP).
     DRIVE_CANDIDATS_NORD_FOLDER_ID: optionalString('DRIVE_CANDIDATS_NORD_FOLDER_ID'),
     // Sous-dossiers par type de Titre Professionnel, dans "Candidat Nord".
@@ -230,6 +236,18 @@ const data = {
 
     OAUTH_ENCRYPTION_KEY: requireString('OAUTH_ENCRYPTION_KEY'),
     SSN_ENCRYPTION_KEY: requireString('SSN_ENCRYPTION_KEY'),
+    // Sel HKDF propre au déploiement (32 octets hex) : dérive la clé NIR (cf. ssn-cipher.ts).
+    SSN_KDF_SALT: requireString('SSN_KDF_SALT'),
+    // Rotation : ancienne clé/sel, en lecture seule le temps de la ré-encryption (rotate-ssn-key.ts).
+    SSN_ENCRYPTION_KEY_PREVIOUS: optionalString('SSN_ENCRYPTION_KEY_PREVIOUS'),
+    SSN_KDF_SALT_PREVIOUS: optionalString('SSN_KDF_SALT_PREVIOUS'),
+
+    // Données de santé / handicap / contact d'urgence (GDPR_INF_02.3) : clé et sel HKDF distincts du NIR
+    // (cf. health-cipher.ts). Rotation via *_PREVIOUS (encrypt-health-fields.ts).
+    HEALTH_ENCRYPTION_KEY: requireString('HEALTH_ENCRYPTION_KEY'),
+    HEALTH_KDF_SALT: requireString('HEALTH_KDF_SALT'),
+    HEALTH_ENCRYPTION_KEY_PREVIOUS: optionalString('HEALTH_ENCRYPTION_KEY_PREVIOUS'),
+    HEALTH_KDF_SALT_PREVIOUS: optionalString('HEALTH_KDF_SALT_PREVIOUS'),
 
     // Read-only MCP server (CRM data access). Bearer token protecting POST /api/mcp.
     // If unset, the MCP endpoint is disabled entirely.
@@ -254,6 +272,13 @@ if (!VALID_NODE_ENVS.includes(data.NODE_ENV)) {
 
 assertAes256HexKey(data.OAUTH_ENCRYPTION_KEY, 'OAUTH_ENCRYPTION_KEY');
 assertAes256HexKey(data.SSN_ENCRYPTION_KEY, 'SSN_ENCRYPTION_KEY');
+assertAes256HexKey(data.SSN_KDF_SALT, 'SSN_KDF_SALT');
+assertAes256HexKey(data.SSN_ENCRYPTION_KEY_PREVIOUS ?? '', 'SSN_ENCRYPTION_KEY_PREVIOUS');
+assertAes256HexKey(data.SSN_KDF_SALT_PREVIOUS ?? '', 'SSN_KDF_SALT_PREVIOUS');
+assertAes256HexKey(data.HEALTH_ENCRYPTION_KEY, 'HEALTH_ENCRYPTION_KEY');
+assertAes256HexKey(data.HEALTH_KDF_SALT, 'HEALTH_KDF_SALT');
+assertAes256HexKey(data.HEALTH_ENCRYPTION_KEY_PREVIOUS ?? '', 'HEALTH_ENCRYPTION_KEY_PREVIOUS');
+assertAes256HexKey(data.HEALTH_KDF_SALT_PREVIOUS ?? '', 'HEALTH_KDF_SALT_PREVIOUS');
 
 if (errors.length > 0) {
     console.error('Invalid environment variables:');
@@ -295,6 +320,11 @@ if (INSECURE_DEFAULTS.has(data.OAUTH_ENCRYPTION_KEY)) {
 
 if (INSECURE_DEFAULTS.has(data.SSN_ENCRYPTION_KEY)) {
     console.error('SSN_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
+    if (process.env.NODE_ENV === 'production') process.exit(1);
+}
+
+if (INSECURE_DEFAULTS.has(data.HEALTH_ENCRYPTION_KEY)) {
+    console.error('HEALTH_ENCRYPTION_KEY is set to an insecure default value. Change it before running in production.');
     if (process.env.NODE_ENV === 'production') process.exit(1);
 }
 

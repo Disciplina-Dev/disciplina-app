@@ -3,6 +3,7 @@ import { IconCheck, IconChevronDown, IconClose, IconCompany, IconInstitution, Ic
 import type { JobFilters } from '../services/jobFilters'
 import { EMPTY_JOB_FILTERS } from '../services/jobFilters'
 import { OfferStatus, DesiredTP, Sector, Localisation, formatEnumLabel } from '../constants/jobEnums'
+import { SECTOR_LABELS } from '@/data/sectors'
 import { JOB_STATUS_LABELS } from '@/constants/jobStatus'
 import { useSectors } from '@/hooks/useSectors'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
@@ -218,7 +219,7 @@ export function JobFilters({ filters, onChange, hideSearch = false }: Props) {
   const tpOptions = Object.values(DesiredTP).map((tp) => ({ label: tp, value: tp }))
   const sectorOptions = Object.values(Sector)
     .filter((s) => s !== Sector.NONE)
-    .map((s) => ({ label: formatEnumLabel(s), value: s }))
+    .map((s) => ({ label: SECTOR_LABELS[s] ?? formatEnumLabel(s), value: s }))
 
   const { sections: COMMUNE_SECTIONS } = useTenantCommuneSections()
   const communeActiveLabel = useMemo(() => {

@@ -15,6 +15,7 @@ import {
   useUpdateNeedsAnalysisActivationDate,
   useUpdateNeedsAnalysisIndicator,
   useUpdateNeedsAnalysisTracking,
+  useUpdateOfferActive,
 } from '@/graphql/hooks';
 import {
   GET_IMMERSING_CANDIDATES_MAP,
@@ -39,7 +40,7 @@ function analysisTps(analysis: NeedsAnalysis): string[] {
   return [...new Set((analysis.positions ?? []).flatMap((p) => (p.desiredTp ?? []).map((t) => t.tpType).filter(Boolean) as string[]))].sort();
 }
 
-/** Statut affiché (reflète `AbActiveBadge`) : `abStatus` manquant = Inactive. */
+/** Statut affiché (reflète `DirectoryActiveBadge`) : `abStatus` manquant = Inactive. */
 function effectiveAbStatus(analysis: NeedsAnalysis): string {
   return analysis.abStatus ?? 'INACTIVE';
 }
@@ -51,6 +52,16 @@ const DIRECTORY_STATUS_LABELS: Record<string, string> = {
   ARCHIVED: 'Archivée',
   INACTIVE: 'Inactive',
 };
+
+/**
+ * Statut effectif d'une ligne de l'annuaire : l'override porté par l'offre
+ * prime ; sinon la ligne hérite du statut de l'AB parente (ligne sans offre incluse).
+ */
+function effectiveRowStatus(analysis: NeedsAnalysis, offer: DirectoryOffer | null): string {
+  if (offer?.isActive === true) return 'ACTIVE';
+  if (offer?.isActive === false) return 'INACTIVE';
+  return effectiveAbStatus(analysis);
+}
 
 // Secteurs d'activité (issus de `companyInfos.activities`) proposés dans le filtre.
 const DIRECTORY_ACTIVITY_SECTORS = Object.values(Sector).filter((s) => s !== Sector.NONE);
@@ -66,7 +77,6 @@ function activationDateOf(analysis: NeedsAnalysis): string | null | undefined {
 /** Filtres « entreprise » de l'annuaire (communs à la liste et au récapitulatif). */
 interface DirectoryCompanyFilters {
   needle: string;
-  statuses: Set<string>;
   zone: SecteurKey | null;
   /** `null` = filtre secteur d'activité ignoré (récapitulatif). */
   activities: Set<string> | null;
@@ -76,7 +86,6 @@ interface DirectoryCompanyFilters {
 
 function matchesCompanyFilters(a: NeedsAnalysis, f: DirectoryCompanyFilters): boolean {
   if (f.needle && !foldSearch(a.companyInfos?.name ?? '').includes(f.needle)) return false;
-  if (f.statuses.size > 0 && !f.statuses.has(effectiveAbStatus(a))) return false;
   if (f.zone !== null && a.companyInfos?.sector !== f.zone) return false;
   const activities = f.activities;
   if (activities && activities.size > 0) {
@@ -191,7 +200,7 @@ function formatDirectoryDate(iso?: string | null): string {
   }
 }
 
-function AbActiveBadge({ status }: { status?: string | null }) {
+function DirectoryActiveBadge({ status }: { status?: string | null }) {
   if (status === 'ACTIVE') {
     return (
       <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
@@ -250,6 +259,7 @@ interface DirectoryOffer {
   title?: string | null;
   jobRole?: string | null;
   status?: string | null;
+  isActive?: boolean | null;
   localisation?: string[] | null;
   desiredTp?: { tpType?: string | null }[] | null;
   salerInfo?: { id?: number | null; email?: string | null } | null;
@@ -509,6 +519,75 @@ function DirectoryTrackingCell({
         saveError ? 'border-[var(--ds-danger)]' : 'border-[var(--ds-border)]'
       }${saving ? ' opacity-60' : ''}`}
     />
+  );
+}
+
+/**
+ * Statut actif/inactif d'une offre, réglé offre par offre dans l'annuaire.
+ * « Automatique » efface l'override : l'offre hérite alors du statut de l'AB.
+ * La pastille affiche le statut effectif (hérité ou forcé).
+ */
+function DirectoryOfferStatusCell({
+  analysis,
+  offer,
+  onSaved,
+}: {
+  analysis: NeedsAnalysis;
+  offer: DirectoryOffer;
+  onSaved: (offerId: string, active: boolean | null) => void;
+}) {
+  const { updateOfferActive } = useUpdateOfferActive();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  const value = offer.isActive === true ? 'ACTIVE' : offer.isActive === false ? 'INACTIVE' : 'AUTO';
+
+  const save = (next: string) => {
+    const active = next === 'AUTO' ? null : next === 'ACTIVE';
+    setSaving(true);
+    setSaveError(false);
+    updateOfferActive(offer.id, active)
+      .then((res) => {
+        setSaving(false);
+        if (res.error) {
+          setSaveError(true);
+        } else {
+          onSaved(offer.id, active);
+        }
+      })
+      .catch(() => {
+        setSaving(false);
+        setSaveError(true);
+      });
+  };
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <select
+        value={value}
+        onChange={(e) => {
+          e.stopPropagation();
+          save(e.target.value);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onFocus={(e) => e.stopPropagation()}
+        disabled={saving}
+        aria-label={`Statut de l'offre — ${offerLabel(offer)}`}
+        title={
+          saveError
+            ? 'Échec d’enregistrement — réessayez'
+            : 'Automatique : suit le statut de l’analyse de besoin'
+        }
+        className={`rounded-md border bg-transparent px-1.5 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue ${
+          saveError ? 'border-[var(--ds-danger)]' : 'border-[var(--ds-border)]'
+        }${saving ? ' opacity-60' : ''}`}
+      >
+        <option value="AUTO">Automatique</option>
+        <option value="ACTIVE">Active</option>
+        <option value="INACTIVE">Inactive</option>
+      </select>
+      <DirectoryActiveBadge status={effectiveRowStatus(analysis, offer)} />
+    </span>
   );
 }
 
@@ -832,12 +911,16 @@ export default function CompanyDirectory({
     refetch();
   };
 
+  /** Répercute un override de statut d'offre dans l'état local, sans refetch. */
+  const handleOfferActiveSaved = (offerId: string, active: boolean | null) => {
+    setDirectoryOffers((prev) => prev.map((offer) => (offer.id === offerId ? { ...offer, isActive: active } : offer)));
+  };
+
   const rows = useMemo<DirectoryRow[]>(() => {
     const order = new Map(TP_ORDER.map((tp, i) => [tp, i]));
     const statusOrder = new Map(JOB_STATUS_ORDER.map((status, i) => [status, i]));
     const filters: DirectoryCompanyFilters = {
       needle: foldSearch(nameQuery.trim()),
-      statuses: selectedStatuses,
       zone: selectedZone,
       activities: selectedActivities,
       minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
@@ -862,8 +945,9 @@ export default function CompanyDirectory({
             return { analysis, offer, tps: tps.length > 0 ? tps : analysisLevelTps };
           });
       for (const row of candidates) {
-        // Le filtre TP s'applique à la ligne (TP de l'offre), pas à l'entreprise entière.
+        // Les filtres TP et statut s'appliquent à la ligne (offre), pas à l'entreprise entière.
         if (selectedTps.size > 0 && !row.tps.some((t) => selectedTps.has(t))) continue;
+        if (selectedStatuses.size > 0 && !selectedStatuses.has(effectiveRowStatus(row.analysis, row.offer))) continue;
         entries.push(row);
       }
     }
@@ -893,7 +977,6 @@ export default function CompanyDirectory({
   const recap = useMemo<DirectoryRecap>(() => {
     const filters: DirectoryCompanyFilters = {
       needle: foldSearch(nameQuery.trim()),
-      statuses: selectedStatuses,
       zone: selectedZone,
       activities: null,
       minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
@@ -907,8 +990,13 @@ export default function CompanyDirectory({
     let offers = 0;
     for (const analysis of items) {
       if (!matchesCompanyFilters(analysis, filters)) continue;
-      if (recapActiveOnly && effectiveAbStatus(analysis) !== 'ACTIVE') continue;
-      const companyOffers = directoryIndex.offersByAnalysis.get(analysis.id) ?? [];
+      const companyOffers = (directoryIndex.offersByAnalysis.get(analysis.id) ?? []).filter((offer) => {
+        const status = effectiveRowStatus(analysis, offer);
+        // Filtres « Statut » et « Actives uniquement » appliqués offre par offre.
+        if (selectedStatuses.size > 0 && !selectedStatuses.has(status)) return false;
+        if (recapActiveOnly && status !== 'ACTIVE') return false;
+        return true;
+      });
       if (companyOffers.length === 0) continue;
       const zone = analysis.companyInfos?.sector || UNKNOWN_ZONE_KEY;
       const activities = [...new Set(
@@ -961,20 +1049,20 @@ export default function CompanyDirectory({
           <h3 className="text-sm font-bold text-[var(--ds-text)]">Répartition par secteur d'activité</h3>
           <p className="text-xs text-[var(--ds-text-subtle)]">
             {recap.offers} offre{recap.offers > 1 ? 's' : ''} correspondant aux filtres actifs
-            {recapActiveOnly ? ' · AB actives uniquement' : ''}
+            {recapActiveOnly ? ' · offres actives uniquement' : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div
             className="inline-flex rounded-full border border-[var(--ds-border)] p-0.5"
             role="group"
-            aria-label="Statut des analyses de besoin"
+            aria-label="Statut des offres"
           >
             <button
               type="button"
               onClick={() => setRecapActiveOnly(false)}
               aria-pressed={!recapActiveOnly}
-              title="Inclure toutes les analyses de besoin"
+              title="Inclure toutes les offres"
               className={recapSegmentClass(!recapActiveOnly)}
             >
               Toutes
@@ -983,7 +1071,7 @@ export default function CompanyDirectory({
               type="button"
               onClick={() => setRecapActiveOnly(true)}
               aria-pressed={recapActiveOnly}
-              title="Ne compter que les offres des analyses de besoin actives"
+              title="Ne compter que les offres actives"
               className={recapSegmentClass(recapActiveOnly)}
             >
               Actives uniquement
@@ -1327,9 +1415,9 @@ export default function CompanyDirectory({
                 />
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Statut :</span>
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Statut de l'offre :</span>
                 <ChipGroup
-                  label="Filtrer par statut"
+                  label="Filtrer par statut d'offre"
                   tone="accent"
                   selected={[...selectedStatuses]}
                   onToggle={toggleStatus}
@@ -1523,8 +1611,16 @@ export default function CompanyDirectory({
                             label="KOANN"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
-                          <AbActiveBadge status={analysis.abStatus} />
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          {offer ? (
+                            <DirectoryOfferStatusCell
+                              analysis={analysis}
+                              offer={offer}
+                              onSaved={handleOfferActiveSaved}
+                            />
+                          ) : (
+                            <DirectoryActiveBadge status={analysis.abStatus} />
+                          )}
                         </td>
                         <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                           {renderHistoryCell(row)}

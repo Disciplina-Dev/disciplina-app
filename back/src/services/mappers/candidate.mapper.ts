@@ -8,6 +8,7 @@ import {
 import { Offer } from '../../types/offer.types';
 import { FilizPersonInfos, FilizStudentInfos } from '../../external/filiz/type';
 import { MASKED_SSN } from '../../external/crypto/ssn-cipher';
+import { decryptCandidateHealth } from '../candidateHealthFields';
 
 export function camelToSnakeCase(obj: any): any {
     if (!obj || typeof obj !== 'object') return obj;
@@ -36,7 +37,8 @@ export function snakeToCamelCase(obj: any): any {
     return result;
 }
 
-export function candidateToGql(candidate: Candidate): any {
+export function candidateToGql(stored: Candidate): any {
+    const candidate = decryptCandidateHealth(stored);
     return {
         id: candidate._id,
         owner: candidate.owner

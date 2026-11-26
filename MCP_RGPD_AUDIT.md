@@ -100,7 +100,7 @@ Faits structurants :
 
 - Les consentements `ai_processing`, `data_sharing`, `photo_processing` existent (`consentments`) et un `consentGuard` est appliqué ailleurs (CHANGELOG #639).
 - `consentGuard` n'est importé nulle part dans `back/src/mcp/`.
-- Le consentement `ai_processing` ne vise que Ollama (local). Aucun mécanisme n'exclut un candidat ayant refusé.
+- Le consentement `ai_processing` ne vise que Ollama (local). Aucun mécanisme n'exclut un candidat ayant refusé. *(Libellé étendu à l'assistant IA tiers en `2026-11-v2`, GDPR_INF_05.5.)*
 - `get_offer` (`mcp/tools/offers.ts:30-37`) renvoie les candidats suggérés par le matching (`OfferService.find`, `services/OfferService.ts:253`), sans filtre de consentement *(à confirmer dans le service)*.
 - `photo_link` est exposé sans contrôle de `photo_processing`.
 

@@ -9,6 +9,8 @@ import { QuestionnaireAttemptModel, QuestionnaireModel } from '../../src/db/mong
 
 const CLEARED_TABLES = [
     'mcp_audit_log',
+    'candidate_consent_history',
+    'candidate_access_log',
     'filiz_folders',
     'external_access',
     'external_link',
@@ -22,7 +24,10 @@ const CLEARED_TABLES = [
     // Mongo `kpis`, vidés via dropMongo().
     'todos',
     'todo_groups',
+    'calendar_day_block_targets',
     'calendar_day_blocks',
+    'calendar_slot_occupations',
+    'booking_settings',
     'user_sectors',
     'users',
     'refresh_tokens',

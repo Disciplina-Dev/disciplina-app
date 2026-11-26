@@ -214,6 +214,64 @@ describe('GraphQL Needs Analysis integration', () => {
         },
     );
 
+    // Le représentant légal est facultatif (parfois inconnu), mais l'AB doit
+    // toujours porter au moins un contact référent : représentant légal ou
+    // responsable de recrutement.
+    describe('referent requirement', () => {
+        const minimalInput = () => ({
+            companyID: companyId,
+            userID: userId,
+            positions: [
+                {
+                    trainingDomain: 'VENTE',
+                    title: 'Apprenti Conseiller de Vente',
+                    localisation: ['SAINT_DENIS'],
+                    desiredTp: [{ missions: ['Accueil client'] }],
+                    criteria: {
+                        educationLevel: 'BAC',
+                        drivingLicense: false,
+                        experienceRequired: false,
+                    },
+                },
+            ],
+            recruitmentMethod: 'PRESELECTION',
+            immersionPeriod: 'OUI',
+            trainingDays: JSON.stringify({ monday: ['MATIN'] }),
+            status: 'BROUILLON',
+        });
+
+        const createMutation = `
+            mutation CreateNeedsAnalysis($input: NeedsAnalysisInput!) {
+                createNeedsAnalysis(input: $input) { id referents { recruitmentReferents { name } } }
+            }
+        `;
+
+        it('rejects an AB with neither a legal referent nor a recruitment responsible', async () => {
+            const { json } = await graphql(createMutation, { input: minimalInput() });
+            expect(json.errors?.[0]?.message).toContain(
+                'Un représentant légal ou un responsable de recrutement est requis',
+            );
+            expect(json.data?.createNeedsAnalysis).toBeUndefined();
+        });
+
+        it('accepts an AB without recruitment responsible when the company has a legal referent', async () => {
+            const companyRepo = new CompanyRepository();
+            await companyRepo.update(companyId, { legal_referent: 'Marie Martin' });
+
+            const { json } = await graphql(createMutation, { input: minimalInput() });
+            expect(json.errors).toBeUndefined();
+            expect(json.data.createNeedsAnalysis.id).toBeTruthy();
+        });
+
+        it('accepts an AB without legal referent when a recruitment responsible is given', async () => {
+            const { json } = await graphql(createMutation, {
+                input: { ...minimalInput(), recruitmentResponsibleName: 'Jean Dupont' },
+            });
+            expect(json.errors).toBeUndefined();
+            expect(json.data.createNeedsAnalysis.referents.recruitmentReferents.name).toBe('Jean Dupont');
+        });
+    });
+
     it('receives Yousign webhook and updates status to SIGNE', { timeout: 30000 }, async () => {
         const input = {
             companyID: companyId,

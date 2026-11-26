@@ -91,29 +91,74 @@ CREATE TABLE IF NOT EXISTS `booking_settings` (
 -- Blocage de dates dans l'agenda d'un RH (« Congés », « Séminaire »…).
 -- Une ligne = un jour :
 --   * `kind = 'BLOCK'` : le jour n'est plus proposé sur la page de réservation.
---     `user_id NULL` = blocage « pour tout le monde » (tous les RH), sinon
---     blocage « pour moi » uniquement.
+--     `scope` dit pour qui : 'SELF' (blocage « pour moi », `user_id` renseigné),
+--     'ALL' (« pour tout le monde »), 'SECTOR' / 'USERS' (cibles dans
+--     `calendar_day_block_targets` : secteurs, ou personnes sélectionnées).
 --   * `kind = 'OPEN'` : dérogation personnelle (« me rendre disponible ») qui
---     annule un blocage global pour ce seul utilisateur.
--- `scope_key` matérialise la portée ('ALL' ou 'U<user_id>') pour n'autoriser
--- qu'une ligne par jour et par portée (MySQL n'indexe pas les NULL d'une clé
--- unique ; une colonne générée est impossible ici, MySQL interdisant qu'une
--- colonne générée dépende d'une colonne de clé étrangère).
+--     annule un blocage collectif pour ce seul utilisateur.
+-- `scope_key` matérialise la portée ('ALL', 'U<user_id>' ou 'G<hash des cibles>')
+-- pour n'autoriser qu'une ligne par jour et par portée (MySQL n'indexe pas les
+-- NULL d'une clé unique ; une colonne générée est impossible ici, MySQL
+-- interdisant qu'une colonne générée dépende d'une colonne de clé étrangère).
+-- `group_key` regroupe les jours d'une même saisie (« Congés du 12 au 23 ») :
+-- une période = N lignes, une seule entrée dans l'interface.
 CREATE TABLE IF NOT EXISTS `calendar_day_blocks` (
   `id` int NOT NULL AUTO_INCREMENT,
   `day` date NOT NULL,
   `user_id` int DEFAULT NULL,
   `kind` enum('BLOCK','OPEN') NOT NULL DEFAULT 'BLOCK',
+  `scope` enum('SELF','ALL','SECTOR','USERS') NOT NULL DEFAULT 'SELF',
   `reason` varchar(255) NOT NULL,
   `created_by` int DEFAULT NULL,
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  `group_key` varchar(36) NOT NULL DEFAULT '',
   `scope_key` varchar(16) NOT NULL,
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   UNIQUE KEY `uniq_calendar_day_blocks_scope_day` (`scope_key`,`day`),
   KEY `idx_calendar_day_blocks_day` (`day`),
   KEY `idx_calendar_day_blocks_user` (`user_id`),
+  KEY `idx_calendar_day_blocks_group` (`group_key`),
   CONSTRAINT `fk_calendar_day_blocks_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_calendar_day_blocks_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Cibles d'un blocage collectif : `S:<sector_id>` (membres du secteur, résolus à
+-- la lecture via `user_sectors`) ou `U:<user_id>` (personnes sélectionnées).
+CREATE TABLE IF NOT EXISTS `calendar_day_block_targets` (
+  `block_id` int NOT NULL,
+  `target` varchar(64) NOT NULL,
+  PRIMARY KEY (`block_id`,`target`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_calendar_day_block_targets_target` (`target`),
+  CONSTRAINT `fk_calendar_day_block_targets_block_id` FOREIGN KEY (`block_id`) REFERENCES `calendar_day_blocks` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Créneaux (date + heure) occupés par un entretien dans l'agenda d'un RH.
+-- Un entretien posé sur l'agenda d'un RH bloque le même créneau pour les RH
+-- partageant au moins un secteur avec lui : plus proposé sur leur page de
+-- réservation, marqué « pris » sur la page de créneaux candidat, et affiché
+-- comme occupé dans l'agenda interne. Le rattachement au secteur est calculé à
+-- la lecture via `user_sectors` : une personne qui change de secteur suit donc
+-- les blocages de son nouveau secteur.
+-- `source` dit d'où vient le créneau : événement Google posé depuis l'agenda,
+-- réservation via la page publique, ou créneau d'entretien réservé par un
+-- candidat. `source_event_id` référence l'événement Google d'origine (suivi des
+-- déplacements/suppressions) ; NULL pour un créneau réservé côté candidat.
+-- (owner_user_id, start_at) est unique : reposer le même créneau met à jour la
+-- ligne au lieu de la dupliquer.
+CREATE TABLE IF NOT EXISTS `calendar_slot_occupations` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `owner_user_id` int NOT NULL,
+  `start_at` datetime NOT NULL,
+  `end_at` datetime NOT NULL,
+  `label` varchar(255) NOT NULL DEFAULT '',
+  `source` enum('CALENDAR','PUBLIC_BOOKING','EXTERNAL_INTERVIEW') NOT NULL DEFAULT 'CALENDAR',
+  `source_event_id` varchar(255) DEFAULT NULL,
+  `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  UNIQUE KEY `uniq_calendar_slot_occupations_owner_start` (`owner_user_id`,`start_at`),
+  KEY `idx_calendar_slot_occupations_start` (`start_at`,`end_at`),
+  KEY `idx_calendar_slot_occupations_source_event` (`source_event_id`),
+  CONSTRAINT `fk_calendar_slot_occupations_owner` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 
@@ -406,7 +451,7 @@ CREATE TABLE IF NOT EXISTS `mcp_oauth_clients` (
   `redirect_uris` json NOT NULL,
   `auth_method` varchar(32) NOT NULL DEFAULT 'none',
   `scope` varchar(255) DEFAULT NULL,
-  `client_secret` varchar(128) DEFAULT NULL,
+  `client_secret` varchar(512) DEFAULT NULL,
   `client_id_issued_at` bigint DEFAULT NULL,
   `client_secret_expires_at` bigint DEFAULT NULL,
   `user_id` int DEFAULT NULL,
@@ -432,6 +477,46 @@ CREATE TABLE IF NOT EXISTS `mcp_audit_log` (
   PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
   KEY `idx_mcp_audit_user_date` (`user_id`, `created_at`),
   KEY `idx_mcp_audit_date` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Historique des consentements candidats (RGPD art. 7.1, GDPR_INF_08.2) :
+-- journal en ajout seul, une ligne par type de consentement et par événement
+-- (octroi / retrait). Aucune donnée identifiante : candidate_id = UUID de la
+-- fiche MongoDB (pas de FK possible, base différente). Conservé après
+-- suppression de la fiche, à titre de preuve (durée à valider par le DPO).
+CREATE TABLE IF NOT EXISTS `candidate_consent_history` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `candidate_id` varchar(36) NOT NULL,
+  `consent_type` enum('data_processing','data_sharing','ai_processing','photo_processing') NOT NULL,
+  `action` enum('GRANT','WITHDRAW') NOT NULL,
+  `consent_version` varchar(32) NOT NULL,
+  `source` enum('CREATE','UPDATE','WITHDRAWAL','BACKFILL') NOT NULL,
+  `recorded_by` int DEFAULT NULL,
+  `recorded_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_consent_history_candidate` (`candidate_id`, `consent_type`, `recorded_at`),
+  KEY `idx_consent_history_recorded_by` (`recorded_by`),
+  CONSTRAINT `fk_consent_history_recorded_by` FOREIGN KEY (`recorded_by`) REFERENCES `users` (`id`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
+
+-- Journal d'accès aux données candidat (RGPD art. 5.2 / 15 / 32, GDPR_INF_06.5) :
+-- qui a lu une fiche, un fichier, un export PDF ou démasqué un NIR. Ajout seul.
+-- candidate_id = UUID de la fiche MongoDB (NULL pour une liste en masse), aucune
+-- donnée identifiante. Pas de FK sur actor_id (comme mcp_audit_log) : la ligne doit
+-- survivre à la suppression du compte et ne jamais être refusée. Purgé à 365 jours
+-- par expiredAccessScheduler.
+CREATE TABLE IF NOT EXISTS `candidate_access_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `candidate_id` varchar(128) DEFAULT NULL,
+  `actor_id` int DEFAULT NULL,
+  `actor_type` enum('STAFF','EXTERNAL') NOT NULL,
+  `action` enum('VIEW','LIST','SSN_UNMASK','PDF_EXPORT','CV_READ','FILE_READ','AVATAR_READ') NOT NULL,
+  `result_count` int NOT NULL DEFAULT 1,
+  `created_at` timestamp(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (`id`) /*T![clustered_index] CLUSTERED */,
+  KEY `idx_access_log_candidate` (`candidate_id`, `created_at`),
+  KEY `idx_access_log_actor` (`actor_id`, `created_at`),
+  KEY `idx_access_log_date` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin;
 
 CREATE TABLE IF NOT EXISTS `relance_history` (
@@ -516,6 +601,8 @@ CREATE TABLE disciplina_annemasse.roles LIKE disciplina.roles;
 CREATE TABLE disciplina_annemasse.users LIKE disciplina.users;
 CREATE TABLE disciplina_annemasse.booking_settings LIKE disciplina.booking_settings;
 CREATE TABLE disciplina_annemasse.calendar_day_blocks LIKE disciplina.calendar_day_blocks;
+CREATE TABLE disciplina_annemasse.calendar_day_block_targets LIKE disciplina.calendar_day_block_targets;
+CREATE TABLE disciplina_annemasse.calendar_slot_occupations LIKE disciplina.calendar_slot_occupations;
 CREATE TABLE disciplina_annemasse.companies LIKE disciplina.companies;
 CREATE TABLE disciplina_annemasse.company_conflict LIKE disciplina.company_conflict;
 CREATE TABLE disciplina_annemasse.companies_blacklist LIKE disciplina.companies_blacklist;
@@ -535,6 +622,8 @@ CREATE TABLE disciplina_annemasse.user_sectors LIKE disciplina.user_sectors;
 CREATE TABLE disciplina_annemasse.company_sectors LIKE disciplina.company_sectors;
 CREATE TABLE disciplina_annemasse.todo_groups LIKE disciplina.todo_groups;
 CREATE TABLE disciplina_annemasse.todos LIKE disciplina.todos;
+CREATE TABLE disciplina_annemasse.candidate_consent_history LIKE disciplina.candidate_consent_history;
+CREATE TABLE disciplina_annemasse.candidate_access_log LIKE disciplina.candidate_access_log;
 
 -- Contraintes de clés étrangères (non copiées par LIKE) — mêmes noms et
 -- mêmes règles que dans `disciplina`.
@@ -548,6 +637,12 @@ ALTER TABLE disciplina_annemasse.booking_settings
 ALTER TABLE disciplina_annemasse.calendar_day_blocks
   ADD CONSTRAINT fk_calendar_day_blocks_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE,
   ADD CONSTRAINT fk_calendar_day_blocks_created_by FOREIGN KEY (created_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.calendar_day_block_targets
+  ADD CONSTRAINT fk_calendar_day_block_targets_block_id FOREIGN KEY (block_id) REFERENCES disciplina_annemasse.calendar_day_blocks (id) ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE disciplina_annemasse.calendar_slot_occupations
+  ADD CONSTRAINT fk_calendar_slot_occupations_owner FOREIGN KEY (owner_user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE ON UPDATE CASCADE;
 
 ALTER TABLE disciplina_annemasse.companies
   ADD CONSTRAINT fk_companies_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON UPDATE CASCADE;
@@ -589,6 +684,9 @@ ALTER TABLE disciplina_annemasse.todos
   ADD CONSTRAINT fk_todos_user_id FOREIGN KEY (user_id) REFERENCES disciplina_annemasse.users (id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_todos_assigned_by FOREIGN KEY (assigned_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_todos_group_id FOREIGN KEY (group_id) REFERENCES disciplina_annemasse.todo_groups (id) ON DELETE SET NULL;
+
+ALTER TABLE disciplina_annemasse.candidate_consent_history
+  ADD CONSTRAINT fk_consent_history_recorded_by FOREIGN KEY (recorded_by) REFERENCES disciplina_annemasse.users (id) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- Référentiel des secteurs : FK recréées (non copiées par LIKE). Seed au boot backend.
 ALTER TABLE disciplina_annemasse.sectors

@@ -49,6 +49,25 @@ d'un export ou d'un effacement sur demande d'un collaborateur.
 Données personnelles de **tiers** (référents légaux de prospects) : durée de conservation
 distincte de celle des collaborateurs.
 
+### Journal d'accès candidat (GDPR_INF_06.5)
+
+| Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
+|---|---|---|---|---|
+| `candidate_access_log` | S1 | `candidate_id` (UUID de la fiche Mongo, pseudonyme), `actor_id` | `AccessLogRepository`, `AccessLogService`, `graphql/candidate`, `rest/candidates` | Journal en ajout seul, 365 jours (purge `expiredAccessScheduler`), **conservé après suppression de la fiche** ; durée à valider avec le DPO |
+
+Aucune donnée identifiante en clair. Pas de clé étrangère sur `actor_id` (comme `mcp_audit_log`) :
+l'identifiant survit à la suppression du compte, la ligne n'est jamais refusée.
+
+### Preuves de consentement (GDPR_INF_08.2)
+
+| Table | Sens. | Colonnes sensibles | Domaine backend | Rétention |
+|---|---|---|---|---|
+| `candidate_consent_history` | S1 | `candidate_id` (UUID de la fiche Mongo, pseudonyme), `recorded_by` | `ConsentHistoryRepository`, `ConsentHistoryService`, `graphql/candidate` | Journal en ajout seul, **conservé après suppression de la fiche** à titre de preuve (art. 7.1) ; durée (prescription) et purge à fixer avec le DPO |
+
+Aucune donnée identifiante en clair (ni nom ni e-mail) : l'UUID ne se relie plus à une personne
+une fois la fiche MongoDB supprimée. `recorded_by` passe à `NULL` à la suppression du compte
+(`ON DELETE SET NULL`).
+
 ### Indicateurs nominatifs
 
 | Table / collection | Sens. | Colonnes sensibles | Domaine backend | Rétention |
@@ -82,7 +101,8 @@ lien ») ou révocation (`LOCKED`). Seules les lignes historiques déjà marqué
 | `app_settings` | S0 | — (peut contenir des gabarits de mail) | `AppSettingsRepository` | Permanent |
 | `sector_settings` | S0 | — | `SectorSettingsRepository` | Permanent |
 | `booking_settings` | S0 | clé = `user_id` (pseudo-personnel) | `rest/booking/repository.ts` | Suit `users` (CASCADE) |
-| `calendar_day_blocks` | S1 | clé = `user_id` (blocages « pour moi »), `reason` (texte libre), `created_by` | `rest/booking/blocksRepository.ts` | Blocages personnels purgés avec l'utilisateur (`UserDeletionService`) ; blocages globaux conservés (organisationnels) |
+| `calendar_day_blocks` | S1 | clé = `user_id` (blocages « Moi »), `reason` (texte libre), `created_by`, `group_key` (période), `scope` | `rest/booking/blocksRepository.ts` | Blocages personnels purgés avec l'utilisateur (`UserDeletionService`) ; blocages globaux conservés (organisationnels) |
+| `calendar_day_block_targets` | S1 | `target` = `U:<user_id>` ou `S:<sector_id>` (personnes/secteurs bloqués) | `rest/booking/blocksRepository.ts` | Supprimé en cascade avec ses `calendar_day_blocks` ; cibles `U:<id>` purgées avec l'utilisateur (`UserDeletionService`) |
 | `peda_config` | S0 | clé = `user_id` | `PedaConfigRepository` | Suit `users` (CASCADE) |
 | `peda_draft_history` | S2 | `recipient` (email) | `PedaDraftHistoryRepository` | 12 mois (déduplication d'envois) |
 | `todos` | S1 | `title`, `description` (texte libre) | `TodoRepository` | Suit `users` (CASCADE) |
@@ -140,3 +160,26 @@ Les besoins réels sous-jacents ont été traités directement, sans découpage 
 
 Reconsidérer le découpage seulement si un besoin d'isolation **physique** apparaît (charge,
 souveraineté, hébergement séparé) — pas pour un gain d'organisation.
+
+## 6. Chiffrement applicatif : avatars et `client_secret` (#1120, GDPR_INF_02.4)
+
+- `mcp_oauth_clients.client_secret` : **chiffré** AES-256-GCM (`token-cipher.ts`, clé
+  `OAUTH_ENCRYPTION_KEY`). Hachage écarté : le SDK MCP compare le secret en clair
+  (`clientAuth`), il faut donc pouvoir le restituer. Les secrets legacy en clair sont chiffrés
+  par `migrations.ts` (colonne élargie à `VARCHAR(512)`).
+- Avatars (`candidate_avatars`, Buffer Mongo) supprimés par `deleteCandidate` (GDPR_INF_06.4) ;
+  `candidate_consent_history` conservée volontairement après effacement (preuve, art. 7.1) : **décision = pas de chiffrement applicatif**.
+  Photo non catégorie spéciale (Art. 9), accès déjà conditionné au consentement
+  (`avatarConsent`) ; le chiffrement par document alourdirait lecture/rotation de clé pour un
+  gain faible. Risque résiduel (disque) couvert par FileVault (#1117) et purge (INF audit).
+  À réexaminer si les avatars sont analysés (biométrie) ou si le disque reste non chiffré.
+
+## 7. Chiffrement applicatif : données de santé et contact d'urgence (GDPR_INF_02.3)
+
+- Champs chiffrés (AES-256-GCM, `health-cipher.ts`, clé `HEALTH_ENCRYPTION_KEY` distincte du NIR) :
+  `identity.psh_referral_request`, `synthesis.special_needs`,
+  `synthesis.pedagogical_recommendations.psh_specific_support`, `emergency_contact` (en bloc).
+- Pas d'hébergement HDS : chiffrement applicatif seul, périmètre à valider par le DPO (DPIA #1129).
+- Aucune requête/filtre/tri ne porte sur ces champs. Écriture chiffrée dans `CandidateService`,
+  lecture déchiffrée dans `candidateToGql` et `PdfService` ; MCP les exclut déjà.
+- Données existantes : `back/scripts/encrypt-health-fields.ts` (`--verify`), cf. `HOWTODEPLOY.md`.

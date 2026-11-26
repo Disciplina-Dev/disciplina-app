@@ -11,7 +11,9 @@ import {
     getDayBlocks,
     createDayBlock,
     releaseDayBlock,
+    releaseDayBlockGroup,
     deleteDayBlock,
+    deleteDayBlockGroup,
 } from './controller';
 
 export const router: Router = Router();
@@ -22,9 +24,13 @@ const access = [authenticate, requireRoles('AD', 'GESTION', 'RH')];
 router.get('/settings', ...access, getMySettings);
 router.put('/settings', express.json(), ...access, updateMySettings);
 
-// Blocage de dates (espace RH authentifié) : « pour moi » ou « pour tout le monde ».
+// Blocage de dates (espace RH authentifié) : période + portée (moi, mon secteur,
+// tout le monde, ou une sélection de personnes).
 router.get('/blocks', ...access, getDayBlocks);
 router.post('/blocks', express.json(), ...access, createDayBlock);
+// Périodes : routes déclarées avant /blocks/:id (deux segments, pas de conflit).
+router.post('/blocks/groups/:groupKey/release', ...access, releaseDayBlockGroup);
+router.delete('/blocks/groups/:groupKey', ...access, deleteDayBlockGroup);
 router.post('/blocks/:id/release', ...access, releaseDayBlock);
 router.delete('/blocks/:id', ...access, deleteDayBlock);
 

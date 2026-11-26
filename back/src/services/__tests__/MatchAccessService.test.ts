@@ -254,4 +254,58 @@ describe('MatchAccessService', () => {
             }),
         ).rejects.toThrow(/consentement.*partage|data_sharing/i);
     });
+
+    it('keeps candidates from a previous send when a new batch is sent on the same offer', async () => {
+        const suffix = Date.now();
+        const rh = await createRhUser(suffix);
+        const offerId = `job-matchaccess-batches-${suffix}`;
+        const ids = ['a', 'b', 'c'].map((k) => `cand-matchaccess-batch-${k}-${suffix}`);
+        await Promise.all(ids.map((id, i) => seedCandidateDoc(id, suffix + i, true)));
+
+        await seedOffer({
+            _id: offerId,
+            company_name: `MatchAccess Corp ${suffix}`,
+            status: OfferStatus.CV_SEND,
+            candidates: ids.map((id, i) => ({
+                id,
+                full_name: `Candidate ${i} ${suffix}`,
+                email: `${id}@test.local`,
+                age: 20,
+                sex: Sex.NONE,
+                status: MatchedCandidateStatus.ACCEPTED,
+            })),
+        });
+
+        const service = new MatchAccessService();
+        const companyEmail = `company-${suffix}@test.local`;
+        const first = await service.createSession({
+            offerId,
+            rhUserId: rh.id,
+            rhEmail: rh.email,
+            companyEmail,
+            candidates: [{ id: ids[0], description: 'Envoi de la veille' }],
+        });
+        const second = await service.createSession({
+            offerId,
+            rhUserId: rh.id,
+            rhEmail: rh.email,
+            companyEmail,
+            candidates: [{ id: ids[1] }],
+        });
+
+        const offer = await new OfferRepository().findById(offerId);
+        const statusOf = (id: string) => offer?.matching?.candidates?.find((c) => c.id === id);
+        expect(statusOf(ids[0])?.status).toBe(MatchedCandidateStatus.SEND);
+        expect(statusOf(ids[0])?.description).toBe('Envoi de la veille');
+        expect(statusOf(ids[1])?.status).toBe(MatchedCandidateStatus.SEND);
+        expect(statusOf(ids[2])?.status).toBe(MatchedCandidateStatus.ACCEPTED);
+
+        // Les deux liens (ancien et nouveau) montrent tous les candidats en attente de réponse.
+        const shownPerLink = await Promise.all(
+            [first.signature, second.signature].map((signature) => service.getProposedCandidates(signature)),
+        );
+        for (const shown of shownPerLink) {
+            expect(shown.map((c) => c.id).sort()).toEqual([ids[0], ids[1]].sort());
+        }
+    });
 });
