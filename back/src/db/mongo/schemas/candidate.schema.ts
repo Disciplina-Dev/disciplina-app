@@ -86,6 +86,8 @@ const identitySchema = new Schema<Identity>(
         description: { type: String },
         // `auto` : résumé régénéré à chaque mise à jour ; `manual` : texte RH protégé.
         description_source: { type: String, enum: ['auto', 'manual'] },
+        // Verrou : gèle la description contre toute modification (dont la régénération auto).
+        description_locked: { type: Boolean },
         avatar_updated_at: { type: Date },
         drive_avatar_file_id: { type: String },
     },

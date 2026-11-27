@@ -126,6 +126,13 @@ export interface Identity {
     apprenticeship_contract_details?: string;
     description?: string;
     description_source?: CandidateDescriptionSource;
+    /**
+     * Verrou de la description : tant qu'il est actif, aucune interaction
+     * (édition de la fiche, résumé IA, régénération automatique, proposition
+     * matching…) ne peut la modifier. Seul un déverrouillage explicite
+     * (`description_locked: false`) rouvre l'édition.
+     */
+    description_locked?: boolean;
     avatar_updated_at?: Date;
     drive_avatar_file_id?: string;
 }

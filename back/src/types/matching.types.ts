@@ -179,6 +179,8 @@ export interface MatchingCandidate {
     status?: MatchedCandidateStatus;
     description?: string;
     identity_description?: string;
+    /** Verrou de la description (fiche candidat) — snapshot, voir aussi la version à jour dans `OfferService.find`. */
+    description_locked?: boolean;
     cv_webview?: string;
     has_cv?: boolean;
     /** Candidat en rupture (statut global, pas le statut de matching) — snapshot pris à l'ajout, voir `OfferService.find` pour la version à jour (#1010). */

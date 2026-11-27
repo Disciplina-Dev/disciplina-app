@@ -410,4 +410,90 @@ describe('MatchAccessService', () => {
             expect(shown.map((c) => c.id).sort()).toEqual([ids[0], ids[1]].sort());
         }
     });
+
+    it('persiste sur la fiche la description éditée dans la modale de proposition', async () => {
+        const suffix = Date.now();
+        const rh = await createRhUser(suffix);
+        const offerId = `job-matchaccess-desc-${suffix}`;
+        const candidateId = `cand-matchaccess-desc-${suffix}`;
+        await seedCandidateDoc(candidateId, suffix, true);
+
+        await seedOffer({
+            _id: offerId,
+            company_name: `MatchAccess Corp ${suffix}`,
+            status: OfferStatus.CV_SEND,
+            candidates: [
+                {
+                    id: candidateId,
+                    full_name: `Candidate ${suffix}`,
+                    email: `candidate-matchaccess-${suffix}@test.local`,
+                    age: 20,
+                    sex: Sex.NONE,
+                    status: MatchedCandidateStatus.ACCEPTED,
+                },
+            ],
+        });
+
+        const service = new MatchAccessService();
+        await service.createSession({
+            offerId,
+            rhUserId: rh.id,
+            rhEmail: rh.email,
+            companyEmail: `company-${suffix}@test.local`,
+            candidates: [{ id: candidateId, description: 'Description retravaillée dans la modale.' }],
+        });
+
+        const sheet = await new CandidateService().findByIdReadOnly(candidateId);
+        expect(sheet?.identity.description).toBe('Description retravaillée dans la modale.');
+        expect(sheet?.identity.description_source).toBe('manual');
+
+        const offer = await new OfferRepository().findById(offerId);
+        expect(offer?.matching?.candidates?.[0].description).toBe('Description retravaillée dans la modale.');
+    });
+
+    it('ne modifie pas la fiche quand la description est verrouillée', async () => {
+        const suffix = Date.now();
+        const rh = await createRhUser(suffix);
+        const offerId = `job-matchaccess-locked-${suffix}`;
+        const candidateId = `cand-matchaccess-locked-${suffix}`;
+        await seedCandidateDoc(candidateId, suffix, true);
+
+        const candidateService = new CandidateService();
+        await candidateService.update(candidateId, {
+            identity: { description: 'Texte verrouillé sur la fiche.', description_locked: true },
+        } as any);
+
+        await seedOffer({
+            _id: offerId,
+            company_name: `MatchAccess Corp ${suffix}`,
+            status: OfferStatus.CV_SEND,
+            candidates: [
+                {
+                    id: candidateId,
+                    full_name: `Candidate ${suffix}`,
+                    email: `candidate-matchaccess-${suffix}@test.local`,
+                    age: 20,
+                    sex: Sex.NONE,
+                    status: MatchedCandidateStatus.ACCEPTED,
+                },
+            ],
+        });
+
+        const service = new MatchAccessService();
+        await service.createSession({
+            offerId,
+            rhUserId: rh.id,
+            rhEmail: rh.email,
+            companyEmail: `company-${suffix}@test.local`,
+            candidates: [{ id: candidateId, description: 'Texte imposé par la modale.' }],
+        });
+
+        const sheet = await candidateService.findByIdReadOnly(candidateId);
+        expect(sheet?.identity.description).toBe('Texte verrouillé sur la fiche.');
+        expect(sheet?.identity.description_locked).toBe(true);
+
+        // La proposition à l'entreprise réutilise le texte verrouillé, pas la saisie de la modale.
+        const offer = await new OfferRepository().findById(offerId);
+        expect(offer?.matching?.candidates?.[0].description).toBe('Texte verrouillé sur la fiche.');
+    });
 });

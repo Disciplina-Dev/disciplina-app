@@ -47,6 +47,7 @@ interface MatchedCandidate {
   status?: string | null
   description?: string | null
   identityDescription?: string | null
+  descriptionLocked?: boolean | null
   comment?: string | null
   cvWebview?: string | null
   hasCv?: boolean

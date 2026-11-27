@@ -8,6 +8,7 @@ import {
     TitleProfessionalType,
     CandidateStatus,
     CandidateHistoryEntry,
+    Candidate,
     normalizeTpCode,
 } from '../../types/candidate.types';
 import { CANDIDATE_TEMPLATES } from '../../types/candidate-templates';
@@ -554,6 +555,33 @@ export const resolvers = {
                 await creditInterviewKpi(newInterviewer);
             }
 
+            return candidateToGql(updated);
+        },
+
+        /**
+         * Édition ciblée de la description (modale de proposition matching) :
+         * n'exige pas de renvoyer toute l'identité et laisse le service appliquer
+         * le verrou. `descriptionLocked` seul verrouille/déverrouille sans toucher
+         * au texte ; fourni avec une description, il verrouille ce nouveau texte.
+         */
+        updateCandidateDescription: async (
+            _: unknown,
+            {
+                id,
+                description,
+                descriptionLocked,
+            }: { id: string; description?: string | null; descriptionLocked?: boolean | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            const hasDescription = typeof description === 'string';
+            const hasLock = typeof descriptionLocked === 'boolean';
+            if (!hasDescription && !hasLock) throw new Error('Aucune modification demandée');
+            const identity: Partial<Candidate['identity']> = {};
+            if (hasDescription) identity.description = description;
+            if (hasLock) identity.description_locked = descriptionLocked;
+            const updated = await candidateService.update(id, { identity } as Partial<Candidate>);
+            if (!updated) throw new Error(`Candidate with id ${id} not found`);
             return candidateToGql(updated);
         },
 

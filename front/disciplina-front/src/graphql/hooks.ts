@@ -410,6 +410,8 @@ function fromGql(c: any): Candidate {
       had_apprenticeship_contract: c.identity.hadApprenticeshipContract,
       apprenticeship_contract_details: c.identity.apprenticeshipContractDetails,
       description: c.identity.description,
+      description_source: c.identity.descriptionSource,
+      description_locked: c.identity.descriptionLocked ?? false,
       avatar_updated_at: c.identity.avatarUpdatedAt,
       drive_avatar_file_id: c.identity.driveAvatarFileId,
       avatar_url: (c.identity.avatarUpdatedAt || c.identity.driveAvatarFileId)
@@ -579,6 +581,7 @@ function toGqlUpdateInput(c: Candidate): any {
       ...(c.identity.city !== undefined && { city: c.identity.city }),
       ...(c.identity.description !== undefined && { description: c.identity.description }),
       ...(c.identity.description_source !== undefined && { descriptionSource: c.identity.description_source }),
+      ...(c.identity.description_locked !== undefined && { descriptionLocked: c.identity.description_locked }),
       ...(c.identity.had_apprenticeship_contract !== undefined && {
         hadApprenticeshipContract: c.identity.had_apprenticeship_contract,
       }),

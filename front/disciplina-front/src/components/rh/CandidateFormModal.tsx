@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { IconAlert, IconClose, IconPlus, IconTrash, IconUser } from '@/components/ui/icons'
+import { IconAlert, IconClose, IconLock, IconPlus, IconTrash, IconUser } from '@/components/ui/icons'
 import { TitleProfessionalType, TrainingSite, SkillLevel, SchoolLevel, Localisation, CandidateStatus } from '@/types/candidate';
 import type { Candidate, PedagogicalRecommendations } from '@/types/candidate';
 import Button from '@/components/ui/Button';
@@ -104,6 +104,7 @@ type ABForm = {
   hadApprenticeshipContract: string;
   apprenticeshipContractDetails: string;
   description: string;
+  descriptionLocked: boolean;
   // contact d'urgence
   ecLastName: string; ecFirstName: string; ecRelationship: string; ecPhone: string; ecEmail: string;
   // TP (multi) + statut
@@ -198,7 +199,7 @@ function emptyABForm(tpType: TitleProfessionalType = TitleProfessionalType.CC): 
     sex: '',
     fullName: '', socialSecurityNumber: '', email: '', phone: '',
     drivingLicenseB: '', hasVehicle: '', transportMeans: '', pshReferralRequest: '',
-    hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '',
+    hadApprenticeshipContract: '', apprenticeshipContractDetails: '', description: '', descriptionLocked: false,
     ecLastName: '', ecFirstName: '', ecRelationship: '', ecPhone: '', ecEmail: '',
     tpTypes: [tpType], status: 'SEEKING',
     schoolLevel: '', schoolJustification: '',
@@ -249,6 +250,7 @@ function candidateToForm(c: Candidate): ABForm {
     email: c.identity.email ?? '',
     phone: c.identity.phone ?? '',
     description: c.identity.description ?? '',
+    descriptionLocked: c.identity.description_locked ?? false,
     dateOfBirth: c.identity.date_of_birth ? c.identity.date_of_birth.slice(0, 10) : '',
     placeOfBirth: c.identity.place_of_birth ?? '',
     departmentOfBirth: c.identity.department_of_birth ?? '',
@@ -375,8 +377,10 @@ function toServerInput(f: ABForm, original?: Candidate | null) {
       sex: f.sex || undefined,
       // Chaîne vide explicite = l'utilisateur a effacé le champ : le backend
       // régénère le résumé automatique (une description manuelle est protégée
-      // tant que le champ n'est pas vidé).
+      // tant que le champ n'est pas vidé). Le verrou, lui, gèle le texte côté
+      // serveur quelle que soit la valeur envoyée.
       description: f.description,
+      descriptionLocked: f.descriptionLocked,
       dateOfBirth: f.dateOfBirth || undefined,
       placeOfBirth: f.placeOfBirth || undefined,
       departmentOfBirth: f.departmentOfBirth || undefined,
@@ -1246,7 +1250,29 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </ABSelectField>
             )}
           </div>
-          <ABTextarea label="Description (contexte du candidat pour le matching)" value={form.description} onChange={v => set('description', v)} rows={4} />
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-sm font-medium text-[var(--ds-text-muted)]">Description (contexte du candidat pour le matching)</label>
+              <label className="flex shrink-0 items-center gap-1.5 cursor-pointer text-xs font-medium text-[var(--ds-text-muted)]">
+                <input type="checkbox" className="rounded" checked={form.descriptionLocked}
+                  onChange={e => set('descriptionLocked', e.target.checked)} />
+                <IconLock width={12} height={12} />
+                Verrouiller
+              </label>
+            </div>
+            <textarea
+              rows={4}
+              value={form.description}
+              onChange={e => set('description', e.target.value)}
+              disabled={form.descriptionLocked}
+              className="w-full rounded-[10px] border border-[var(--ds-border)] bg-[var(--ds-surface)] px-4 py-2.5 text-sm text-[var(--ds-text)] outline-none focus:border-[var(--ds-accent)] resize-none disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            {form.descriptionLocked && (
+              <p className="text-[11px] text-[var(--ds-text-subtle)]">
+                Description verrouillée : elle ne sera plus modifiée par la fiche, l'IA, la régénération automatique ni la proposition matching.
+              </p>
+            )}
+          </div>
 
           {/* Situation personnelle */}
           <ABSectionTitle title="Situation personnelle" />

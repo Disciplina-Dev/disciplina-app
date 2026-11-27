@@ -191,6 +191,7 @@ export interface Identity {
     apprenticeship_contract_details?: string; // Détails du contrat d'apprentissage (si oui)
     description?: string;                  // Descriptif libre du candidat (contexte matching)
     description_source?: 'auto' | 'manual'; // Provenance : résumé auto régénérable ou texte RH protégé
+    description_locked?: boolean;          // Verrou : tant qu'il est actif, la description est immuable
     avatar_url?: string;
     avatar_updated_at?: string;
     drive_avatar_file_id?: string;

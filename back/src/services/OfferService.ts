@@ -76,7 +76,12 @@ function matchingCandidateToGql(
     mc: MatchingCandidate,
     cvById?: Record<string, boolean>,
     isRuptureById?: Record<string, boolean>,
+    descriptionStateById?: Record<string, { description?: string; locked?: boolean }>,
 ): object {
+    // La fiche candidat est la source de vérité : description et verrou sont
+    // relus en direct pour ne pas afficher un snapshot périmé dans la modale
+    // de proposition (qui écrit désormais dans la fiche).
+    const descriptionState = descriptionStateById?.[mc.id ?? ''];
     return {
         id: mc.id,
         fullName: mc.full_name,
@@ -87,7 +92,8 @@ function matchingCandidateToGql(
         phone: mc.phone,
         status: mc.status,
         description: mc.description,
-        identityDescription: mc.identity_description,
+        identityDescription: descriptionState?.description ?? mc.identity_description,
+        descriptionLocked: descriptionState?.locked ?? mc.description_locked ?? false,
         comment: mc.comment,
         cvWebview: mc.cv_webview,
         hasCv: cvById?.[mc.id ?? ''] ?? Boolean(mc.has_cv),
@@ -106,9 +112,10 @@ function proposedCandidateToGql(
     pc: MatchingCandidate,
     cvById?: Record<string, boolean>,
     isRuptureById?: Record<string, boolean>,
+    descriptionStateById?: Record<string, { description?: string; locked?: boolean }>,
 ): object {
     return {
-        ...matchingCandidateToGql(pc, cvById, isRuptureById),
+        ...matchingCandidateToGql(pc, cvById, isRuptureById, descriptionStateById),
         description: pc.description,
         comment: pc.comment,
         interviewLocation: pc.interview_location,
@@ -126,6 +133,7 @@ function toGql(
     suggestedCandidates?: MatchingCandidate[],
     cvById?: Record<string, boolean>,
     isRuptureById?: Record<string, boolean>,
+    descriptionStateById?: Record<string, { description?: string; locked?: boolean }>,
 ): object {
     const ageMin = offer.criteria?.age_min;
     const ageMax = offer.criteria?.age_max;
@@ -147,11 +155,15 @@ function toGql(
         localisation: offer.localisation,
         sector: null,
         matched: false,
-        matchedCandidate: candidates.map((mc) => matchingCandidateToGql(mc, cvById, isRuptureById)),
-        suggestedCandidates: suggestedCandidates?.map((mc) => matchingCandidateToGql(mc, cvById, isRuptureById)),
+        matchedCandidate: candidates.map((mc) =>
+            matchingCandidateToGql(mc, cvById, isRuptureById, descriptionStateById),
+        ),
+        suggestedCandidates: suggestedCandidates?.map((mc) =>
+            matchingCandidateToGql(mc, cvById, isRuptureById, descriptionStateById),
+        ),
         proposedCandidate: candidates
             .filter((c) => c.status && PROPOSED_STATUSES.includes(c.status))
-            .map((pc) => proposedCandidateToGql(pc, cvById, isRuptureById)),
+            .map((pc) => proposedCandidateToGql(pc, cvById, isRuptureById, descriptionStateById)),
         interviewSlots: offer.matching?.interview_slots,
         interviewLocation: offer.matching?.interview_location,
         salerInfo: offer.saler_info,
@@ -196,6 +208,7 @@ function candidateToMatchingCandidate(c: Candidate): MatchingCandidate {
         sex: c.identity.sex as Sex,
         status: MatchedCandidateStatus.PRE_SELECTED,
         identity_description: c.identity.description,
+        description_locked: c.identity.description_locked === true,
         has_cv: Boolean(c.cv_link),
         is_rupture: c.status === CandidateStatus.CANCELLED,
     };
@@ -405,7 +418,22 @@ export class OfferService {
             statusDocs.map((d) => [String(d._id), d.status === CandidateStatus.CANCELLED]),
         );
 
-        const result = toGql(offer, suggestedCandidates, cvById, isRuptureById) as Record<string, unknown>;
+        // Description + verrou en direct (source de vérité = fiche candidat) pour
+        // la modale de proposition, qui écrit désormais dans la fiche.
+        const descriptionDocs = matchedIds.length
+            ? await this.candidateRepository.findDescriptionStatesByIds(matchedIds)
+            : [];
+        const descriptionStateById = Object.fromEntries(
+            descriptionDocs.map((d) => [
+                String(d._id),
+                { description: d.identity?.description, locked: d.identity?.description_locked === true },
+            ]),
+        );
+
+        const result = toGql(offer, suggestedCandidates, cvById, isRuptureById, descriptionStateById) as Record<
+            string,
+            unknown
+        >;
         result.relaxedCriteria = sectorRelaxed ? ['sector'] : [];
 
         const companyId = offer.company_infos?.id;

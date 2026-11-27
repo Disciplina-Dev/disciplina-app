@@ -857,6 +857,131 @@ describe('GraphQL candidate mutations', () => {
             expect(json.data.updateCandidate.identity.descriptionSource).toBe('manual');
         });
 
+        it('verrouille la description via descriptionLocked et ignore les régénérations', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-locked-desc-${suffix}`,
+                candidate_id: `update-locked-desc-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Mila ${suffix}`,
+                    email: `mila-${suffix}@test.local`,
+                    phone: '0100000090',
+                    description: 'Texte verrouillé.',
+                    description_source: 'manual',
+                },
+            });
+
+            const send = (input: unknown) =>
+                fetch(ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Cookie: auth.cookieHeader,
+                        'x-csrf-token': auth.csrfHeader,
+                    },
+                    body: JSON.stringify({
+                        query: `
+                            mutation($id: String!, $input: UpdateCandidateInput!) {
+                                updateCandidate(id: $id, input: $input) {
+                                    id identity { description descriptionSource descriptionLocked }
+                                }
+                            }
+                        `,
+                        variables: { id: seeded._id, input },
+                    }),
+                });
+
+            let res = await send({
+                identity: {
+                    fullName: `Mila ${suffix}`,
+                    email: `mila-${suffix}@test.local`,
+                    phone: '0100000090',
+                    descriptionLocked: true,
+                },
+            });
+            let json = await res.json();
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidate.identity.descriptionLocked).toBe(true);
+
+            // Une mise à jour du dossier ne doit plus régénérer le texte verrouillé.
+            res = await send({
+                identity: {
+                    fullName: `Mila ${suffix}`,
+                    email: `mila-${suffix}@test.local`,
+                    phone: '0100000090',
+                    city: 'Saint-Paul',
+                },
+            });
+            json = await res.json();
+            expect(json.data.updateCandidate.identity.description).toBe('Texte verrouillé.');
+            expect(json.data.updateCandidate.identity.descriptionLocked).toBe(true);
+        });
+
+        it('updateCandidateDescription enregistre la description et le verrou sans identité complète', async () => {
+            const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
+            const suffix = Date.now();
+            const repo = new CandidateRepository();
+
+            const seeded = await repo.create({
+                _id: `update-desc-targeted-${suffix}`,
+                candidate_id: `update-desc-targeted-${suffix}`,
+                tp_types: [TitleProfessionalType.AD],
+                status: CandidateStatus.SEEKING,
+                identity: {
+                    full_name: `Noé ${suffix}`,
+                    email: `noe-${suffix}@test.local`,
+                    phone: '0100000091',
+                    description: 'Description initiale.',
+                    description_source: 'manual',
+                },
+            });
+
+            const send = (variables: Record<string, unknown>) =>
+                fetch(ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Cookie: auth.cookieHeader,
+                        'x-csrf-token': auth.csrfHeader,
+                    },
+                    body: JSON.stringify({
+                        query: `
+                            mutation($id: String!, $description: String, $descriptionLocked: Boolean) {
+                                updateCandidateDescription(id: $id, description: $description, descriptionLocked: $descriptionLocked) {
+                                    id identity { description descriptionSource descriptionLocked }
+                                }
+                            }
+                        `,
+                        variables: { id: seeded._id, ...variables },
+                    }),
+                });
+
+            let res = await send({ description: 'Description depuis la modale.', descriptionLocked: true });
+            let json = await res.json();
+            expect(res.status).toBe(200);
+            expect(json.errors).toBeUndefined();
+            expect(json.data.updateCandidateDescription.identity.description).toBe('Description depuis la modale.');
+            expect(json.data.updateCandidateDescription.identity.descriptionLocked).toBe(true);
+
+            // Verrouillée : une nouvelle valeur est ignorée.
+            res = await send({ description: 'Tentative verrouillée.' });
+            json = await res.json();
+            expect(json.data.updateCandidateDescription.identity.description).toBe('Description depuis la modale.');
+            expect(json.data.updateCandidateDescription.identity.descriptionLocked).toBe(true);
+
+            // Déverrouillage sans toucher au texte.
+            res = await send({ descriptionLocked: false });
+            json = await res.json();
+            expect(json.data.updateCandidateDescription.identity.description).toBe('Description depuis la modale.');
+            expect(json.data.updateCandidateDescription.identity.descriptionLocked).toBe(false);
+        });
+
         it('transmet descriptionSource au service (« Régénérer » repasse en auto)', async () => {
             const auth = mintAuthCookies({ id: 1, email: 'admin@test.local', role: 'RH', permission: 'ADMIN' });
             const suffix = Date.now();

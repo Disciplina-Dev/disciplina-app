@@ -95,6 +95,7 @@ async function patchCandidatesValidator(conn: Connection): Promise<void> {
                             psh_referral_request: { bsonType: ['bool', 'string'] },
                             had_apprenticeship_contract: { bsonType: 'bool' },
                             description: { bsonType: 'string' },
+                            description_locked: { bsonType: 'bool' },
                         },
                     },
                     education: {

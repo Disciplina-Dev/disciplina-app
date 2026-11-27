@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { IconAlert, IconArrowLeft, IconCamera, IconClipboardCheck, IconDownload, IconEdit, IconExternalLink, IconEye, IconEyeOff, IconFile, IconFolderPlus, IconImage, IconLoader, IconMail, IconQrCode, IconRefresh, IconSpreadsheet, IconTrash, IconUpload, IconUser } from '@/components/ui/icons'
+import { IconAlert, IconArrowLeft, IconCamera, IconClipboardCheck, IconDownload, IconEdit, IconExternalLink, IconEye, IconEyeOff, IconFile, IconFolderPlus, IconImage, IconLoader, IconLock, IconMail, IconQrCode, IconRefresh, IconSpreadsheet, IconTrash, IconUpload, IconUser } from '@/components/ui/icons'
 import WebcamCaptureModal from '@/components/rh/WebcamCaptureModal'
 import CandidateAvatar from '@/components/rh/CandidateAvatar'
 import MatchedJobsList from '@/features/candidats/components/MatchedJobsList'
@@ -593,6 +593,10 @@ export default function FicheCandidat() {
   // la Description. Ne régénère pas si une description existe déjà (sauf confirmation).
   const handleGenerateDescription = async () => {
     if (!formData) return
+    if (formData.identity.description_locked) {
+      setSaveError('La description est verrouillée : déverrouillez-la pour la régénérer.')
+      return
+    }
     if (formData.identity.description?.trim() &&
         !window.confirm('Une description existe déjà. La remplacer par un résumé généré ?')) {
       return
@@ -614,8 +618,25 @@ export default function FicheCandidat() {
     } catch { setSaveError('Erreur lors de l\'enregistrement du résumé') }
   }
 
+  const handleToggleDescriptionLock = async () => {
+    if (!formData) return
+    const locked = !formData.identity.description_locked
+    const updated = { ...formData, identity: { ...formData.identity, description_locked: locked } }
+    setFormData(updated)
+    try {
+      await update(updated._id, updated)
+    } catch {
+      setFormData(formData)
+      setSaveError(locked ? 'Erreur lors du verrouillage de la description' : 'Erreur lors du déverrouillage de la description')
+    }
+  }
+
   const handleGenerateAiSummary = async () => {
     if (!formData) return
+    if (formData.identity.description_locked) {
+      setAiSummaryError('La description est verrouillée : déverrouillez-la pour générer un résumé.')
+      return
+    }
     setAiSummaryLoading(true)
     setAiSummaryError(null)
     setAiSummaryText('')
@@ -637,6 +658,10 @@ export default function FicheCandidat() {
 
   const handleSaveAiSummary = async () => {
     if (!formData || !aiSummaryText.trim()) return
+    if (formData.identity.description_locked) {
+      setAiSummaryError('La description est verrouillée : déverrouillez-la pour enregistrer un résumé.')
+      return
+    }
     const updated = { ...formData, identity: { ...formData.identity, description: aiSummaryText } }
     setFormData(updated)
     try {
@@ -1352,19 +1377,37 @@ export default function FicheCandidat() {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
+                        onClick={handleToggleDescriptionLock}
+                        title={formData.identity.description_locked
+                          ? 'Déverrouiller la description'
+                          : 'Verrouiller la description (aucune modification, y compris la régénération automatique)'}
+                        className={`flex items-center gap-1 text-[11px] font-semibold hover:underline ${
+                          formData.identity.description_locked ? 'text-[var(--ds-warning)]' : 'text-[var(--ds-text-subtle)]'
+                        }`}>
+                        <IconLock width={11} height={11} />
+                        {formData.identity.description_locked ? 'Déverrouiller' : 'Verrouiller'}
+                      </button>
+                      <button
+                        type="button"
                         onClick={handleGenerateDescription}
-                        className="text-[11px] font-semibold text-purple hover:underline">
+                        disabled={formData.identity.description_locked}
+                        className="text-[11px] font-semibold text-purple hover:underline disabled:opacity-40 disabled:cursor-not-allowed">
                         {formData.identity.description?.trim() ? 'Régénérer' : 'Générer le résumé'}
                       </button>
                       <button
                         type="button"
                         onClick={handleGenerateAiSummary}
-                        disabled={aiSummaryLoading}
-                        className="text-[11px] font-semibold text-purple hover:underline disabled:opacity-40">
+                        disabled={aiSummaryLoading || formData.identity.description_locked}
+                        className="text-[11px] font-semibold text-purple hover:underline disabled:opacity-40 disabled:cursor-not-allowed">
                         {aiSummaryLoading ? 'IA…' : 'Résumé IA'}
                       </button>
                     </div>
                   </div>
+                {formData.identity.description_locked && (
+                  <p className="mt-1 text-xs text-[var(--ds-text-subtle)]">
+                    Description verrouillée : elle n'est plus modifiable (ni régénération automatique, ni résumé IA, ni proposition matching).
+                  </p>
+                )}
                 {aiSummaryError && (
                   <p className="mt-1 text-xs text-[var(--ds-danger)]">{aiSummaryError}</p>
                 )}

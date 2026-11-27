@@ -177,6 +177,7 @@ export const typeDefs = gql`
         status: MatchedCandidateStatus
         description: String
         identityDescription: String
+        descriptionLocked: Boolean
         comment: String
         cvWebview: String
         hasCv: Boolean
@@ -201,6 +202,7 @@ export const typeDefs = gql`
         status: MatchedCandidateStatus
         description: String
         identityDescription: String
+        descriptionLocked: Boolean
         comment: String
         cvWebview: String
         hasCv: Boolean
