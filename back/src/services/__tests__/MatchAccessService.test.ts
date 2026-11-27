@@ -8,6 +8,7 @@ import { UserRepository } from '../../repositories/mysql/UserRepository';
 import { CandidateService } from '../CandidateService';
 import { OfferStatus, MatchedCandidateStatus, Sex } from '../../types/matching.types';
 import { TitleProfessionalType, CandidateStatus } from '../../types/candidate.types';
+import { NotificationRepository } from '../../repositories/mongo/NotificationRepository';
 
 async function createRhUser(suffix: number): Promise<{ id: number; email: string }> {
     const repo = new UserRepository();
@@ -146,14 +147,7 @@ describe('MatchAccessService', () => {
 
         const sendInvitation = vi.fn().mockResolvedValue(undefined);
         const stubMailService = { sendInvitation } as unknown as InterviewMailService;
-        const service = new MatchAccessService(
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            stubMailService,
-        );
+        const service = new MatchAccessService(undefined, undefined, undefined, undefined, undefined, stubMailService);
 
         const offerId = `job-matchaccess-${suffix}`;
         const candidateId = `cand-matchaccess-${suffix}`;
@@ -253,6 +247,114 @@ describe('MatchAccessService', () => {
                 candidates: [{ id: candidateId }],
             }),
         ).rejects.toThrow(/consentement.*partage|data_sharing/i);
+    });
+
+    it('notifies RHs when the company requests an interview or marks a coup de cœur', async () => {
+        const suffix = Date.now();
+        const rh = await createRhUser(suffix);
+        const offerId = `job-matchaccess-answers-${suffix}`;
+        const interviewId = `cand-matchaccess-interview-${suffix}`;
+        const favoriteId = `cand-matchaccess-favorite-${suffix}`;
+        await Promise.all([
+            seedCandidateDoc(interviewId, suffix, true),
+            seedCandidateDoc(favoriteId, suffix + 1, true),
+        ]);
+
+        await seedOffer({
+            _id: offerId,
+            company_name: `MatchAccess Answers Corp ${suffix}`,
+            status: OfferStatus.CV_SEND,
+            candidates: [
+                {
+                    id: interviewId,
+                    full_name: `Candidat Entretien ${suffix}`,
+                    email: `candidate-interview-${suffix}@test.local`,
+                    age: 20,
+                    sex: Sex.NONE,
+                    status: MatchedCandidateStatus.ACCEPTED,
+                },
+                {
+                    id: favoriteId,
+                    full_name: `Candidat Coup de coeur ${suffix}`,
+                    email: `candidate-favorite-${suffix}@test.local`,
+                    age: 22,
+                    sex: Sex.NONE,
+                    status: MatchedCandidateStatus.ACCEPTED,
+                },
+            ],
+        });
+
+        const service = new MatchAccessService();
+        const session = await service.createSession({
+            offerId,
+            rhUserId: rh.id,
+            rhEmail: rh.email,
+            companyEmail: `company-${suffix}@test.local`,
+            candidates: [{ id: interviewId }, { id: favoriteId }],
+        });
+
+        await service.submitAnswers(session.signature, [
+            { candidateId: interviewId, status: MatchedCandidateStatus.INTERVIEW },
+            { candidateId: favoriteId, status: MatchedCandidateStatus.IMMERSING },
+        ]);
+
+        const notifications = await new NotificationRepository().findForUser(rh.id);
+        const interview = notifications.find((n) => n.type === 'company_interview_request');
+        const favorite = notifications.find((n) => n.type === 'company_candidate_favorite');
+
+        expect(interview).toBeDefined();
+        expect(interview?.category).toBe('candidate');
+        expect(interview?.title).toBe("Entretien demandé par l'entreprise");
+        expect(interview?.message).toContain(`Candidat Entretien ${suffix}`);
+        expect(interview?.link).toContain(`offer=${offerId}`);
+
+        expect(favorite).toBeDefined();
+        expect(favorite?.category).toBe('candidate');
+        expect(favorite?.level).toBe('success');
+        expect(favorite?.title).toBe("Coup de cœur de l'entreprise");
+        expect(favorite?.message).toContain(`Candidat Coup de coeur ${suffix}`);
+    });
+
+    it('does not notify RHs when the company refuses a candidate', async () => {
+        const suffix = Date.now();
+        const rh = await createRhUser(suffix);
+        const offerId = `job-matchaccess-refused-${suffix}`;
+        const candidateId = `cand-matchaccess-refused-${suffix}`;
+        await seedCandidateDoc(candidateId, suffix, true);
+
+        await seedOffer({
+            _id: offerId,
+            company_name: `MatchAccess Refused Corp ${suffix}`,
+            status: OfferStatus.CV_SEND,
+            candidates: [
+                {
+                    id: candidateId,
+                    full_name: `Candidat Refusé ${suffix}`,
+                    email: `candidate-refused-${suffix}@test.local`,
+                    age: 20,
+                    sex: Sex.NONE,
+                    status: MatchedCandidateStatus.ACCEPTED,
+                },
+            ],
+        });
+
+        const service = new MatchAccessService();
+        const session = await service.createSession({
+            offerId,
+            rhUserId: rh.id,
+            rhEmail: rh.email,
+            companyEmail: `company-${suffix}@test.local`,
+            candidates: [{ id: candidateId }],
+        });
+
+        await service.submitAnswers(session.signature, [
+            { candidateId, status: MatchedCandidateStatus.REFUSED, comment: 'Profil trop junior' },
+        ]);
+
+        const notifications = await new NotificationRepository().findForUser(rh.id);
+        expect(
+            notifications.some((n) => ['company_interview_request', 'company_candidate_favorite'].includes(n.type)),
+        ).toBe(false);
     });
 
     it('keeps candidates from a previous send when a new batch is sent on the same offer', async () => {

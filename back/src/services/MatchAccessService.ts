@@ -10,8 +10,10 @@ import { CandidateHistoryType } from '../types/candidate.types';
 import { OfferHistoryService } from './OfferHistoryService';
 import { InterviewMailService } from './InterviewMailService';
 import { TodoService } from './TodoService';
+import { NotificationService } from './NotificationService';
 import { UserRepository } from '../repositories/mysql/UserRepository';
 import { ConsentType, hasConsent } from './consentGuard';
+import { buildMatchingLink } from '../utils/matchingLink';
 
 /** Session déjà complétée : toute action de soumission est refusée. */
 export class SessionAlreadyCompletedError extends Error {}
@@ -88,6 +90,7 @@ export class MatchAccessService {
         private readonly todoService = new TodoService(),
         private readonly userRepository = new UserRepository(),
         private readonly candidateRepository = new CandidateRepository(),
+        private readonly notificationService = new NotificationService(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -156,9 +159,7 @@ export class MatchAccessService {
         }
     }
 
-    async getContext(
-        signature: string,
-    ): Promise<{
+    async getContext(signature: string): Promise<{
         rhEmail: string | null;
         companyEmail: string | null;
         offerUuid: string;
@@ -244,7 +245,14 @@ export class MatchAccessService {
                 answer.status === MatchedCandidateStatus.INTERVIEW ||
                 answer.status === MatchedCandidateStatus.IMMERSING
             ) {
-                await this.notifyRhCandidateKept(row.reference_key, answer.candidateId, offer.company_infos?.name);
+                await this.notifyRhCandidateKept(
+                    row.reference_key,
+                    answer.candidateId,
+                    answer.status,
+                    offer.company_infos?.name,
+                    candidate?.full_name,
+                    offer.needs_analysis_id,
+                );
                 if (slotsAnswer?.interviewSlots?.length) {
                     await this.triggerInterviewAccess(
                         row.reference_key,
@@ -260,18 +268,40 @@ export class MatchAccessService {
     }
 
     // L'entreprise a fini son matching pour ce candidat : To-Do RH pour organiser
-    // l'entretien / l'immersion puis en partager la conclusion.
-    private async notifyRhCandidateKept(offerId: string, candidateId: string, companyName?: string): Promise<void> {
+    // l'entretien / l'immersion puis en partager la conclusion, et notification
+    // in-app pour que toute l'équipe RH voie la réponse sans attendre la To-Do.
+    private async notifyRhCandidateKept(
+        offerId: string,
+        candidateId: string,
+        status: MatchedCandidateStatus,
+        companyName?: string,
+        candidateName?: string,
+        needsAnalysisId?: string | null,
+    ): Promise<void> {
         const rhUsers = (await this.userRepository.findByRoleIds([2])) ?? [];
         const company = companyName ?? "l'entreprise";
+        const name = candidateName ?? 'Un candidat';
+        const favorite = status === MatchedCandidateStatus.IMMERSING;
+        const link = buildMatchingLink(offerId, needsAnalysisId);
         await Promise.all(
-            rhUsers.map((user) =>
-                this.todoService.createSystemTodo(
+            rhUsers.map(async (user) => {
+                await this.todoService.createSystemTodo(
                     user.id,
                     `Organiser l'entretien du candidat retenu par ${company}`,
                     `interview:${offerId}:${candidateId}`,
-                ),
-            ),
+                );
+                await this.notificationService.create({
+                    userId: user.id,
+                    type: favorite ? 'company_candidate_favorite' : 'company_interview_request',
+                    category: 'candidate',
+                    level: favorite ? 'success' : 'info',
+                    title: favorite ? "Coup de cœur de l'entreprise" : "Entretien demandé par l'entreprise",
+                    message: favorite
+                        ? `${company} a eu un coup de cœur pour ${name} (immersion proposée).`
+                        : `${company} souhaite un entretien avec ${name}.`,
+                    link,
+                });
+            }),
         );
     }
 
