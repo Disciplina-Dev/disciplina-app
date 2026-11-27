@@ -591,6 +591,14 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     return () => clearTimeout(t);
   }, [form, draftKey, candidate]);
 
+  // « Annuler » en édition abandonne les modifications : sans ça, le brouillon
+  // ressortait à la réouverture et affichait un TP jamais enregistré (#1194).
+  // La croix / le fond conservent le brouillon (fermeture accidentelle).
+  const handleCancel = () => {
+    if (candidate) clearDraft(draftKey);
+    onClose();
+  };
+
   // Repartir de la version de référence : efface le brouillon et réinitialise le
   // formulaire (fiche enregistrée en édition, formulaire vierge en création).
   const resetDraft = () => {
@@ -606,7 +614,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   const hasRecordedGateResults = candidate?.test_average != null && candidate?.written_test_score != null;
   const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? (requireGate && !hasRecordedGateResults ? 'gate' : 'form') : 'gate');
   // TP évalué au gate : détermine la moyenne minimale requise (CC → 10, autres → 12).
-  const [gateTp, setGateTp] = useState<TitleProfessionalType>(() => form.tpTypes[0] ?? TitleProfessionalType.CC);
+  // En édition, le TP enregistré sur la fiche fait foi, pas celui d'un éventuel brouillon.
+  const [gateTp, setGateTp] = useState<TitleProfessionalType>(
+    () => candidate?.tp_types?.[0] ?? form.tpTypes[0] ?? TitleProfessionalType.CC,
+  );
   const gateThreshold = gateThresholdForTp(gateTp);
   const [manualClassMarkerScore, setManualClassMarkerScore] = useState<string>(() => {
     if (candidate?.test_average != null && candidate?.written_test_score != null) return '';
@@ -1062,7 +1073,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             <div className="flex justify-between gap-3 pt-2">
               <Button variant="ghost" type="button" onClick={handleGateSkip} title="Ouvrir le formulaire sans vérifier les résultats">Passer la vérification</Button>
               <div className="flex gap-3">
-                <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+                <Button variant="secondary" type="button" onClick={handleCancel}>Annuler</Button>
                 <Button type="button" isLoading={gateLoading} onClick={handleGateValidate} className="bg-purple hover:bg-purple-dark text-white">Valider les résultats</Button>
               </div>
             </div>
@@ -1581,7 +1592,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </Button>
             ) : (
               <>
-                <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+                <Button variant="secondary" type="button" onClick={handleCancel}>Annuler</Button>
                 <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<IconPlus width={16} height={16} />}>
                   {isEdit ? (requireGate ? 'Compléter la fiche' : 'Enregistrer les modifications') : 'Créer le candidat'}
                 </Button>
