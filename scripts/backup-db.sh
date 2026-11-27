@@ -88,20 +88,6 @@ dump_encrypted() {
     chmod 600 "${out}.sha256"
 }
 
-# Un échec en cours de route ne doit laisser aucun fichier partiel dans backups/.
-trap 'rm -f backups/*.part' EXIT
-
-# dump_encrypted <fichier final> <commande de dump…>
-# Le dump est chiffré à la volée vers <fichier>.part puis renommé : un dump
-# interrompu (pipefail) n'est jamais exposé sous son nom final, et rien n'est
-# écrit en clair sur le disque.
-dump_encrypted() {
-    local out="$1"
-    shift
-    "$@" | age -r "$AGE_RECIPIENT" > "${out}.part"
-    mv "${out}.part" "$out"
-}
-
 echo "[$(date -Iseconds)] Starting backup"
 
 MYSQL_DUMP="backups/backup_mysql_${DATE}.sql.age"
