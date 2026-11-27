@@ -125,6 +125,14 @@ interface MatchJobResult extends Job {
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
 
+// Statuts d'un candidat déjà destinataire du mail d'offre : le mail est parti
+// (PRE_SELECTED_MAIL_SEND) ou le candidat y a déjà répondu « non » (DECLINED,
+// qui n'est atteignable qu'après réception du mail).
+const ALREADY_MAILED_STATUSES: MatchedCandidateStatus[] = [
+  MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+  MatchedCandidateStatus.DECLINED,
+]
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function formatEnum(raw: string | null | undefined): string {
@@ -1033,6 +1041,8 @@ function PreselectedCandidatesSection({
   candidates,
   isMailingAll,
   mailAllProgress,
+  includeAlreadyMailed,
+  onIncludeAlreadyMailedChange,
   onInfo,
   onSendMail,
   onRemove,
@@ -1042,6 +1052,8 @@ function PreselectedCandidatesSection({
   candidates: MatchedCandidate[]
   isMailingAll: boolean
   mailAllProgress: { sent: number; total: number } | null
+  includeAlreadyMailed: boolean
+  onIncludeAlreadyMailedChange: (value: boolean) => void
   onInfo: (c: MatchedCandidate) => void
   onSendMail: (c: MatchedCandidate) => void
   onRemove: (c: MatchedCandidate) => void
@@ -1053,6 +1065,11 @@ function PreselectedCandidatesSection({
     currentUser?.role === UserRole.RH ||
     currentUser?.permission === Permission.RESPONSABLE ||
     currentUser?.permission === Permission.ADMIN
+
+  const alreadyMailedCount = candidates.filter((c) =>
+    ALREADY_MAILED_STATUSES.includes(c.status as MatchedCandidateStatus)
+  ).length
+  const mailableCount = includeAlreadyMailed ? candidates.length : candidates.length - alreadyMailedCount
 
   return (
     <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
@@ -1075,18 +1092,36 @@ function PreselectedCandidatesSection({
           {candidates.length > 0 && (
             <button
               onClick={onMailAll}
-              disabled={isMailingAll}
+              disabled={isMailingAll || mailableCount === 0}
+              title={mailableCount === 0 ? 'Tous les candidats ont déjà reçu le mail' : undefined}
               className="flex items-center gap-1 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
             >
               {isMailingAll ? (
                 <><IconLoader width={11} height={11} className="animate-spin" /> {mailAllProgress ? `${mailAllProgress.sent}/${mailAllProgress.total}` : '…'}</>
               ) : (
-                <><IconMailSent width={11} height={11} /> IconMail à tous</>
+                <><IconMailSent width={11} height={11} /> Mail à tous{mailableCount !== candidates.length ? ` (${mailableCount})` : ''}</>
               )}
             </button>
           )}
         </div>
       </div>
+
+      {alreadyMailedCount > 0 && (
+        <div className="mb-2 flex justify-end">
+          <label
+            className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-[var(--ds-text-subtle)]"
+            title="Par défaut, les candidats à qui le mail a déjà été envoyé sont exclus."
+          >
+            <input
+              type="checkbox"
+              checked={includeAlreadyMailed}
+              onChange={(e) => onIncludeAlreadyMailedChange(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--color-blue)]"
+            />
+            Inclure les candidats déjà contactés ({alreadyMailedCount})
+          </label>
+        </div>
+      )}
 
       {candidates.length === 0 ? (
         <div className="text-center py-4 px-3 bg-[var(--ds-surface-sunken)] rounded-lg">
@@ -1614,6 +1649,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
   const [isMatching, setIsMatching] = useState(false)
   const [isMailingAll, setIsMailingAll] = useState(false)
   const [mailAllProgress, setMailAllProgress] = useState<{ sent: number; total: number } | null>(null)
+  // « Mail à tous » exclut par défaut les candidats déjà contactés.
+  const [includeAlreadyMailed, setIncludeAlreadyMailed] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [matchError, setMatchError] = useState<string | null>(null)
   const [hasLaunched, setHasLaunched] = useState(false)
@@ -1728,6 +1765,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
 
   useEffect(() => {
     if (selectedJob) loadJobData(selectedJob)
+    setIncludeAlreadyMailed(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJob?.id])
 
@@ -1782,15 +1820,18 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
   const handleMailAll = async () => {
     if (!selectedJob || !jobData) return
     const preselected = filterByStatus(jobData.matchedCandidate, preselectedStatuses)
-    if (preselected.length === 0) return
+    const recipients = includeAlreadyMailed
+      ? preselected
+      : preselected.filter((c) => !ALREADY_MAILED_STATUSES.includes(c.status as MatchedCandidateStatus))
+    if (recipients.length === 0) return
 
     setIsMailingAll(true)
-    setMailAllProgress({ sent: 0, total: preselected.length })
+    setMailAllProgress({ sent: 0, total: recipients.length })
 
     const sentIds = new Set<string>()
 
-    for (let i = 0; i < preselected.length; i++) {
-      const candidate = preselected[i]
+    for (let i = 0; i < recipients.length; i++) {
+      const candidate = recipients[i]
       try {
         const linksResult = await offerGraphqlClient.query(OFFER_RESPONSE_LINKS, { offerId: selectedJob.id, candidateId: candidate.id }).toPromise()
         if (linksResult.data?.offerResponseLinks) {
@@ -1808,7 +1849,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
       } catch {
         // continue with next candidate on error
       }
-      setMailAllProgress({ sent: i + 1, total: preselected.length })
+      setMailAllProgress({ sent: i + 1, total: recipients.length })
     }
 
     if (jobData) {
@@ -2201,6 +2242,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: 
         candidates={preselectedCandidates}
         isMailingAll={isMailingAll}
         mailAllProgress={mailAllProgress}
+        includeAlreadyMailed={includeAlreadyMailed}
+        onIncludeAlreadyMailedChange={setIncludeAlreadyMailed}
         onInfo={setDrawerCandidate}
         onSendMail={handleOpenMail}
         onRemove={handleRemoveCandidate}
