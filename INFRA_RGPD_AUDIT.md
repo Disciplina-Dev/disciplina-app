@@ -109,14 +109,14 @@ Légende gravité : **Critique** (risque immédiat de perte/fuite) · **Élevée
   - `scripts/backup-db.sh` ne sauvegarde que `disciplina` (MySQL, l. 239) et `human_ressources` (Mongo, l. 245). **`disciplina_annemasse` n'est jamais sauvegardé** (MySQL et Mongo). `scripts/rollback.sh` ne le restaure pas non plus.
   - Dumps en clair (`.sql`, `.archive`), écrits dans `<repo>/backups/` sur le **même disque** que les DB. Rétention 7 jours (`find -mtime +7 -delete`). Aucune copie hors machine (reconnu dans `HOWTODEPLOY.md:48-49`, `README.md:68`, BACKLOG DB-5).
   - Aucun test de restauration, checksum ou alerte d'échec.
-  - Mots de passe passés en argument (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244) : visibles dans la liste des processus.
+  - Mots de passe passés en argument (`-p"$MYSQL_ROOT_PASSWORD"` l. 239, `--password` l. 244 — now `scripts/backup*.sh`, `rollback.sh`; fixed in #1112 via `MYSQL_PWD` + `scripts/mongo-exec.sh`) : visibles dans la liste des processus.
   - Pas de `umask`/`chmod` : permissions par défaut.
   - Le Mac mini peut se mettre en veille à 03:00 (`README.md:177`), retardant ou manquant la sauvegarde.
 - **Risque** : panne disque, vol, ransomware ou erreur = perte définitive des données Annemasse ; fuite complète si le disque est volé.
 - **Correctif** : couvrir les deux tenants ; chiffrer (age/restic) ; copie hors site chez un second fournisseur UE ; `MYSQL_PWD`/fichier d'options ; `umask 077` ; test de restauration planifié ; alerte d'échec.
 
 #### 2. Chiffrement au repos — Critique
-- **Constat** : disque du Mac mini non chiffré (FileVault inactif, confirmé). Données MySQL/Mongo en bind mounts (`docker-compose.yaml:16`, `./database/mongodb/mongo-data`). Chiffrement applicatif limité au NIR (AES-256-GCM, `external/crypto/ssn-cipher.ts` ; sel scrypt codé en dur `'ssn-salt'`, SSN en clair legacy toléré) et aux tokens Google (`token-cipher.ts`). Handicap (`psh_*`, `special_needs`), contact d'urgence, avatars (Buffer Mongo) et `mcp_oauth_clients.client_secret` en clair.
+- **Constat** : disque du Mac mini non chiffré (FileVault inactif, confirmé). Données MySQL/Mongo en bind mounts (`docker-compose.yaml:16`, `./database/mongodb/mongo-data`). Chiffrement applicatif limité au NIR (AES-256-GCM, `external/crypto/ssn-cipher.ts` ; sel scrypt codé en dur `'ssn-salt'`, SSN en clair legacy toléré) et aux tokens Google (`token-cipher.ts`). Handicap (`psh_*`, `special_needs`) et contact d'urgence : chiffrés AES-256-GCM via `health-cipher.ts` (fixed in #1119, GDPR_INF_02.3 ; backfill `scripts/encrypt-health-fields.ts`, `database/DATA_CLASSIFICATION.md` §7). Avatars (Buffer Mongo) et `mcp_oauth_clients.client_secret` en clair (`client_secret` now chiffré AES-256-GCM via `token-cipher.ts`, fixed in #1120 ; avatars : pas de chiffrement applicatif, décision dans `database/DATA_CLASSIFICATION.md` §6).
 - **Risque** : vol ou récupération du matériel = accès à toutes les données personnelles, dont données sensibles.
 - **Correctif** : chiffrement disque (FileVault maintenant, LUKS sur la cible) ; envisager le chiffrement de champs pour les données de santé ; sel unique par déploiement pour le NIR ; migrer les NIR en clair.
 
@@ -134,7 +134,7 @@ Légende gravité : **Critique** (risque immédiat de perte/fuite) · **Élevée
 - **Correctif** : registre Art. 30 complet ; archiver les DPAs ; DPIA (IA, données sensibles, NIR) ; analyse du transfert (CCT + TIA) ou désactivation de MCP tant que non réglé.
 
 #### 6. Droits des personnes — Élevée
-- **Constat** : aucun endpoint d'export/portabilité, rectification, opposition ou retrait de consentement pour les candidats (`RGPD.md` F4, `:222-290`). L'effacement se fait uniquement par un employé RH (`deleteCandidate`, `graphql/candidate/resolver.ts:408`). Aucun journal montrant à un candidat qui a consulté ses données (F14).
+- **Constat** : aucun endpoint d'export/portabilité, rectification, opposition ou retrait de consentement pour les candidats (`RGPD.md` F4, `:222-290`). L'effacement se fait uniquement par un employé RH (`deleteCandidate`, `graphql/candidate/resolver.ts`). **Mise à jour 06.4** : la cascade couvre désormais Drive, avatars, historique, matching, accès externes ; Filiz = suppression manuelle journalisée (pas d'API) ; DocuSeal = sans objet (aucune donnée candidat) ; sauvegardes expirent sous 7 jours (`scripts/backup-db.sh`). **Mise à jour 06.5** : `candidate_access_log` journalise consultations de fiche, listes, NIR démasqué et exports (requête `candidateAccessLog`, RESPONSABLE+, rétention 365 j) ; hors périmètre : miniatures d'avatar et PDF de questionnaires.
 - **Correctif** : procédure documentée (délai 1 mois) + endpoints/outils internes ; inclure les copies (Drive, Filiz, DocuSeal) et la gestion des sauvegardes.
 
 #### 7. Rétention et purge — Élevée
@@ -154,8 +154,8 @@ Légende gravité : **Critique** (risque immédiat de perte/fuite) · **Élevée
 - **Correctif** : défaut UE (`docuseal.eu`) dans `env.ts` ; vérifier le `.env` de prod ; DPA.
 
 #### 11. Sous-traitants non déclarés — Élevée
-- **Constat** : la politique (`front/disciplina-front/src/content/legal/politique-confidentialite.md:116-128`) liste Brevo (non utilisé : l'e-mail passe par Gmail OAuth, `back/README.md:261`) et omet : Yousign, Filiz, DuckDuckGo (`external/ddg`, requêtes générées par LLM avec nom/adresse d'entreprise), Anthropic (MCP), Mistral/OpenAI (workflows n8n `veille*.json`), Google Fonts (`index.css:1`, transfert IP/UA vers Google). Google : « UE avec accès possible hors UE » vs `RGPD.md:429-437` « US ». ClassMarker : hors UE, intégration encore active.
-- **Correctif** : tableau des sous-traitants exact (rôle, données, pays, DPA) ; auto-héberger les polices ; décider du sort des workflows n8n LLM.
+- **Constat** : la politique (`front/disciplina-front/src/content/legal/politique-confidentialite.md:116-128`) liste Brevo (non utilisé : l'e-mail passe par Gmail OAuth, `back/README.md:261`) et omet : Yousign, Filiz, DuckDuckGo (`external/ddg`, requêtes générées par LLM avec nom/adresse d'entreprise), Anthropic (MCP), Mistral/OpenAI (workflows n8n `veille*.json`), Google Fonts (`index.css:1`, transfert IP/UA vers Google ; auto-hébergées, fixed in #1149 : `@fontsource-variable/figtree` + `@fontsource-variable/outfit` côté front, polices système sur la page de consentement OAuth MCP `back/src/mcp/oauth/consentPage.ts` qui chargeait aussi Poppins depuis Google). Google : « UE avec accès possible hors UE » vs `RGPD.md:429-437` « US ». ClassMarker : hors UE, intégration encore active.
+- **Correctif** : tableau des sous-traitants exact (rôle, données, pays, DPA) ; auto-héberger les polices (fait, #1149) ; décider du sort des workflows n8n LLM.
 
 #### 12. `veille/` — Élevée
 - **Constat** : `veille/n8n/data` (`config` avec `encryptionKey`, `database.sqlite` avec credentials chiffrés, logs) et `veille/rss/data` (`config.php`, clé Fever, `users/epitech/config.php`, `db.sqlite`) sont suivis par git alors que `veille/n8n/data/.gitignore` indique `data/*`. Le workflow `suivi-abs-peda.json` traite noms/prénoms/e-mails d'élèves (Google Sheets → brouillons Gmail) hors registre ; `veille.json` / `veille-mensuelle.json` envoient le contenu de mails à Mistral/OpenAI sans DPA.
@@ -174,7 +174,7 @@ Légende gravité : **Critique** (risque immédiat de perte/fuite) · **Élevée
 #### 15. Logs — Moyenne
 - Logs Docker `json-file` sans rotation ni rétention (aucun `logging:` dans les compose) : croissance illimitée et conservation indéfinie de données personnelles potentielles.
 - Pino : `redact` limité à la racine et deux niveaux (`external/logger/logger.ts:41-87`), stacks d'erreur pouvant contenir des PII.
-- Pas de journal d'accès en lecture aux dossiers candidats ni de trace des exports / `unmaskCandidateSsn` (F14), ce qui complique la détection d'une violation (Art. 33).
+- ~~Pas de journal d'accès en lecture aux dossiers candidats~~ : traité par 06.5 (`candidate_access_log`), détection d'une violation (Art. 33) désormais possible sur ces accès.
 - `deploy.sh:241` affiche les lignes d'erreur des logs dans le terminal.
 
 #### 16. Durcissement web et conteneurs — Moyenne

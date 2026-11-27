@@ -8,6 +8,21 @@ export enum ConsentType {
     PHOTO_PROCESSING = 'photo_processing',
 }
 
+export const CONSENT_TYPES: readonly ConsentType[] = Object.values(ConsentType);
+
+/**
+ * Versions du corpus légal acceptées pour un NOUVEAU consentement (miroir de
+ * `CONSENT_VERSION` côté front, `src/constants/consent.ts`). Ajouter la nouvelle
+ * version ici avant de déployer le front qui l'envoie. Les versions historiques
+ * déjà stockées (`legacy-backfill`, …) restent lisibles, elles ne sont simplement
+ * plus acceptées en saisie.
+ */
+export const ACCEPTED_CONSENT_VERSIONS: readonly string[] = ['2026-08-v1', '2026-11-v2'];
+
+export function isAcceptedConsentVersion(version: unknown): version is string {
+    return typeof version === 'string' && ACCEPTED_CONSENT_VERSIONS.includes(version);
+}
+
 export function hasConsent(candidate: Pick<Candidate, 'consentments'>, required: ConsentType[]): boolean {
     return required.every((type) => candidate.consentments?.[type] === true);
 }

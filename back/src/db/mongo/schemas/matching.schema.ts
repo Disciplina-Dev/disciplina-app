@@ -67,6 +67,7 @@ export const matchingSchema = new Schema<Matching>(
     {
         status: { type: String, enum: Object.values(OfferStatus), default: OfferStatus.NOT_MATCHED },
         candidates: { type: [matchingCandidateSchema], default: [] },
+        dismissed_candidate_ids: { type: [String], default: [] },
         interview_slots: { type: [String], default: [] },
         interview_location: { type: String },
     },

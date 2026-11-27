@@ -14,6 +14,7 @@ import { Localisation } from '@/types/candidate'
 import type { NeedsAnalysis, ScheduleSlot } from '@/types/needsAnalysis'
 import { formatCommune } from '@/data/reunionCommunes'
 import { ALL_SECTORS, SECTOR_LABELS } from '@/data/sectors'
+import { toScheduleSlotInput } from '@/utils/schedule'
 import SignaturePreviewModal from './SignaturePreviewModal'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -658,7 +659,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           ageMax: p.criteria?.ageMax != null ? String(p.criteria.ageMax) : '',
           softSkills: parseSoftSkills(p.criteria?.softSkills),
           softSkillsOther: '',
-          scheduleOptions: p.criteria?.scheduleOptions ?? [],
+          scheduleOptions: toScheduleSlotInput(p.criteria?.scheduleOptions),
           conditions: p.criteria?.conditions ?? '',
           additionalComments: p.criteria?.additionalComments ?? '',
         },
@@ -701,7 +702,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   const initialReferents = initialData?.referents
   const initialCompanyInfos = initialData?.companyInfos
 
-  const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<FormData>({
+  const { register, watch, setValue, getValues, handleSubmit, formState: { errors } } = useForm<FormData>({
     defaultValues: {
       companyName:        entreprise.nom_commercial ?? '',
       companySiret:       entreprise.siret ?? '',
@@ -736,6 +737,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
   }, [entreprise.adresse, setValue])
 
   const isDifferentResponsible = watch('isDifferentRecruitmentResponsible')
+  const legalRepName           = watch('legalRepName')
   const legalRepFunction       = watch('legalRepFunction')
   const responsibleFunction    = watch('recruitmentResponsibleFunction')
   const companySectors         = watch('companySectors') ?? []
@@ -866,13 +868,16 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
         ? [street, cpCommune].filter(Boolean).join(', ')
         : street
     // Non bloquant : un échec (droits, réseau) ne doit pas empêcher l'enregistrement de l'AB.
+    // Le représentant légal est facultatif (parfois inconnu) : on efface alors la
+    // valeur portée par l'entreprise, mais on ne remplace pas ses coordonnées
+    // génériques (téléphone / courriel) par du vide.
+    const legalRepName = data.legalRepName?.trim() ?? ''
     await updateCompany(parseInt(entreprise.id), {
       name: data.companyName,
       siret: data.companySiret,
       address: composedAddress,
-      legalReferent: data.legalRepName,
-      phone: data.legalRepPhone,
-      email: data.legalRepEmail,
+      legalReferent: legalRepName || null,
+      ...(legalRepName ? { phone: data.legalRepPhone, email: data.legalRepEmail } : {}),
     })
 
     const dayToPeriods = (v: DayStatus): string[] =>
@@ -897,7 +902,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           recruitmentResponsibleFunction: resolveFunction(data.recruitmentResponsibleFunction, data.recruitmentResponsibleFunctionOther),
         }
       : {
-          recruitmentResponsibleName: data.legalRepName,
+          recruitmentResponsibleName: legalRepName,
           recruitmentResponsiblePhone: data.legalRepPhone,
           recruitmentResponsibleEmail: data.legalRepEmail,
           recruitmentResponsibleFunction: null,
@@ -906,7 +911,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
     const input = {
       companyID:          parseInt(entreprise.id),
       userID:             currentUser.id,
-      legalRepFunction:   resolveFunction(data.legalRepFunction, data.legalRepFunctionOther),
+      legalRepFunction:   legalRepName ? resolveFunction(data.legalRepFunction, data.legalRepFunctionOther) : null,
       ...responsible,
       companySectors:     [...companySectors, ...(data.companySectorOther.trim() ? [data.companySectorOther.trim()] : [])],
       opco:               data.opco || null,
@@ -935,7 +940,7 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
           ageMin:             p.criteria.ageMin ? Number(p.criteria.ageMin) : null,
           ageMax:             p.criteria.ageMax ? Number(p.criteria.ageMax) : null,
           softSkills:         [...p.criteria.softSkills, ...(p.criteria.softSkillsOther ? [p.criteria.softSkillsOther] : [])].join(', ') || null,
-          scheduleOptions:    p.criteria.scheduleOptions,
+          scheduleOptions:    toScheduleSlotInput(p.criteria.scheduleOptions),
           conditions:         p.criteria.conditions || null,
           additionalComments: p.criteria.additionalComments || null,
         },
@@ -1074,22 +1079,33 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
               {/* ── Représentant légal ───────────────────────────────────────── */}
               <section className="flex flex-col gap-4">
                 <SectionTitle>Informations du représentant légal</SectionTitle>
-                <InputField id="legalRepName" label="Nom et prénom *" error={errors.legalRepName?.message}
-                  {...register('legalRepName', { required: 'Champ obligatoire' })} />
-                <SelectField id="legalRepFunction" label="Fonction *" options={FONCTIONS}
+                <p className="text-xs text-[var(--ds-text-subtle)]">
+                  Facultatif : le représentant légal n'est pas toujours connu. Au moins l'un des deux contacts
+                  (représentant légal ou responsable de recrutement) doit être renseigné.
+                </p>
+                <InputField id="legalRepName" label="Nom et prénom" error={errors.legalRepName?.message}
+                  {...register('legalRepName', {
+                    validate: (value) => {
+                      if (value?.trim()) return true
+                      const hasRecruitment =
+                        !!getValues('isDifferentRecruitmentResponsible') &&
+                        !!getValues('recruitmentResponsibleName')?.trim()
+                      return hasRecruitment || 'Renseignez le représentant légal ou le responsable de recrutement.'
+                    },
+                  })} />
+                <SelectField id="legalRepFunction" label="Fonction" options={FONCTIONS}
                   error={errors.legalRepFunction?.message}
-                  required
-                  {...register('legalRepFunction', { required: 'Champ obligatoire' })} />
+                  {...register('legalRepFunction')} />
                 {legalRepFunction === 'Autre' && (
                   <InputField id="legalRepFunctionOther" label="Précisez la fonction *" placeholder="Ex : Responsable d'agence…"
                     error={errors.legalRepFunctionOther?.message}
                     {...register('legalRepFunctionOther', { required: legalRepFunction === 'Autre' ? 'Champ obligatoire' : false })} />
                 )}
                 <div className="grid grid-cols-2 gap-3">
-                  <InputField id="legalRepPhone" label="Téléphone *" type="tel" error={errors.legalRepPhone?.message}
-                    {...register('legalRepPhone', { required: 'Champ obligatoire', pattern: { value: /^[0-9+\s\-().]{8,20}$/, message: 'Numéro invalide' } })} />
-                  <InputField id="legalRepEmail" label="Courriel *" type="email" error={errors.legalRepEmail?.message}
-                    {...register('legalRepEmail', { required: 'Champ obligatoire', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email invalide' } })} />
+                  <InputField id="legalRepPhone" label="Téléphone" type="tel" error={errors.legalRepPhone?.message}
+                    {...register('legalRepPhone', { pattern: { value: /^[0-9+\s\-().]{8,20}$/, message: 'Numéro invalide' } })} />
+                  <InputField id="legalRepEmail" label="Courriel" type="email" error={errors.legalRepEmail?.message}
+                    {...register('legalRepEmail', { pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Email invalide' } })} />
                 </div>
               </section>
 
@@ -1100,14 +1116,22 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   <div className={['flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-colors', isDifferentResponsible ? 'border-blue bg-blue' : 'border-[var(--ds-border-strong)] bg-[var(--ds-surface)]'].join(' ')}>
                     {isDifferentResponsible && <IconCheck width={12} height={12} className="text-white" strokeWidth={3} />}
                   </div>
-                  <input type="checkbox" className="sr-only" {...register('isDifferentRecruitmentResponsible')} />
-                  <span className="text-sm text-[var(--ds-text-muted)]">Le responsable de recrutement est différent du représentant légal</span>
+                  <input type="checkbox" className="sr-only" {...register('isDifferentRecruitmentResponsible', { deps: 'legalRepName' })} />
+                  <span className="text-sm text-[var(--ds-text-muted)]">
+                    {legalRepName?.trim()
+                      ? 'Le responsable de recrutement est différent du représentant légal'
+                      : 'Renseigner un responsable de recrutement (représentant légal inconnu)'}
+                  </span>
                 </label>
 
                 {isDifferentResponsible ? (
                   <div className="flex flex-col gap-4 rounded-lg border border-blue-light bg-blue-light/30 p-4">
                     <InputField id="recruitmentResponsibleName" label="Nom et prénom *" error={errors.recruitmentResponsibleName?.message}
-                      {...register('recruitmentResponsibleName', { required: isDifferentResponsible ? 'Champ obligatoire' : false })} />
+                      {...register('recruitmentResponsibleName', {
+                        required: isDifferentResponsible ? 'Champ obligatoire' : false,
+                        // Revalide le représentant légal : l'un des deux contacts suffit.
+                        deps: 'legalRepName',
+                      })} />
                     <SelectField id="recruitmentResponsibleFunction" label="Fonction" options={FONCTIONS}
                       {...register('recruitmentResponsibleFunction')} />
                     {responsibleFunction === 'Autre' && (
@@ -1124,7 +1148,9 @@ export default function NeedsAnalysisModal({ entreprise, currentUser, onClose, o
                   </div>
                 ) : (
                   <div className="rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface-sunken)] p-4 text-sm text-[var(--ds-text-subtle)]">
-                    Le représentant légal sera utilisé comme responsable de recrutement.
+                    {legalRepName?.trim()
+                      ? 'Le représentant légal sera utilisé comme responsable de recrutement.'
+                      : 'Aucun représentant légal renseigné : cochez la case ci-dessus et renseignez le responsable de recrutement.'}
                   </div>
                 )}
               </section>

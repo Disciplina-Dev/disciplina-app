@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
-import { IconAlert, IconArrowLeft, IconCar, IconCheck, IconChevronRight, IconClose, IconCompany, IconEye, IconFavorite, IconInfo, IconJob, IconLoader, IconMail, IconMailSent, IconMapPin, IconPhone, IconPlay, IconPlus, IconRefresh, IconSchedule, IconSend, IconSparkles, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers } from '@/components/ui/icons'
-import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION } from '@/graphql/queries'
+import { IconAlert, IconArrowLeft, IconCar, IconCheck, IconChevronRight, IconClose, IconCompany, IconEye, IconFavorite, IconFolder, IconInfo, IconJob, IconLoader, IconMail, IconMailSent, IconMapPin, IconPhone, IconPlay, IconPlus, IconRefresh, IconSchedule, IconSend, IconSparkles, IconTrash, IconUser, IconUserCheck, IconUserRemove, IconUsers } from '@/components/ui/icons'
+import { MATCH_OFFER, ADD_CANDIDATE_TO_OFFER, ADD_MANUAL_PROPOSED_CANDIDATE, ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION, SET_INTERVIEW_CONCLUSION, SET_IMMERSION_CONCLUSION, OFFER_RESPONSE_LINKS, UPDATE_OFFER, REMOVE_CANDIDATE_FROM_OFFER, UPDATE_MATCHED_CANDIDATE_STATUS, DELETE_OFFER, DELETE_OFFERS_BY_NEEDS_ANALYSIS, OFFERS_BY_NEEDS_ANALYSIS, BLACKLIST_AND_CLEANUP_COMPANY, CREATE_MATCH_SESSION, DISMISS_SUGGESTED_CANDIDATE } from '@/graphql/queries'
 import { MATCHED_CANDIDATE_STATUS_LABELS, MATCHED_CANDIDATE_STATUS_BADGE_CLASS, MatchedCandidateStatus } from '@/constants/matchedCandidateStatus'
 import { INTERVIEW_CONCLUSION_LABELS, INTERVIEW_CONCLUSION_BADGE_CLASS, InterviewConclusion } from '@/constants/interviewConclusion'
 import { IMMERSION_CONCLUSION_LABELS, IMMERSION_CONCLUSION_BADGE_CLASS, ImmersionConclusion } from '@/constants/immersionConclusion'
@@ -25,8 +25,10 @@ import HistoryModal from '@/features/matching/components/HistoryModal'
 import { isInterviewDatePast } from '@/utils/interview'
 import { EditNeedsAnalysisButton } from '@/features/abEntreprise/components/EditNeedsAnalysisButton'
 import ABDetailModal from '@/features/abEntreprise/components/ABDetailModal'
-import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus } from '@/graphql/hooks'
-import { abStatusBadge } from '@/types/needsAnalysis'
+import { useNeedsAnalysis, useDeleteNeedsAnalysis, useUpdateNeedsAnalysisAbStatus, useUpdateOfferActive } from '@/graphql/hooks'
+import Badge from '@/components/ui/Badge'
+import { abStatusBadge, isAbArchivedOnDrive } from '@/types/needsAnalysis'
+import { needsAnalysisAbDriveUrl } from '@/api/needsAnalysis'
 import { LOCALISATION_LABELS } from '@/data/reunionCommunes'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatScheduleSlots } from '@/utils/schedule'
@@ -104,6 +106,7 @@ interface Job {
   hasVehicle: boolean | null
   professionalExperience: boolean | null
   status: string | null
+  isActive?: boolean | null
   localisation: string[] | null
   sector: string | null
   salerInfo?: SalerInfo | null
@@ -121,6 +124,14 @@ interface MatchJobResult extends Job {
 }
 
 type CandidateDecision = 'accepted' | 'dismissed' | null
+
+// Statuts d'un candidat déjà destinataire du mail d'offre : le mail est parti
+// (PRE_SELECTED_MAIL_SEND) ou le candidat y a déjà répondu « non » (DECLINED,
+// qui n'est atteignable qu'après réception du mail).
+const ALREADY_MAILED_STATUSES: MatchedCandidateStatus[] = [
+  MatchedCandidateStatus.PRE_SELECTED_MAIL_SEND,
+  MatchedCandidateStatus.DECLINED,
+]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -468,7 +479,8 @@ function CandidateCard({
               )}
               <button
                 onClick={onSendMail}
-                className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] transition-all hover:bg-[var(--ds-surface-sunken)] active:scale-[0.97]"
+                disabled={isSaving}
+                className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--ds-border)] px-3 py-1.5 text-xs font-medium text-[var(--ds-text-muted)] transition-all hover:bg-[var(--ds-surface-sunken)] active:scale-[0.97] disabled:opacity-50"
               >
                 <IconMail width={13} height={13} /> Envoyer un mail
               </button>
@@ -583,10 +595,18 @@ function JobCard({
         </div>
       )}
 
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
         <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium ${chip.cls}`}>
           {chip.label}
         </span>
+        {job.isActive === false && (
+          <span
+            className="rounded-full bg-[var(--ds-surface-sunken)] px-2.5 py-0.5 text-[10px] font-semibold text-[var(--ds-text-muted)] ring-1 ring-inset ring-[var(--ds-border)]"
+            title="Offre inactive dans l'annuaire entreprises"
+          >
+            Inactive
+          </span>
+        )}
       </div>
     </button>
   )
@@ -600,6 +620,9 @@ function JobDetailsSection({
   isCreatingSession,
   onProposeCandidates,
   onShowCompanyInfo,
+  onSetActive,
+  isSavingActive,
+  abStatus,
   onDeleteOffer,
   onSeeAb,
 }: {
@@ -609,10 +632,20 @@ function JobDetailsSection({
   isCreatingSession: boolean
   onProposeCandidates: () => void
   onShowCompanyInfo: () => void
+  onSetActive: (active: boolean | null) => void
+  isSavingActive: boolean
+  /** Statut de l'AB parente, servant de repli quand l'offre est « Automatique ». */
+  abStatus?: string | null
   onDeleteOffer?: () => void
   onSeeAb?: () => void
 }) {
   const chip = statusChip(job.status)
+  // Statut actif/inactif effectif : override de l'offre, sinon statut de l'AB
+  // (null tant que l'AB n'est pas chargée → pas de pastille).
+  const effectiveStatus =
+    job.isActive === true ? 'ACTIVE' : job.isActive === false ? 'INACTIVE' : (abStatus ?? null)
+  const effectiveTone = effectiveStatus === 'ACTIVE' ? 'success' : effectiveStatus === 'ARCHIVED' ? 'warning' : 'neutral'
+  const effectiveLabel = effectiveStatus === 'ACTIVE' ? 'Active' : effectiveStatus === 'ARCHIVED' ? 'Archivée' : 'Inactive'
 
   return (
     <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
@@ -635,7 +668,25 @@ function JobDetailsSection({
             </span>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          <div
+            className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 shadow-sm"
+            title="Changer le statut de l'offre — « Automatique » suit le statut de l'analyse de besoin"
+          >
+            <span className="text-xs font-medium text-[var(--ds-text-subtle)]">Statut de l'offre</span>
+            <select
+              value={job.isActive === true ? 'ACTIVE' : job.isActive === false ? 'INACTIVE' : 'AUTO'}
+              onChange={(e) => onSetActive(e.target.value === 'AUTO' ? null : e.target.value === 'ACTIVE')}
+              disabled={isSavingActive}
+              aria-label="Statut de l'offre"
+              className="cursor-pointer bg-transparent text-sm font-semibold text-[var(--ds-text)] outline-none disabled:opacity-50"
+            >
+              <option value="AUTO">Automatique</option>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+            </select>
+            {effectiveStatus && <Badge tone={effectiveTone}>{effectiveLabel}</Badge>}
+          </div>
           {onSeeAb && (
             <button
               onClick={onSeeAb}
@@ -990,6 +1041,8 @@ function PreselectedCandidatesSection({
   candidates,
   isMailingAll,
   mailAllProgress,
+  includeAlreadyMailed,
+  onIncludeAlreadyMailedChange,
   onInfo,
   onSendMail,
   onRemove,
@@ -999,6 +1052,8 @@ function PreselectedCandidatesSection({
   candidates: MatchedCandidate[]
   isMailingAll: boolean
   mailAllProgress: { sent: number; total: number } | null
+  includeAlreadyMailed: boolean
+  onIncludeAlreadyMailedChange: (value: boolean) => void
   onInfo: (c: MatchedCandidate) => void
   onSendMail: (c: MatchedCandidate) => void
   onRemove: (c: MatchedCandidate) => void
@@ -1010,6 +1065,11 @@ function PreselectedCandidatesSection({
     currentUser?.role === UserRole.RH ||
     currentUser?.permission === Permission.RESPONSABLE ||
     currentUser?.permission === Permission.ADMIN
+
+  const alreadyMailedCount = candidates.filter((c) =>
+    ALREADY_MAILED_STATUSES.includes(c.status as MatchedCandidateStatus)
+  ).length
+  const mailableCount = includeAlreadyMailed ? candidates.length : candidates.length - alreadyMailedCount
 
   return (
     <div className="rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] p-5 shadow-sm">
@@ -1032,18 +1092,36 @@ function PreselectedCandidatesSection({
           {candidates.length > 0 && (
             <button
               onClick={onMailAll}
-              disabled={isMailingAll}
+              disabled={isMailingAll || mailableCount === 0}
+              title={mailableCount === 0 ? 'Tous les candidats ont déjà reçu le mail' : undefined}
               className="flex items-center gap-1 rounded-lg border border-blue/20 px-2.5 py-1 text-xs font-medium text-blue hover:bg-blue-light transition-colors disabled:opacity-50"
             >
               {isMailingAll ? (
                 <><IconLoader width={11} height={11} className="animate-spin" /> {mailAllProgress ? `${mailAllProgress.sent}/${mailAllProgress.total}` : '…'}</>
               ) : (
-                <><IconMailSent width={11} height={11} /> IconMail à tous</>
+                <><IconMailSent width={11} height={11} /> Mail à tous{mailableCount !== candidates.length ? ` (${mailableCount})` : ''}</>
               )}
             </button>
           )}
         </div>
       </div>
+
+      {alreadyMailedCount > 0 && (
+        <div className="mb-2 flex justify-end">
+          <label
+            className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-[var(--ds-text-subtle)]"
+            title="Par défaut, les candidats à qui le mail a déjà été envoyé sont exclus."
+          >
+            <input
+              type="checkbox"
+              checked={includeAlreadyMailed}
+              onChange={(e) => onIncludeAlreadyMailedChange(e.target.checked)}
+              className="h-3.5 w-3.5 accent-[var(--color-blue)]"
+            />
+            Inclure les candidats déjà contactés ({alreadyMailedCount})
+          </label>
+        </div>
+      )}
 
       {candidates.length === 0 ? (
         <div className="text-center py-4 px-3 bg-[var(--ds-surface-sunken)] rounded-lg">
@@ -1239,100 +1317,101 @@ function buildOfferMailBody(
   ouiUrl: string,
   nonUrl: string,
 ): string {
-  const name = candidateName?.split(' ')[0] ?? 'Candidat'
+  // Ce corps part tel quel vers /api/email/send, où `sanitizeMailHtml` supprime
+  // <style>, <div> et les classes : tout le style doit donc être inline sur les
+  // balises autorisées (a, p, span, ul/li). Sans ça les deux boutons arrivent en
+  // simples liens texte, ce qui pousse les candidats à répondre au mail.
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  const name = esc(candidateName?.split(' ')[0] ?? 'Candidat')
   const companyName = job.companyInfos?.name ?? job.companyName
   const offerTitle = job.jobRole || job.title
   const segments: string[] = []
 
-  if (offerTitle) {
-    segments.push(`<div class="job-title"><strong>Role</strong></br> ${offerTitle}</div>`)
-  }
+  const label = (text: string) =>
+    `<span style="color:#6b7280;font-size:11px;font-weight:bold">${esc(text)}</span>`
+  const row = (text: string, html: string) =>
+    `<p>${label(text)}<br><span style="color:#111827;font-size:13px;font-weight:bold">${html}</span></p>`
+
+  if (offerTitle) segments.push(row('RÔLE', esc(offerTitle)))
   if (job.sector && job.sector !== 'NONE') {
-    segments.push(`<div class="field"><div class="field-label">Secteur</div><div class="field-value">${formatEnumLabel(job.sector)}</div></div>`)
+    segments.push(row('SECTEUR', esc(formatEnumLabel(job.sector))))
   }
   if (job.localisation && job.localisation.length > 0) {
     const locs = job.localisation
       .map((l) => LOCALISATION_LABELS[l as keyof typeof LOCALISATION_LABELS] ?? l)
       .filter(Boolean)
       .join(', ')
-    if (locs) {
-      segments.push(`<div class="field"><div class="field-label"><strong>Localisation</strong></div><div class="field-value">${locs}</div></div>`)
-    }
+    if (locs) segments.push(row('LOCALISATION', esc(locs)))
   }
   for (const tp of job.desiredTp) {
     if (tp.missions.length === 0) continue
-    const items = tp.missions.map((m) => `<li>${m}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label"><strong>Missions</strong> — ${tpLabel(tp.tpType)}</div><ul class="mission-list">${items}</ul></div>`)
+    const items = tp.missions.map((m) => `<li>${esc(m)}</li>`).join('')
+    segments.push(`<p>${label(`MISSIONS — ${tpLabel(tp.tpType)}`)}</p><ul>${items}</ul>`)
   }
   const schedule = formatScheduleSlots(job.schedule)
   if (schedule.length > 0) {
-    const items = schedule.map((s) => `<li>${s}</li>`).join('')
-    segments.push(`<div class="field"><div class="field-label"><strong>Horaires</strong></div><ul class="mission-list">${items}</ul></div>`)
+    const items = schedule.map((s) => `<li>${esc(s)}</li>`).join('')
+    segments.push(`<p>${label('HORAIRES')}</p><ul>${items}</ul>`)
   }
   if (job.companyInfos?.activities && job.companyInfos.activities.length > 0) {
-    const tags = job.companyInfos.activities.map((a) => `<span class="activity-tag">${SECTOR_LABELS[a] ?? a}</span>`).join(' ')
-    segments.push(`<div class="field"><div class="field-label"><strong>Activités de l'entreprise</strong></div><div>${tags}</div></div>`)
+    const acts = job.companyInfos.activities.map((a) => SECTOR_LABELS[a] ?? a).join(', ')
+    segments.push(row("ACTIVITÉS DE L'ENTREPRISE", esc(acts)))
   }
-  const offerCard = segments.length > 0
-    ? `<div class="offer-card">${segments.join('')}</div>`
-    : ''
 
-  const introCompany = companyName ? ` chez <strong>${companyName}</strong>` : ''
+  const introCompany = companyName ? ` chez <strong>${esc(companyName)}</strong>` : ''
+
+  // Bouton « bulletproof » : <a> inline-block avec fond + padding. Empilés (un par
+  // paragraphe) plutôt qu'en flex : `display:flex` est supprimé par le sanitizer et
+  // mal supporté par Outlook, ce qui cassait la mise en page côte à côte.
+  const primaryButton =
+    `<p style="text-align:center">` +
+    `<a href="${esc(ouiUrl)}" style="display:inline-block;background-color:#60207E;color:#ffffff;` +
+    `padding:16px 40px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none">` +
+    `✓&nbsp;Oui, je veux postuler à cette offre</a>` +
+    `</p>`
+  const secondaryButton =
+    `<p style="text-align:center">` +
+    `<a href="${esc(nonUrl)}" style="display:inline-block;background-color:#f3f4f6;color:#374151;` +
+    `padding:16px 40px;border-radius:8px;font-size:16px;font-weight:bold;text-decoration:none;border:none">` +
+    `✗&nbsp;Non, je ne suis pas intéressé(e)</a>` +
+    `</p>`
+
+  // La version texte du mail (générée côté back en retirant les balises) perd les
+  // href : on répète donc les URLs en clair pour les clients sans HTML.
+  const fallbackLinks =
+    `<p><span style="color:#6b7280;font-size:11px;font-weight:bold">LES BOUTONS NE S'AFFICHENT PAS ?</span><br>` +
+    `<span style="color:#6b7280;font-size:12px">Copiez-collez l'un de ces liens dans votre navigateur :<br>` +
+    `Oui&nbsp;: <a href="${esc(ouiUrl)}" style="color:#60207E;font-size:12px">${esc(ouiUrl)}</a><br>` +
+    `Non&nbsp;: <a href="${esc(nonUrl)}" style="color:#60207E;font-size:12px">${esc(nonUrl)}</a></span></p>`
 
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 20px; color: #1f2937; }
-  .logo { color: #60207E; font-weight: 800; font-size: 20px; margin-bottom: 28px; letter-spacing: -0.5px; }
-  p { line-height: 1.6; margin: 0 0 16px; }
-  .offer-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 16px 0; }
-  .field { margin-bottom: 10px; }
-  .field-label { font-size: 10px; text-transform: uppercase; font-weight: 600; color: #9ca3af; letter-spacing: 0.5px; }
-  .field-value { font-size: 13px; font-weight: 600; color: #1f2937; margin-top: 2px; }
-  .company { font-size: 17px; font-weight: 800; color: #60207E; margin-bottom: 4px; }
-  .job-title { font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; }
-  .mission-list { list-style: none; padding: 0; margin: 4px 0 0; }
-  .mission-list li { padding: 3px 0; font-size: 13px; color: #374151; position: relative; padding-left: 16px; }
-  .mission-list li::before { content: "•"; position: absolute; left: 0; color: #60207E; }
-  .activity-tag { display: inline-block; background: #f3e8ff; color: #60207E; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin: 2px; }
-  .question { font-size: 17px; font-weight: 700; margin: 28px 0 24px; }
-  .buttons { display: flex; gap: 12px; margin: 28px 0; }
-  .btn { display: inline-block; padding: 14px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; }
-  .btn-oui { background: #60207E; color: #ffffff; }
-  .btn-non { background: #f3f4f6; color: #374151; }
-  .benefits { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 16px; margin: 20px 0; }
-  .benefits h4 { color: #60207E; font-size: 14px; margin: 0 0 8px; }
-  .benefits ul { margin: 0; padding-left: 20px; }
-  .benefits li { font-size: 13px; color: #374151; margin-bottom: 4px; }
-  .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 12px; }
-</style>
-</head>
+<head><meta charset="utf-8"></head>
 <body>
-  <div class="logo">DISCIPLINA</div>
+  <p style="color:#60207E;font-size:20px;font-weight:bold">DISCIPLINA</p>
   <p>Bonjour ${name},</p>
-  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil :</p>
-  ${offerCard}
-  <div class="benefits">
-    <h4>Pourquoi postuler ?</h4>
-    <ul>
-      <li>Une formation en alternance rémunérée</li>
-      <li>Une expérience professionnelle enrichissante</li>
-      <li>Un accompagnement personnalisé tout au long de votre parcours</li>
-      <li>Un diplôme reconnu à la clé</li>
-    </ul>
-  </div>
-  <p class="question">Souhaitez-vous postuler à cette offre ?</p>
-  <div class="buttons">
-    <a href="${ouiUrl}" class="btn btn-oui">✓ &nbsp;Oui, je suis intéressé(e)</a>
-    <a href="${nonUrl}" class="btn btn-non">✗ &nbsp;Non, merci</a>
-  </div>
-  <p>Un simple clic suffit. Notre équipe vous recontactera rapidement pour la suite du processus.</p>
-  <div class="footer">
-    Cordialement,<br>
-    L'équipe DISCIPLINA<br>
-    <small style="color:#9ca3af;">Cet email a été envoyé automatiquement. Merci de ne pas y répondre.</small>
-  </div>
+  <p>Nous avons sélectionné pour vous une offre en alternance${introCompany} qui correspond à votre profil&nbsp;:</p>
+  ${segments.join('')}
+  <p><span style="color:#60207E;font-size:14px;font-weight:bold">Pourquoi postuler ?</span></p>
+  <ul>
+    <li>Une formation en alternance rémunérée</li>
+    <li>Une expérience professionnelle enrichissante</li>
+    <li>Un accompagnement personnalisé tout au long de votre parcours</li>
+    <li>Un diplôme reconnu à la clé</li>
+  </ul>
+  <p style="text-align:center;font-size:17px;font-weight:bold">Souhaitez-vous postuler à cette offre&nbsp;?</p>
+  ${primaryButton}
+  ${secondaryButton}
+  <p style="text-align:center;font-size:13px;color:#6b7280">Un simple clic suffit&nbsp;: votre réponse est enregistrée automatiquement.</p>
+  <p style="background-color:#fef3c7;color:#92400e;padding:12px 16px;border-radius:8px;font-size:13px">
+    <strong>Merci de ne pas répondre à cet e-mail.</strong> Une réponse par mail ne peut pas être traitée&nbsp;:
+    pour indiquer votre choix, cliquez sur l'un des deux boutons ci-dessus.
+  </p>
+  ${fallbackLinks}
+  <hr style="border:none;height:1px;background-color:#e5e7eb">
+  <p><span style="color:#9ca3af;font-size:12px">Cordialement,<br>L'équipe DISCIPLINA<br>Cet e-mail a été envoyé automatiquement, merci de ne pas y répondre.</span></p>
 </body>
 </html>`
 }
@@ -1557,7 +1636,7 @@ function formatSlot(iso: string, tz: string): string {
 
 
 
-function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void }) {
+function RightPanel({ selectedJob, currentUser, onJobDeleted, onOfferUpdated }: { selectedJob: Job | null; currentUser: import('@/store/authStore').AppUser | null; onJobDeleted?: () => void; onOfferUpdated?: () => void }) {
   // Fuseau du tenant : regionStore est la source de vérité (persistée au login
   // par LoginPage.tsx), plutôt que AppUser qui peut être null au 1er rendu.
   const region = useRegionStore((s) => s.region)
@@ -1570,6 +1649,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const [isMatching, setIsMatching] = useState(false)
   const [isMailingAll, setIsMailingAll] = useState(false)
   const [mailAllProgress, setMailAllProgress] = useState<{ sent: number; total: number } | null>(null)
+  // « Mail à tous » exclut par défaut les candidats déjà contactés.
+  const [includeAlreadyMailed, setIncludeAlreadyMailed] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [matchError, setMatchError] = useState<string | null>(null)
   const [hasLaunched, setHasLaunched] = useState(false)
@@ -1601,6 +1682,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [showOfferAbDetail, setShowOfferAbDetail] = useState(false)
+  const [isActiveSaving, setIsActiveSaving] = useState(false)
+  const { updateOfferActive } = useUpdateOfferActive()
 
   const interviewLocationNeedsAnalysis = useNeedsAnalysis(selectedJob?.needsAnalysisId ?? null)
   const interviewDefaultLocation =
@@ -1682,21 +1765,43 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
 
   useEffect(() => {
     if (selectedJob) loadJobData(selectedJob)
+    setIncludeAlreadyMailed(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedJob?.id])
 
-  const handleSaveMatch = async (candidateId: string) => {
+  const handleDismissCandidate = async (candidate: MatchedCandidate) => {
+    setDecisions((p) => ({ ...p, [candidate.id]: 'dismissed' }))
     if (!selectedJob) return
+    try {
+      const result = await offerGraphqlClient.mutation(DISMISS_SUGGESTED_CANDIDATE, {
+        offerId: selectedJob.id,
+        candidateId: candidate.id,
+      }).toPromise()
+      if (result.error) throw new Error(result.error.message)
+    } catch (err: unknown) {
+      // Échec de persistance : on annule l'écartement pour ne pas laisser croire
+      // que le candidat ne reviendra pas au prochain chargement.
+      setMatchError(err instanceof Error ? err.message : 'Erreur inconnue')
+      setDecisions((p) => { const n = { ...p }; delete n[candidate.id]; return n })
+      setSuggestedCandidates((p) => (p.some((c) => c.id === candidate.id) ? p : [candidate, ...p]))
+    }
+  }
+
+  const handleSaveMatch = async (candidateId: string): Promise<boolean> => {
+    if (!selectedJob) return false
     setSavingIds((p) => new Set(p).add(candidateId))
     try {
       const result = await offerGraphqlClient.mutation(ADD_CANDIDATE_TO_OFFER, { offerId: selectedJob.id, candidateId }).toPromise()
-      if (!result.error) {
-        setSavedCandidateIds((p) => new Set(p).add(candidateId))
-        setSuggestedCandidates((p) => p.filter((c) => c.id !== candidateId))
-        if (result.data?.addCandidateToOffer?.matchedCandidate && jobData) {
-          setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToOffer.matchedCandidate })
-        }
+      if (result.error) {
+        setMatchError(result.error.message)
+        return false
       }
+      setSavedCandidateIds((p) => new Set(p).add(candidateId))
+      setSuggestedCandidates((p) => p.filter((c) => c.id !== candidateId))
+      if (result.data?.addCandidateToOffer?.matchedCandidate && jobData) {
+        setJobData({ ...jobData, matchedCandidate: result.data.addCandidateToOffer.matchedCandidate })
+      }
+      return true
     } finally {
       setSavingIds((p) => { const n = new Set(p); n.delete(candidateId); return n })
     }
@@ -1715,15 +1820,18 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
   const handleMailAll = async () => {
     if (!selectedJob || !jobData) return
     const preselected = filterByStatus(jobData.matchedCandidate, preselectedStatuses)
-    if (preselected.length === 0) return
+    const recipients = includeAlreadyMailed
+      ? preselected
+      : preselected.filter((c) => !ALREADY_MAILED_STATUSES.includes(c.status as MatchedCandidateStatus))
+    if (recipients.length === 0) return
 
     setIsMailingAll(true)
-    setMailAllProgress({ sent: 0, total: preselected.length })
+    setMailAllProgress({ sent: 0, total: recipients.length })
 
     const sentIds = new Set<string>()
 
-    for (let i = 0; i < preselected.length; i++) {
-      const candidate = preselected[i]
+    for (let i = 0; i < recipients.length; i++) {
+      const candidate = recipients[i]
       try {
         const linksResult = await offerGraphqlClient.query(OFFER_RESPONSE_LINKS, { offerId: selectedJob.id, candidateId: candidate.id }).toPromise()
         if (linksResult.data?.offerResponseLinks) {
@@ -1741,7 +1849,7 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
       } catch {
         // continue with next candidate on error
       }
-      setMailAllProgress({ sent: i + 1, total: preselected.length })
+      setMailAllProgress({ sent: i + 1, total: recipients.length })
     }
 
     if (jobData) {
@@ -1764,6 +1872,17 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
       const { ouiUrl, nonUrl } = result.data.offerResponseLinks
       setMailState({ candidate, ouiUrl, nonUrl })
     }
+  }
+
+  // Depuis le matching automatique, « Envoyer un mail » doit d'abord enregistrer
+  // le match : sans candidat rattaché à l'offre, les liens Oui/Non du mail ne
+  // peuvent pas enregistrer la réponse et le candidat n'apparaît nulle part.
+  const handleSendMailFromSuggestion = async (candidate: MatchedCandidate) => {
+    if (!savedCandidateIds.has(candidate.id)) {
+      const saved = await handleSaveMatch(candidate.id)
+      if (!saved) return
+    }
+    await handleOpenMail(candidate)
   }
 
   const handleMailSent = async (candidate: MatchedCandidate) => {
@@ -1936,6 +2055,21 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
     }
   }
 
+  /** Statut actif/inactif propre à l'offre ; null = hérite du statut de l'AB. */
+  const handleSetActive = async (active: boolean | null) => {
+    if (!selectedJob) return
+    setIsActiveSaving(true)
+    try {
+      const result = await updateOfferActive(selectedJob.id, active)
+      if (!result.error) {
+        setJobData((prev) => (prev ? { ...prev, isActive: active } : prev))
+        onOfferUpdated?.()
+      }
+    } finally {
+      setIsActiveSaving(false)
+    }
+  }
+
   const handleCreateMatchSession = async (offerId: string, companyEmail: string, candidates: { id: string; description: string }[], templateId?: string, cc?: string[]): Promise<string> => {
     const result = await offerGraphqlClient
       .mutation(CREATE_MATCH_SESSION, { offerId, companyEmail, candidates, templateId, cc })
@@ -2083,6 +2217,9 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
       <JobDetailsSection
         job={jobData}
         onSetStatus={handleSetManualStatus}
+        onSetActive={handleSetActive}
+        isSavingActive={isActiveSaving}
+        abStatus={interviewLocationNeedsAnalysis.data?.needsAnalysis?.abStatus}
         hasAcceptedCandidates={toSendCandidates.length > 0}
         isCreatingSession={false}
         onProposeCandidates={() => setSendToCompanyOpen(true)}
@@ -2105,6 +2242,8 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         candidates={preselectedCandidates}
         isMailingAll={isMailingAll}
         mailAllProgress={mailAllProgress}
+        includeAlreadyMailed={includeAlreadyMailed}
+        onIncludeAlreadyMailedChange={setIncludeAlreadyMailed}
         onInfo={setDrawerCandidate}
         onSendMail={handleOpenMail}
         onRemove={handleRemoveCandidate}
@@ -2142,14 +2281,17 @@ function RightPanel({ selectedJob, currentUser, onJobDeleted }: { selectedJob: J
         relaxedCriteria={jobData?.relaxedCriteria}
         onLaunch={() => runMatch(selectedJob)}
         onAccept={(id) => setDecisions((p) => ({ ...p, [id]: 'accepted' }))}
-        onDismiss={(id) => setDecisions((p) => ({ ...p, [id]: 'dismissed' }))}
+        onDismiss={(id) => {
+          const candidate = suggestedCandidates.find((c) => c.id === id)
+          if (candidate) handleDismissCandidate(candidate)
+        }}
         onRemove={(id) => {
           setSuggestedCandidates((p) => p.filter((c) => c.id !== id))
           setDecisions((p) => { const n = { ...p }; delete n[id]; return n })
         }}
         onInfo={setDrawerCandidate}
         onSaveMatch={handleSaveMatch}
-        onSendMail={handleOpenMail}
+        onSendMail={handleSendMailFromSuggestion}
       />
 
       {sendToCompanyOpen && (
@@ -2524,6 +2666,18 @@ function AbHeader({
       </div>
       {ab && (
         <div className="flex items-center gap-2">
+          {isAbArchivedOnDrive(ab.status) && (
+            <a
+              href={needsAnalysisAbDriveUrl(ab.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
+              title="Ouvrir l'AB dans le Drive"
+            >
+              <IconFolder width={16} height={16} />
+              <span className="hidden md:inline">AB dans le Drive</span>
+            </a>
+          )}
           <button
             onClick={() => setShowAbDetail(true)}
             className="flex items-center gap-1.5 rounded-xl border border-[var(--ds-border)] bg-[var(--ds-surface)] px-3 py-2 text-sm font-semibold text-[var(--ds-text-muted)] shadow-sm transition-all hover:border-blue hover:text-blue md:px-4"
@@ -2688,7 +2842,7 @@ export default function Matching() {
 
         {/* ─ Right: Detail panel ─ */}
         <div className="flex-1 overflow-y-auto px-5 pt-5">
-          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} />
+          <RightPanel selectedJob={selectedJob} currentUser={currentUser} onJobDeleted={() => { setSelectedJobId(null); reexecuteJobsQuery() }} onOfferUpdated={() => reexecuteJobsQuery({ requestPolicy: 'network-only' })} />
         </div>
       </div>
     </div>

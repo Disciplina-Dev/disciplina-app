@@ -60,3 +60,32 @@ const OPTIONS: sanitizeHtml.IOptions = {
 export function sanitizeMailHtml(html: string): string {
     return sanitizeHtml(html, OPTIONS);
 }
+
+// Entités que sanitize-html émet lui-même en ré-encodant le HTML nettoyé.
+const TEXT_ENTITIES: Record<string, string> = {
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+    '&nbsp;': ' ',
+};
+
+/**
+ * Version texte d'un mail déjà passé par `sanitizeMailHtml`, pour la partie
+ * `text/plain` (multipart/alternative). Les entités doivent être décodées : sans ça
+ * une URL contenant `&` (ex. lien signé `?…&sig=…&ts=…`) arrive en clair avec
+ * `&amp;` et ne fonctionne pas si le candidat la copie depuis sa messagerie.
+ * Les sauts de ligne et fins de bloc sont conservés pour que les liens répétés en
+ * clair restent lisibles/copiables dans les clients sans HTML.
+ */
+export function htmlToPlainText(html: string): string {
+    return html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(p|li|ul|ol|h2|h3|hr)>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&(amp|lt|gt|quot|#39|nbsp);/g, (entity) => TEXT_ENTITIES[entity])
+        .replace(/[ \t]*\n[ \t]*/g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}

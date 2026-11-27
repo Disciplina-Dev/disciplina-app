@@ -43,6 +43,10 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getCandidateSentCompanies(candidateId);
         },
+        candidateMatchPropositions: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.getCandidateMatchPropositions(candidateId);
+        },
         candidatePlacement: async (_: unknown, { candidateId }: { candidateId: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.getCandidatePlacement(candidateId);
@@ -69,6 +73,14 @@ export const resolvers = {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return await offerService.update(id, offer);
         },
+        updateOfferActive: async (
+            _: unknown,
+            { id, active }: { id: string; active?: boolean | null },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH, JobRole.COMMERCIAL]);
+            return await offerService.setActive(id, active ?? null);
+        },
         unmatchOffer: async (_: unknown, { id }: { id: string }, context: any) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.unmatchAll(id);
@@ -88,6 +100,14 @@ export const resolvers = {
         ) => {
             authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
             return offerService.removeCandidate(offerId, candidateId);
+        },
+        dismissSuggestedCandidate: async (
+            _: unknown,
+            { offerId, candidateId }: { offerId: string; candidateId: string },
+            context: any,
+        ) => {
+            authGuardRole(context.user, Permission.EMPLOYEE, [JobRole.RH]);
+            return offerService.dismissSuggestedCandidate(offerId, candidateId);
         },
         updateMatchedCandidateStatus: async (
             _: unknown,

@@ -2,6 +2,7 @@ import { query as queryDefault } from './connection';
 import { logger } from '../../external/logger';
 import { TENANT_TIMEZONE } from '../../config/tenant';
 import { migrateSectors } from './sectorsMigration';
+import { encryptToken, isEncryptedToken } from '../../external/crypto/token-cipher';
 
 type QueryFn = <T>(sql: string, params?: unknown[]) => Promise<T>;
 
@@ -28,6 +29,13 @@ const REQUIRED_COLUMNS: ColumnSpec[] = [
     // Booking: modèle de mail de proposition d'entretien (lien de réservation envoyé au candidat).
     { table: 'booking_settings', column: 'proposition_subject', definition: 'VARCHAR(255) DEFAULT NULL' },
     { table: 'booking_settings', column: 'proposition_body', definition: 'TEXT DEFAULT NULL' },
+    // Blocages de dates : portée (pour qui) et période de saisie (#1206).
+    {
+        table: 'calendar_day_blocks',
+        column: 'scope',
+        definition: "ENUM('SELF','ALL','SECTOR','USERS') NOT NULL DEFAULT 'SELF'",
+    },
+    { table: 'calendar_day_blocks', column: 'group_key', definition: "VARCHAR(36) NOT NULL DEFAULT ''" },
     // Historique des modifications enrichi : auteur de la modif + statut avant changement.
     { table: 'company_history', column: 'modified_by', definition: 'INT DEFAULT NULL' },
     { table: 'company_history', column: 'previous_status', definition: 'VARCHAR(50) DEFAULT NULL' },
@@ -201,23 +209,60 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
     },
     {
         // Blocage de dates dans l'agenda d'un RH : une ligne par jour et par
-        // portée (NULL = tout le monde). `kind = 'OPEN'` = dérogation personnelle
-        // qui annule un blocage global pour un seul utilisateur.
+        // portée (`scope` = SELF/ALL/SECTOR/USERS). `kind = 'OPEN'` = dérogation
+        // personnelle qui annule un blocage collectif pour un seul utilisateur.
+        // `group_key` regroupe les jours d'une même période.
         table: 'calendar_day_blocks',
         ddl: `CREATE TABLE IF NOT EXISTS calendar_day_blocks (
             id INT AUTO_INCREMENT PRIMARY KEY,
             day DATE NOT NULL,
             user_id INT DEFAULT NULL,
             kind ENUM('BLOCK','OPEN') NOT NULL DEFAULT 'BLOCK',
+            scope ENUM('SELF','ALL','SECTOR','USERS') NOT NULL DEFAULT 'SELF',
             reason VARCHAR(255) NOT NULL,
             created_by INT DEFAULT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            group_key VARCHAR(36) NOT NULL DEFAULT '',
             scope_key VARCHAR(16) NOT NULL,
             UNIQUE KEY uniq_calendar_day_blocks_scope_day (scope_key, day),
             INDEX idx_calendar_day_blocks_day (day),
             INDEX idx_calendar_day_blocks_user (user_id),
+            INDEX idx_calendar_day_blocks_group (group_key),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Cibles d'un blocage collectif : `S:<sector_id>` (membres du secteur,
+        // résolus via user_sectors) ou `U:<user_id>` (personnes sélectionnées).
+        table: 'calendar_day_block_targets',
+        ddl: `CREATE TABLE IF NOT EXISTS calendar_day_block_targets (
+            block_id INT NOT NULL,
+            target VARCHAR(64) NOT NULL,
+            PRIMARY KEY (block_id, target),
+            INDEX idx_calendar_day_block_targets_target (target),
+            FOREIGN KEY (block_id) REFERENCES calendar_day_blocks(id) ON DELETE CASCADE ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Créneaux occupés par un entretien (date + heure) : un entretien posé
+        // sur l'agenda d'un RH bloque le même créneau pour les RH du même
+        // secteur (page de réservation, créneaux candidat, agenda interne).
+        // `source_event_id` lie la ligne à l'événement Google d'origine.
+        table: 'calendar_slot_occupations',
+        ddl: `CREATE TABLE IF NOT EXISTS calendar_slot_occupations (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            owner_user_id INT NOT NULL,
+            start_at DATETIME NOT NULL,
+            end_at DATETIME NOT NULL,
+            label VARCHAR(255) NOT NULL DEFAULT '',
+            source ENUM('CALENDAR','PUBLIC_BOOKING','EXTERNAL_INTERVIEW') NOT NULL DEFAULT 'CALENDAR',
+            source_event_id VARCHAR(255) DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uniq_calendar_slot_occupations_owner_start (owner_user_id, start_at),
+            INDEX idx_calendar_slot_occupations_start (start_at, end_at),
+            INDEX idx_calendar_slot_occupations_source_event (source_event_id),
+            FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE ON UPDATE CASCADE
         )`,
     },
     {
@@ -378,7 +423,7 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             redirect_uris JSON NOT NULL,
             auth_method VARCHAR(32) NOT NULL DEFAULT 'none',
             scope VARCHAR(255) DEFAULT NULL,
-            client_secret VARCHAR(128) DEFAULT NULL,
+            client_secret VARCHAR(512) DEFAULT NULL,
             client_id_issued_at BIGINT DEFAULT NULL,
             client_secret_expires_at BIGINT DEFAULT NULL,
             user_id INT DEFAULT NULL,
@@ -422,6 +467,41 @@ const REQUIRED_TABLES: { table: string; ddl: string }[] = [
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_mcp_audit_user_date (user_id, created_at),
             INDEX idx_mcp_audit_date (created_at)
+        )`,
+    },
+    {
+        // Historique des consentements candidats (GDPR_INF_08.2) : journal en ajout
+        // seul, une ligne par type et par événement. candidate_id = UUID MongoDB.
+        table: 'candidate_consent_history',
+        ddl: `CREATE TABLE IF NOT EXISTS candidate_consent_history (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            candidate_id VARCHAR(36) NOT NULL,
+            consent_type ENUM('data_processing', 'data_sharing', 'ai_processing', 'photo_processing') NOT NULL,
+            action ENUM('GRANT', 'WITHDRAW') NOT NULL,
+            consent_version VARCHAR(32) NOT NULL,
+            source ENUM('CREATE', 'UPDATE', 'WITHDRAWAL', 'BACKFILL') NOT NULL,
+            recorded_by INT DEFAULT NULL,
+            recorded_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+            INDEX idx_consent_history_candidate (candidate_id, consent_type, recorded_at),
+            INDEX idx_consent_history_recorded_by (recorded_by),
+            CONSTRAINT fk_consent_history_recorded_by FOREIGN KEY (recorded_by) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE
+        )`,
+    },
+    {
+        // Journal d'accès aux données candidat (GDPR_INF_06.5) : ajout seul, UUID uniquement.
+        // candidate_id NULL = consultation d'une liste en masse (result_count = taille).
+        table: 'candidate_access_log',
+        ddl: `CREATE TABLE IF NOT EXISTS candidate_access_log (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            candidate_id VARCHAR(128) DEFAULT NULL,
+            actor_id INT DEFAULT NULL,
+            actor_type ENUM('STAFF', 'EXTERNAL') NOT NULL,
+            action ENUM('VIEW', 'LIST', 'SSN_UNMASK', 'PDF_EXPORT', 'CV_READ', 'FILE_READ', 'AVATAR_READ') NOT NULL,
+            result_count INT NOT NULL DEFAULT 1,
+            created_at TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+            INDEX idx_access_log_candidate (candidate_id, created_at),
+            INDEX idx_access_log_actor (actor_id, created_at),
+            INDEX idx_access_log_date (created_at)
         )`,
     },
     {
@@ -574,6 +654,26 @@ export async function runMysqlMigrations(
         logger.info('MySQL migration: widened external_access.signature to VARCHAR(191)');
     }
 
+    // #1120 : client_secret DCR chiffré (AES-256-GCM, iv:tag:data > 128 car.) →
+    // élargit la colonne puis chiffre les secrets legacy en clair.
+    const secretCol = await dbQuery<{ CHARACTER_MAXIMUM_LENGTH: number }[]>(
+        "SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mcp_oauth_clients' AND COLUMN_NAME = 'client_secret'",
+    );
+    if (secretCol[0] && Number(secretCol[0].CHARACTER_MAXIMUM_LENGTH) < 512) {
+        await dbQuery('ALTER TABLE mcp_oauth_clients MODIFY COLUMN client_secret VARCHAR(512) DEFAULT NULL');
+        logger.info('MySQL migration: widened mcp_oauth_clients.client_secret to VARCHAR(512)');
+    }
+    const plainSecrets = await dbQuery<{ client_id: string; client_secret: string }[]>(
+        'SELECT client_id, client_secret FROM mcp_oauth_clients WHERE client_secret IS NOT NULL',
+    );
+    for (const row of plainSecrets) {
+        if (isEncryptedToken(row.client_secret)) continue;
+        await dbQuery('UPDATE mcp_oauth_clients SET client_secret = ? WHERE client_id = ?', [
+            encryptToken(row.client_secret),
+            row.client_id,
+        ]);
+    }
+
     for (const { table, column, definition } of REQUIRED_COLUMNS) {
         const rows = await dbQuery<{ count: number }[]>(
             'SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
@@ -594,6 +694,33 @@ export async function runMysqlMigrations(
     if (Number(sirenIndex[0]?.count) === 0) {
         await dbQuery('CREATE INDEX idx_companies_siren ON companies (siren)');
         logger.info('MySQL migration: created index idx_companies_siren');
+    }
+
+    // Blocages de dates historiques (#1206) : les lignes existantes n'avaient
+    // qu'un jour et deux portées (`user_id NULL` = tout le monde). On rend la
+    // portée explicite et on rattache chaque jour à sa propre période — une
+    // entrée par jour dans l'interface, comme avant.
+    const globalBlocks = await dbQuery<{ affectedRows: number }>(
+        "UPDATE calendar_day_blocks SET scope = 'ALL' WHERE kind = 'BLOCK' AND user_id IS NULL AND scope = 'SELF'",
+    );
+    if (Number(globalBlocks?.affectedRows) > 0) {
+        logger.info(
+            { rows: globalBlocks.affectedRows },
+            'MySQL migration: calendar_day_blocks global blocks scoped ALL',
+        );
+    }
+    const blockGroups = await dbQuery<{ affectedRows: number }>(
+        "UPDATE calendar_day_blocks SET group_key = CONCAT('L', id) WHERE kind = 'BLOCK' AND group_key = ''",
+    );
+    if (Number(blockGroups?.affectedRows) > 0) {
+        logger.info({ rows: blockGroups.affectedRows }, 'MySQL migration: calendar_day_blocks periods backfilled');
+    }
+    const blockGroupIndex = await dbQuery<{ count: number }[]>(
+        "SELECT COUNT(*) AS count FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'calendar_day_blocks' AND INDEX_NAME = 'idx_calendar_day_blocks_group'",
+    );
+    if (Number(blockGroupIndex[0]?.count) === 0) {
+        await dbQuery('CREATE INDEX idx_calendar_day_blocks_group ON calendar_day_blocks (group_key)');
+        logger.info('MySQL migration: created index idx_calendar_day_blocks_group');
     }
 
     // Rôle PEDA (2026-07-08) : élargit l'ENUM users.role. mysql-init.sql ne

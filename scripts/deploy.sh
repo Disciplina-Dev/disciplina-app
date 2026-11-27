@@ -108,6 +108,23 @@ if (( ! DRY )); then
     [[ -n "$(docker compose ps -q sql-db nosql-db 2>/dev/null)" ]] \
         || die "sql-db / nosql-db doivent être up : docker compose up -d sql-db nosql-db"
 fi
+# Dernier backup nocturne (backup-db.sh) : avertit s'il est absent ou > 26h.
+if [[ ! -f backups/.last-backup ]]; then
+    warn "aucun backup nocturne enregistré (backups/.last-backup) : scripts/backup-db.sh"
+elif [[ -z "$(find backups/.last-backup -mmin -1560 2>/dev/null)" ]]; then
+    warn "dernier backup nocturne > 26h ($(cat backups/.last-backup)) : veille du Mac mini ? voir README (pmset)"
+fi
+# Test de restauration (restore-test.sh, hebdo) : avertit s'il est absent ou > 10 jours.
+if [[ ! -f backups/.last-restore-test ]]; then
+    warn "aucun test de restauration enregistré (backups/.last-restore-test) : scripts/restore-test.sh"
+elif [[ -z "$(find backups/.last-restore-test -mtime -10 2>/dev/null)" ]]; then
+    warn "dernier test de restauration > 10 jours ($(cat backups/.last-restore-test)) : scripts/restore-test.sh"
+fi
+# Chiffrement disque (GDPR_INF_02.1) : avertit si FileVault n'est pas actif (macOS).
+if [[ "$(uname -s)" == "Darwin" ]] && command -v fdesetup >/dev/null 2>&1; then
+    fdesetup status 2>/dev/null | grep -q "FileVault is On" \
+        || warn "FileVault inactif : chiffrement disque requis (HOWTODEPLOY.md, Disk encryption)"
+fi
 log "  pré-requis OK"
 
 # ------------------------------------------------------------------ 2. git
@@ -213,6 +230,25 @@ if (( ! DRY )); then
     "${COMPOSE_PROD[@]}" ps
 fi
 
+# Historique des consentements (GDPR_INF_08.2) : reprend les consentements sans
+# historique et répare un écart éventuel, puis contrôle. Idempotent, insertion
+# seule dans candidate_consent_history (Mongo en lecture). Lancé dans le conteneur
+# backend (bases non joignables depuis l'hôte). Un échec n'arrête pas le
+# déploiement (l'application tourne déjà) : il est signalé dans le résumé.
+CONSENT_RESULT="N/A"
+CONSENT_CLI=("${COMPOSE_PROD[@]}" exec -T backend node dist/cli/backfillConsentHistory.js --tenant all)
+log "  historique des consentements (GDPR_INF_08.2)..."
+if (( DRY )); then
+    log "  \$ ${CONSENT_CLI[*]}"
+    log "  \$ ${CONSENT_CLI[*]} --verify"
+elif "${CONSENT_CLI[@]}" && "${CONSENT_CLI[@]}" --verify; then
+    CONSENT_RESULT="OK"
+    log "  historique des consentements : OK"
+else
+    CONSENT_RESULT="FAIL"
+    warn "historique des consentements : écart ou échec, relancer à la main (HOWTODEPLOY.md, Consent history backfill)"
+fi
+
 # ------------------------------------------- 6. post-deploy verification
 section "6/7 Vérification post-déploiement"
 TEST_RESULT="N/A"
@@ -285,6 +321,7 @@ else
     log "  Backups           : PASSÉES (--skip-backup)"
 fi
 log "  Tests post-deploy  : ${TEST_RESULT}"
+log "  Consentements      : ${CONSENT_RESULT} (historique GDPR_INF_08.2)"
 log "  Smoke HTTP         : front=${FRONT_CODE} backend=${BACKEND_CODE} mcp=${MCP_CODE}"
 log "  Rollback           : ./scripts/rollback.sh"
 log ""

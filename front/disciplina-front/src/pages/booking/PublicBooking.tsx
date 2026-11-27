@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { IconAlert, IconCalendar, IconCheck, IconChevronLeft, IconChevronRight, IconClock, IconLoader, IconMapPin } from '@/components/ui/icons'
+import { IconAlert, IconCalendar, IconCheck, IconChevronLeft, IconChevronRight, IconClock, IconLoader } from '@/components/ui/icons'
 import {
   fetchPublicBooking, fetchPublicSlots, createBooking,
   type PublicBookingInfo, type Slot,
@@ -75,11 +75,13 @@ export default function PublicBooking() {
       <div className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-[var(--ds-border)] bg-[var(--ds-surface)] shadow-sm">
         {/* En-tête */}
         <div className="border-b border-[var(--ds-border)] p-6">
-          <p className="text-[12px] font-bold uppercase tracking-wider text-purple">{info.hostName}</p>
+          <p className="text-[12px] font-bold tracking-wider text-purple">
+            {info.hostName}
+            {info.location && ` - ${info.location}`}
+          </p>
           <h1 className="mt-1 text-[22px] font-extrabold text-[var(--ds-text)]">{info.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-4 text-[13px] text-[var(--ds-text-subtle)]">
             <span className="inline-flex items-center gap-1.5"><IconClock width={15} height={15} /> {info.durationMin} min</span>
-            {info.location && <span className="inline-flex items-center gap-1.5"><IconMapPin width={15} height={15} /> {info.location}</span>}
             <span className="inline-flex items-center gap-1.5"><IconCalendar width={15} height={15} /> {info.timezone}</span>
           </div>
         </div>

@@ -25,7 +25,9 @@ import {
 } from '@/constants/testFailureOrientation';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { CANDIDATE_STATUS_LABELS, CANDIDATE_STATUS_ORDER } from '@/constants/candidateStatus';
+import { AI_PROCESSING_CONSENT_LABEL, CONSENT_VERSION } from '@/constants/consent';
 import SignaturePad from '@/components/ui/SignaturePad';
+import CandidateConsentHistory from '@/components/rh/CandidateConsentHistory';
 
 // Préconisations pédagogiques : clé GraphQL (camel), clé Mongo (snake), libellé.
 const PEDA_OPTIONS: { camel: string; snake: keyof PedagogicalRecommendations; label: string }[] = [
@@ -157,10 +159,6 @@ type ABForm = {
   testAverage: string;
   testFailurePending: boolean;
 };
-
-// Version du corpus légal au moment du consentement — garder cohérent avec
-// [[VERSION_DOC]] dans src/content/legal/_placeholders.md.
-const CONSENT_VERSION = '2026-08-v1';
 
 // Union des compétences des templates de plusieurs TP (dédupliquée par nom).
 function defaultSkillsForTps(tps: TitleProfessionalType[]): { competence: string; level: SkillLevel }[] {
@@ -545,6 +543,11 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     // En création, on repart d'un brouillon sauvegardé s'il est exploitable.
     return isDraftMeaningful(draft) ? { ...emptyABForm(), ...draft } : { ...emptyABForm(), ...prefill };
   });
+  // Consentements enregistrés côté serveur : base de comparaison de toServerInput. Mise à
+  // jour après un retrait (GDPR_INF_08.2), sinon l'enregistrement suivant du formulaire
+  // verrait un « changement » et ré-accorderait le consentement retiré.
+  const [consentBaseline, setConsentBaseline] = useState(candidate?.consentments);
+  const savedCandidate = candidate ? { ...candidate, consentments: consentBaseline } : candidate;
   const [draftRestored, setDraftRestored] = useState(() => {
     const draft = loadDraft(draftKey);
     return candidate ? !!draft : isDraftMeaningful(draft);
@@ -588,6 +591,14 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     return () => clearTimeout(t);
   }, [form, draftKey, candidate]);
 
+  // « Annuler » en édition abandonne les modifications : sans ça, le brouillon
+  // ressortait à la réouverture et affichait un TP jamais enregistré (#1194).
+  // La croix / le fond conservent le brouillon (fermeture accidentelle).
+  const handleCancel = () => {
+    if (candidate) clearDraft(draftKey);
+    onClose();
+  };
+
   // Repartir de la version de référence : efface le brouillon et réinitialise le
   // formulaire (fiche enregistrée en édition, formulaire vierge en création).
   const resetDraft = () => {
@@ -603,7 +614,10 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
   const hasRecordedGateResults = candidate?.test_average != null && candidate?.written_test_score != null;
   const [gateStep, setGateStep] = useState<'gate' | 'form' | 'failedComment'>(isEdit ? (requireGate && !hasRecordedGateResults ? 'gate' : 'form') : 'gate');
   // TP évalué au gate : détermine la moyenne minimale requise (CC → 10, autres → 12).
-  const [gateTp, setGateTp] = useState<TitleProfessionalType>(() => form.tpTypes[0] ?? TitleProfessionalType.CC);
+  // En édition, le TP enregistré sur la fiche fait foi, pas celui d'un éventuel brouillon.
+  const [gateTp, setGateTp] = useState<TitleProfessionalType>(
+    () => candidate?.tp_types?.[0] ?? form.tpTypes[0] ?? TitleProfessionalType.CC,
+  );
   const gateThreshold = gateThresholdForTp(gateTp);
   const [manualClassMarkerScore, setManualClassMarkerScore] = useState<string>(() => {
     if (candidate?.test_average != null && candidate?.written_test_score != null) return '';
@@ -670,7 +684,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
       setGateLoading(true);
       try {
         if (isEdit && candidate) {
-          const input = toServerInput({ ...form, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true } as ABForm, candidate);
+          const input = toServerInput({ ...form, tpTypes: gateTpTypes, testAverage: String(avg.toFixed(2)), status: 'TEST_FAILED', testFailurePending: true } as ABForm, savedCandidate);
           // Force statut / scores même si toServerInput les normalise
           input.status = 'TEST_FAILED';
           input.writtenTestScore = writtenScore10 * 2;
@@ -939,7 +953,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const input = toServerInput(form, candidate);
+    const input = toServerInput(form, savedCandidate);
     try {
       const result = isEdit
         ? await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_FULL, { id: candidate!._id, input })
@@ -1059,7 +1073,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             <div className="flex justify-between gap-3 pt-2">
               <Button variant="ghost" type="button" onClick={handleGateSkip} title="Ouvrir le formulaire sans vérifier les résultats">Passer la vérification</Button>
               <div className="flex gap-3">
-                <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+                <Button variant="secondary" type="button" onClick={handleCancel}>Annuler</Button>
                 <Button type="button" isLoading={gateLoading} onClick={handleGateValidate} className="bg-purple hover:bg-purple-dark text-white">Valider les résultats</Button>
               </div>
             </div>
@@ -1494,7 +1508,8 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
             <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
               <input
                 type="checkbox"
-                required
+                // Obligatoire à la création ; en édition il peut avoir été retiré (art. 7.3).
+                required={!isEdit}
                 className="accent-blue-600 h-4 w-4 mt-0.5"
                 checked={form.consentDataProcessing}
                 onChange={() => set('consentDataProcessing', !form.consentDataProcessing)}
@@ -1517,7 +1532,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
                 checked={form.consentAiProcessing}
                 onChange={() => set('consentAiProcessing', !form.consentAiProcessing)}
               />
-              Le candidat accepte le traitement de ses données par intelligence artificielle locale pour générer un résumé de profil.
+              {AI_PROCESSING_CONSENT_LABEL}
             </label>
             <label className="flex items-start gap-2 cursor-pointer text-sm text-[var(--ds-text-muted)]">
               <input
@@ -1529,6 +1544,22 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               Le candidat accepte le stockage de sa photo d'identité.
             </label>
           </div>
+          {candidate && (
+            <CandidateConsentHistory
+              candidateId={candidate._id}
+              consentments={consentBaseline}
+              onWithdrawn={(c) => {
+                setConsentBaseline(c);
+                setForm(prev => ({
+                  ...prev,
+                  consentDataProcessing: c.data_processing,
+                  consentDataSharing: c.data_sharing,
+                  consentAiProcessing: c.ai_processing,
+                  consentPhotoProcessing: c.photo_processing,
+                }));
+              }}
+            />
+          )}
 
           {/* Signature de l'apprenti — toute fin */}
           <ABSectionTitle title="Signature de l'apprenti" />
@@ -1561,7 +1592,7 @@ export default function CandidateFormModal({ candidate, prefill, onClose, onSave
               </Button>
             ) : (
               <>
-                <Button variant="secondary" type="button" onClick={onClose}>Annuler</Button>
+                <Button variant="secondary" type="button" onClick={handleCancel}>Annuler</Button>
                 <Button form="ab-form" type="submit" isLoading={loading} disabled={!!emailDup} className="bg-purple hover:bg-purple-dark text-white" leftIcon={<IconPlus width={16} height={16} />}>
                   {isEdit ? (requireGate ? 'Compléter la fiche' : 'Enregistrer les modifications') : 'Créer le candidat'}
                 </Button>

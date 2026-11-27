@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { IconCalendar, IconCompany, IconExternalLink, IconEye, IconHash, IconInstitution, IconJob, IconMapPin } from '@/components/ui/icons'
+import { IconCalendar, IconCompany, IconExternalLink, IconEye, IconFolder, IconHash, IconInstitution, IconJob, IconMapPin } from '@/components/ui/icons'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
-import { abStatusBadge } from '@/types/needsAnalysis'
+import { abStatusBadge, isAbArchivedOnDrive } from '@/types/needsAnalysis'
 import { ADMINISTRATION_LABELS } from '@/types/needsAnalysis'
+import { needsAnalysisAbDriveUrl } from '@/api/needsAnalysis'
 import { SECTOR_LABELS } from '@/data/sectors'
 import { formatCommune } from '@/data/reunionCommunes'
 import { TP_TYPE_LABELS } from '@/data/candidateTemplates'
@@ -159,6 +160,19 @@ export default function NeedsAnalysisCard({ analysis, onClick }: Props) {
           {analysis.positionsCount ?? 0} poste{(analysis.positionsCount ?? 0) > 1 ? 's' : ''} à pourvoir
         </span>
         <div className="flex items-center gap-2">
+          {isAbArchivedOnDrive(analysis.status) && (
+            <a
+              href={needsAnalysisAbDriveUrl(analysis.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title="Ouvrir l'AB dans le Drive"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--ds-border)] bg-[var(--ds-surface)] px-2.5 py-1 text-[11px] font-medium text-[var(--ds-text-muted)] hover:border-blue hover:text-blue transition-colors"
+            >
+              <IconFolder className="h-3 w-3" />
+              AB Drive
+            </a>
+          )}
           <button
             type="button"
             onClick={handleSeeAb}

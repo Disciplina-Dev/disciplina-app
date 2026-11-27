@@ -42,14 +42,17 @@ import {
   GET_CONTACT_LOG_STATS,
   CREATE_CONTACT_LOG,
   GET_CANDIDATE_HISTORY,
+  GET_CANDIDATE_CONSENT_HISTORY,
+  WITHDRAW_CANDIDATE_CONSENT,
   ADD_CANDIDATE_HISTORY_ENTRY,
   DELETE_CANDIDATE_HISTORY_ENTRY,
   GET_OFFER_HISTORY,
   ADD_OFFER_HISTORY_ENTRY,
   DELETE_OFFER_HISTORY_ENTRY,
+  UPDATE_OFFER_ACTIVE,
   DELETE_CANDIDATE,
 } from '@/graphql/queries'
-import type { Candidate, CandidateHistoryEntry } from '@/types/candidate'
+import type { Candidate, CandidateConsentEvent, CandidateConsentments, CandidateHistoryEntry, ConsentTypeKey } from '@/types/candidate'
 import type { Entreprise, CompanyWithSalePerson } from '@/types/entreprise'
 import { toEntreprise } from '@/types/companyMapper'
 import { apiJson } from '@/api/httpClient'
@@ -57,6 +60,7 @@ import type { PageInfo } from '@/types/pagination'
 import type { NeedsAnalysis } from '@/types/needsAnalysis'
 import type { OfferFilterInput } from '@/features/matching/services/jobFilters'
 import { CandidateStatus, TitleProfessionalType, SchoolLevel, TrainingSite } from '@/types/candidate'
+import { toImmersionScheduleInput } from '@/utils/schedule'
 
 export interface CandidateServerFilters {
   trainingSite?: TrainingSite
@@ -375,7 +379,9 @@ function fromGql(c: any): Candidate {
     immersion_company_id: c.immersionCompanyId ?? undefined,
     immersion_company_name: c.immersionCompanyName ?? undefined,
     immersion_convention_number: c.immersionConventionNumber ?? undefined,
-    immersion_schedule: c.immersionSchedule ?? undefined,
+    immersion_schedule: c.immersionSchedule
+      ? toImmersionScheduleInput(c.immersionSchedule)
+      : undefined,
     contract_offer_id: c.contractOfferId ?? undefined,
     contract_company_id: c.contractCompanyId ?? undefined,
     contract_company_name: c.contractCompanyName ?? undefined,
@@ -552,7 +558,7 @@ function toGqlUpdateInput(c: Candidate): any {
     ...(c.immersion_company_id !== undefined && { immersionCompanyId: c.immersion_company_id }),
     ...(c.immersion_company_name !== undefined && { immersionCompanyName: c.immersion_company_name }),
     ...(c.immersion_convention_number !== undefined && { immersionConventionNumber: c.immersion_convention_number }),
-    ...(c.immersion_schedule !== undefined && { immersionSchedule: c.immersion_schedule }),
+    ...(c.immersion_schedule !== undefined && { immersionSchedule: toImmersionScheduleInput(c.immersion_schedule) }),
     ...(c.contract_offer_id !== undefined && { contractOfferId: c.contract_offer_id }),
     ...(c.contract_company_id !== undefined && { contractCompanyId: c.contract_company_id }),
     ...(c.contract_company_name !== undefined && { contractCompanyName: c.contract_company_name }),
@@ -825,6 +831,45 @@ export function useCandidateHistory(candidateId: string | null) {
   }
 }
 
+/** Historique des consentements d'un candidat (GDPR_INF_08.2), le plus récent d'abord. */
+export function useCandidateConsentHistory(candidateId: string | null) {
+  const [result, reexecuteQuery] = useQuery({
+    query: GET_CANDIDATE_CONSENT_HISTORY,
+    variables: { candidateId: candidateId ?? '' },
+    context: { url: `${import.meta.env.VITE_API_URL}/api/graphql/candidates` },
+    pause: candidateId === null,
+    requestPolicy: 'network-only',
+  })
+
+  const events: CandidateConsentEvent[] = result.data?.candidateConsentHistory ?? []
+
+  return {
+    events,
+    loading: result.fetching,
+    error: result.error?.message ?? null,
+    refetch: () => reexecuteQuery({ requestPolicy: 'network-only' }),
+  }
+}
+
+/** Retire des consentements ; renvoie l'état des consentements après retrait (snake_case, comme `Candidate`). */
+export function useWithdrawCandidateConsent() {
+  const withdrawConsent = async (id: string, types: ConsentTypeKey[]): Promise<CandidateConsentments> => {
+    const response = await candidateGraphqlClient.mutation(WITHDRAW_CANDIDATE_CONSENT, { id, types })
+    if (response.error) throw new Error(response.error.message.replace(/^\[GraphQL\]\s*/, ''))
+    const c = response.data.withdrawCandidateConsent.consentments
+    return {
+      data_processing: c.dataProcessing,
+      data_sharing: c.dataSharing,
+      ai_processing: c.aiProcessing,
+      photo_processing: c.photoProcessing,
+      consent_date: c.consentDate,
+      consent_version: c.consentVersion,
+    }
+  }
+
+  return { withdrawConsent }
+}
+
 export function useAddCandidateHistoryEntry() {
   const addHistoryEntry = (candidateId: string, description: string) => {
     return candidateGraphqlClient.mutation(ADD_CANDIDATE_HISTORY_ENTRY, { candidateId, description })
@@ -873,6 +918,18 @@ export function useDeleteOfferHistoryEntry() {
   }
 
   return { deleteEntry }
+}
+
+/**
+ * Override actif/inactif d'une offre de l'annuaire entreprises.
+ * `active` à null rétablit l'héritage du statut de l'AB parente.
+ */
+export function useUpdateOfferActive() {
+  const updateOfferActive = (id: string, active: boolean | null) => {
+    return offerGraphqlClient.mutation(UPDATE_OFFER_ACTIVE, { id, active }).toPromise()
+  }
+
+  return { updateOfferActive }
 }
 
 export function useCreateNeedsAnalysis() {

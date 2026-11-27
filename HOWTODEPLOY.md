@@ -96,7 +96,7 @@ The script refuses to overwrite a file or to write the identity inside the repo.
 ```bash
 # one dump, manually
 age -d -i ~/disciplina-backup-identity.txt backups/backup_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina
 
 # rollback.sh decrypts by itself when given the identity
 BACKUP_AGE_IDENTITY=~/disciplina-backup-identity.txt ./scripts/rollback.sh
@@ -128,6 +128,115 @@ least once per quarter):
 | Date | Who | Dump restored | Result |
 |------|-----|---------------|--------|
 | 2026-11-12 | qh (GDPR_INF_01.2) | Both tenants, scripted run with a stubbed `docker` (encrypt → decrypt → `rollback.sh` right/wrong/missing key → dry-run → legacy migration) | OK, 28/28 checks. **Not yet** a restore into a real MySQL/MongoDB: do it once on a test instance and add a row. |
+
+### Backup integrity, failure alert & automated restore test (GDPR_INF_01.5)
+
+**Checksums**: `backup-db.sh` writes `<dump>.sha256` next to each of the 4 dumps
+(over the encrypted file) and rotation removes it with the dump. Verify by hand:
+`cd backups && sha256sum -c backup_mysql_<DATE>.sql.age.sha256` (`shasum -a 256 -c` on macOS).
+
+**Failure alert**: any non-zero exit of `backup-db.sh` or `restore-test.sh` POSTs
+`{"text": "..."}` to `BACKUP_ALERT_WEBHOOK` (root `.env`, Slack/Discord-compatible
+or n8n; see `.env.example`). Without it, only a warning is printed to stderr
+(launchd log): set it in production.
+
+**Restore test**: `scripts/restore-test.sh` takes the latest dump of each of the 4
+databases, verifies its checksum, decrypts it and restores it into throwaway
+MySQL/MongoDB containers (same image tags as compose, no published port, random
+password, removed on exit; dev/prod containers and volumes are never touched).
+It checks every restored database has tables/collections, then writes the date to
+`backups/.last-restore-test`. On failure it alerts and exits non-zero.
+
+```bash
+BACKUP_AGE_IDENTITY=/path/to/age-identity.txt ./scripts/restore-test.sh
+```
+
+`BACKUP_AGE_IDENTITY` is the path of the age **private** key file (env var or
+`.env`). Custody tension: the rules above say the identity must not live on the
+Mac mini, but an unattended weekly test needs it. Either (a) run the test from an
+admin workstation that has the identity and a copy of `backups/`, or (b) use a
+dedicated restore-test key (add its public key as a second recipient) kept
+outside the repo with `chmod 600`: decision to validate with the DPO.
+
+**Schedule** (weekly, Sunday 04:00, same procedure as the backup job):
+
+```bash
+cp scripts/launchd/com.disciplina.restore-test.plist ~/Library/LaunchAgents/
+# edit ABSOLUTE/PATH/TO, YOUR_USER and the BACKUP_AGE_IDENTITY path, then:
+launchctl load ~/Library/LaunchAgents/com.disciplina.restore-test.plist
+```
+
+`deploy.sh` pre-flight warns (non-blocking) if `backups/.last-restore-test` is
+missing or older than 10 days. The last successful test date is the content of
+that file.
+
+### Missed backup detection (GDPR_INF_01.6)
+
+The Mac mini may sleep at 03:00, so the backup job silently does not run (no
+non-zero exit, hence no failure alert). `backup-db.sh` writes the success date to
+`backups/.last-backup`; `scripts/backup-watchdog.sh` (daily 09:00) alerts via
+`BACKUP_ALERT_WEBHOOK` and exits 1 if that file is missing or older than 26h.
+`deploy.sh` pre-flight also warns (non-blocking) on a stale `.last-backup`.
+
+```bash
+# Prevent the miss: wake the machine before the job (and/or: sudo pmset -a sleep 0)
+sudo pmset repeat wakeorpoweron MTWRFSU 02:55:00 && pmset -g sched
+
+# Detect it if it happens anyway
+cp scripts/launchd/com.disciplina.backup-watchdog.plist ~/Library/LaunchAgents/
+# edit ABSOLUTE/PATH/TO and YOUR_USER, then:
+launchctl load ~/Library/LaunchAgents/com.disciplina.backup-watchdog.plist
+```
+
+**Acceptance test on the Mac mini** (once at install, do not skip: launchd and
+`pmset` cannot be validated from a dev machine):
+
+```bash
+# 1. Wake schedule is in place
+pmset -g sched                      # expect: wakepoweron at 2:55AM every day
+
+# 2. Backup writes the marker
+./scripts/backup-db.sh && cat backups/.last-backup
+
+# 3. Watchdog is silent when the backup is recent
+launchctl kickstart -p gui/$(id -u)/com.disciplina.backup-watchdog   # exit 0, "Backup recent OK"
+
+# 4. Watchdog alerts on a missed run (BACKUP_ALERT_WEBHOOK must be set)
+touch -t 202001010000 backups/.last-backup
+launchctl kickstart -p gui/$(id -u)/com.disciplina.backup-watchdog   # message "Backup MISSED" received on the webhook channel
+./scripts/backup-db.sh              # restore a fresh marker
+
+# 5. Real sleep test: put the Mac to sleep before 02:55, check next morning
+tail ~/Library/Logs/disciplina-backup.log   # run at ~03:00 and fresh dumps in backups/
+```
+
+Step 5 is the only proof the wake schedule works end to end. If the backup did not
+run, the 09:00 watchdog must have alerted: either outcome validates the AC.
+
+Temporary measure: superseded once hosting is migrated (GDPR_INF_03).
+
+### Disk encryption (GDPR_INF_02.1)
+
+**Mac mini (now)** — FileVault, to run on the machine itself:
+
+1. `sudo fdesetup enable` (choose a *personal recovery key*, not iCloud).
+2. Store the recovery key in the team password manager (restricted vault) with
+   a sealed paper copy held by a second custodian. Never in the repo, `.env`,
+   chat or tickets. Rotate it (`sudo fdesetup changerecovery -personal`) when a
+   custodian leaves.
+3. Verify: `fdesetup status` must print `FileVault is On.`
+4. Reboots: a headless boot stops at the FileVault login screen (backups/deploy
+   down). Reboot with `sudo fdesetup authrestart` so the next boot unlocks itself.
+
+`deploy.sh` pre-flight warns if FileVault is not On.
+
+| Date | Who | `fdesetup status` | Key custodians |
+|------|-----|-------------------|----------------|
+| _to fill_ | | | |
+
+**Target server (GDPR_INF_03)** — RAID1 + LUKS from install time; verify with
+`cryptsetup status <mapping>` and `lsblk -f`. Remote unlock (dropbear-initramfs)
+procedure to be documented at migration.
 
 ## 3. Deploy
 
@@ -174,7 +283,10 @@ docker compose -f docker-compose.test.yml up --build --force-recreate \
 ### Log verification
 
 - `docker compose logs --tail 200 backend frontend` — check for errors
-- Jaeger — `http://localhost:16686` — spot-check traces
+- Jaeger — `http://localhost:16686` — spot-check traces (loopback-only in prod; from your machine: `ssh -L 16686:127.0.0.1:16686 <prod-host>`)
+  - Access policy: the UI has no authentication; SSH tunnel is the only access path. Never publish 16686/4317/4318.
+  - Sampling in prod: 10 % (`OTEL_TRACES_SAMPLER=parentbased_traceidratio`, `OTEL_TRACES_SAMPLER_ARG=0.1` in `docker-compose.prod.yaml`); dev stays `always_on`. Raise the ratio only temporarily to debug.
+  - Minimization review (Art. 5-1-c): the backend sets no `user.id` span attribute; GraphQL values are not traced (`OTEL_GRAPHQL_ALLOW_VALUES=false`). Residual: URL paths/queries in HTTP spans. Not legal advice; DPO to validate.
 
 ## 5. Rollback
 
@@ -192,20 +304,20 @@ docker compose stop backend
 
 # 2. Restore MySQL
 age -d -i "$AGE_IDENTITY" backups/backup_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina
 
 # 3. Restore MongoDB
 age -d -i "$AGE_IDENTITY" backups/backup_mongo_<DATE>.archive.age \
-  | docker compose exec -T nosql-db mongorestore \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  | mongo_exec mongorestore \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --archive
 
 # 3b. Restore the Annemasse tenant (MySQL + MongoDB)
 age -d -i "$AGE_IDENTITY" backups/backup_annemasse_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina_annemasse
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina_annemasse
 age -d -i "$AGE_IDENTITY" backups/backup_annemasse_mongo_<DATE>.archive.age \
-  | docker compose exec -T nosql-db mongorestore \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  | mongo_exec mongorestore \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --archive --drop --nsInclude 'disciplina_annemasse.*'
 
 # 4. Restart the backend
@@ -216,6 +328,8 @@ git checkout <previous-commit>
 docker compose -f docker-compose.yaml -f docker-compose.prod.yaml up -d --build
 ```
 
+> Manual Mongo commands use `mongo_exec` (`source scripts/mongo-exec.sh` after exporting `MONGO_ROOT_USERNAME`/`MONGO_ROOT_PASSWORD`): the password is passed via env + a 0600 temp config in the container, never as an argument visible in `ps`. Same for MySQL via `MYSQL_PWD`.
+
 ## 6. Notes for special features
 
 This section is reserved for **manual, non-scripted** deployment steps tied to
@@ -225,6 +339,23 @@ the multi-tenant setup, and feature-specific conventions live in `CLAUDE.md` /
 `back/CONVENTION.md`.
 
 **Rule:** any new script run at deployment time must be documented here.
+
+### System mail mailbox (`SYSTEM_MAIL_SENDER`)
+
+The "système" emails — HR notification of a new *Analyse du Besoin*, external
+access codes — are sent from a real Google mailbox, looked up **in each tenant's
+own `users` table** (`external/google/system-mail.ts`). The historical default is
+`dev@disciplina.re`; override it per tenant with `SYSTEM_MAIL_SENDER`.
+
+- The account must exist in the tenant DB **and** have a valid Google consent
+  (`oauth_token` + `refresh_token`): sign in with it once via the Google button.
+- If it is missing, soft-deleted or its refresh token is revoked, the backend now
+  falls back to any connected staff account (responsable → RH → gestion →
+  commercial) and logs `[SystemMail]` at `error`. Restore the dedicated mailbox
+  (sign in again) to stop the fallback.
+- Checks after a deploy: search the logs for `[SystemMail]` and run
+  `SELECT email, oauth_token IS NOT NULL, refresh_token IS NOT NULL, is_deleted
+  FROM users WHERE email = '<SYSTEM_MAIL_SENDER>';` on each tenant.
 
 ### Claude.ai MCP connector (OAuth)
 
@@ -281,6 +412,50 @@ curl -i https://app-reunion.disciplina.re/.well-known/oauth-protected-resource/a
 ```
 
 Both must return `application/json` (OAuth metadata) — not `text/html` (SPA).
+
+### NIR key derivation & rotation (GDPR_INF_02.2)
+
+NIR (`identity.social_security_number`) are AES-256-GCM encrypted with a key derived by HKDF-SHA256 from `SSN_ENCRYPTION_KEY` + the per-deployment `SSN_KDF_SALT` (both in `back/.env`, both required, generate each with `openssl rand -hex 32`, never reuse the `.env.example` values). Each value carries a `kid` (key fingerprint).
+
+**First rollout / any rotation** (run from `back/` on the prod machine, backup first with `scripts/backup.sh`):
+
+1. Generate a new `SSN_ENCRYPTION_KEY` and `SSN_KDF_SALT`; put the old key (and old salt, if it had one) in `SSN_ENCRYPTION_KEY_PREVIOUS` / `SSN_KDF_SALT_PREVIOUS`. Store all values in the password manager. First rollout (legacy `'ssn-salt'` format): keep the current key as `SSN_ENCRYPTION_KEY_PREVIOUS` only.
+2. Deploy. Reads work for legacy, previous and current values; new writes use the new key.
+3. `npx ts-node scripts/rotate-ssn-key.ts --tenant all --dry-run`, then without `--dry-run`. Idempotent; re-run if it reports skipped records.
+4. `npx ts-node scripts/rotate-ssn-key.ts --tenant all --verify` must exit 0 (no plaintext, none on an old key, all decryptable) = acceptance criterion.
+5. Remove `*_PREVIOUS` only once step 4 is green **and** backups taken with the old key have expired (retention: GDPR_INF_07.3).
+
+### Health data encryption & rotation (GDPR_INF_02.3)
+
+`identity.psh_referral_request`, `synthesis.special_needs`, `synthesis.pedagogical_recommendations.psh_specific_support` and `emergency_contact` (whole object) are stored as one AES-256-GCM string `h1:<kid>:<iv>:<tag>:<data>`, key derived by HKDF from `HEALTH_ENCRYPTION_KEY` + `HEALTH_KDF_SALT` (distinct from the NIR key; both required in `back/.env`, generate each with `openssl rand -hex 32`). No HDS hosting: this is application-level encryption only (see #1129).
+
+**First rollout / any rotation** (from `back/` on the prod machine, backup first with `scripts/backup.sh`):
+
+1. Add `HEALTH_ENCRYPTION_KEY` / `HEALTH_KDF_SALT` (rotation: move the old pair to `HEALTH_ENCRYPTION_KEY_PREVIOUS` / `HEALTH_KDF_SALT_PREVIOUS`). Store in the password manager.
+2. Deploy. Reads accept plaintext (not yet migrated) and previous-key values; new writes are encrypted with the active key.
+3. `npx ts-node scripts/encrypt-health-fields.ts --tenant all --dry-run`, then without `--dry-run`. Idempotent; re-run if it reports skipped records.
+4. `npx ts-node scripts/encrypt-health-fields.ts --tenant all --verify` must exit 0 = acceptance criterion.
+5. Remove `*_PREVIOUS` only once step 4 is green **and** old backups have expired (GDPR_INF_07.3).
+
+Note: `scripts/seed_annemasse_test_data.py` writes plaintext `psh_specific_support` (test data); run step 3 after seeding if needed.
+
+### Consent history backfill (GDPR_INF_08.2)
+
+Every candidate consent grant/withdrawal is logged in the MySQL table `candidate_consent_history` (append-only, created automatically at boot by `runMysqlMigrations`). Consents recorded **before** this release only exist as the current snapshot on the MongoDB candidate (`consentments`), so they are taken over once.
+
+**Automated by `deploy.sh`** (end of step 5, after the backend is up): it runs the backfill, then `--verify`, inside the backend container (the prod image ships the compiled `dist/cli/backfillConsentHistory.js`; the databases are not reachable from the host). Each consented candidate without history gets one `GRANT` per granted consent, `source = BACKFILL`, dated from its `consent_date`. Idempotent: on later deploys it finds nothing to do. The deploy summary shows `Consentements : OK`. A `FAIL` does not stop the deploy (the app is already running) but must be looked at.
+
+No backup needed (insert-only into a new table, MongoDB is read only). Rollback needs nothing special (the previous release ignores the table; `rollback.sh` restores the pre-deploy dumps anyway).
+
+**Manual run** (after a `FAIL`, or if the backend logs `Consent history write failed`, i.e. MySQL was unavailable right after a consent change), from the repo root on the prod machine:
+
+```bash
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml exec -T backend node dist/cli/backfillConsentHistory.js --tenant all --dry-run   # report only
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml exec -T backend node dist/cli/backfillConsentHistory.js --tenant all             # apply
+docker compose -f docker-compose.yaml -f docker-compose.prod.yaml exec -T backend node dist/cli/backfillConsentHistory.js --tenant all --verify    # must exit 0
+```
+
+`--dry-run` / `--verify` exit 1 while candidates still need a backfill or a fix. A gap is repaired by appending `BACKFILL` correction events so the history matches the candidate again. Dev: `cd back && npx ts-node src/cli/backfillConsentHistory.ts --tenant all [--dry-run|--verify]`.
 
 ### Bulk company deletion by SIRET (manual, one-off)
 

@@ -16,6 +16,11 @@ export class CandidateHistoryRepository {
         return getModels().CandidateHistory.findById(id).lean();
     }
 
+    /** Effacement : supprime tout l'historique d'un candidat. */
+    async deleteByCandidate(candidateId: string): Promise<number> {
+        return (await getModels().CandidateHistory.deleteMany({ candidate_id: candidateId })).deletedCount;
+    }
+
     async delete(id: string): Promise<boolean> {
         return (await getModels().CandidateHistory.deleteOne({ _id: id })).deletedCount > 0;
     }

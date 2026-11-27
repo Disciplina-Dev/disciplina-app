@@ -76,13 +76,13 @@ mkdir -p backups
 
 # MySQL
 DATE=$(date +%Y-%m-%d_%H%M%S)
-docker compose exec -T sql-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" disciplina \
+MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysqldump -h127.0.0.1 -uroot disciplina \
   | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mysql_${DATE}.sql.age"
 
 # MongoDB
 DATE=$(date +%Y-%m-%d_%H%M%S)
-docker compose exec -T nosql-db mongodump \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+mongo_exec mongodump \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --db human_ressources --archive \
   | age -r "$BACKUP_AGE_RECIPIENT" > "backups/backup_mongo_${DATE}.archive.age"
 ```
@@ -98,12 +98,12 @@ docker compose stop backend
 
 # MySQL
 age -d -i "$AGE_IDENTITY" backups/backup_mysql_<DATE>.sql.age \
-  | docker compose exec -T sql-db mysql -u root -p"$MYSQL_ROOT_PASSWORD" disciplina
+  | MYSQL_PWD="$MYSQL_ROOT_PASSWORD" docker compose exec -T -e MYSQL_PWD sql-db mysql -h127.0.0.1 -uroot disciplina
 
 # MongoDB
 age -d -i "$AGE_IDENTITY" backups/backup_mongo_<DATE>.archive.age \
-  | docker compose exec -T nosql-db mongorestore \
-  --username "$MONGO_ROOT_USERNAME" --password "$MONGO_ROOT_PASSWORD" \
+  | mongo_exec mongorestore \
+  --username "$MONGO_ROOT_USERNAME" \
   --authenticationDatabase admin --archive
 
 docker compose start backend
@@ -180,7 +180,7 @@ To remove the agent: `launchctl bootout gui/$(id -u)/com.disciplina.backup`.
 |---|---|
 | `docker: command not found` in the log | The `EnvironmentVariables` → `PATH` key is missing or does not cover your Docker install (`/usr/local/bin` on Intel, `/opt/homebrew/bin` on Apple Silicon). |
 | No log file at all, `launchctl list` shows nothing | The plist failed to load — re-run `plutil -lint`, and check the path passed to `bootstrap`. |
-| Nothing happens overnight, works with `kickstart` | The Mac mini sleeps at 03:00. `launchd` runs a missed job on wake, but only once; check `pmset -g sched` and consider `sudo pmset repeat wakeorpoweron MTWRFSU 02:55:00`. |
+| Nothing happens overnight, works with `kickstart` | The Mac mini sleeps at 03:00. `launchd` runs a missed job on wake, but only once. Schedule a wake: `sudo pmset repeat wakeorpoweron MTWRFSU 02:55:00` (check with `pmset -g sched`), and/or disable sleep (`sudo pmset -a sleep 0`). A missed run is alerted by the watchdog (see HOWTODEPLOY.md, *Missed backup detection*). |
 | `.env: No such file or directory` | The script sources the root `.env`; make sure it exists at the repo root and is readable by the account running the agent. |
 | `'age' introuvable dans le PATH` in the log | `age` is not installed or not on the launchd `PATH` (`brew install age`; `/opt/homebrew/bin` is already in the plist `PATH`). |
 | `BACKUP_AGE_RECIPIENT absent ou invalide` in the log | Set the **public** key (`age1…`) in the root `.env`; generate the pair with `./scripts/backup-keygen.sh`. |

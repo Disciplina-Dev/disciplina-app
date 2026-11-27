@@ -246,6 +246,8 @@ describe('MCP OAuth 2.1 (claude.ai web) — login CRM + région + RBAC', () => {
         expect(page).toContain('/legal/confidentialite');
         expect(page).toContain('lecture seule');
         expect(page).toContain('La Réunion');
+        // GDPR_INF_11.2 : aucune police chargée depuis Google.
+        expect(page).not.toMatch(/fonts\.(googleapis|gstatic)\.com/);
 
         const badRes = await fetch(`${BASE}/authorize`, {
             method: 'POST',

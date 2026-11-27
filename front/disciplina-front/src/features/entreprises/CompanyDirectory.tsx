@@ -8,13 +8,14 @@ import { JOB_STATUS_BADGE_CLASS, JOB_STATUS_LABELS, JOB_STATUS_ORDER } from '@/c
 import { SECTEUR_KEYS, SECTEUR_LABELS, type SecteurKey } from '@/constants/secteurs';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { OfferStatus, Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
-import { ANNEMASSE_REGION_LABELS } from '@/features/matching/constants/regions';
+import { ANNEMASSE_REGION_COMMUNES, ANNEMASSE_REGION_LABELS, REGION_COMMUNES } from '@/features/matching/constants/regions';
 import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import {
   useAllNeedsAnalysesPage,
   useUpdateNeedsAnalysisActivationDate,
   useUpdateNeedsAnalysisIndicator,
   useUpdateNeedsAnalysisTracking,
+  useUpdateOfferActive,
 } from '@/graphql/hooks';
 import {
   GET_IMMERSING_CANDIDATES_MAP,
@@ -39,7 +40,7 @@ function analysisTps(analysis: NeedsAnalysis): string[] {
   return [...new Set((analysis.positions ?? []).flatMap((p) => (p.desiredTp ?? []).map((t) => t.tpType).filter(Boolean) as string[]))].sort();
 }
 
-/** Statut affiché (reflète `AbActiveBadge`) : `abStatus` manquant = Inactive. */
+/** Statut affiché (reflète `DirectoryActiveBadge`) : `abStatus` manquant = Inactive. */
 function effectiveAbStatus(analysis: NeedsAnalysis): string {
   return analysis.abStatus ?? 'INACTIVE';
 }
@@ -51,6 +52,16 @@ const DIRECTORY_STATUS_LABELS: Record<string, string> = {
   ARCHIVED: 'Archivée',
   INACTIVE: 'Inactive',
 };
+
+/**
+ * Statut effectif d'une ligne de l'annuaire : l'override porté par l'offre
+ * prime ; sinon la ligne hérite du statut de l'AB parente (ligne sans offre incluse).
+ */
+function effectiveRowStatus(analysis: NeedsAnalysis, offer: DirectoryOffer | null): string {
+  if (offer?.isActive === true) return 'ACTIVE';
+  if (offer?.isActive === false) return 'INACTIVE';
+  return effectiveAbStatus(analysis);
+}
 
 // Secteurs d'activité (issus de `companyInfos.activities`) proposés dans le filtre.
 const DIRECTORY_ACTIVITY_SECTORS = Object.values(Sector).filter((s) => s !== Sector.NONE);
@@ -66,8 +77,6 @@ function activationDateOf(analysis: NeedsAnalysis): string | null | undefined {
 /** Filtres « entreprise » de l'annuaire (communs à la liste et au récapitulatif). */
 interface DirectoryCompanyFilters {
   needle: string;
-  statuses: Set<string>;
-  zone: SecteurKey | null;
   /** `null` = filtre secteur d'activité ignoré (récapitulatif). */
   activities: Set<string> | null;
   minTime: number | null;
@@ -76,8 +85,6 @@ interface DirectoryCompanyFilters {
 
 function matchesCompanyFilters(a: NeedsAnalysis, f: DirectoryCompanyFilters): boolean {
   if (f.needle && !foldSearch(a.companyInfos?.name ?? '').includes(f.needle)) return false;
-  if (f.statuses.size > 0 && !f.statuses.has(effectiveAbStatus(a))) return false;
-  if (f.zone !== null && a.companyInfos?.sector !== f.zone) return false;
   const activities = f.activities;
   if (activities && activities.size > 0) {
     const companyActivities = a.companyInfos?.activities ?? [];
@@ -103,6 +110,20 @@ const RECAP_ZONE_LABELS: Record<string, string> = {
   ...SECTEUR_LABELS,
   ...ANNEMASSE_REGION_LABELS,
 };
+
+/**
+ * Zones géographiques (NORD/OUEST/SUD + 6 secteurs Annemasse) portées par chaque
+ * commune : index inverse de `REGION_COMMUNES` / `ANNEMASSE_REGION_COMMUNES`.
+ * Sert à rattacher une offre aux zones de ses propres communes, et non à celles
+ * de son AB (qui ne reflète que la première position de l'analyse de besoin).
+ */
+const ZONES_BY_LOCALISATION: Record<string, string[]> = {};
+for (const [zone, communes] of Object.entries(REGION_COMMUNES)) {
+  for (const commune of communes) (ZONES_BY_LOCALISATION[commune] ??= []).push(zone);
+}
+for (const [zone, communes] of Object.entries(ANNEMASSE_REGION_COMMUNES)) {
+  for (const commune of communes) (ZONES_BY_LOCALISATION[commune] ??= []).push(zone);
+}
 
 function recapZoneLabel(key: string): string {
   if (key === UNKNOWN_ZONE_KEY) return 'Zone non renseignée';
@@ -191,7 +212,7 @@ function formatDirectoryDate(iso?: string | null): string {
   }
 }
 
-function AbActiveBadge({ status }: { status?: string | null }) {
+function DirectoryActiveBadge({ status }: { status?: string | null }) {
   if (status === 'ACTIVE') {
     return (
       <span className="inline-flex shrink-0 items-center rounded-full bg-[var(--ds-success-bg)] px-2.5 py-0.5 text-xs font-semibold text-[var(--ds-success)] ring-1 ring-inset ring-[var(--ds-success)]">
@@ -250,6 +271,7 @@ interface DirectoryOffer {
   title?: string | null;
   jobRole?: string | null;
   status?: string | null;
+  isActive?: boolean | null;
   localisation?: string[] | null;
   desiredTp?: { tpType?: string | null }[] | null;
   salerInfo?: { id?: number | null; email?: string | null } | null;
@@ -293,6 +315,22 @@ function offerLocalisationLabel(offer: DirectoryOffer): string {
 
 function offerStatus(offer: DirectoryOffer): OfferStatus {
   return (offer.status ?? OfferStatus.NOT_MATCHED) as OfferStatus;
+}
+
+/**
+ * Zones géographiques d'une ligne d'annuaire. Une offre relève des zones de ses
+ * propres communes ; à défaut (localisation absente ou hors référentiel), repli
+ * sur le secteur de l'AB. Le secteur de l'AB n'est volontairement pas ajouté aux
+ * offres localisées : une même AB peut porter des offres dans plusieurs secteurs.
+ */
+function rowZones(analysis: NeedsAnalysis, offer: DirectoryOffer | null): Set<string> {
+  const zones = new Set<string>();
+  for (const commune of offer?.localisation ?? []) {
+    if (!commune) continue;
+    for (const zone of ZONES_BY_LOCALISATION[commune] ?? []) zones.add(zone);
+  }
+  if (zones.size === 0 && analysis.companyInfos?.sector) zones.add(analysis.companyInfos.sector);
+  return zones;
 }
 
 type IndicatorColor = 'WHITE' | 'YELLOW' | 'GREEN' | 'ORANGE' | 'RED';
@@ -509,6 +547,75 @@ function DirectoryTrackingCell({
         saveError ? 'border-[var(--ds-danger)]' : 'border-[var(--ds-border)]'
       }${saving ? ' opacity-60' : ''}`}
     />
+  );
+}
+
+/**
+ * Statut actif/inactif d'une offre, réglé offre par offre dans l'annuaire.
+ * « Automatique » efface l'override : l'offre hérite alors du statut de l'AB.
+ * La pastille affiche le statut effectif (hérité ou forcé).
+ */
+function DirectoryOfferStatusCell({
+  analysis,
+  offer,
+  onSaved,
+}: {
+  analysis: NeedsAnalysis;
+  offer: DirectoryOffer;
+  onSaved: (offerId: string, active: boolean | null) => void;
+}) {
+  const { updateOfferActive } = useUpdateOfferActive();
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  const value = offer.isActive === true ? 'ACTIVE' : offer.isActive === false ? 'INACTIVE' : 'AUTO';
+
+  const save = (next: string) => {
+    const active = next === 'AUTO' ? null : next === 'ACTIVE';
+    setSaving(true);
+    setSaveError(false);
+    updateOfferActive(offer.id, active)
+      .then((res) => {
+        setSaving(false);
+        if (res.error) {
+          setSaveError(true);
+        } else {
+          onSaved(offer.id, active);
+        }
+      })
+      .catch(() => {
+        setSaving(false);
+        setSaveError(true);
+      });
+  };
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <select
+        value={value}
+        onChange={(e) => {
+          e.stopPropagation();
+          save(e.target.value);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        onFocus={(e) => e.stopPropagation()}
+        disabled={saving}
+        aria-label={`Statut de l'offre — ${offerLabel(offer)}`}
+        title={
+          saveError
+            ? 'Échec d’enregistrement — réessayez'
+            : 'Automatique : suit le statut de l’analyse de besoin'
+        }
+        className={`rounded-md border bg-transparent px-1.5 py-1 text-xs text-[var(--ds-text-muted)] focus:outline-none focus:ring-2 focus:ring-blue ${
+          saveError ? 'border-[var(--ds-danger)]' : 'border-[var(--ds-border)]'
+        }${saving ? ' opacity-60' : ''}`}
+      >
+        <option value="AUTO">Automatique</option>
+        <option value="ACTIVE">Active</option>
+        <option value="INACTIVE">Inactive</option>
+      </select>
+      <DirectoryActiveBadge status={effectiveRowStatus(analysis, offer)} />
+    </span>
   );
 }
 
@@ -832,13 +939,16 @@ export default function CompanyDirectory({
     refetch();
   };
 
+  /** Répercute un override de statut d'offre dans l'état local, sans refetch. */
+  const handleOfferActiveSaved = (offerId: string, active: boolean | null) => {
+    setDirectoryOffers((prev) => prev.map((offer) => (offer.id === offerId ? { ...offer, isActive: active } : offer)));
+  };
+
   const rows = useMemo<DirectoryRow[]>(() => {
     const order = new Map(TP_ORDER.map((tp, i) => [tp, i]));
     const statusOrder = new Map(JOB_STATUS_ORDER.map((status, i) => [status, i]));
     const filters: DirectoryCompanyFilters = {
       needle: foldSearch(nameQuery.trim()),
-      statuses: selectedStatuses,
-      zone: selectedZone,
       activities: selectedActivities,
       minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
       maxTime: maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null,
@@ -862,8 +972,12 @@ export default function CompanyDirectory({
             return { analysis, offer, tps: tps.length > 0 ? tps : analysisLevelTps };
           });
       for (const row of candidates) {
-        // Le filtre TP s'applique à la ligne (TP de l'offre), pas à l'entreprise entière.
+        // Le filtre géographique s'applique à la ligne (offre), d'après les
+        // communes de l'offre : une AB peut porter des offres multi-secteurs.
+        if (selectedZone !== null && !rowZones(row.analysis, row.offer).has(selectedZone)) continue;
+        // Les filtres TP et statut s'appliquent à la ligne (offre), pas à l'entreprise entière.
         if (selectedTps.size > 0 && !row.tps.some((t) => selectedTps.has(t))) continue;
+        if (selectedStatuses.size > 0 && !selectedStatuses.has(effectiveRowStatus(row.analysis, row.offer))) continue;
         entries.push(row);
       }
     }
@@ -893,37 +1007,45 @@ export default function CompanyDirectory({
   const recap = useMemo<DirectoryRecap>(() => {
     const filters: DirectoryCompanyFilters = {
       needle: foldSearch(nameQuery.trim()),
-      statuses: selectedStatuses,
-      zone: selectedZone,
       activities: null,
       minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
       maxTime: maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null,
     };
 
-    // Une offre rattachée à une AB dont l'entreprise exerce plusieurs secteurs
-    // est comptée dans chaque secteur correspondant.
     const buckets = new Map<string, { total: number; byZone: Record<string, number> }>();
     const zoneTotals: Record<string, number> = {};
     let offers = 0;
     for (const analysis of items) {
       if (!matchesCompanyFilters(analysis, filters)) continue;
-      if (recapActiveOnly && effectiveAbStatus(analysis) !== 'ACTIVE') continue;
-      const companyOffers = directoryIndex.offersByAnalysis.get(analysis.id) ?? [];
+      const companyOffers = (directoryIndex.offersByAnalysis.get(analysis.id) ?? []).filter((offer) => {
+        const status = effectiveRowStatus(analysis, offer);
+        // Filtres « Statut », « Actives uniquement » et « Zone » appliqués offre par offre.
+        if (selectedStatuses.size > 0 && !selectedStatuses.has(status)) return false;
+        if (recapActiveOnly && status !== 'ACTIVE') return false;
+        if (selectedZone !== null && !rowZones(analysis, offer).has(selectedZone)) return false;
+        return true;
+      });
       if (companyOffers.length === 0) continue;
-      const zone = analysis.companyInfos?.sector || UNKNOWN_ZONE_KEY;
       const activities = [...new Set(
         (analysis.companyInfos?.activities ?? []).filter((activity) => activity && activity !== Sector.NONE),
       )];
       // Offre sans secteur d'activité renseigné : regroupée sous « Secteur non renseigné ».
       const bucketKeys = activities.length > 0 ? activities : [UNKNOWN_ACTIVITY_KEY];
-      const offerCount = companyOffers.length;
-      offers += offerCount;
-      zoneTotals[zone] = (zoneTotals[zone] ?? 0) + offerCount;
-      for (const key of bucketKeys) {
-        const bucket = buckets.get(key) ?? { total: 0, byZone: {} };
-        bucket.total += offerCount;
-        bucket.byZone[zone] = (bucket.byZone[zone] ?? 0) + offerCount;
-        buckets.set(key, bucket);
+      for (const offer of companyOffers) {
+        // Une offre est comptée dans chaque zone de ses communes ; à défaut,
+        // dans la zone de repli (secteur de l'AB ou « Zone non renseignée »).
+        const zones = rowZones(analysis, offer);
+        const zoneKeys = zones.size > 0 ? [...zones] : [UNKNOWN_ZONE_KEY];
+        offers += 1;
+        // Le total par secteur d'activité compte les offres distinctes : une
+        // offre multi-zones ne gonfle pas la colonne « Total ».
+        for (const key of bucketKeys) {
+          const bucket = buckets.get(key) ?? { total: 0, byZone: {} };
+          bucket.total += 1;
+          for (const zone of zoneKeys) bucket.byZone[zone] = (bucket.byZone[zone] ?? 0) + 1;
+          buckets.set(key, bucket);
+        }
+        for (const zone of zoneKeys) zoneTotals[zone] = (zoneTotals[zone] ?? 0) + 1;
       }
     }
 
@@ -961,20 +1083,20 @@ export default function CompanyDirectory({
           <h3 className="text-sm font-bold text-[var(--ds-text)]">Répartition par secteur d'activité</h3>
           <p className="text-xs text-[var(--ds-text-subtle)]">
             {recap.offers} offre{recap.offers > 1 ? 's' : ''} correspondant aux filtres actifs
-            {recapActiveOnly ? ' · AB actives uniquement' : ''}
+            {recapActiveOnly ? ' · offres actives uniquement' : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div
             className="inline-flex rounded-full border border-[var(--ds-border)] p-0.5"
             role="group"
-            aria-label="Statut des analyses de besoin"
+            aria-label="Statut des offres"
           >
             <button
               type="button"
               onClick={() => setRecapActiveOnly(false)}
               aria-pressed={!recapActiveOnly}
-              title="Inclure toutes les analyses de besoin"
+              title="Inclure toutes les offres"
               className={recapSegmentClass(!recapActiveOnly)}
             >
               Toutes
@@ -983,7 +1105,7 @@ export default function CompanyDirectory({
               type="button"
               onClick={() => setRecapActiveOnly(true)}
               aria-pressed={recapActiveOnly}
-              title="Ne compter que les offres des analyses de besoin actives"
+              title="Ne compter que les offres actives"
               className={recapSegmentClass(recapActiveOnly)}
             >
               Actives uniquement
@@ -1095,6 +1217,7 @@ export default function CompanyDirectory({
 
       <p className="text-xs text-[var(--ds-text-subtle)]">
         Une entreprise peut exercer plusieurs secteurs d'activité : une même offre peut donc être comptée dans plusieurs lignes.
+        Une offre peut aussi couvrir plusieurs zones géographiques (communes) : elle est comptée dans chaque colonne correspondante, sans gonfler la colonne « Total ».
         Le récapitulatif applique les filtres actifs (nom, statut, zone, dates) mais ignore le filtre « secteur d'activité ».
         « Actives uniquement » ne conserve que les offres des analyses de besoin au statut actif.
       </p>
@@ -1327,9 +1450,9 @@ export default function CompanyDirectory({
                 />
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Statut :</span>
+                <span className="text-xs font-semibold text-[var(--ds-text-subtle)]">Statut de l'offre :</span>
                 <ChipGroup
-                  label="Filtrer par statut"
+                  label="Filtrer par statut d'offre"
                   tone="accent"
                   selected={[...selectedStatuses]}
                   onToggle={toggleStatus}
@@ -1523,8 +1646,16 @@ export default function CompanyDirectory({
                             label="KOANN"
                           />
                         </td>
-                        <td className="px-4 py-2.5">
-                          <AbActiveBadge status={analysis.abStatus} />
+                        <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
+                          {offer ? (
+                            <DirectoryOfferStatusCell
+                              analysis={analysis}
+                              offer={offer}
+                              onSaved={handleOfferActiveSaved}
+                            />
+                          ) : (
+                            <DirectoryActiveBadge status={analysis.abStatus} />
+                          )}
                         </td>
                         <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                           {renderHistoryCell(row)}

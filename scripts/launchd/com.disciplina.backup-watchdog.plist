@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.disciplina.backup-watchdog</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/ABSOLUTE/PATH/TO/disciplina-app/scripts/backup-watchdog.sh</string>
+    </array>
+    <!-- Daily 09:00: alerts (BACKUP_ALERT_WEBHOOK) if backups/.last-backup is older
+         than 26h, i.e. the 03:00 backup did not run (machine asleep). -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>9</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>StandardOutPath</key>
+    <string>/Users/YOUR_USER/Library/Logs/disciplina-backup-watchdog.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOUR_USER/Library/Logs/disciplina-backup-watchdog.log</string>
+</dict>
+</plist>

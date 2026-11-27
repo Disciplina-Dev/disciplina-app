@@ -368,7 +368,6 @@ export default function AlternantCreateModal({ initial, onClose, onCreated, onSa
               </label>
               <select
                 id="alt-session"
-                required
                 value={sessionId ?? ''}
                 onChange={(e) => {
                   const next = e.target.value || null
