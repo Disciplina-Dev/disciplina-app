@@ -8,7 +8,7 @@ import { JOB_STATUS_BADGE_CLASS, JOB_STATUS_LABELS, JOB_STATUS_ORDER } from '@/c
 import { SECTEUR_KEYS, SECTEUR_LABELS, type SecteurKey } from '@/constants/secteurs';
 import { SECTOR_LABELS } from '@/data/sectors';
 import { OfferStatus, Sector, formatEnumLabel } from '@/features/matching/constants/jobEnums';
-import { ANNEMASSE_REGION_LABELS } from '@/features/matching/constants/regions';
+import { ANNEMASSE_REGION_COMMUNES, ANNEMASSE_REGION_LABELS, REGION_COMMUNES } from '@/features/matching/constants/regions';
 import { candidateGraphqlClient, offerGraphqlClient } from '@/graphql/client';
 import {
   useAllNeedsAnalysesPage,
@@ -77,7 +77,6 @@ function activationDateOf(analysis: NeedsAnalysis): string | null | undefined {
 /** Filtres « entreprise » de l'annuaire (communs à la liste et au récapitulatif). */
 interface DirectoryCompanyFilters {
   needle: string;
-  zone: SecteurKey | null;
   /** `null` = filtre secteur d'activité ignoré (récapitulatif). */
   activities: Set<string> | null;
   minTime: number | null;
@@ -86,7 +85,6 @@ interface DirectoryCompanyFilters {
 
 function matchesCompanyFilters(a: NeedsAnalysis, f: DirectoryCompanyFilters): boolean {
   if (f.needle && !foldSearch(a.companyInfos?.name ?? '').includes(f.needle)) return false;
-  if (f.zone !== null && a.companyInfos?.sector !== f.zone) return false;
   const activities = f.activities;
   if (activities && activities.size > 0) {
     const companyActivities = a.companyInfos?.activities ?? [];
@@ -112,6 +110,20 @@ const RECAP_ZONE_LABELS: Record<string, string> = {
   ...SECTEUR_LABELS,
   ...ANNEMASSE_REGION_LABELS,
 };
+
+/**
+ * Zones géographiques (NORD/OUEST/SUD + 6 secteurs Annemasse) portées par chaque
+ * commune : index inverse de `REGION_COMMUNES` / `ANNEMASSE_REGION_COMMUNES`.
+ * Sert à rattacher une offre aux zones de ses propres communes, et non à celles
+ * de son AB (qui ne reflète que la première position de l'analyse de besoin).
+ */
+const ZONES_BY_LOCALISATION: Record<string, string[]> = {};
+for (const [zone, communes] of Object.entries(REGION_COMMUNES)) {
+  for (const commune of communes) (ZONES_BY_LOCALISATION[commune] ??= []).push(zone);
+}
+for (const [zone, communes] of Object.entries(ANNEMASSE_REGION_COMMUNES)) {
+  for (const commune of communes) (ZONES_BY_LOCALISATION[commune] ??= []).push(zone);
+}
 
 function recapZoneLabel(key: string): string {
   if (key === UNKNOWN_ZONE_KEY) return 'Zone non renseignée';
@@ -303,6 +315,22 @@ function offerLocalisationLabel(offer: DirectoryOffer): string {
 
 function offerStatus(offer: DirectoryOffer): OfferStatus {
   return (offer.status ?? OfferStatus.NOT_MATCHED) as OfferStatus;
+}
+
+/**
+ * Zones géographiques d'une ligne d'annuaire. Une offre relève des zones de ses
+ * propres communes ; à défaut (localisation absente ou hors référentiel), repli
+ * sur le secteur de l'AB. Le secteur de l'AB n'est volontairement pas ajouté aux
+ * offres localisées : une même AB peut porter des offres dans plusieurs secteurs.
+ */
+function rowZones(analysis: NeedsAnalysis, offer: DirectoryOffer | null): Set<string> {
+  const zones = new Set<string>();
+  for (const commune of offer?.localisation ?? []) {
+    if (!commune) continue;
+    for (const zone of ZONES_BY_LOCALISATION[commune] ?? []) zones.add(zone);
+  }
+  if (zones.size === 0 && analysis.companyInfos?.sector) zones.add(analysis.companyInfos.sector);
+  return zones;
 }
 
 type IndicatorColor = 'WHITE' | 'YELLOW' | 'GREEN' | 'ORANGE' | 'RED';
@@ -921,7 +949,6 @@ export default function CompanyDirectory({
     const statusOrder = new Map(JOB_STATUS_ORDER.map((status, i) => [status, i]));
     const filters: DirectoryCompanyFilters = {
       needle: foldSearch(nameQuery.trim()),
-      zone: selectedZone,
       activities: selectedActivities,
       minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
       maxTime: maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null,
@@ -945,6 +972,9 @@ export default function CompanyDirectory({
             return { analysis, offer, tps: tps.length > 0 ? tps : analysisLevelTps };
           });
       for (const row of candidates) {
+        // Le filtre géographique s'applique à la ligne (offre), d'après les
+        // communes de l'offre : une AB peut porter des offres multi-secteurs.
+        if (selectedZone !== null && !rowZones(row.analysis, row.offer).has(selectedZone)) continue;
         // Les filtres TP et statut s'appliquent à la ligne (offre), pas à l'entreprise entière.
         if (selectedTps.size > 0 && !row.tps.some((t) => selectedTps.has(t))) continue;
         if (selectedStatuses.size > 0 && !selectedStatuses.has(effectiveRowStatus(row.analysis, row.offer))) continue;
@@ -977,14 +1007,11 @@ export default function CompanyDirectory({
   const recap = useMemo<DirectoryRecap>(() => {
     const filters: DirectoryCompanyFilters = {
       needle: foldSearch(nameQuery.trim()),
-      zone: selectedZone,
       activities: null,
       minTime: minDate ? new Date(`${minDate}T00:00:00`).getTime() : null,
       maxTime: maxDate ? new Date(`${maxDate}T23:59:59.999`).getTime() : null,
     };
 
-    // Une offre rattachée à une AB dont l'entreprise exerce plusieurs secteurs
-    // est comptée dans chaque secteur correspondant.
     const buckets = new Map<string, { total: number; byZone: Record<string, number> }>();
     const zoneTotals: Record<string, number> = {};
     let offers = 0;
@@ -992,26 +1019,33 @@ export default function CompanyDirectory({
       if (!matchesCompanyFilters(analysis, filters)) continue;
       const companyOffers = (directoryIndex.offersByAnalysis.get(analysis.id) ?? []).filter((offer) => {
         const status = effectiveRowStatus(analysis, offer);
-        // Filtres « Statut » et « Actives uniquement » appliqués offre par offre.
+        // Filtres « Statut », « Actives uniquement » et « Zone » appliqués offre par offre.
         if (selectedStatuses.size > 0 && !selectedStatuses.has(status)) return false;
         if (recapActiveOnly && status !== 'ACTIVE') return false;
+        if (selectedZone !== null && !rowZones(analysis, offer).has(selectedZone)) return false;
         return true;
       });
       if (companyOffers.length === 0) continue;
-      const zone = analysis.companyInfos?.sector || UNKNOWN_ZONE_KEY;
       const activities = [...new Set(
         (analysis.companyInfos?.activities ?? []).filter((activity) => activity && activity !== Sector.NONE),
       )];
       // Offre sans secteur d'activité renseigné : regroupée sous « Secteur non renseigné ».
       const bucketKeys = activities.length > 0 ? activities : [UNKNOWN_ACTIVITY_KEY];
-      const offerCount = companyOffers.length;
-      offers += offerCount;
-      zoneTotals[zone] = (zoneTotals[zone] ?? 0) + offerCount;
-      for (const key of bucketKeys) {
-        const bucket = buckets.get(key) ?? { total: 0, byZone: {} };
-        bucket.total += offerCount;
-        bucket.byZone[zone] = (bucket.byZone[zone] ?? 0) + offerCount;
-        buckets.set(key, bucket);
+      for (const offer of companyOffers) {
+        // Une offre est comptée dans chaque zone de ses communes ; à défaut,
+        // dans la zone de repli (secteur de l'AB ou « Zone non renseignée »).
+        const zones = rowZones(analysis, offer);
+        const zoneKeys = zones.size > 0 ? [...zones] : [UNKNOWN_ZONE_KEY];
+        offers += 1;
+        // Le total par secteur d'activité compte les offres distinctes : une
+        // offre multi-zones ne gonfle pas la colonne « Total ».
+        for (const key of bucketKeys) {
+          const bucket = buckets.get(key) ?? { total: 0, byZone: {} };
+          bucket.total += 1;
+          for (const zone of zoneKeys) bucket.byZone[zone] = (bucket.byZone[zone] ?? 0) + 1;
+          buckets.set(key, bucket);
+        }
+        for (const zone of zoneKeys) zoneTotals[zone] = (zoneTotals[zone] ?? 0) + 1;
       }
     }
 
@@ -1183,6 +1217,7 @@ export default function CompanyDirectory({
 
       <p className="text-xs text-[var(--ds-text-subtle)]">
         Une entreprise peut exercer plusieurs secteurs d'activité : une même offre peut donc être comptée dans plusieurs lignes.
+        Une offre peut aussi couvrir plusieurs zones géographiques (communes) : elle est comptée dans chaque colonne correspondante, sans gonfler la colonne « Total ».
         Le récapitulatif applique les filtres actifs (nom, statut, zone, dates) mais ignore le filtre « secteur d'activité ».
         « Actives uniquement » ne conserve que les offres des analyses de besoin au statut actif.
       </p>
