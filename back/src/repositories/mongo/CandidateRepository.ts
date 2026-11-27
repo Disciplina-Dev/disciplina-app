@@ -401,6 +401,16 @@ export class CandidateRepository {
             .lean();
     }
 
+    /** Description courante et verrou pour les ids demandés (matching → fiche vivante). */
+    async findDescriptionStatesByIds(
+        ids: string[],
+    ): Promise<Array<{ _id: string; identity?: { description?: string; description_locked?: boolean } }>> {
+        return getModels()
+            .Candidate.find({ _id: { $in: ids } })
+            .select({ _id: 1, 'identity.description': 1, 'identity.description_locked': 1 })
+            .lean();
+    }
+
     /** Statut global (en direct) des candidats demandés — voir `OfferService.find` (#1010). */
     async findStatusesByIds(ids: string[]): Promise<Array<{ _id: string; status?: CandidateStatus }>> {
         return getModels()

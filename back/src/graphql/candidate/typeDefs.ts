@@ -173,6 +173,7 @@ export const typeDefs = gql`
         apprenticeshipContractDetails: String
         description: String
         descriptionSource: String
+        descriptionLocked: Boolean
         avatarUpdatedAt: String
         driveAvatarFileId: String
     }
@@ -411,6 +412,9 @@ export const typeDefs = gql`
         # "auto" : résumé régénéré automatiquement ; "manual" : texte RH protégé.
         # Un texte qui diffère de l'existant est considéré comme manuel par défaut.
         descriptionSource: String
+        # Verrou : tant qu'il est actif, la description est immuable. Un
+        # déverrouillage explicite (false) est le seul moyen de la rouvrir.
+        descriptionLocked: Boolean
     }
 
     input EducationInput {
@@ -783,6 +787,8 @@ export const typeDefs = gql`
     type Mutation {
         createCandidate(input: CreateCandidateInput!): Candidate!
         updateCandidate(id: String!, input: UpdateCandidateInput!): Candidate!
+        "Édition ciblée de la description (avec verrou optionnel), sans renvoyer toute l'identité."
+        updateCandidateDescription(id: String!, description: String, descriptionLocked: Boolean): Candidate!
         withdrawCandidateConsent(id: String!, types: [ConsentType!]!): Candidate!
         deleteCandidate(id: String!): Boolean!
         createCandidateDriveFolder(id: String!): Candidate!

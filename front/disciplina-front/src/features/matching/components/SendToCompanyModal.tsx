@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { IconCheck, IconClose, IconCopy, IconExternalLink, IconFile, IconLoader, IconPlus, IconSend, IconSparkles, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
+import { IconCheck, IconClose, IconCopy, IconExternalLink, IconFile, IconLoader, IconLock, IconPlus, IconSave, IconSend, IconSparkles, IconUserCheck, IconUserRemove } from '@/components/ui/icons'
 import { apiFetch } from '@/api/httpClient'
+import { candidateGraphqlClient } from '@/graphql/client'
+import { UPDATE_CANDIDATE_DESCRIPTION } from '@/graphql/queries'
 import { useRhMailTemplatesStore } from '@/store/mailTemplatesStore'
 
 interface MatchedCandidate {
@@ -14,6 +16,7 @@ interface MatchedCandidate {
   status?: string | null
   description?: string | null
   identityDescription?: string | null
+  descriptionLocked?: boolean | null
   cvWebview?: string | null
   hasCv?: boolean
 }
@@ -38,6 +41,22 @@ interface SendToCompanyModalProps {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const MAX_CC = 10
 
+function initialDescriptions(candidates: MatchedCandidate[]): Record<string, string> {
+  const initial: Record<string, string> = {}
+  for (const c of candidates) {
+    // La fiche candidat est la source de vérité (la description éditée ici y
+    // est désormais enregistrée) ; la description de session n'est qu'un repli.
+    initial[c.id] = c.identityDescription || c.description || ''
+  }
+  return initial
+}
+
+function initialLocks(candidates: MatchedCandidate[]): Record<string, boolean> {
+  const initial: Record<string, boolean> = {}
+  for (const c of candidates) initial[c.id] = !!c.descriptionLocked
+  return initial
+}
+
 export default function SendToCompanyModal({ job, candidates, onClose, onSubmit }: SendToCompanyModalProps) {
   const { templates, load: loadTemplates } = useRhMailTemplatesStore()
   const [companyEmail, setCompanyEmail] = useState(
@@ -47,13 +66,12 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
   const [ccInput, setCcInput] = useState('')
   const [ccError, setCcError] = useState<string | null>(null)
   const [templateId, setTemplateId] = useState<string>('')
-  const [descriptions, setDescriptions] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {}
-    for (const c of candidates) {
-      initial[c.id] = c.description || c.identityDescription || ''
-    }
-    return initial
-  })
+  const [descriptions, setDescriptions] = useState<Record<string, string>>(() => initialDescriptions(candidates))
+  const [savedDescriptions, setSavedDescriptions] = useState<Record<string, string>>(() => initialDescriptions(candidates))
+  const [lockedById, setLockedById] = useState<Record<string, boolean>>(() => initialLocks(candidates))
+  const [savingDescriptionIds, setSavingDescriptionIds] = useState<Set<string>>(new Set())
+  const [savingLockIds, setSavingLockIds] = useState<Set<string>>(new Set())
+  const [descriptionErrors, setDescriptionErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<{ signature: string } | null>(null)
@@ -128,6 +146,63 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
       setAiErrors((prev) => ({ ...prev, [candidateId]: err instanceof Error ? err.message : 'Erreur inconnue' }))
     } finally {
       setAiLoading((prev) => { const n = new Set(prev); n.delete(candidateId); return n })
+    }
+  }
+
+  const saveDescription = async (candidateId: string) => {
+    if (savingDescriptionIds.has(candidateId) || lockedById[candidateId]) return
+    setSavingDescriptionIds((prev) => new Set(prev).add(candidateId))
+    setDescriptionErrors((prev) => { const n = { ...prev }; delete n[candidateId]; return n })
+    try {
+      const result = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_DESCRIPTION, {
+        id: candidateId,
+        description: descriptions[candidateId] ?? '',
+      })
+      if (result.error) throw new Error(result.error.message)
+      const identity = result.data?.updateCandidateDescription?.identity
+      const saved = identity?.description ?? descriptions[candidateId] ?? ''
+      setSavedDescriptions((prev) => ({ ...prev, [candidateId]: saved }))
+      // Le serveur peut normaliser (ex. description vidée → résumé régénéré).
+      if (identity?.description !== undefined) {
+        setDescriptions((prev) => ({ ...prev, [candidateId]: identity.description }))
+      }
+    } catch (err) {
+      setDescriptionErrors((prev) => ({
+        ...prev,
+        [candidateId]: err instanceof Error ? err.message : 'Erreur inconnue',
+      }))
+    } finally {
+      setSavingDescriptionIds((prev) => { const n = new Set(prev); n.delete(candidateId); return n })
+    }
+  }
+
+  const toggleDescriptionLock = async (candidateId: string) => {
+    if (savingLockIds.has(candidateId)) return
+    const nextLocked = !lockedById[candidateId]
+    setSavingLockIds((prev) => new Set(prev).add(candidateId))
+    setDescriptionErrors((prev) => { const n = { ...prev }; delete n[candidateId]; return n })
+    try {
+      // On envoie le texte affiché : verrouiller fige bien ce que le RH voit
+      // (y compris une modification non encore enregistrée).
+      const result = await candidateGraphqlClient.mutation(UPDATE_CANDIDATE_DESCRIPTION, {
+        id: candidateId,
+        description: descriptions[candidateId] ?? '',
+        descriptionLocked: nextLocked,
+      })
+      if (result.error) throw new Error(result.error.message)
+      const identity = result.data?.updateCandidateDescription?.identity
+      setLockedById((prev) => ({ ...prev, [candidateId]: identity?.descriptionLocked ?? nextLocked }))
+      if (identity?.description !== undefined) {
+        setDescriptions((prev) => ({ ...prev, [candidateId]: identity.description }))
+        setSavedDescriptions((prev) => ({ ...prev, [candidateId]: identity.description }))
+      }
+    } catch (err) {
+      setDescriptionErrors((prev) => ({
+        ...prev,
+        [candidateId]: err instanceof Error ? err.message : 'Erreur inconnue',
+      }))
+    } finally {
+      setSavingLockIds((prev) => { const n = new Set(prev); n.delete(candidateId); return n })
     }
   }
 
@@ -344,6 +419,10 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
             <div className="flex flex-col gap-4">
               {candidates.map((candidate) => {
                 const isExcluded = excludedIds.has(candidate.id)
+                const locked = !!lockedById[candidate.id]
+                const isDirty = (descriptions[candidate.id] ?? '') !== (savedDescriptions[candidate.id] ?? '')
+                const isSavingDescription = savingDescriptionIds.has(candidate.id)
+                const isSavingLock = savingLockIds.has(candidate.id)
                 return (
                   <div
                     key={candidate.id}
@@ -407,31 +486,83 @@ export default function SendToCompanyModal({ job, candidates, onClose, onSubmit 
                     )}
 
                     <div className="px-3 pb-3">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
                         <label className="text-[10px] font-semibold uppercase tracking-wider text-[var(--ds-text-subtle)]">
                           Description pour l'entreprise
                         </label>
-                        <button
-                          type="button"
-                          onClick={() => handleGenerateAiSummary(candidate.id)}
-                          disabled={aiLoading.has(candidate.id)}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40 transition-opacity"
-                        >
-                          {aiLoading.has(candidate.id) ? (
-                            <IconLoader width={11} height={11} className="animate-spin" />
-                          ) : (
-                            <IconSparkles width={11} height={11} />
-                          )}
-                          {aiLoading.has(candidate.id) ? 'IA…' : 'Résumé IA'}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => saveDescription(candidate.id)}
+                            disabled={!isDirty || locked || isSavingDescription}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-blue hover:underline disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                            title={
+                              locked
+                                ? 'Description verrouillée sur la fiche candidat'
+                                : isDirty
+                                  ? 'Enregistrer la description sur la fiche candidat'
+                                  : 'Description déjà enregistrée sur la fiche'
+                            }
+                          >
+                            {isSavingDescription ? (
+                              <IconLoader width={11} height={11} className="animate-spin" />
+                            ) : isDirty ? (
+                              <IconSave width={11} height={11} />
+                            ) : (
+                              <IconCheck width={11} height={11} />
+                            )}
+                            {isSavingDescription ? 'Enregistrement…' : isDirty ? 'Enregistrer' : 'Enregistré'}
+                          </button>
+                          <label
+                            className={`flex items-center gap-1.5 text-[11px] font-semibold ${locked ? 'text-[var(--ds-warning)]' : 'text-[var(--ds-text-subtle)]'} ${isSavingLock ? 'opacity-60' : 'cursor-pointer'}`}
+                            title={
+                              locked
+                                ? 'Déverrouiller la description sur la fiche candidat'
+                                : 'Verrouiller la description : aucune modification (dont la régénération automatique) ne sera plus possible'
+                            }
+                          >
+                            <input
+                              type="checkbox"
+                              className="rounded"
+                              checked={locked}
+                              disabled={isSavingLock}
+                              onChange={() => toggleDescriptionLock(candidate.id)}
+                            />
+                            <IconLock width={11} height={11} />
+                            {locked ? 'Verrouillée' : 'Verrouiller'}
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateAiSummary(candidate.id)}
+                            disabled={aiLoading.has(candidate.id) || locked}
+                            className="flex items-center gap-1 text-[11px] font-semibold text-purple hover:underline disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+                            title={locked ? 'Description verrouillée sur la fiche candidat' : undefined}
+                          >
+                            {aiLoading.has(candidate.id) ? (
+                              <IconLoader width={11} height={11} className="animate-spin" />
+                            ) : (
+                              <IconSparkles width={11} height={11} />
+                            )}
+                            {aiLoading.has(candidate.id) ? 'IA…' : 'Résumé IA'}
+                          </button>
+                        </div>
                       </div>
                       <textarea
                         value={descriptions[candidate.id] ?? ''}
                         onChange={(e) => handleDescriptionChange(candidate.id, e.target.value)}
                         placeholder="Points forts, compétences clés, disponibilité..."
                         rows={2}
-                        className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-xs outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors resize-none"
+                        disabled={locked}
+                        className="w-full rounded-lg border border-[var(--ds-border)] px-3 py-2 text-xs outline-none focus:border-blue focus:ring-1 focus:ring-blue/20 transition-colors resize-none disabled:cursor-not-allowed disabled:opacity-60 disabled:bg-[var(--ds-surface)]"
                       />
+                      {locked && (
+                        <p className="mt-1 text-[11px] text-[var(--ds-text-subtle)]">
+                          Description verrouillée sur la fiche candidat : elle ne peut pas être modifiée ici.
+                        </p>
+                      )}
+                      {descriptionErrors[candidate.id] && (
+                        <p className="mt-1 text-[11px] text-[var(--ds-danger)]">{descriptionErrors[candidate.id]}</p>
+                      )}
                       {aiErrors[candidate.id] && (
                         <p className="mt-1 text-[11px] text-[var(--ds-danger)]">{aiErrors[candidate.id]}</p>
                       )}

@@ -120,4 +120,61 @@ describe('CandidateService description_source', () => {
         expect(stored?.identity.description).toContain('Saint-Denis');
         expect(stored?.identity.description_source).toBe('auto');
     });
+
+    it('gèle la description tant que le verrou est actif (régénération auto et édition ignorées)', async () => {
+        const id = await seedCandidate(Date.now() + 8, 'Texte verrouillé par le RH.');
+        await service.update(id, { identity: { description_locked: true } } as any);
+
+        // Mise à jour du dossier (aurait régénéré un résumé manuel/auto).
+        await service.update(id, { identity: { city: 'Saint-Paul' } } as any);
+        // Tentative d'édition directe de la description.
+        await service.update(id, { identity: { description: 'Tentative de modification.' } } as any);
+
+        const stored = await CandidateModel.findById(id).lean();
+        expect(stored?.identity.description).toBe('Texte verrouillé par le RH.');
+        expect(stored?.identity.description_source).toBe('manual');
+        expect(stored?.identity.description_locked).toBe(true);
+    });
+
+    it('verrouille un nouveau texte puis fige la description', async () => {
+        const id = await seedCandidate(Date.now() + 9);
+
+        await service.update(id, {
+            identity: { description: 'Texte final validé.', description_locked: true },
+        } as any);
+        await service.update(id, { identity: { city: 'Saint-Pierre' } } as any);
+
+        const stored = await CandidateModel.findById(id).lean();
+        expect(stored?.identity.description).toBe('Texte final validé.');
+        expect(stored?.identity.description_source).toBe('manual');
+        expect(stored?.identity.description_locked).toBe(true);
+    });
+
+    it('déverrouille explicitement puis autorise la modification', async () => {
+        const id = await seedCandidate(Date.now() + 10, 'Texte verrouillé.');
+        await service.update(id, { identity: { description_locked: true } } as any);
+
+        await service.update(id, { identity: { description_locked: false } } as any);
+        const unlocked = await CandidateModel.findById(id).lean();
+        expect(unlocked?.identity.description).toBe('Texte verrouillé.');
+        expect(unlocked?.identity.description_locked).toBe(false);
+
+        await service.update(id, { identity: { description: 'Texte modifié après déverrouillage.' } } as any);
+        const stored = await CandidateModel.findById(id).lean();
+        expect(stored?.identity.description).toBe('Texte modifié après déverrouillage.');
+    });
+
+    it('accepte un déverrouillage et une modification dans la même mise à jour', async () => {
+        const id = await seedCandidate(Date.now() + 11, 'Texte verrouillé.');
+        await service.update(id, { identity: { description_locked: true } } as any);
+
+        await service.update(id, {
+            identity: { description: 'Nouveau texte.', description_locked: false },
+        } as any);
+
+        const stored = await CandidateModel.findById(id).lean();
+        expect(stored?.identity.description).toBe('Nouveau texte.');
+        expect(stored?.identity.description_source).toBe('manual');
+        expect(stored?.identity.description_locked).toBe(false);
+    });
 });

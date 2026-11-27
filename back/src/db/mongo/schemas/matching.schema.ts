@@ -48,6 +48,7 @@ export const matchingCandidateSchema = new Schema<MatchingCandidate>(
         status: { type: String, enum: Object.values(MatchedCandidateStatus) },
         description: { type: String },
         identity_description: { type: String },
+        description_locked: { type: Boolean },
         cv_webview: { type: String },
         has_cv: { type: Boolean },
         is_rupture: { type: Boolean },

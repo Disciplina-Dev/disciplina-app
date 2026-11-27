@@ -96,6 +96,30 @@ export class CandidateService {
         return candidate ? this.refreshAvailability(candidate) : null;
     }
 
+    /**
+     * État courant de la description, sans effet de bord. Utilisé par les
+     * écritures externes (proposition matching) pour respecter le verrou.
+     */
+    async getDescriptionState(id: string): Promise<{ description?: string; locked: boolean } | null> {
+        const candidate = await this.repository.findById(id);
+        if (!candidate) return null;
+        return {
+            description: candidate.identity?.description,
+            locked: candidate.identity?.description_locked === true,
+        };
+    }
+
+    /**
+     * La description éditée dans la modale de proposition devient la description
+     * de la fiche. Source `manual` : une génération automatique ultérieure ne
+     * doit pas écraser un texte validé par le RH.
+     */
+    async saveDescriptionFromProposal(id: string, description: string): Promise<void> {
+        await this.update(id, {
+            identity: { description, description_source: 'manual' },
+        } as Partial<Candidate>);
+    }
+
     // Repasse automatiquement un candidat en recherche une fois une échéance passée :
     // - indisponible : dès que sa date de disponibilité est atteinte ;
     // - immersion : dès que sa date de fin d'immersion est dépassée (jour de fin inclus).
@@ -280,7 +304,20 @@ export class CandidateService {
             const incomingDescription = data.identity?.description;
             const existingDescription = existing.identity?.description;
             const existingSource = existing.identity?.description_source;
-            if (incomingDescription && incomingDescription.trim()) {
+            const wasLocked = existing.identity?.description_locked === true;
+            const incomingLock = data.identity?.description_locked;
+            const isUnlocking = wasLocked && incomingLock === false;
+            if (wasLocked && !isUnlocking) {
+                // Verrou actif : la description est immuable, quoi qu'envoie le
+                // client (édition de la fiche, résumé IA, proposition matching…).
+                // La régénération automatique est elle aussi neutralisée.
+                data.identity = {
+                    ...(data.identity ?? {}),
+                    description: existingDescription,
+                    description_source: existingSource ?? 'auto',
+                    description_locked: true,
+                } as Candidate['identity'];
+            } else if (incomingDescription && incomingDescription.trim()) {
                 // Description explicitement fournie (saisie RH, ou bouton « Régénérer »
                 // qui précise `description_source: 'auto'`). Sans source explicite, un
                 // texte différent de l'existant est une modification manuelle : il ne
@@ -294,6 +331,17 @@ export class CandidateService {
                                 : 'manual',
                     } as Candidate['identity'];
                 }
+            } else if (
+                (incomingLock === true && !incomingDescription?.trim()) ||
+                (isUnlocking && incomingDescription === undefined)
+            ) {
+                // Verrouillage (ou déverrouillage sans nouveau texte) : on fige le
+                // résumé existant au lieu de le régénérer dans la même mise à jour.
+                data.identity = {
+                    ...(data.identity ?? {}),
+                    description: existingDescription,
+                    description_source: existingSource ?? 'auto',
+                } as Candidate['identity'];
             } else if (existingSource === 'manual' && incomingDescription !== '') {
                 // Résumé personnalisé par un RH : une mise à jour qui ne touche pas à la
                 // description (ajout de CV, changement de statut, avatar, dossier Drive…)

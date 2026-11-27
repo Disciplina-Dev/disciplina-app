@@ -689,6 +689,7 @@ export const GET_CANDIDATE_BY_ID = gql`
         hadApprenticeshipContract
         apprenticeshipContractDetails
         description
+        descriptionLocked
       }
       emergencyContact { lastName firstName relationship phone email }
       consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
@@ -834,6 +835,7 @@ export const UPDATE_CANDIDATE = gql`
         hadApprenticeshipContract
         apprenticeshipContractDetails
         description
+        descriptionLocked
       }
       emergencyContact { lastName firstName relationship phone email }
       consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
@@ -916,6 +918,18 @@ export const UPDATE_CANDIDATE = gql`
   }
 `
 
+export const UPDATE_CANDIDATE_DESCRIPTION = gql`
+  mutation UpdateCandidateDescription($id: String!, $description: String, $descriptionLocked: Boolean) {
+    updateCandidateDescription(id: $id, description: $description, descriptionLocked: $descriptionLocked) {
+      id
+      identity {
+        description
+        descriptionLocked
+      }
+    }
+  }
+`
+
 export const CREATE_CANDIDATE = gql`
   mutation CreateCandidate($input: CreateCandidateInput!) {
     createCandidate(input: $input) {
@@ -939,6 +953,7 @@ export const CREATE_CANDIDATE = gql`
         age
         sex
         description
+        descriptionLocked
       }
       emergencyContact { lastName firstName relationship phone email }
       consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
@@ -1022,6 +1037,7 @@ export const GET_CANDIDATE_FULL = gql`
         hadApprenticeshipContract
         apprenticeshipContractDetails
         description
+        descriptionLocked
       }
       emergencyContact { lastName firstName relationship phone email }
       consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
@@ -1163,6 +1179,7 @@ export const UPDATE_CANDIDATE_FULL = gql`
         hadApprenticeshipContract
         apprenticeshipContractDetails
         description
+        descriptionLocked
       }
       emergencyContact { lastName firstName relationship phone email }
       consentments { dataProcessing dataSharing aiProcessing photoProcessing consentDate consentVersion }
@@ -1380,6 +1397,7 @@ export const MATCH_OFFER = gql`
         status
         description
         identityDescription
+        descriptionLocked
         comment
         cvWebview
         hasCv
@@ -1461,6 +1479,7 @@ export const ADD_CANDIDATE_TO_OFFER = gql`
         status
         description
         identityDescription
+        descriptionLocked
         cvWebview
         hasCv
         isRupture
@@ -1491,6 +1510,7 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE = gql`
         email
         description
         identityDescription
+        descriptionLocked
         interviewLocation
         bookedInterviewSlot
         interviewConclusion
@@ -1523,6 +1543,7 @@ export const ADD_MANUAL_PROPOSED_CANDIDATE_FOR_IMMERSION = gql`
         email
         description
         identityDescription
+        descriptionLocked
         immersionStartDate
         immersionEndDate
         immersionLocation
@@ -1685,6 +1706,7 @@ export const UPDATE_MATCHED_CANDIDATE_STATUS = gql`
         status
         description
         identityDescription
+        descriptionLocked
         cvWebview
       }
     }

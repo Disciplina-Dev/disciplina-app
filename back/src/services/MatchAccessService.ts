@@ -6,6 +6,7 @@ import { ExternalAccessRow } from '../types/db-rows.types';
 import { ExternalAccessService } from './ExternalAccessService';
 import { MatchedCandidateStatus, MatchingCandidate } from '../types/matching.types';
 import { CandidateHistoryService } from './CandidateHistoryService';
+import { CandidateService } from './CandidateService';
 import { CandidateHistoryType } from '../types/candidate.types';
 import { OfferHistoryService } from './OfferHistoryService';
 import { InterviewMailService } from './InterviewMailService';
@@ -91,6 +92,7 @@ export class MatchAccessService {
         private readonly userRepository = new UserRepository(),
         private readonly candidateRepository = new CandidateRepository(),
         private readonly notificationService = new NotificationService(),
+        private readonly candidateService = new CandidateService(),
     ) {}
 
     async createSession(input: CreateSessionInput): Promise<SessionCredentials> {
@@ -99,6 +101,7 @@ export class MatchAccessService {
 
         const proposed = buildProposedCandidates(offer, input.candidates);
         await this.assertSharingConsent(proposed);
+        await this.persistProposedDescriptions(proposed, input.candidates);
         await this.offerRepository.setProposedCandidates(input.offerId, proposed);
         for (const candidate of proposed) {
             await this.candidateHistoryService.recordAuto(
@@ -156,6 +159,32 @@ export class MatchAccessService {
                 `Consentement de partage manquant (data_sharing) pour : ${names}. ` +
                     'Recueillez leur consentement avant de les proposer à l’entreprise.',
             );
+        }
+    }
+
+    /**
+     * La description éditée dans la modale de proposition est désormais celle de
+     * la fiche candidat : on la persiste (source `manual`). Une description
+     * verrouillée est immuable — on réutilise alors le texte de la fiche pour la
+     * proposition au lieu de le modifier.
+     */
+    private async persistProposedDescriptions(
+        proposed: MatchingCandidate[],
+        inputs: CreateSessionInput['candidates'],
+    ): Promise<void> {
+        const inputById = new Map(inputs.map((candidate) => [candidate.id, candidate]));
+        for (const candidate of proposed) {
+            const input = inputById.get(candidate.id);
+            if (!input) continue;
+            const state = await this.candidateService.getDescriptionState(candidate.id);
+            if (!state) continue;
+            if (state.locked) {
+                candidate.description = state.description ?? '';
+                continue;
+            }
+            if (input.description === undefined) continue;
+            if ((state.description ?? '').trim() === input.description.trim()) continue;
+            await this.candidateService.saveDescriptionFromProposal(candidate.id, input.description);
         }
     }
 
